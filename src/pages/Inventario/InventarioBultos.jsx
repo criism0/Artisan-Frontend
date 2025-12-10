@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axiosInstance from "../../axiosInstance";
 import jsPDF from "jspdf";
 import QRCode from "qrcode";
+import DividirBultoModal from "../../components/DividirBultoModal";
 
 export default function InventarioBultos() {
   const [bodegas, setBodegas] = useState([]);
@@ -9,6 +10,7 @@ export default function InventarioBultos() {
   const [bultos, setBultos] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [bultoADividir, setBultoADividir] = useState(null);
 
   useEffect(() => {
     const fetchBodegas = async () => {
@@ -25,19 +27,20 @@ export default function InventarioBultos() {
     fetchBodegas();
   }, []);
 
+  const fetchBultos = async () => {
+    if (!bodegaSeleccionada) return;
+    setCargando(true);
+    try {
+      const res = await axiosInstance.get(`/inventario/${bodegaSeleccionada}/bultos`);
+      setBultos(Array.isArray(res.data) ? res.data : []);
+    } catch (error) {
+      console.error("Error al obtener bultos:", error);
+    } finally {
+      setCargando(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchBultos = async () => {
-      if (!bodegaSeleccionada) return;
-      setCargando(true);
-      try {
-        const res = await axiosInstance.get(`/inventario/${bodegaSeleccionada}/bultos`);
-        setBultos(Array.isArray(res.data) ? res.data : []);
-      } catch (error) {
-        console.error("Error al obtener bultos:", error);
-      } finally {
-        setCargando(false);
-      }
-    };
     fetchBultos();
   }, [bodegaSeleccionada]);
 
@@ -143,12 +146,18 @@ export default function InventarioBultos() {
                   <td className="p-2 border">{b.materiaPrima?.nombre}</td>
                   <td className="p-2 border">{b.cantidad_unidades}</td>
                   <td className="p-2 border">{b.peso_unitario}</td>
-                  <td className="p-2 border text-center">
+                  <td className="p-2 border text-center space-x-2">
                     <button
                       onClick={() => generarEtiqueta(b)}
                       className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
                     >
                       Descargar Etiqueta
+                    </button>
+                    <button
+                      onClick={() => setBultoADividir(b)}
+                      className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded text-sm"
+                    >
+                      Dividir
                     </button>
                   </td>
                 </tr>
@@ -156,6 +165,14 @@ export default function InventarioBultos() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {bultoADividir && (
+        <DividirBultoModal
+          bulto={bultoADividir}
+          onClose={() => setBultoADividir(null)}
+          onSuccess={fetchBultos}
+        />
       )}
     </div>
   );
