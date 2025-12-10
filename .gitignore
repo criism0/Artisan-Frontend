@@ -1,0 +1,44 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Env
+.env
+.env.*
+
+# Logs
+logs/
+*.log
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# SQLite / PostgreSQL (Backups / temporales locales)
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.bak
+*.sql
+
+# Runtime
+dist/
+build/
+coverage/
+tmp/
+temp/
+
+# OS
+.idea/
+*.swp
+*.swo
+
+# Others
+*.local
+*.tgz
