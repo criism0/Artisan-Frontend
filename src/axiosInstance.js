@@ -1,9 +1,13 @@
 // src/utils/axiosInstance.js
 import axios from "axios";
 
+
+const baseURL = import.meta.env.VITE_API_URL;
+const cleanBaseURL = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL;
+
 // Crea una instancia
 const axiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_BACKEND_URL,
+  baseURL: cleanBaseURL,
 });
 
 // Agrega un interceptor para inyectar el token en cada request
