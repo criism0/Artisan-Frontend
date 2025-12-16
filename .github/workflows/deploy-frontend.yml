@@ -25,10 +25,10 @@ jobs:
       # Inyectamos la URL del backend que sacamos de tu IP
       - name: Build Project
         env:
-          # Si usas Vite (lo más probable por el año del proyecto):
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          # Si el proyecto fuera Create React App antiguo, descomenta la siguiente línea:
-          # REACT_APP_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_BASE_PROD: ${{ secrets.VITE_API_URL }}
+          VITE_BACKEND_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_BASE_DEV: ${{ secrets.VITE_API_URL }}
         run: yarn build
 
       - name: Configure AWS Credentials
