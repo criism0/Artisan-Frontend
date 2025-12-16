@@ -36,7 +36,14 @@ export function AddButton({ onClick, tooltipText }) {
   );
 }
 
-export function PagarButton({ onConfirm, tooltipText}) {
+export function PagarButton({
+  onConfirm,
+  tooltipText,
+  confirmTitle,
+  confirmButtonText,
+  confirmButtonClassName,
+  buttonClassName,
+}) {
   const [showModal, setShowModal] = useState(false);
 
   const handleClick = () => setShowModal(true);
@@ -49,14 +56,20 @@ export function PagarButton({ onConfirm, tooltipText}) {
 
   return (
     <>
-      <button onClick={handleClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
+      <button
+        onClick={handleClick}
+        className={buttonClassName || "text-gray-400 hover:text-blue-500"}
+        title={tooltipText}
+      >
       <DollarSign className="w-5 h-5" />
     </button>
 
       {showModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
           <div className="bg-white rounded-lg shadow-lg p-6 max-w-lg w-full">
-            <h2 className="text-lg font-bold mb-4">¿Estás segura de que quieres pagar esta orden?</h2>
+            <h2 className="text-lg font-bold mb-4">
+              {confirmTitle || "¿Estás segura de que quieres pagar esta orden?"}
+            </h2>
             <div className="flex justify-end gap-4">
               <button
                 onClick={handleClose}
@@ -66,9 +79,12 @@ export function PagarButton({ onConfirm, tooltipText}) {
               </button>
               <button
                 onClick={handleConfirm}
-                className="bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded"
+                className={
+                  confirmButtonClassName ||
+                  "bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded"
+                }
               >
-                Confirmar Pago
+                {confirmButtonText || "Confirmar Pago"}
               </button>
             </div>
           </div>

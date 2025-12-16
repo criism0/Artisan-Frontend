@@ -48,10 +48,11 @@ export default function AddAsociacion() {
           const base = insumosActivos.find((i) => i.id === parseInt(id));
           if (base) {
             setBaseNivel({
-              formato: base.nombre,
+              formato: base.nombre, // Nombre por defecto, usuario puede cambiarlo a "Botella"
               cantidad: 1,
               unidad: base.unidad_medida || "Unidad",
-              valor_formato: 0,
+              valor_formato: 0, // Esto será el peso unitario (ej: 0.5)
+              precio_unitario: 0, // Nuevo campo para el precio
               esBase: true,
             });
             setFormData((prev) => ({ ...prev, id_materia_prima: id }));
@@ -74,11 +75,46 @@ export default function AddAsociacion() {
         cantidad: 1,
         unidad: selected.unidad_medida || "Unidad",
         valor_formato: 0,
+        precio_unitario: 0,
         esBase: true,
       });
       setBaseNivelInputValue('');
     }
   }, [formData.id_materia_prima]);
+
+  // Buscar formatos existentes para permitir extender la cadena
+  useEffect(() => {
+    const checkExistingFormats = async () => {
+      if (!formData.id_proveedor || !formData.id_materia_prima) return;
+
+      try {
+        const res = await api(`/proveedor-materia-prima?id_proveedor=${formData.id_proveedor}&id_materia_prima=${formData.id_materia_prima}`, { method: "GET" });
+        const formats = Array.isArray(res) ? res : res.data || [];
+
+        if (formats.length > 0) {
+          // Encontrar el formato con mayor cantidad_por_formato (el más grande actual)
+          const sorted = [...formats].sort((a, b) => b.cantidad_por_formato - a.cantidad_por_formato);
+          const largest = sorted[0];
+
+          setBaseNivel({
+            id: largest.id,
+            formato: largest.formato,
+            cantidad: 1,
+            unidad: largest.unidad_medida,
+            valor_formato: largest.precio_unitario,
+            precio_unitario: largest.precio_unitario,
+            esBase: true,
+            isExisting: true // Flag para indicar que ya existe y no se debe crear
+          });
+          toast.info(`Extendiendo desde formato existente: ${largest.formato}`);
+        }
+      } catch (err) {
+        console.error("Error checking existing formats:", err);
+      }
+    };
+
+    checkExistingFormats();
+  }, [formData.id_proveedor, formData.id_materia_prima, api]);
 
   // Resetear input value cuando cambia baseNivel desde fuera
   useEffect(() => {
@@ -98,14 +134,31 @@ export default function AddAsociacion() {
     const nuevos = [...niveles];
     nuevos[index][field] = value;
 
-    const prevValue =
-      index === 0
-        ? baseNivel?.valor_formato || 0
-        : nuevos[index - 1]?.valor_formato || 0;
-
-    if (field === "cantidad" && nuevos[index].cantidad && prevValue) {
-      nuevos[index].valor_formato =
-        parseFloat(nuevos[index].cantidad) * prevValue;
+    // Recalcular precios hacia arriba
+    // El precio de este nivel = cantidad * precio del nivel anterior (o base)
+    
+    // Primero actualizamos el precio del nivel actual si cambió la cantidad
+    if (field === "cantidad") {
+       const precioAnterior = index === 0 
+          ? (parseFloat(baseNivel?.precio_unitario) || 0)
+          : (parseFloat(nuevos[index - 1]?.valor_formato) || 0);
+       
+       if (value && precioAnterior) {
+          nuevos[index].valor_formato = parseFloat(value) * precioAnterior;
+       }
+    }
+    
+    // Si cambió el precio de este nivel, propagar hacia los siguientes
+    if (field === "valor_formato" || field === "cantidad") {
+        let precioActual = parseFloat(nuevos[index].valor_formato) || 0;
+        
+        for (let i = index + 1; i < nuevos.length; i++) {
+            const cantidad = parseFloat(nuevos[i].cantidad) || 0;
+            if (cantidad > 0) {
+                precioActual = precioActual * cantidad;
+                nuevos[i].valor_formato = precioActual;
+            }
+        }
     }
 
     if (
@@ -190,11 +243,68 @@ export default function AddAsociacion() {
         ];
 
       // Crear cada asociación
-      for (const asociacion of asociaciones) {
-        await api(`/proveedor-materia-prima`, {
+      // Modificación: Ahora se crean secuencialmente y se enlazan con id_formato_hijo
+      let idHijoAnterior = null;
+      let cantidadHijosAnterior = 1;
+
+      // 1. Crear la unidad de consumo (base) O usar existente
+      if (baseNivel.isExisting) {
+        idHijoAnterior = baseNivel.id;
+      } else {
+        const basePayload = {
+          id_proveedor: parseInt(formData.id_proveedor),
+          id_materia_prima: materiaPrimaId,
+          formato: baseNivel.formato,
+          peso_unitario: parseFloat(baseNivel.valor_formato), // Aquí peso_unitario es la cantidad base (ej: 0.5L)
+          precio_unitario: parseFloat(baseNivel.precio_unitario) || 0, // Precio de la unidad base
+          moneda: formData.moneda,
+          unidad_medida: baseNivel.unidad,
+          es_unidad_consumo: true,
+          cantidad_hijos: 1,
+          id_formato_hijo: null
+        };
+
+        const baseResponse = await api(`/proveedor-materia-prima`, {
           method: "POST",
-          body: JSON.stringify(asociacion),
+          body: JSON.stringify(basePayload),
         });
+        
+        if (baseResponse && baseResponse.id) {
+          idHijoAnterior = baseResponse.id;
+        } else {
+          throw new Error("Error al crear la unidad base");
+        }
+      }
+
+      // 2. Crear los niveles superiores
+      const nivelesValidos = niveles.filter((n) => n.formato && n.cantidad);
+      
+      for (const nivel of nivelesValidos) {
+        const cantidadHijos = parseFloat(nivel.cantidad);
+        const precioNivel = parseFloat(nivel.valor_formato) || 0;
+
+        const nivelPayload = {
+          id_proveedor: parseInt(formData.id_proveedor),
+          id_materia_prima: materiaPrimaId,
+          formato: nivel.formato,
+          precio_unitario: precioNivel,
+          moneda: formData.moneda,
+          unidad_medida: nivel.unidad,
+          es_unidad_consumo: false,
+          cantidad_hijos: cantidadHijos,
+          id_formato_hijo: idHijoAnterior
+        };
+
+        const nivelResponse = await api(`/proveedor-materia-prima`, {
+          method: "POST",
+          body: JSON.stringify(nivelPayload),
+        });
+
+        if (nivelResponse && nivelResponse.id) {
+          idHijoAnterior = nivelResponse.id;
+        } else {
+           throw new Error(`Error al crear el formato ${nivel.formato}`);
+        }
       }
 
       toast.success("Asociaciones creadas correctamente");
@@ -315,9 +425,9 @@ export default function AddAsociacion() {
               <tr>
                 <th className="px-3 py-2 text-left">NOMBRE FORMATO</th>
                 <th className="px-3 py-2 text-left">RESUMEN DE VALOR POR FORMATO DE EMPAQUE</th>
-                <th className="px-3 py-2 text-left">{baseNivel?.unidad || "Unidad"}</th>
-                <th className="px-3 py-2 text-left">UNIDAD DE CONSUMO</th>
-                <th className="px-3 py-2 text-left">VALOR FORMATO</th>
+                <th className="px-3 py-2 text-left">CONTENIDO FORMATO</th>
+                <th className="px-3 py-2 text-left">UNIDAD DE MEDIDA FORMATO</th>
+                <th className="px-3 py-2 text-left">PRECIO FORMATO</th>
               </tr>
             </thead>
 
@@ -325,23 +435,39 @@ export default function AddAsociacion() {
               {/* === Nivel base (insumo) === */}
               {baseNivel && (
                 <tr className="border-t bg-gray-50">
-                  <td className="px-3 py-2 font-medium">{baseNivel.formato}</td>
+                  <td className="px-3 py-2 font-medium">
+                    <input
+                      type="text"
+                      className="border rounded px-2 py-1 w-full"
+                      value={baseNivel.formato}
+                      onChange={(e) => setBaseNivel({ ...baseNivel, formato: e.target.value })}
+                    />
+                  </td>
                   <td className="px-3 py-2 text-sm text-gray-600">Unidad de Costeo</td>
-                  <td className="px-3 py-2 text-center">1</td>
+                  <td className="px-3 py-2 text-center">
+                    <input
+                      type="number"
+                      step="0.0001"
+                      placeholder="1"
+                      className="border rounded px-2 py-1 w-20 text-center"
+                      value={baseNivel.valor_formato || ''}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setBaseNivel({ ...baseNivel, valor_formato: val });
+                      }}
+                    />
+                  </td>
                   <td className="px-3 py-2 text-center">{baseNivel.unidad}</td>
                   <td className="px-3 py-2 text-right">
                     <input
                       type="text"
                       placeholder="0"
                       className="border rounded px-2 py-1 w-28 text-right"
-                      value={baseNivelInputValue !== '' ? baseNivelInputValue : (baseNivel?.valor_formato ? String(baseNivel.valor_formato).replace('.', ',') : '')}
+                      value={baseNivelInputValue !== '' ? baseNivelInputValue : (baseNivel?.precio_unitario ? String(baseNivel.precio_unitario).replace('.', ',') : '')}
                       onChange={(e) => {
                         let inputValue = e.target.value;
-                        // Permitir solo números, comas y puntos
                         inputValue = inputValue.replace(/[^0-9,.]/g, '');
-                        // Reemplazar punto por coma para consistencia
                         inputValue = inputValue.replace(/\./g, ',');
-                        // Permitir solo una coma
                         const parts = inputValue.split(',');
                         if (parts.length > 2) {
                           inputValue = parts[0] + ',' + parts.slice(1).join('');
@@ -349,28 +475,23 @@ export default function AddAsociacion() {
                         
                         setBaseNivelInputValue(inputValue);
                         
-                        // Convertir a número para cálculos (reemplazar coma por punto)
                         const valorConPunto = inputValue.replace(',', '.');
-                        const nuevoValor = inputValue === '' || inputValue.endsWith(',') ? (baseNivel?.valor_formato || 0) : (parseFloat(valorConPunto) || 0);
+                        const nuevoPrecio = inputValue === '' || inputValue.endsWith(',') ? (baseNivel?.precio_unitario || 0) : (parseFloat(valorConPunto) || 0);
                         
-                        // actualiza base
-                        setBaseNivel({ ...baseNivel, valor_formato: nuevoValor });
-                        // recalcula todos los siguientes niveles
+                        setBaseNivel({ ...baseNivel, precio_unitario: nuevoPrecio });
+                        
+                        // Recalcular precios hacia arriba
                         setNiveles((prev) => {
-                          const actualizados = prev.map((n, i) => {
-                            const anterior =
-                              i === 0
-                                ? { valor_formato: nuevoValor }
-                                : prev[i - 1] || {};
-                            return {
-                              ...n,
-                              valor_formato:
-                                (anterior.valor_formato || 0) *
-                                (parseFloat(n.cantidad) || 0),
-                            };
-                          });
-                          // Resetear valores de input para niveles recalculados
-                          setNivelesInputValues({});
+                          const actualizados = [...prev];
+                          let precioAcumulado = nuevoPrecio;
+                          
+                          for (let i = 0; i < actualizados.length; i++) {
+                             const cantidad = parseFloat(actualizados[i].cantidad) || 0;
+                             if (cantidad > 0) {
+                                precioAcumulado = precioAcumulado * cantidad;
+                                actualizados[i].valor_formato = precioAcumulado;
+                             }
+                          }
                           return actualizados;
                         });
                       }}
@@ -384,14 +505,7 @@ export default function AddAsociacion() {
                 .filter((n) => n.formato && n.cantidad)
                 .map((n, i) => {
                   const anterior = i === 0 ? baseNivel : niveles[i - 1];
-                  const valorCalculado =
-                    (anterior?.valor_formato || 0) * (parseFloat(n.cantidad) || 0);
-
-                  // si no fue editado manualmente, recalculamos
-                  if (!n.manual && n.valor_formato !== valorCalculado) {
-                    n.valor_formato = valorCalculado;
-                  }
-
+                  
                   return (
                     <tr key={i} className="border-t">
                       <td className="px-3 py-2 font-medium capitalize">{n.formato}</td>
@@ -418,9 +532,11 @@ export default function AddAsociacion() {
                           for (let j = i - 1; j >= 0; j--) {
                             total *= parseFloat(niveles[j].cantidad) || 1;
                           }
-                          if (baseNivel?.cantidad) total *= parseFloat(baseNivel.cantidad) || 1;
-
-                          return total.toLocaleString("es-CL");
+                          // Multiplicar por la base
+                          if (baseNivel?.valor_formato) {
+                             total *= parseFloat(baseNivel.valor_formato);
+                          }
+                          return total.toFixed(2);
                         })()}
                       </td>
 

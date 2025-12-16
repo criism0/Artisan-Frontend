@@ -7,7 +7,8 @@ import { REGIONES } from "../../data/regiones";
 import { BANCOS_CL, TIPO_CUENTA } from "../../data/datosBancarios";
 import { TIPO_PROVEEDOR } from "../../data/proveedoresType";
 import { toast } from "../../lib/toast";
-import { useApi } from "../../lib/api";
+import { ApiError, useApi } from "../../lib/api";
+import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
 
 const classInput = (hasError) =>
   `border rounded px-3 py-2 w-full placeholder-gray-400 ${
@@ -104,6 +105,13 @@ const SimpleSelectRow = React.memo(function SimpleSelectRow({
 export default function AddProvider() {
   const navigate = useNavigate();
   const api = useApi()
+
+  const [similarModal, setSimilarModal] = useState({
+    open: false,
+    inputName: "",
+    matches: [],
+  });
+  const [pendingPayload, setPendingPayload] = useState(null);
 
   const [formData, setFormData] = useState({
     nombre_empresa: "",
@@ -207,7 +215,36 @@ export default function AddProvider() {
       toast.success("Proveedor creado correctamente");
       navigate("/Proveedores");
     } catch (err) {
-      toast.error("Error creando proveedor:" + err);
+      if (err instanceof ApiError && err.status === 409 && err.data?.code === "SIMILAR_NAME") {
+        setPendingPayload(formData);
+        setSimilarModal({
+          open: true,
+          inputName: err.data?.input || formData.nombre_empresa,
+          matches: err.data?.matches || [],
+        });
+        return;
+      }
+      setErrorGeneral(err?.message || "Error creando proveedor");
+      toast.error("Error creando proveedor: " + (err?.message || ""));
+    }
+  };
+
+  const confirmCreateAnyway = async () => {
+    if (!pendingPayload) return;
+    try {
+      await api("/proveedores", {
+        method: "POST",
+        body: JSON.stringify({ ...pendingPayload, confirmSimilarName: true }),
+      });
+      setSimilarModal({ open: false, inputName: "", matches: [] });
+      setPendingPayload(null);
+      toast.success("Proveedor creado correctamente");
+      navigate("/Proveedores");
+    } catch (err) {
+      setSimilarModal({ open: false, inputName: "", matches: [] });
+      setPendingPayload(null);
+      setErrorGeneral(err?.message || "Error creando proveedor");
+      toast.error("Error creando proveedor: " + (err?.message || ""));
     }
   };
 
@@ -362,6 +399,19 @@ export default function AddProvider() {
           </button>
         </div>
       </form>
+
+      <SimilarNameConfirmModal
+        open={similarModal.open}
+        entityLabel="proveedor"
+        inputName={similarModal.inputName}
+        matches={similarModal.matches}
+        onCancel={() => {
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          setPendingPayload(null);
+        }}
+        onConfirm={confirmCreateAnyway}
+        confirmText="Crear proveedor igualmente"
+      />
     </div>
   );
 }

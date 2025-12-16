@@ -57,6 +57,8 @@ export default function InsumoDetail() {
     try {
       await api(`/proveedor-materia-prima/por-materia-prima/${associationId}`, { method: "DELETE" });
       toast.success("Asociación eliminada correctamente.");
+      setProveedores(prev => prev.filter(p => p.id !== associationId));
+      
     } catch (error) {
       toast.error("Error eliminando asociación:", error);
     }
@@ -90,19 +92,17 @@ export default function InsumoDetail() {
   const proveedoresData = proveedores.map(proveedor => ({
     id: proveedor.id,
     nombre_empresa: proveedor.proveedor.nombre_empresa,
-    forma_compra: `${proveedor.formato} de ${proveedor.cantidad_por_formato === null ? 'N/A' : proveedor.cantidad_por_formato} ${
-      proveedor.formato === proveedor.materiaPrima.nombre
-        ? proveedor.unidad_medida
-        : proveedor.materiaPrima.nombre
-    }`,
-
+    nombre_formato: proveedor.formato,
+    contiene: proveedor.es_unidad_consumo 
+      ? `${proveedor.cantidad_por_formato} ${proveedor.unidad_medida}`
+      : `${proveedor.cantidad_hijos} ${proveedor.formatoHijo ? proveedor.formatoHijo.formato : 'Unidades'}${proveedor.cantidad_hijos !== 1 ? 's' : ''}`,
     precio_unitario: `${proveedor.precio_unitario} ${proveedor.moneda}`
-
   }));
 
   const columns = [
     { header: "Proveedor", accessor: "nombre_empresa" },
-    { header: "Forma de Compra", accessor: "forma_compra" },
+    { header: "Nombre Formato", accessor: "nombre_formato" },
+    { header: "Contiene", accessor: "contiene" },
     { header: "Precio neto", accessor: "precio_unitario" }
   ];
 

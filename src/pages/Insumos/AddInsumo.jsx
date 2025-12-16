@@ -4,6 +4,8 @@ import axiosInstance from "../../axiosInstance";
 import { useState, useEffect } from "react";
 import { toast } from "../../lib/toast";
 import { useApi } from "../../lib/api";
+import { ApiError } from "../../lib/api";
+import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
 
 export default function AddInsumo() {
   const navigate = useNavigate();
@@ -18,6 +20,12 @@ export default function AddInsumo() {
     stock_critico: ""
   });
   const [errors, setErrors] = useState({});
+  const [similarModal, setSimilarModal] = useState({
+    open: false,
+    inputName: "",
+    matches: [],
+  });
+  const [pendingPayload, setPendingPayload] = useState(null);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -62,13 +70,50 @@ export default function AddInsumo() {
         stock_critico: parseInt(formData.stock_critico)
       };
 
-      await api(`/materias-primas`, { method: "POST", body: JSON.stringify(requestBody) });
+      await api(`/materias-primas`, {
+        method: "POST",
+        body: JSON.stringify(requestBody),
+      });
       toast.success("Insumo creado correctamente.");
       navigate("/Insumos");
     } catch (error) {
-      toast.error("Error al crear insumo:", error);
-      const backendMessage = error.response?.data?.error || error.response?.data?.message;
-      setError(`No se pudo crear el insumo. ${backendMessage || "Intenta nuevamente más tarde."}`);
+      if (error instanceof ApiError && error.status === 409 && error.data?.code === "SIMILAR_NAME") {
+        const requestBody = {
+          nombre: formData.nombre,
+          id_categoria: parseInt(formData.id_categoria),
+          unidad_medida: formData.unidad_medida,
+          stock_critico: parseInt(formData.stock_critico),
+        };
+        setPendingPayload(requestBody);
+        setSimilarModal({
+          open: true,
+          inputName: error.data?.input || formData.nombre,
+          matches: error.data?.matches || [],
+        });
+        return;
+      }
+
+      toast.error("Error al crear insumo: " + (error?.message || ""));
+      setError(`No se pudo crear el insumo. ${error?.message || "Intenta nuevamente más tarde."}`);
+    }
+  };
+
+  const confirmCreateAnyway = async () => {
+    if (!pendingPayload) return;
+    try {
+      await api(`/materias-primas`, {
+        method: "POST",
+        body: JSON.stringify({ ...pendingPayload, confirmSimilarName: true }),
+      });
+      setSimilarModal({ open: false, inputName: "", matches: [] });
+      setPendingPayload(null);
+      toast.success("Insumo creado correctamente.");
+      navigate("/Insumos");
+    } catch (error) {
+      setSimilarModal({ open: false, inputName: "", matches: [] });
+      setPendingPayload(null);
+      toast.error("Error al crear insumo: " + (error?.message || ""));
+      setError(`No se pudo crear el insumo. ${error?.message || "Intenta nuevamente más tarde."}`);
     }
   };
 
@@ -156,6 +201,19 @@ export default function AddInsumo() {
           </button>
         </div>
       </form>
+
+      <SimilarNameConfirmModal
+        open={similarModal.open}
+        entityLabel="insumo"
+        inputName={similarModal.inputName}
+        matches={similarModal.matches}
+        onCancel={() => {
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          setPendingPayload(null);
+        }}
+        onConfirm={confirmCreateAnyway}
+        confirmText="Crear insumo igualmente"
+      />
     </div>
   );
 }

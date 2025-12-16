@@ -305,11 +305,11 @@ export default function RecepcionarOrden() {
 
         // Si formato = nombre → mostrar "(unidad) de nombre"
         if (formato && nombre && formato.toLowerCase() === nombre.toLowerCase()) {
-          return `${unidad ? `(${unidad}) ` : ""}de ${nombre}`;
+          return `${unidad ? `${unidad} - ` : ""} ${nombre}`;
         }
 
         // Si formato distinto → "(formato) de nombre"
-        return `${formato ? `(${formato}) ` : ""}de ${nombre}`;
+        return `${formato ? `${formato} - ` : ""} ${nombre}`;
       },
     },
     { header: "Cantidad Solicitada", accessor: "cantidad_solicitada" },

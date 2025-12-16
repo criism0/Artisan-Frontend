@@ -1,12 +1,19 @@
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useState } from "react";
-import { useApi } from "../../lib/api";
+import { ApiError, useApi } from "../../lib/api";
+import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
 
 export default function AddProducto() {
   const navigate = useNavigate();
   const api = useApi();
   const [error, setError] = useState(null);
+  const [similarModal, setSimilarModal] = useState({
+    open: false,
+    inputName: "",
+    matches: [],
+  });
+  const [pendingPayload, setPendingPayload] = useState(null);
   const [formData, setFormData] = useState({
     nombre: "",
     descripcion: "",
@@ -69,10 +76,45 @@ export default function AddProducto() {
 
       navigate("/Productos");
     } catch (error) {
+      if (error instanceof ApiError && error.status === 409 && error.data?.code === "SIMILAR_NAME") {
+        const formattedData = {
+          nombre: formData.nombre,
+          descripcion: formData.descripcion,
+          peso_unitario: parseFloat(formData.peso),
+          unidad_medida: formData.unidad_medida,
+          precio_unitario: parseFloat(formData.precio),
+          unidades_por_caja: parseInt(formData.unidades_por_caja),
+          codigo_ean: formData.codigo_ean,
+          codigo_sap: formData.codigo_sap,
+        };
+        setPendingPayload(formattedData);
+        setSimilarModal({
+          open: true,
+          inputName: error.data?.input || formData.nombre,
+          matches: error.data?.matches || [],
+        });
+        return;
+      }
+
       console.error("Error al crear producto:", error);
-      setError(
-        "No se pudo crear el producto. Verifica los datos e intenta nuevamente."
-      );
+      setError(error?.message || "No se pudo crear el producto. Verifica los datos e intenta nuevamente.");
+    }
+  };
+
+  const confirmCreateAnyway = async () => {
+    if (!pendingPayload) return;
+    try {
+      await api("/productos-base", {
+        method: "POST",
+        body: JSON.stringify({ ...pendingPayload, confirmSimilarName: true }),
+      });
+      setSimilarModal({ open: false, inputName: "", matches: [] });
+      setPendingPayload(null);
+      navigate("/Productos");
+    } catch (error) {
+      setSimilarModal({ open: false, inputName: "", matches: [] });
+      setPendingPayload(null);
+      setError(error?.message || "No se pudo crear el producto. Verifica los datos e intenta nuevamente.");
     }
   };
 
@@ -259,6 +301,19 @@ export default function AddProducto() {
           </button>
         </div>
       </form>
+
+      <SimilarNameConfirmModal
+        open={similarModal.open}
+        entityLabel="producto"
+        inputName={similarModal.inputName}
+        matches={similarModal.matches}
+        onCancel={() => {
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          setPendingPayload(null);
+        }}
+        onConfirm={confirmCreateAnyway}
+        confirmText="Crear producto igualmente"
+      />
     </div>
   );
 }

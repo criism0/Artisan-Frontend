@@ -108,6 +108,10 @@ export default function EditClientes() {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
 
+  // Estado para condición de pago
+  const [paymentType, setPaymentType] = useState("Contado");
+  const [creditDays, setCreditDays] = useState("");
+
   const tiposPrecio = ["UNIDADES", "CAJAS"];
 
   const [formData, setFormData] = useState({
@@ -115,7 +119,7 @@ export default function EditClientes() {
     razon_social: "",
     rut: "",
     giro: "",
-    condicion_pago: "",
+    condicion_pago: "Contado",
     email_comercial: "",
     contacto_comercial: "",
     telefono_comercial: "",
@@ -123,6 +127,17 @@ export default function EditClientes() {
     telefono_finanzas: "",
     email_finanzas: "",
   });
+
+  // Efecto para actualizar condicion_pago en formData
+  useEffect(() => {
+    if (paymentType === "Contado") {
+      setFormData(prev => ({ ...prev, condicion_pago: "Contado" }));
+    } else if (paymentType === "Bloqueado") {
+      setFormData(prev => ({ ...prev, condicion_pago: "Bloqueado" }));
+    } else if (paymentType === "Crédito") {
+      setFormData(prev => ({ ...prev, condicion_pago: creditDays ? `Crédito ${creditDays} días` : "" }));
+    }
+  }, [paymentType, creditDays]);
 
   const placeholders = {
     nombre_empresa: "Ej: Comercial Los Andes Ltda.",
@@ -202,7 +217,7 @@ export default function EditClientes() {
           razon_social: clienteData.razon_social || "",
           rut: clienteData.rut || "",
           giro: clienteData.giro || "",
-          condicion_pago: clienteData.condicion_pago ? clienteData.condicion_pago.toString() : "",
+          condicion_pago: clienteData.condicion_pago ? clienteData.condicion_pago.toString() : "Contado",
           email_comercial: clienteData.email_comercial || "",
           contacto_comercial: clienteData.contacto_comercial || "",
           telefono_comercial: clienteData.telefono_comercial || "",
@@ -210,6 +225,27 @@ export default function EditClientes() {
           telefono_finanzas: clienteData.telefono_finanzas || "",
           email_finanzas: clienteData.email_finanzas || "",
         });
+
+        // Parsear condición de pago
+        const cp = clienteData.condicion_pago ? clienteData.condicion_pago.toString() : "Contado";
+        if (cp.toLowerCase().includes("contado")) {
+          setPaymentType("Contado");
+        } else if (cp.toLowerCase().includes("bloqueado")) {
+          setPaymentType("Bloqueado");
+        } else if (cp.toLowerCase().includes("crédito")) {
+          setPaymentType("Crédito");
+          const match = cp.match(/\d+/);
+          if (match) setCreditDays(match[0]);
+        } else {
+          // Fallback si es solo un número (legacy)
+          const num = parseInt(cp);
+          if (!isNaN(num)) {
+             setPaymentType("Crédito");
+             setCreditDays(num.toString());
+          } else {
+             setPaymentType("Contado");
+          }
+        }
 
         const canalNombre = canalesData.find((c) => c.id === clienteData.id_canal)?.nombre || "";
         const listaNombre = listasData.find((l) => l.id === clienteData.id_lista_precio)?.nombre || "";
@@ -229,10 +265,6 @@ export default function EditClientes() {
     } else if (name === "telefono_comercial" || name === "telefono_finanzas") {
       const telFormateado = formatearTelefonoChile(value);
       setFormData((prev) => ({ ...prev, [name]: telFormateado }));
-    } else if (name === "condicion_pago") {
-      // Solo permitir números enteros positivos
-      const numericValue = value.replace(/[^0-9]/g, "");
-      setFormData((prev) => ({ ...prev, [name]: numericValue }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -269,14 +301,11 @@ export default function EditClientes() {
     if (formData.telefono_finanzas && !regexTelefonoCL.test(formData.telefono_finanzas)) {
       newErrors.telefono_finanzas = "Formato inválido. Use +56 X XXXX XXXX";
     }
-    if (!formData.condicion_pago || formData.condicion_pago.trim() === "") {
-      newErrors.condicion_pago = "Campo obligatorio.";
-    } else {
-      const condicionPagoNum = parseInt(formData.condicion_pago);
-      if (isNaN(condicionPagoNum) || condicionPagoNum <= 0) {
-        newErrors.condicion_pago = "Debe ser un número entero mayor a 0.";
-      }
+    
+    if (paymentType === "Crédito" && (!creditDays || parseInt(creditDays) <= 0)) {
+      newErrors.condicion_pago = "Debe ingresar un número de días válido.";
     }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -289,7 +318,7 @@ export default function EditClientes() {
     const listaPrecioSeleccionada = listasPrecio.find((l) => l.nombre === selectedListaPrecio);
     const payload = {
       ...formData,
-      condicion_pago: parseInt(formData.condicion_pago),
+      // condicion_pago ya está actualizado en formData por el useEffect
       id_canal: canalSeleccionado?.id || null,
       id_lista_precio: listaPrecioSeleccionada?.id || null,
       tipo_precio: selectedTipoPrecio,
@@ -444,16 +473,58 @@ export default function EditClientes() {
               <label className="block text-gray-700 font-medium mb-2">
                 Condición de Pago <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                name="condicion_pago"
-                value={formData.condicion_pago}
-                onChange={handleChange}
-                placeholder={placeholders.condicion_pago}
-                className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                  errors.condicion_pago ? "border-red-500" : "border-gray-300"
-                }`}
-              />
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-4">
+                  <label className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio text-green-600"
+                      name="paymentType"
+                      value="Contado"
+                      checked={paymentType === "Contado"}
+                      onChange={() => setPaymentType("Contado")}
+                    />
+                    <span className="ml-2">Contado</span>
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio text-red-600"
+                      name="paymentType"
+                      value="Bloqueado"
+                      checked={paymentType === "Bloqueado"}
+                      onChange={() => setPaymentType("Bloqueado")}
+                    />
+                    <span className="ml-2">Bloqueado</span>
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio text-blue-600"
+                      name="paymentType"
+                      value="Crédito"
+                      checked={paymentType === "Crédito"}
+                      onChange={() => setPaymentType("Crédito")}
+                    />
+                    <span className="ml-2">Crédito</span>
+                  </label>
+                </div>
+                
+                {paymentType === "Crédito" && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="number"
+                      placeholder="Días"
+                      value={creditDays}
+                      onChange={(e) => setCreditDays(e.target.value)}
+                      className={`border px-3 py-1 w-24 rounded text-gray-700 placeholder-gray-400 ${
+                        errors.condicion_pago ? "border-red-500" : "border-gray-300"
+                      }`}
+                    />
+                    <span className="text-gray-600 text-sm">días</span>
+                  </div>
+                )}
+              </div>
               {errors.condicion_pago && <p className="text-red-500 text-sm mt-1">{errors.condicion_pago}</p>}
             </div>
           </div>

@@ -18,15 +18,59 @@ export default function DeclararBultosOrden() {
   const [isLoading, setIsLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
+  const clp = new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    maximumFractionDigits: 0,
+  });
+
   useEffect(() => {
     const fetchBultos = async () => {
       setIsLoading(true);
       try {
-        // Cargar la orden completa para obtener información de insumos
+        // Cargar la orden completa
         const orden = await api(`/proceso-compra/ordenes/${ordenId}`, { method: "GET" });
         setOrdenData(orden);
 
-        // Si vienen bultos en state (desde RecepcionarOrden), usarlos
+        // Cargar datos del proveedor para obtener info de las materias primas base
+        const proveedor = await api(`/proveedores/${orden.id_proveedor}`, { method: "GET" });
+        const pmpMap = {};
+        if (proveedor && proveedor.materiasPrimas) {
+          proveedor.materiasPrimas.forEach(pmp => {
+            pmpMap[pmp.id] = pmp;
+          });
+        }
+
+        // Mapas de lo que se compró (Purchase Info)
+        const purchaseByMpId = {};
+        const purchaseByMpocId = {};
+        if (Array.isArray(orden?.materiasPrimas)) {
+          orden.materiasPrimas.forEach((mp) => {
+            // mp is MateriaPrimaOrdenDeCompra
+            // mp.proveedorMateriaPrima is the purchased format
+            const pmp = mp.proveedorMateriaPrima;
+            const mpId = pmp?.id_materia_prima || pmp?.materiaPrima?.id;
+            
+            const purchaseInfo = pmp ? {
+                id: pmp.id,
+                formato: pmp.formato, // "Caja 6 un"
+                cantidadPorFormato: Number(pmp.cantidad_por_formato) || 1,
+                unidadMedida: pmp.unidad_medida,
+                nombre: pmp.materiaPrima?.nombre,
+                precioUnitarioCompra: Number(mp.precio_unitario) || 0,
+                mpocId: mp.id,
+              } : null;
+
+            if (purchaseInfo && mpId) {
+              purchaseByMpId[mpId] = purchaseInfo;
+            }
+            if (purchaseInfo && mp.id) {
+              purchaseByMpocId[mp.id] = purchaseInfo;
+            }
+          });
+        }
+
+        // Obtener bultos (ya vienen creados desde el backend con la lógica de base)
         let bultosData = [];
         if (Array.isArray(state?.bultos) && state.bultos.length > 0) {
           bultosData = state.bultos;
@@ -38,79 +82,46 @@ export default function DeclararBultosOrden() {
           return;
         }
 
-        // Crear un mapa de insumos por id_proveedor_materia_prima para calcular cantidad_unidades
-        const insumosMap = {};
-        if (Array.isArray(orden?.materiasPrimas)) {
-          orden.materiasPrimas.forEach((mp) => {
-            const idPMP = mp.id_proveedor_materia_prima;
-            if (idPMP) {
-              insumosMap[idPMP] = {
-                cantidad_recepcionada: mp.cantidad_recepcionada || 0,
-                cantidad_bultos: mp.cantidad_bultos || 0,
-                cantidad_por_formato: mp.cantidad_por_formato ?? mp.proveedorMateriaPrima?.cantidad_por_formato ?? 1,
-                nombre: mp.proveedorMateriaPrima?.materiaPrima?.nombre || mp.materiaPrima?.nombre || "—",
-                formato: mp.proveedorMateriaPrima?.formato || mp.formato || "",
-                unidad_medida: mp.proveedorMateriaPrima?.unidad_medida || mp.proveedorMateriaPrima?.materiaPrima?.unidad_medida || "",
-              };
-            }
-          });
-        }
+        // Mapear bultos con información del PMP base
+        const bultosConInfo = bultosData.map((b) => {
+          const idPMP = b.id_proveedor_materia_prima;
+          const pmp = pmpMap[idPMP]; // Base PMP
+          const mpId = pmp?.id_materia_prima || pmp?.materiaPrima?.id;
+          const mpocId = b.id_materia_prima_orden_de_compra;
+          const purchaseInfo = purchaseByMpocId[mpocId] || purchaseByMpId[mpId];
 
-        // Agrupar bultos por insumo para calcular cantidad_unidades sugerida
-        const bultosPorInsumo = {};
-        bultosData.forEach((b) => {
-          const idPMP = b.id_proveedor_materia_prima || b.id_materia_prima;
-          if (!bultosPorInsumo[idPMP]) {
-            bultosPorInsumo[idPMP] = [];
-          }
-          bultosPorInsumo[idPMP].push(b);
-        });
+          // Calcular ratio de conversión (Cuántas unidades base caben en el formato de compra)
+           const baseQty = Number(pmp?.cantidad_por_formato) || 1;
+           const purchaseQty = Number(purchaseInfo?.cantidadPorFormato) || 1;
+           const ratio = baseQty > 0 ? (purchaseQty / baseQty) : 1;
 
-        // Mapear bultos con información calculada
-        const bultosConInfo = bultosData.map((b, index) => {
-          const idPMP = b.id_proveedor_materia_prima || b.id_materia_prima;
-          const insumo = insumosMap[idPMP];
+           const unitCostBase = (purchaseInfo?.precioUnitarioCompra && purchaseQty > 0)
+            ? ((Number(purchaseInfo.precioUnitarioCompra) / purchaseQty) * baseQty)
+            : 0;
           
-          // Calcular cantidad_formato sugerida: cantidad_recepcionada / cantidad_bultos (en formatos, no unidades)
-          let cantidadFormatoSugerida = "";
-          if (insumo && insumo.cantidad_recepcionada > 0) {
-            const bultosDelInsumo = bultosPorInsumo[idPMP]?.length || insumo.cantidad_bultos || 1;
-            if (bultosDelInsumo > 0) {
-              // Dividir equitativamente la cantidad_recepcionada (en formatos) entre los bultos
-              const cantidadPorBulto = Math.floor(insumo.cantidad_recepcionada / bultosDelInsumo);
-              // Encontrar el índice de este bulto dentro de los bultos del mismo insumo
-              const indiceEnInsumo = bultosPorInsumo[idPMP].findIndex((bulto) => bulto.id === b.id);
-              cantidadFormatoSugerida = cantidadPorBulto;
-              
-              // Si hay resto, agregarlo al último bulto
-              const resto = insumo.cantidad_recepcionada % bultosDelInsumo;
-              if (indiceEnInsumo === bultosDelInsumo - 1 && resto > 0) {
-                cantidadFormatoSugerida += resto;
-              }
-            }
-          }
-
-          // Si ya tiene cantidad_unidades guardada, calcular cantidad_formato desde ahí
-          // Si no, usar la sugerida
-          let cantidadFormato = "";
-          if (b.cantidad_unidades && insumo?.cantidad_por_formato > 0) {
-            // Convertir unidades guardadas a formatos para mostrar
-            cantidadFormato = Number(b.cantidad_unidades) / insumo.cantidad_por_formato;
-          } else {
-            cantidadFormato = cantidadFormatoSugerida || "";
-          }
-
           return {
             id: b.id,
             id_proveedor_materia_prima: idPMP,
-            insumo_nombre: insumo?.nombre || "—",
-            insumo_formato: insumo?.formato || "",
-            insumo_unidad_medida: insumo?.unidad_medida || "",
-            cantidad_por_formato: insumo?.cantidad_por_formato || 1,
-            cantidad_recepcionada: insumo?.cantidad_recepcionada || 0,
-            cantidad_formato: cantidadFormato, // Lo que el usuario edita (en formatos)
-            cantidad_unidades: b.cantidad_unidades || "", // Se calcula al enviar
+            id_materia_prima_orden_de_compra: mpocId,
+            insumo_nombre: pmp?.materiaPrima?.nombre || "—",
+            insumo_formato: pmp?.formato || "", // Ej: Botella 0.25L
+            insumo_unidad_medida: pmp?.unidad_medida || pmp?.materiaPrima?.unidad_medida || "",
+            
+            // Info de compra para referencia visual
+            purchaseInfo,
+            ratio,
+            groupKey: mpocId || mpId || "unknown",
+
+            // Cantidad de unidades base (ya calculada por backend)
+            cantidad_unidades: b.cantidad_unidades || 0,
+            
             identificador_proveedor: b.identificador_proveedor || "",
+            
+            unitCostBase,
+
+            // UX: cuando el usuario edita un lote, ese bulto se vuelve "corte".
+            // Los bultos autocompletados NO marcan este flag.
+            loteEdited: false,
           };
         });
 
@@ -128,28 +139,54 @@ export default function DeclararBultosOrden() {
     }
   }, [ordenId, state, api, navigate]);
 
-  const handleChange = (index, field, value) => {
-    setBultos((prev) =>
-      prev.map((b, i) => {
-        if (i === index) {
-          return { ...b, [field]: value };
+  const handleChange = (id, field, value) => {
+    setBultos((prev) => prev.map((b) => (b.id === id ? { ...b, [field]: value } : b)));
+  };
+
+  const handleLoteChange = (id, value) => {
+    setBultos((prev) => {
+      const idx = prev.findIndex((b) => b.id === id);
+      if (idx === -1) return prev;
+
+      const groupKey = prev[idx].groupKey;
+      const groupIndices = [];
+      for (let i = 0; i < prev.length; i++) {
+        if (prev[i].groupKey === groupKey) groupIndices.push(i);
+      }
+
+      const pos = groupIndices.indexOf(idx);
+      if (pos === -1) {
+        return prev.map((b) => (b.id === id ? { ...b, identificador_proveedor: value, loteEdited: true } : b));
+      }
+
+      // Propagar desde este bulto hacia adelante hasta el próximo bulto editado manualmente.
+      let stopPosExclusive = groupIndices.length;
+      for (let p = pos + 1; p < groupIndices.length; p++) {
+        const nextIdx = groupIndices[p];
+        if (prev[nextIdx].loteEdited) {
+          stopPosExclusive = p;
+          break;
         }
-        if (i > index) {
-          // No propagar cantidad_formato para que cada fila mantenga su sugerencia
-          if (field === "cantidad_formato") {
-            return b;
-          }
-          return { ...b, [field]: value };
+      }
+
+      return prev.map((b, i) => {
+        if (i === idx) {
+          return { ...b, identificador_proveedor: value, loteEdited: true };
+        }
+
+        const p = groupIndices.indexOf(i);
+        if (p > pos && p < stopPosExclusive && !b.loteEdited) {
+          return { ...b, identificador_proveedor: value };
         }
         return b;
-      })
-    );
+      });
+    });
   };
 
   const handleSubmit = async () => {
     const hasInvalid = bultos.some(
       (b) =>
-        !b.cantidad_formato ||
+        !b.cantidad_unidades ||
         !b.identificador_proveedor?.toString().trim()
     );
 
@@ -161,18 +198,12 @@ export default function DeclararBultosOrden() {
     setErrors("");
     try {
       const payload = {
-        bultos: bultos.map((b) => {
-          // Calcular cantidad_unidades: cantidad_formato × cantidad_por_formato
-          const cantidadFormato = Number(b.cantidad_formato) || 0;
-          const cantidadPorFormato = Number(b.cantidad_por_formato) || 1;
-          const cantidadUnidades = cantidadFormato * cantidadPorFormato;
-          
-          return {
-            id: Number(b.id),
-            cantidad_unidades: cantidadUnidades,
-            identificador_proveedor: b.identificador_proveedor.toString(),
-          };
-        }),
+        bultos: bultos.map((b) => ({
+          id: b.id,
+          id_proveedor_materia_prima: b.id_proveedor_materia_prima,
+          cantidad_unidades: Number(b.cantidad_unidades),
+          identificador_proveedor: b.identificador_proveedor,
+        })),
       };
       
       console.log("Enviando bultos al backend:", payload);
@@ -187,6 +218,8 @@ export default function DeclararBultosOrden() {
       toast.error("Error al declarar bultos: " + err);
     }
   };
+
+
 
   const handleSort = (key) => {
     let direction = "asc";
@@ -255,47 +288,72 @@ export default function DeclararBultosOrden() {
       Cell: ({ row }) => {
         const formato = row.insumo_formato?.trim() || "";
         const nombre = row.insumo_nombre?.trim() || "—";
-        const unidad_medida = row.insumo_unidad_medida?.trim() || "";
-        const cantidad_por_formato = row.cantidad_por_formato || 1;
-        
-        // Mostrar formato en negrita si existe y es distinto del nombre
-        const mostrarFormato = formato && formato.toLowerCase() !== nombre.toLowerCase();
+        const purchaseFormato = row.purchaseInfo?.formato;
         
         return (
-          <span>
-            {mostrarFormato && <strong>({formato}) </strong>}
-            {nombre}
-            {cantidad_por_formato > 1 && (
-              <span className="text-gray-500"> ({cantidad_por_formato} {unidad_medida})</span>
+          <div className="flex flex-col">
+            <span>
+              <strong>{nombre}</strong> {formato && `(${formato})`}
+            </span>
+            {purchaseFormato && purchaseFormato !== formato && (
+               <span className="text-xs text-gray-500">
+                 Viene de: {purchaseFormato}
+               </span>
             )}
-          </span>
+          </div>
         );
       },
     },
     {
-      header: "Cantidad",
-      accessor: "cantidad_formato",
+      header: "Unidades Contenidas",
+      accessor: "cantidad_unidades",
       sortable: true,
       Cell: ({ row }) => {
-        const formato = row.insumo_formato?.trim() || "formato";
+        const equivalencia = (row.cantidad_unidades && row.ratio && row.ratio > 0) 
+          ? (row.cantidad_unidades / row.ratio).toFixed(2) 
+          : "";
+        const purchaseFormato = row.purchaseInfo?.formato || "Origen";
+
         return (
-          <div className="flex items-center gap-1">
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={row.cantidad_formato}
-              onChange={(e) =>
-                handleChange(
-                  bultos.findIndex((b) => b.id === row.id),
-                  "cantidad_formato",
-                  e.target.value
-                )
-              }
-              className="w-24 px-2 py-1 border rounded"
-              placeholder="0"
-            />
-            <span className="text-xs text-gray-500">{formato}</span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={row.cantidad_unidades}
+                onChange={(e) =>
+                  handleChange(row.id, "cantidad_unidades", e.target.value)
+                }
+                className="w-24 px-2 py-1 border rounded"
+                placeholder="0"
+              />
+            </div>
+            {row.ratio > 1.01 && equivalencia && (
+                <span className="text-xs text-blue-600">
+                    ≈ {equivalencia} {purchaseFormato}
+                </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      header: "Costo (estimado)",
+      accessor: "unitCostBase",
+      sortable: true,
+      Cell: ({ row }) => {
+        const unidades = Number(row.cantidad_unidades) || 0;
+        const unitCost = Number(row.unitCostBase) || 0;
+        const total = unidades * unitCost;
+        return (
+          <div className="flex flex-col">
+            <span className="font-medium">{clp.format(total || 0)}</span>
+            {unitCost > 0 && (
+              <span className="text-xs text-gray-500">
+                {clp.format(unitCost)} / un.
+              </span>
+            )}
           </div>
         );
       },
@@ -309,11 +367,7 @@ export default function DeclararBultosOrden() {
           type="text"
           value={row.identificador_proveedor}
           onChange={(e) =>
-            handleChange(
-              bultos.findIndex((b) => b.id === row.id),
-              "identificador_proveedor",
-              e.target.value
-            )
+            handleLoteChange(row.id, e.target.value)
           }
           className="w-32 px-2 py-1 border rounded"
           placeholder="Lote proveedor"
@@ -342,26 +396,73 @@ export default function DeclararBultosOrden() {
     );
   }
 
+  // Agrupar bultos por Materia Prima (Solicitud)
+  const groupedBultos = bultos.reduce((acc, bulto) => {
+    const key = bulto.groupKey || "unknown";
+    if (!acc[key]) {
+      acc[key] = {
+        purchaseInfo: bulto.purchaseInfo,
+        bultos: []
+      };
+    }
+    acc[key].bultos.push(bulto);
+    return acc;
+  }, {});
+
   return (
     <div className="p-6 bg-background min-h-screen">
-      <h1 className="text-2xl font-bold mb-4">Declarar Bultos</h1>
+      <h1 className="text-2xl font-bold mb-6">Declarar Bultos</h1>
 
-      {errors && <p className="text-red-600 mb-4">{errors}</p>}
+      {errors && <p className="text-red-600 mb-4 p-3 bg-red-50 rounded border border-red-200">{errors}</p>}
 
-      <Table 
-        columns={columns.map((col) => ({
-          ...col,
-          header: renderHeader(col),
-        }))} 
-        data={bultos} 
-      />
+      {Object.entries(groupedBultos).map(([key, group]) => {
+        const totalBaseUnits = group.bultos.reduce((sum, b) => sum + (Number(b.cantidad_unidades) || 0), 0);
+        const purchaseFormatName = group.purchaseInfo?.formato || "Formato Base";
+        const ratio = group.bultos[0]?.ratio || 1;
+        const totalPurchaseUnits = (ratio > 0) ? (totalBaseUnits / ratio).toFixed(2) : 0;
+
+        return (
+        <div key={key} className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                {group.purchaseInfo?.nombre || "Insumo Desconocido"}
+                <span className="text-sm font-normal text-gray-500 bg-white px-2 py-0.5 rounded border">
+                  {purchaseFormatName}
+                </span>
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                 Viene de: <strong>{purchaseFormatName}</strong> &rarr; {group.bultos.length} bultos
+                 {ratio > 1.01 && (
+                    <span className="ml-2">
+                       (Total: {totalBaseUnits} un. base &asymp; {totalPurchaseUnits} {purchaseFormatName})
+                    </span>
+                 )}
+              </p>
+            </div>
+            <div className="text-right text-sm text-gray-600">
+              <span className="font-medium text-lg">{group.bultos.length}</span> bultos
+            </div>
+          </div>
+          
+          <div className="p-0">
+            <Table 
+                columns={columns.map((col) => ({
+                ...col,
+                header: renderHeader(col),
+                }))} 
+                data={group.bultos} 
+            />
+          </div>
+        </div>
+      )})}
 
       <div className="mt-6 flex justify-end">
         <button
           onClick={handleSubmit}
-          className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
+          className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-hover shadow-sm font-medium"
         >
-          Enviar Bultos
+          Confirmar y Enviar Bultos
         </button>
       </div>
     </div>

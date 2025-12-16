@@ -7,6 +7,7 @@ import autoTable from "jspdf-autotable";
 import logo from "../../assets/logo.png";
 import { toast } from "../../lib/toast";
 import { useApi, API_BASE } from "../../lib/api";
+import QRCode from "qrcode";
 
 export default function OrdenDetail() {
   const { ordenId } = useParams();
@@ -127,7 +128,7 @@ export default function OrdenDetail() {
 
     const bodyRows = (orden.materiasPrimas || []).map((mp) => {
       const nombre =
-      `(${mp.proveedorMateriaPrima?.formato}) ${mp.proveedorMateriaPrima?.materiaPrima?.nombre}` ||
+      `${mp.proveedorMateriaPrima?.formato} - ${mp.proveedorMateriaPrima?.materiaPrima?.nombre}` ||
         mp.proveedorMateriaPrima?.materiaPrima?.nombre ||
         `#${mp.id_proveedor_materia_prima}`;
       const cantidad = mp.cantidad_formato || 0;
@@ -197,26 +198,53 @@ export default function OrdenDetail() {
 
   const handleDownloadEtiquetas = async () => {
     try {
-      const response = await axiosInstance.get(
-        `${API_BASE}/proceso-compra/ordenes/${ordenId}/etiquetas`,
-        { responseType: "blob" }
-      );
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `etiquetas_orden_${ordenId}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      const bultos = Array.isArray(orden?.bultos) ? orden.bultos : [];
+      if (bultos.length === 0) {
+        toast.error("No hay bultos asociados a esta orden.");
+        return;
+      }
+
+      // Mismo formato que Inventario > Descargar Etiqueta, pero en un solo PDF con varias páginas.
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: [80, 100],
+      });
+
+      for (let i = 0; i < bultos.length; i++) {
+        const b = bultos[i];
+        if (i > 0) pdf.addPage([80, 100], "portrait");
+
+        const qrData = await QRCode.toDataURL(b.identificador, { width: 120 });
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(16);
+        pdf.text("ETIQUETA DE BULTO", 40, 10, { align: "center" });
+        pdf.line(10, 12, 70, 12);
+
+        pdf.addImage(qrData, "PNG", 25, 18, 30, 30);
+
+        pdf.setFontSize(14);
+        pdf.text(b.identificador, 40, 55, { align: "center" });
+
+        pdf.line(10, 58, 70, 58);
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(12);
+        pdf.text(`ID: ${b.id}`, 40, 68, { align: "center" });
+
+        pdf.setFontSize(10);
+        const nombreMateria =
+          b.materiaPrima?.nombre ||
+          b.loteProductoFinal?.productoBase?.nombre ||
+          "Materia prima desconocida";
+        pdf.text(nombreMateria, 40, 80, { align: "center", maxWidth: 60 });
+      }
+
+      pdf.save(`Etiquetas_OC_${orden.id}.pdf`);
       toast.success("Etiquetas descargadas correctamente");
     } catch (error) {
-      toast.error("Error al descargar las etiquetas:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.response?.data ||
-        "Error al descargar las etiquetas.";
-      alert(errorMessage);
+      toast.error("Error al descargar las etiquetas: " + error);
     }
   };
 
@@ -481,24 +509,18 @@ export default function OrdenDetail() {
                           mp.proveedorMateriaPrima?.MateriaPrima?.nombre ||
                           `#${mp.id_proveedor_materia_prima}`;
 
-                        const cantidad_por_formato = mp.cantidad_por_formato ?? mp.cantidad ?? 0;
-                        const precio_unitario = mp.precio_unitario ?? 0;
-                        const subtotal = cantidad_por_formato * precio_unitario;
-                        const unidad_medida = mp.proveedorMateriaPrima?.unidad_medida || "—";
-                        // Mostrar formato solo si es distinto del nombre
-                        const mostrarFormato =
-                          formato && formato !== "—" && formato.toLowerCase() !== nombre.toLowerCase();
+                        const cantidad_formato = mp.cantidad_formato ?? 0;
+                        
                         return (
                           <tr key={idx} className="border-t border-border">
                             <td className="px-6 py-4 text-sm">
-                              {mostrarFormato && <strong>({formato}) </strong>}
-                              {nombre} <span className="text-gray-500">({cantidad_por_formato} {unidad_medida})</span>
+                              <strong>{formato}</strong> - {nombre} ({cantidad_formato})
                             </td>
-                            <td className="px-6 py-4 text-sm">{mp.cantidad_formato}</td>
+                            <td className="px-6 py-4 text-sm">{cantidad_formato}</td>
                             <td className="px-6 py-4 text-sm">
                               {formatCLP(mp.precio_unitario)}
                             </td>
-                            <td className="px-6 py-4 text-sm">{formatCLP(subtotal)}</td>
+                            <td className="px-6 py-4 text-sm">{formatCLP(mp.precio_unitario*mp.cantidad_formato)}</td>
                           </tr>
                         );
                       })}
@@ -537,30 +559,60 @@ export default function OrdenDetail() {
         </table>
       </div>
 
-      {orden.bultos?.length > 0 && orden.estado === "Recepcionada" && (
+      {orden.bultos?.length > 0 && (
         <div className="bg-gray-200 p-4 rounded-lg mt-6">
           <h2 className="text-xl font-semibold text-text mb-2">Bultos</h2>
           <table className="w-full bg-white rounded-lg shadow overflow-hidden">
             <thead className="bg-gray-100 text-sm text-gray-600">
               <tr>
-                <th className="px-6 py-3 text-left">ID Bulto</th>
-                <th className="px-6 py-3 text-left">Cantidad Unidades</th>
-                <th className="px-6 py-3 text-left">ID Pallet</th>
-                <th className="px-6 py-3 text-left">
-                  Identificador Proveedor
-                </th>
+                <th className="px-6 py-3 text-left">Bulto</th>
+                <th className="px-6 py-3 text-left">Item</th>
+                <th className="px-6 py-3 text-left">Cantidad</th>
+                <th className="px-6 py-3 text-left">Disponible</th>
+                <th className="px-6 py-3 text-left">Lote proveedor</th>
+                <th className="px-6 py-3 text-left">Pallet</th>
+                <th className="px-6 py-3 text-left">Costo</th>
               </tr>
             </thead>
             <tbody>
               {orden.bultos.map((bulto, idx) => (
                 <tr key={idx} className="border-t border-border">
-                  <td className="px-6 py-4 text-sm">{bulto.id}</td>
                   <td className="px-6 py-4 text-sm">
-                    {bulto.cantidad_unidades}
+                    <div className="font-medium">{bulto.identificador || `#${bulto.id}`}</div>
+                    <div className="text-xs text-gray-500">ID: {bulto.id}</div>
                   </td>
-                  <td className="px-6 py-4 text-sm">{bulto.id_pallet}</td>
                   <td className="px-6 py-4 text-sm">
-                    {bulto.identificador_proveedor}
+                    {bulto.materiaPrima?.nombre || "—"}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <div className="font-medium">{bulto.cantidad_unidades ?? "—"} un.</div>
+                    {bulto.peso_unitario ? (
+                      <div className="text-xs text-gray-500">
+                        {(Number(bulto.cantidad_unidades || 0) * Number(bulto.peso_unitario || 0)).toFixed(2)} {bulto.materiaPrima?.unidad_medida || ""}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <div className="font-medium">{bulto.unidades_disponibles ?? "—"} un.</div>
+                    {bulto.peso_unitario ? (
+                      <div className="text-xs text-gray-500">
+                        {(Number(bulto.unidades_disponibles || 0) * Number(bulto.peso_unitario || 0)).toFixed(2)} {bulto.materiaPrima?.unidad_medida || ""}
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    {bulto.lote?.identificador_proveedor || "—"}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    {bulto.pallet?.identificador || (bulto.id_pallet ?? "—")}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <div>
+                      Unit: {bulto.costo_unitario ? formatCLP(bulto.costo_unitario) : "—"}
+                    </div>
+                    <div className="font-medium">
+                      Total: {bulto.costo_unitario ? formatCLP(Number(bulto.costo_unitario) * Number(bulto.cantidad_unidades || 0)) : "—"}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -587,7 +639,7 @@ export default function OrdenDetail() {
         >
           Descargar PDF Orden
         </button>
-        {orden.estado === "Recepcionada" && (
+        {orden.bultos?.length > 0 && (
           <button
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
             onClick={handleDownloadEtiquetas}

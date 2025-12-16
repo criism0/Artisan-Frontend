@@ -132,20 +132,35 @@ export default function InventarioBultos() {
               <tr>
                 <th className="p-2 border">ID</th>
                 <th className="p-2 border">Identificador</th>
-                <th className="p-2 border">Materia Prima</th>
-                <th className="p-2 border">Cantidad</th>
-                <th className="p-2 border">Peso Unitario</th>
+                <th className="p-2 border">Item</th>
+                <th className="p-2 border">Peso Formato</th>
+                <th className="p-2 border">Disponible</th>
+                <th className="p-2 border">Costo</th>
                 <th className="p-2 border">Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {bultosFiltrados.map((b) => (
+              {bultosFiltrados.map((b) => {
+                const unidad = b.materiaPrima?.unidad_medida || b.loteProductoFinal?.productoBase?.unidad_medida || "";
+                const nombre = b.materiaPrima?.nombre || b.loteProductoFinal?.productoBase?.nombre || "Desconocido";
+                const cantidadTotal = (b.cantidad_unidades * b.peso_unitario).toFixed(2);
+                const cantidadDisponible = (b.unidades_disponibles * b.peso_unitario).toFixed(2);
+                const costoTotal = b.costo_unitario * b.unidades_disponibles;
+                
+                return (
                 <tr key={b.id} className="hover:bg-gray-50">
                   <td className="p-2 border">{b.id}</td>
                   <td className="p-2 border">{b.identificador}</td>
-                  <td className="p-2 border">{b.materiaPrima?.nombre}</td>
-                  <td className="p-2 border">{b.cantidad_unidades}</td>
-                  <td className="p-2 border">{b.peso_unitario}</td>
+                  <td className="p-2 border">{nombre}</td>
+
+                  <td className="p-2 border">{b.peso_unitario} {unidad}</td>
+                  <td className="p-2 border">
+                     <div className="font-medium">{cantidadDisponible} {unidad}</div>
+                     <div className="text-xs text-gray-500">({b.unidades_disponibles}/{b.cantidad_unidades} un.)</div>
+                  </td>
+                  <td className="p-2 border">
+                    <div className="font-medium">Total: {costoTotal ? `$${costoTotal}` : '-'}</div>
+                  </td>
                   <td className="p-2 border text-center space-x-2">
                     <button
                       onClick={() => generarEtiqueta(b)}
@@ -161,7 +176,7 @@ export default function InventarioBultos() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

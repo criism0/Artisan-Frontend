@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useApi } from "../../lib/api";
+import { ApiError, useApi } from "../../lib/api";
 import { createPortal } from "react-dom";
 import DireccionesManager from "../../components/DireccionesManager";
+import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
 
 function DynamicCombobox({ value, onChange, options, onSelect, placeholder }) {
   const inputRef = useRef(null);
@@ -102,12 +103,24 @@ export default function AddClientes() {
   const [selectedTipoPrecio, setSelectedTipoPrecio] = useState("");
   const [direcciones, setDirecciones] = useState([]);
   const [clienteId, setClienteId] = useState(null);
+
+  const [similarModal, setSimilarModal] = useState({
+    open: false,
+    inputName: "",
+    matches: [],
+  });
+  const [pendingPayload, setPendingPayload] = useState(null);
+  
+  // Estado para condición de pago
+  const [paymentType, setPaymentType] = useState("Contado");
+  const [creditDays, setCreditDays] = useState("");
+
   const [formData, setFormData] = useState({
     nombre_empresa: "",
     razon_social: "",
     rut: "",
     giro: "",
-    condicion_pago: "",
+    condicion_pago: "Contado",
     email_comercial: "",
     contacto_comercial: "",
     telefono_comercial: "",
@@ -118,6 +131,17 @@ export default function AddClientes() {
   const [errors, setErrors] = useState({});
 
   const tiposPrecio = ["UNIDADES", "CAJAS"];
+
+  // Efecto para actualizar condicion_pago en formData
+  useEffect(() => {
+    if (paymentType === "Contado") {
+      setFormData(prev => ({ ...prev, condicion_pago: "Contado" }));
+    } else if (paymentType === "Bloqueado") {
+      setFormData(prev => ({ ...prev, condicion_pago: "Bloqueado" }));
+    } else if (paymentType === "Crédito") {
+      setFormData(prev => ({ ...prev, condicion_pago: creditDays ? `Crédito ${creditDays} días` : "" }));
+    }
+  }, [paymentType, creditDays]);
 
   const validarRUT = (rut) => {
     const rutLimpio = rut.replace(/[.-]/g, '');
@@ -314,7 +338,58 @@ export default function AddClientes() {
       
       navigate("/clientes");
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && err.data?.code === "SIMILAR_NAME") {
+        setPendingPayload(payload);
+        setSimilarModal({
+          open: true,
+          inputName: err.data?.input || payload.nombre_empresa,
+          matches: err.data?.matches || [],
+        });
+        return;
+      }
+
       console.error("Error al crear cliente:", err);
+      alert("Error al crear cliente: " + (err.message));
+    }
+  };
+
+  const confirmCreateAnyway = async () => {
+    if (!pendingPayload) return;
+    try {
+      const response = await api("/clientes", {
+        method: "POST",
+        body: JSON.stringify({ ...pendingPayload, confirmSimilarName: true }),
+      });
+      const nuevoClienteId = response.id;
+
+      if (direcciones.length > 0) {
+        try {
+          for (const direccion of direcciones) {
+            const direccionData = {
+              tipo_direccion: direccion.tipo_direccion,
+              nombre_sucursal: direccion.nombre_sucursal,
+              calle: direccion.calle,
+              numero: direccion.numero,
+              comuna: direccion.comuna,
+              region: direccion.region,
+              tipo_recinto: direccion.tipo_recinto,
+              es_principal: direccion.es_principal,
+              cliente_id: nuevoClienteId,
+            };
+            await api("/direcciones", { method: "POST", body: JSON.stringify(direccionData) });
+          }
+        } catch (direccionError) {
+          console.error("Error al guardar direcciones:", direccionError);
+          alert("Cliente creado pero hubo un error al guardar las direcciones. Puedes editarlas después.");
+        }
+      }
+
+      setSimilarModal({ open: false, inputName: "", matches: [] });
+      setPendingPayload(null);
+      navigate("/clientes");
+    } catch (err) {
+      setSimilarModal({ open: false, inputName: "", matches: [] });
+      setPendingPayload(null);
       alert("Error al crear cliente: " + (err.message));
     }
   };
@@ -460,16 +535,58 @@ export default function AddClientes() {
               <label className="block text-gray-700 font-medium mb-2">
                 Condición de Pago <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
-                name="condicion_pago"
-                value={formData.condicion_pago}
-                onChange={handleChange}
-                placeholder={placeholders.condicion_pago}
-                className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                  errors.condicion_pago ? "border-red-500" : "border-gray-300"
-                }`}
-              />
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-4">
+                  <label className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio text-green-600"
+                      name="paymentType"
+                      value="Contado"
+                      checked={paymentType === "Contado"}
+                      onChange={() => setPaymentType("Contado")}
+                    />
+                    <span className="ml-2">Contado</span>
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio text-red-600"
+                      name="paymentType"
+                      value="Bloqueado"
+                      checked={paymentType === "Bloqueado"}
+                      onChange={() => setPaymentType("Bloqueado")}
+                    />
+                    <span className="ml-2">Bloqueado</span>
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input
+                      type="radio"
+                      className="form-radio text-blue-600"
+                      name="paymentType"
+                      value="Crédito"
+                      checked={paymentType === "Crédito"}
+                      onChange={() => setPaymentType("Crédito")}
+                    />
+                    <span className="ml-2">Crédito</span>
+                  </label>
+                </div>
+                
+                {paymentType === "Crédito" && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      type="number"
+                      placeholder="Días"
+                      value={creditDays}
+                      onChange={(e) => setCreditDays(e.target.value)}
+                      className={`border px-3 py-1 w-24 rounded text-gray-700 placeholder-gray-400 ${
+                        errors.condicion_pago ? "border-red-500" : "border-gray-300"
+                      }`}
+                    />
+                    <span className="text-gray-600 text-sm">días</span>
+                  </div>
+                )}
+              </div>
               {errors.condicion_pago && <p className="text-red-500 text-sm mt-1">{errors.condicion_pago}</p>}
             </div>
           </div>
@@ -621,6 +738,19 @@ export default function AddClientes() {
           </button>
         </div>
       </form>
+
+      <SimilarNameConfirmModal
+        open={similarModal.open}
+        entityLabel="cliente"
+        inputName={similarModal.inputName}
+        matches={similarModal.matches}
+        onCancel={() => {
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          setPendingPayload(null);
+        }}
+        onConfirm={confirmCreateAnyway}
+        confirmText="Crear cliente igualmente"
+      />
     </div>
   );
 }

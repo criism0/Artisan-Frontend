@@ -8,12 +8,20 @@ export function clearToken() {
   localStorage.removeItem("access_token");
 }
 
-async function safeMessage(res) {
+async function safeJson(res) {
   try {
-    const j = await res.json();
-    return j?.detalles || j?.message || j?.error || `${res.status} ${res.statusText}` || "Error desconocido";
+    return await res.json();
   } catch (err) {
-    return `${res.status} ${res.statusText}` || "Error desconocido";
+    return null;
+  }
+}
+
+export class ApiError extends Error {
+  constructor(message, status, data) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.data = data;
   }
 }
 
@@ -29,11 +37,19 @@ export async function api(path, { auth = true, headers, ...opts } = {}) {
   const res = await fetch(`${API_BASE}${path}`, { ...opts, headers: h });
 
   if (!res.ok) {
+    const data = await safeJson(res);
+    const message =
+      data?.detalles ||
+      data?.message ||
+      data?.error ||
+      `${res.status} ${res.statusText}` ||
+      "Error desconocido";
+
     if (res.status === 401 && window.location.pathname !== "/login") {
       clearToken();
       window.location.href = "/login";
     }
-    throw new Error(await safeMessage(res));
+    throw new ApiError(message, res.status, data);
   }
   if (res.status === 204) return null;
   return res.json();

@@ -220,20 +220,16 @@ export default function Ordenes() {
                 "Sin nombre";
 
               const cantidad =
-                insumo.cantidad_formato ?? "—";
+                insumo.cantidad_formato ?? insumo.cantidad ?? "—";
               
               const formato =
-                (insumo.proveedorMateriaPrima?.formato ||
-                  insumo.formato ||
-                  "—") === insumo.proveedorMateriaPrima?.materiaPrima?.nombre
-                  ? "Unidad"
-                  : (insumo.proveedorMateriaPrima?.formato ||
-                    insumo.formato ||
-                    "—");
+                insumo.proveedorMateriaPrima?.formato ||
+                insumo.formato ||
+                "—";
 
               return (
                 <span key={index} className="block mb-0.5">
-                  • <strong>{formato}</strong> {nombre} ({cantidad})
+                  • <strong>{formato}</strong> - {nombre} ({cantidad})
                 </span>
               );
             })
@@ -276,12 +272,26 @@ export default function Ordenes() {
               />
             )}
 
-            {row.pagada !== true && (
-              <PagarButton
-                onConfirm={() => pagarOrden(row.id)}
-                tooltipText="Pagar orden"
-              />
-            )}
+            <PagarButton
+              onConfirm={() => (row.pagada ? revertirPagoOrden(row.id) : pagarOrden(row.id))}
+              tooltipText={row.pagada ? "Revertir pago" : "Pagar orden"}
+              confirmTitle={
+                row.pagada
+                  ? "¿Estás segura de que quieres revertir el pago de esta orden?"
+                  : "¿Estás segura de que quieres pagar esta orden?"
+              }
+              confirmButtonText={row.pagada ? "Confirmar Reversión" : "Confirmar Pago"}
+              confirmButtonClassName={
+                row.pagada
+                  ? "bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded"
+                  : undefined
+              }
+              buttonClassName={
+                row.pagada
+                  ? "text-gray-400 hover:text-amber-600"
+                  : "text-gray-400 hover:text-blue-500"
+              }
+            />
 
             <button
               className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded"
@@ -360,6 +370,22 @@ export default function Ordenes() {
         err.response?.data?.message ||
         err.response?.data?.error ||
         "No se pudo pagar la orden. Por favor, intente nuevamente.";
+      toast.error(errorMessage);
+    }
+  };
+
+  const revertirPagoOrden = async (id) => {
+    try {
+      await api(
+        `/proceso-compra/ordenes/${id}/revertir-pago`, { method: "PUT" }
+      );
+      toast.success("Pago revertido correctamente");
+      fetchOrdenes();
+    } catch (err) {
+      const errorMessage =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        "No se pudo revertir el pago. Por favor, intente nuevamente.";
       toast.error(errorMessage);
     }
   };
@@ -448,12 +474,26 @@ export default function Ordenes() {
                 />
               )}
 
-              {row.pagada !== true && (
-                <PagarButton
-                  onConfirm={() => pagarOrden(row.id)}
-                  tooltipText="Pagar orden"
-                />
-              )}
+              <PagarButton
+                onConfirm={() => (row.pagada ? revertirPagoOrden(row.id) : pagarOrden(row.id))}
+                tooltipText={row.pagada ? "Revertir pago" : "Pagar orden"}
+                confirmTitle={
+                  row.pagada
+                    ? "¿Estás segura de que quieres revertir el pago de esta orden?"
+                    : "¿Estás segura de que quieres pagar esta orden?"
+                }
+                confirmButtonText={row.pagada ? "Confirmar Reversión" : "Confirmar Pago"}
+                confirmButtonClassName={
+                  row.pagada
+                    ? "bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded"
+                    : undefined
+                }
+                buttonClassName={
+                  row.pagada
+                    ? "text-gray-400 hover:text-amber-600"
+                    : "text-gray-400 hover:text-blue-500"
+                }
+              />
 
               <button
                 className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded"
