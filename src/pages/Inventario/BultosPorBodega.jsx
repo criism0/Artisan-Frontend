@@ -39,7 +39,7 @@ export default function BultosPorBodega() {
 
   const downloadPdf = async (path, body) => {
     try {
-      const response = await api.post(path, body, { responseType: 'blob' });
+      const response = await axiosInstance.post(path, body, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -72,7 +72,17 @@ export default function BultosPorBodega() {
         Descargar etiquetas del lote
       </button>
         {row.lote?.identificador_proveedor ? (
-          <button className="text-sm text-green-600 hover:underline" onClick={(e) => { e.preventDefault(); downloadPdf(`/bultos/etiquetas?ids_bultos[]=${encodeURIComponent(row.lote.identificador_proveedor)}`); }}>Descargar etiquetas del lote</button>
+          <button
+            className="text-sm text-green-600 hover:underline"
+            onClick={(e) => {
+              e.preventDefault();
+              downloadPdf('/bultos/etiquetas', {
+                ids_bultos: [row.lote.identificador_proveedor],
+              });
+            }}
+          >
+            Descargar etiquetas del lote
+          </button>
         ) : null}
       </div>
     ) }

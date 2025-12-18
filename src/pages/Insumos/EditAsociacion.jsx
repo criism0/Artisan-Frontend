@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 export default function EditAsociacion() {
   const { id } = useParams(); 
@@ -30,6 +30,25 @@ export default function EditAsociacion() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [precioInputValue, setPrecioInputValue] = useState('');
   const [formatosHijos, setFormatosHijos] = useState([]);
+  const [monedaBase, setMonedaBase] = useState(null);
+
+  const calcularPrecioDerivado = useCallback(() => {
+    if (formData.es_unidad_consumo) return null;
+    const childId = formData.id_formato_hijo ? parseInt(formData.id_formato_hijo) : null;
+    const child = childId ? formatosHijos.find((h) => h.id === childId) : null;
+    const cantidad = parseFloat(formData.cantidad_hijos);
+    if (!child || !child.precio_unitario || !cantidad || cantidad <= 0) return null;
+    return Number(child.precio_unitario) * Number(cantidad);
+  }, [formData.es_unidad_consumo, formData.id_formato_hijo, formData.cantidad_hijos, formatosHijos]);
+
+  useEffect(() => {
+    if (formData.es_unidad_consumo) return;
+    const precio = calcularPrecioDerivado();
+    if (precio == null) return;
+
+    setFormData((prev) => ({ ...prev, precio_unitario: String(precio) }));
+    setPrecioInputValue(String(precio).replace('.', ','));
+  }, [calcularPrecioDerivado, formData.es_unidad_consumo]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -66,12 +85,22 @@ export default function EditAsociacion() {
         });
         setPrecioInputValue(precioUnitario ? precioUnitario.replace('.', ',') : '');
 
-        // Cargar posibles formatos hijos (del mismo proveedor e insumo)
+        // Cargar asociaciones del mismo proveedor + insumo (para heredar moneda y elegir hijo)
         if (asociacion.id_proveedor && asociacion.id_materia_prima) {
-           const hijosRes = await api(`/proveedor-materia-prima?id_proveedor=${asociacion.id_proveedor}&id_materia_prima=${asociacion.id_materia_prima}`);
-           const hijosData = Array.isArray(hijosRes?.data) ? hijosRes.data : hijosRes;
-           // Filtrar para no mostrarse a sí mismo ni a sus padres (para evitar ciclos simples)
-           setFormatosHijos(hijosData.filter(h => h.id !== parseInt(id)));
+          const relRes = await api(`/proveedor-materia-prima?id_proveedor=${asociacion.id_proveedor}&id_materia_prima=${asociacion.id_materia_prima}`);
+          const relData = Array.isArray(relRes?.data) ? relRes.data : relRes;
+
+          // Hijo elegible: cualquiera menos él mismo
+          setFormatosHijos((relData || []).filter((h) => h.id !== parseInt(id)));
+
+          const base = (relData || []).find((a) => a.es_unidad_consumo);
+          const baseMoneda = base?.moneda || asociacion.moneda || "CLP";
+          setMonedaBase(baseMoneda);
+
+          // Si NO es base, moneda siempre heredada desde la base
+          if (!asociacion.es_unidad_consumo) {
+            setFormData((prev) => ({ ...prev, moneda: baseMoneda }));
+          }
         }
 
       } catch (error) {
@@ -81,6 +110,15 @@ export default function EditAsociacion() {
     };
     fetchData();
   }, [id]);
+
+  // Si no es base, mantener moneda heredada
+  useEffect(() => {
+    if (formData.es_unidad_consumo) return;
+    if (!monedaBase) return;
+    if (formData.moneda !== monedaBase) {
+      setFormData((prev) => ({ ...prev, moneda: monedaBase }));
+    }
+  }, [formData.es_unidad_consumo, formData.moneda, monedaBase]);
 
   const validate = () => {
     const newErrors = {};
@@ -94,7 +132,9 @@ export default function EditAsociacion() {
         if (!formData.cantidad_hijos) newErrors.cantidad_hijos = "Debe ingresar la cantidad contenida.";
     }
 
-    if (!formData.precio_unitario) newErrors.precio_unitario = "Debe ingresar un precio unitario.";
+    if (formData.es_unidad_consumo && !formData.precio_unitario) {
+      newErrors.precio_unitario = "Debe ingresar un precio unitario.";
+    }
     if (!formData.moneda) newErrors.moneda = "Debe seleccionar una moneda.";
     if (!formData.formato) newErrors.formato = "Debe ingresar un formato.";
     setErrors(newErrors);
@@ -117,20 +157,30 @@ export default function EditAsociacion() {
         (i) => i.id === parseInt(formData.id_materia_prima)
       );
 
-      const precioUnitario = typeof formData.precio_unitario === 'string' 
-        ? parseFloat(formData.precio_unitario.replace(',', '.')) 
-        : parseFloat(formData.precio_unitario);
+      const precioDerivado = calcularPrecioDerivado();
+
+      const precioUnitario = formData.es_unidad_consumo
+        ? (typeof formData.precio_unitario === 'string'
+          ? parseFloat(formData.precio_unitario.replace(',', '.'))
+          : parseFloat(formData.precio_unitario))
+        : (precioDerivado ?? (typeof formData.precio_unitario === 'string'
+          ? parseFloat(formData.precio_unitario.replace(',', '.'))
+          : parseFloat(formData.precio_unitario)));
 
       const body = {
         id_proveedor: parseInt(formData.id_proveedor),
         id_materia_prima: parseInt(formData.id_materia_prima),
-        peso_unitario: parseFloat(formData.peso_unitario),
+        ...(formData.es_unidad_consumo
+          ? { peso_unitario: parseFloat(formData.peso_unitario) }
+          : {}),
         precio_unitario: precioUnitario,
-        moneda: formData.moneda,
+        moneda: formData.es_unidad_consumo ? formData.moneda : (monedaBase || formData.moneda),
         formato: formData.formato,
         unidad_medida: selectedInsumo?.unidad_medida || "Unidad",
         es_unidad_consumo: formData.es_unidad_consumo,
-        id_formato_hijo: formData.es_unidad_consumo ? null : parseInt(formData.id_formato_hijo),
+        id_formato_hijo: formData.es_unidad_consumo
+          ? null
+          : (formData.id_formato_hijo ? parseInt(formData.id_formato_hijo) : null),
         cantidad_hijos: formData.es_unidad_consumo ? 1 : parseFloat(formData.cantidad_hijos),
       };
 
@@ -221,98 +271,137 @@ export default function EditAsociacion() {
           )}
         </div>
 
-        {/* Peso y precio */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-             <label className="flex items-center space-x-2 mb-4">
-                <input 
-                   type="checkbox" 
-                   name="es_unidad_consumo"
-                   checked={formData.es_unidad_consumo}
-                   onChange={handleChange}
-                   className="form-checkbox h-5 w-5 text-primary"
-                />
-                <span className="text-sm font-medium text-gray-700">Es unidad de consumo (base) / Toma de Inventario</span>
-             </label>
-          </div>
-
-          {formData.es_unidad_consumo ? (
-            <div>
-              <label className="block text-sm font-medium mb-1">
-                Peso / Cantidad por formato *
-              </label>
-              <input
-                name="peso_unitario"
-                type="number"
-                step="0.0001"
-                value={formData.peso_unitario}
-                onChange={handleChange}
-                className={`w-full border rounded-lg px-3 py-2 ${
-                  errors.peso_unitario ? "border-red-500" : "border-gray-300"
-                }`}
-              />
-              {errors.peso_unitario && (
-                <p className="text-red-500 text-sm mt-1">{errors.peso_unitario}</p>
-              )}
-            </div>
-          ) : (
-             <>
-                <div>
-                   <label className="block text-sm font-medium mb-1">Contiene formato *</label>
-                   <select
-                      name="id_formato_hijo"
-                      value={formData.id_formato_hijo || ""}
-                      onChange={handleChange}
-                      className={`w-full border rounded-lg px-3 py-2 ${errors.id_formato_hijo ? "border-red-500" : "border-gray-300"}`}
-                   >
-                      <option value="">Seleccionar formato contenido</option>
-                      {formatosHijos.map(h => (
-                         <option key={h.id} value={h.id}>{h.formato} ({h.cantidad_por_formato} {h.unidad_medida})</option>
-                      ))}
-                   </select>
-                   {errors.id_formato_hijo && <p className="text-red-500 text-sm mt-1">{errors.id_formato_hijo}</p>}
-                </div>
-                <div>
-                   <label className="block text-sm font-medium mb-1">Cantidad contenida *</label>
-                   <input
-                      name="cantidad_hijos"
-                      type="number"
-                      step="0.01"
-                      value={formData.cantidad_hijos}
-                      onChange={handleChange}
-                      className={`w-full border rounded-lg px-3 py-2 ${errors.cantidad_hijos ? "border-red-500" : "border-gray-300"}`}
-                   />
-                   {errors.cantidad_hijos && <p className="text-red-500 text-sm mt-1">{errors.cantidad_hijos}</p>}
-                </div>
-             </>
+        {/* Nombre Formato */}
+        <div>
+          <label className="block text-sm font-medium mb-1">Nombre Formato *</label>
+          <input
+            name="formato"
+            value={formData.formato}
+            onChange={handleChange}
+            placeholder="Ej: caja, saco, rollo..."
+            className={`w-full border rounded-lg px-3 py-2 ${
+              errors.formato ? "border-red-500" : "border-gray-300"
+            }`}
+          />
+          {errors.formato && (
+            <p className="text-red-500 text-sm mt-1">{errors.formato}</p>
           )}
+        </div>
 
+        {/* Checkbox base */}
+        <div>
+          <label className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              name="es_unidad_consumo"
+              checked={formData.es_unidad_consumo}
+              onChange={handleChange}
+              className="form-checkbox h-5 w-5 text-primary"
+            />
+            <span className="text-sm font-medium text-gray-700">
+              Es unidad de consumo (base) / Toma de Inventario
+            </span>
+          </label>
+        </div>
+
+        {/* Contiene Formato | Cantidad Contenida (o peso base) */}
+        {formData.es_unidad_consumo ? (
           <div>
             <label className="block text-sm font-medium mb-1">
-              Costo Formato *
+              Peso / Cantidad por formato *
+            </label>
+            <input
+              name="peso_unitario"
+              type="number"
+              step="0.0001"
+              value={formData.peso_unitario}
+              onChange={handleChange}
+              className={`w-full border rounded-lg px-3 py-2 ${
+                errors.peso_unitario ? "border-red-500" : "border-gray-300"
+              }`}
+            />
+            {errors.peso_unitario && (
+              <p className="text-red-500 text-sm mt-1">{errors.peso_unitario}</p>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Contiene Formato *</label>
+              <select
+                name="id_formato_hijo"
+                value={formData.id_formato_hijo || ""}
+                onChange={handleChange}
+                className={`w-full border rounded-lg px-3 py-2 ${errors.id_formato_hijo ? "border-red-500" : "border-gray-300"}`}
+              >
+                <option value="">Seleccionar formato contenido</option>
+                {formatosHijos.map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.formato} ({h.cantidad_por_formato} {h.unidad_medida})
+                  </option>
+                ))}
+              </select>
+              {errors.id_formato_hijo && (
+                <p className="text-red-500 text-sm mt-1">{errors.id_formato_hijo}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Cantidad Contenida *</label>
+              <input
+                name="cantidad_hijos"
+                type="number"
+                step="0.01"
+                value={formData.cantidad_hijos}
+                onChange={handleChange}
+                className={`w-full border rounded-lg px-3 py-2 ${errors.cantidad_hijos ? "border-red-500" : "border-gray-300"}`}
+              />
+              {errors.cantidad_hijos && (
+                <p className="text-red-500 text-sm mt-1">{errors.cantidad_hijos}</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Costo | Moneda */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              {formData.es_unidad_consumo ? "Costo Formato *" : "Costo Formato (calculado)"}
             </label>
             <input
               name="precio_unitario"
               type="text"
-              value={precioInputValue !== '' ? precioInputValue : (formData.precio_unitario ? String(formData.precio_unitario).replace('.', ',') : '')}
+              value={(() => {
+                if (!formData.es_unidad_consumo) {
+                  const precio = calcularPrecioDerivado();
+                  return precio != null
+                    ? String(precio).replace('.', ',')
+                    : (precioInputValue !== ''
+                      ? precioInputValue
+                      : (formData.precio_unitario ? String(formData.precio_unitario).replace('.', ',') : ''));
+                }
+                return precioInputValue !== ''
+                  ? precioInputValue
+                  : (formData.precio_unitario ? String(formData.precio_unitario).replace('.', ',') : '');
+              })()}
+              disabled={!formData.es_unidad_consumo}
               onChange={(e) => {
+                if (!formData.es_unidad_consumo) return;
                 let inputValue = e.target.value;
-                // Permitir solo números, comas y puntos
                 inputValue = inputValue.replace(/[^0-9,.]/g, '');
-                // Reemplazar punto por coma para consistencia
                 inputValue = inputValue.replace(/\./g, ',');
-                // Permitir solo una coma
                 const parts = inputValue.split(',');
                 if (parts.length > 2) {
                   inputValue = parts[0] + ',' + parts.slice(1).join('');
                 }
-                
+
                 setPrecioInputValue(inputValue);
-                
-                // Convertir a número para guardar (reemplazar coma por punto)
+
                 const valorConPunto = inputValue.replace(',', '.');
-                const nuevoValor = inputValue === '' || inputValue.endsWith(',') ? formData.precio_unitario : (valorConPunto || '');
-                
+                const nuevoValor = inputValue === '' || inputValue.endsWith(',')
+                  ? formData.precio_unitario
+                  : (valorConPunto || '');
+
                 setFormData((prev) => ({ ...prev, precio_unitario: nuevoValor }));
                 setHasChanges(true);
               }}
@@ -324,16 +413,16 @@ export default function EditAsociacion() {
               <p className="text-red-500 text-sm mt-1">{errors.precio_unitario}</p>
             )}
           </div>
-        </div>
 
-        {/* Moneda y formato */}
-        <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Moneda *</label>
+            <label className="block text-sm font-medium mb-1">
+              {formData.es_unidad_consumo ? "Moneda *" : "Moneda (heredada)"}
+            </label>
             <select
               name="moneda"
-              value={formData.moneda}
+              value={formData.es_unidad_consumo ? formData.moneda : (monedaBase || formData.moneda)}
               onChange={handleChange}
+              disabled={!formData.es_unidad_consumo}
               className={`w-full border rounded-lg px-3 py-2 ${
                 errors.moneda ? "border-red-500" : "border-gray-300"
               }`}
@@ -346,22 +435,6 @@ export default function EditAsociacion() {
             </select>
             {errors.moneda && (
               <p className="text-red-500 text-sm mt-1">{errors.moneda}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Formato *</label>
-            <input
-              name="formato"
-              value={formData.formato}
-              onChange={handleChange}
-              placeholder="Ej: caja, saco, rollo..."
-              className={`w-full border rounded-lg px-3 py-2 ${
-                errors.formato ? "border-red-500" : "border-gray-300"
-              }`}
-            />
-            {errors.formato && (
-              <p className="text-red-500 text-sm mt-1">{errors.formato}</p>
             )}
           </div>
         </div>

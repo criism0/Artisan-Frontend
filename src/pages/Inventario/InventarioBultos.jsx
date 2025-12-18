@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from "react";
 import axiosInstance from "../../axiosInstance";
-import jsPDF from "jspdf";
-import QRCode from "qrcode";
 import DividirBultoModal from "../../components/DividirBultoModal";
 
 export default function InventarioBultos() {
@@ -53,38 +51,26 @@ export default function InventarioBultos() {
   });
 
   const generarEtiqueta = async (bulto) => {
-  const pdf = new jsPDF({
-    orientation: "portrait",
-    unit: "mm",
-    format: [80, 100],
-  });
-
-  const qrData = await QRCode.toDataURL(bulto.identificador, { width: 120 });
-
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(16);
-  pdf.text("ETIQUETA DE BULTO", 40, 10, { align: "center" });
-  pdf.line(10, 12, 70, 12);
-
-  pdf.addImage(qrData, "PNG", 25, 18, 30, 30);
-
-  pdf.setFontSize(14);
-  pdf.text(bulto.identificador, 40, 55, { align: "center" });
-
-  pdf.line(10, 58, 70, 58);
-
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(12);
-  pdf.text(`ID: ${bulto.id}`, 40, 68, { align: "center" });
-
-  pdf.setFontSize(10);
-  const nombreMateria = bulto.materiaPrima?.nombre
-    ? bulto.materiaPrima.nombre
-    : "Materia prima desconocida";
-  pdf.text(nombreMateria, 40, 80, { align: "center", maxWidth: 60 });
-
-  pdf.save(`Etiqueta_${bulto.identificador}.pdf`);
-};
+    try {
+      const response = await axiosInstance.post(
+        "/bultos/etiquetas",
+        { ids_bultos: [bulto.id] },
+        { responseType: "blob" }
+      );
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Etiqueta_${bulto.identificador || bulto.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error al descargar etiqueta:", error);
+      alert("No se pudo descargar la etiqueta. Revisa la consola.");
+    }
+  };
 
 
 
