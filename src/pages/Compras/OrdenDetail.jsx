@@ -7,7 +7,6 @@ import autoTable from "jspdf-autotable";
 import logo from "../../assets/logo.png";
 import { toast } from "../../lib/toast";
 import { useApi, API_BASE } from "../../lib/api";
-import QRCode from "qrcode";
 
 export default function OrdenDetail() {
   const { ordenId } = useParams();
@@ -204,47 +203,24 @@ export default function OrdenDetail() {
         return;
       }
 
-      // Mismo formato que Inventario > Descargar Etiqueta, pero en un solo PDF con varias páginas.
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: [80, 100],
-      });
-
-      for (let i = 0; i < bultos.length; i++) {
-        const b = bultos[i];
-        if (i > 0) pdf.addPage([80, 100], "portrait");
-
-        const qrData = await QRCode.toDataURL(b.identificador, { width: 120 });
-
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(16);
-        pdf.text("ETIQUETA DE BULTO", 40, 10, { align: "center" });
-        pdf.line(10, 12, 70, 12);
-
-        pdf.addImage(qrData, "PNG", 25, 18, 30, 30);
-
-        pdf.setFontSize(14);
-        pdf.text(b.identificador, 40, 55, { align: "center" });
-
-        pdf.line(10, 58, 70, 58);
-
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(12);
-        pdf.text(`ID: ${b.id}`, 40, 68, { align: "center" });
-
-        pdf.setFontSize(10);
-        const nombreMateria =
-          b.materiaPrima?.nombre ||
-          b.loteProductoFinal?.productoBase?.nombre ||
-          "Materia prima desconocida";
-        pdf.text(nombreMateria, 40, 80, { align: "center", maxWidth: 60 });
-      }
-
-      pdf.save(`Etiquetas_OC_${orden.id}.pdf`);
+      const ids_bultos = bultos.map((b) => b.id).filter(Boolean);
+      const response = await axiosInstance.post(
+        "/bultos/etiquetas",
+        { ids_bultos },
+        { responseType: "blob" }
+      );
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Etiquetas_OC_${orden.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
       toast.success("Etiquetas descargadas correctamente");
     } catch (error) {
-      toast.error("Error al descargar las etiquetas: " + error);
+      toast.error("Error al descargar las etiquetas: " + (error?.message || error));
     }
   };
 

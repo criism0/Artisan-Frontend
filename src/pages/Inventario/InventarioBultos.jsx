@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axiosInstance from "../../axiosInstance";
 import DividirBultoModal from "../../components/DividirBultoModal";
+import { toast } from "../../lib/toast";
 
 export default function InventarioBultos() {
   const [bodegas, setBodegas] = useState([]);
@@ -68,7 +69,7 @@ export default function InventarioBultos() {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error al descargar etiqueta:", error);
-      alert("No se pudo descargar la etiqueta. Revisa la consola.");
+      toast.error("No se pudo descargar la etiqueta. Revisa la consola.");
     }
   };
 
