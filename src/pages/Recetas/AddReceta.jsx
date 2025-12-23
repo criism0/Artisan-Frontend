@@ -101,6 +101,45 @@ export default function AddReceta() {
   // ────────────────────────────────────────────────
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // Al cambiar el producto a producir, la unidad se deriva y no debe ser editable.
+    if (name === "id_materia_prima") {
+      const mp = materiasPrimas.find((m) => String(m.id) === String(value));
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+        unidad_medida: mp?.unidad_medida || "",
+      }));
+      return;
+    }
+
+    if (name === "id_producto_base") {
+      const producto = productos.find((p) => String(p.id) === String(value));
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+        unidad_medida: producto?.unidad_medida || "",
+      }));
+      return;
+    }
+
+    if (name === "tipo") {
+      // Reset de campos condicionales al cambiar el tipo
+      setFormData((prev) => ({
+        ...prev,
+        tipo: value,
+        id_materia_prima: "",
+        id_producto_base: "",
+        unidad_medida: "",
+      }));
+      return;
+    }
+
+    // No permitir set manual de unidad_medida
+    if (name === "unidad_medida") {
+      return;
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -363,24 +402,23 @@ export default function AddReceta() {
           </div>
         )}
 
-        {/* Unidad */}
+        {/* Unidad (derivada del producto a producir) */}
         <div>
           <label className="block text-sm font-medium mb-1">
             Unidad de Medida: <span className="text-red-500">*</span>
           </label>
-          <select
+          <input
             name="unidad_medida"
             value={formData.unidad_medida}
-            onChange={handleChange}
-            className={`w-full border rounded-lg px-3 py-2 ${
+            readOnly
+            placeholder="Se completa automáticamente"
+            className={`w-full border rounded-lg px-3 py-2 bg-gray-50 text-gray-700 placeholder-gray-400 ${
               errors.unidad_medida ? "border-red-500" : "border-gray-300"
             }`}
-          >
-            <option value="">Seleccionar unidad</option>
-            <option value="Kilogramos">Kilogramos</option>
-            <option value="Litros">Litros</option>
-            <option value="Unidades">Unidades</option>
-          </select>
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            La unidad se obtiene desde el producto a producir.
+          </p>
           {errors.unidad_medida && (
             <p className="text-red-500 text-sm mt-1">{errors.unidad_medida}</p>
           )}
@@ -389,7 +427,7 @@ export default function AddReceta() {
         {/* Rendimiento */}
         <div>
           <label className="block text-sm font-medium mb-1">
-            Rendimiento Teórico: <span className="text-red-500">*</span>
+            Rendimiento Teórico en {formData.unidad_medida}: <span className="text-red-500">*</span>
           </label>
           <input
             name="rendimiento"

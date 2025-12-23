@@ -19,6 +19,14 @@ export default function AddOM() {
     peso_objetivo: "",
   });
 
+  const recetaSeleccionada = useMemo(() => {
+    const idReceta = Number(form.id_receta);
+    if (!idReceta) return null;
+    return recetas.find((r) => Number(r.id) === idReceta) || null;
+  }, [form.id_receta, recetas]);
+
+  const unidadObjetivo = recetaSeleccionada?.unidad_medida || "";
+
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [disponibilidad, setDisponibilidad] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -201,7 +209,7 @@ export default function AddOM() {
 
         <div>
           <label className="block text-sm font-medium mb-1">
-            Peso Objetivo (kg)
+            Cantidad Objetivo{unidadObjetivo ? ` (${unidadObjetivo})` : ""}
           </label>
           <input
             type="number"
@@ -210,7 +218,7 @@ export default function AddOM() {
             value={form.peso_objetivo}
             onChange={(e) => setField("peso_objetivo", e.target.value)}
             className="w-full border rounded-md px-3 py-2"
-            placeholder="Ej: 1000"
+            placeholder={unidadObjetivo === "unidades" ? "Ej: 100" : "Ej: 1000"}
           />
         </div>
 
@@ -270,6 +278,14 @@ export default function AddOM() {
                       {items.map((item, index) => {
                         const cantidadNecesaria = item.peso_necesario ?? item.cantidad_necesaria ?? item.cantidadNecesaria ?? item.necesario ?? item.pesoNecesario ?? 0;
                         const cantidadDisponible = item.peso_disponible ?? item.cantidad_disponible ?? item.cantidadDisponible ?? item.disponible ?? item.pesoDisponible ?? 0;
+
+                        const unidadItem =
+                          item.unidad_medida ??
+                          item.ingrediente?.unidad_medida ??
+                          item.ingredienteReceta?.unidad_medida ??
+                          item.materiaPrima?.unidad_medida ??
+                          item.ingrediente?.materiaPrima?.unidad_medida ??
+                          "";
                         
                         let nombreInsumo = 
                           item.materiaPrima?.nombre ?? 
@@ -292,8 +308,8 @@ export default function AddOM() {
                         return (
                           <tr key={index} className={disponible ? "bg-green-50" : "bg-red-50"}>
                             <td className="border border-gray-300 px-4 py-2 text-sm">{nombreInsumo}</td>
-                            <td className="border border-gray-300 px-4 py-2 text-sm">{Number(cantidadNecesaria || 0).toFixed(2)} kg</td>
-                            <td className="border border-gray-300 px-4 py-2 text-sm">{Number(cantidadDisponible || 0).toFixed(2)} kg</td>
+                            <td className="border border-gray-300 px-4 py-2 text-sm">{Number(cantidadNecesaria || 0).toFixed(2)}{unidadItem ? ` ${unidadItem}` : ""}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-sm">{Number(cantidadDisponible || 0).toFixed(2)}{unidadItem ? ` ${unidadItem}` : ""}</td>
                             <td className="border border-gray-300 px-4 py-2 text-sm">
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
                                 disponible 

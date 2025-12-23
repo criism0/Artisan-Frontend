@@ -1,4 +1,4 @@
-import { ViewDetailButton, TrashButton } from "../../components/Buttons/ActionButtons";
+import { ViewDetailButton, TrashIconButton } from "../../components/Buttons/ActionButtons";
 import Table from "../../components/Table";
 import SearchBar from "../../components/SearchBar";
 import RowsPerPageSelector from "../../components/RowsPerPageSelector";
@@ -7,6 +7,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import { FiChevronDown, FiChevronRight } from "react-icons/fi";
+import { toast } from "../../lib/toast";
+import ConfirmDeletePreviewModal from "../../components/Modals/ConfirmDeletePreviewModal";
 
 export default function OMList() {
   const [ordenes, setOrdenes] = useState([]);
@@ -16,6 +18,13 @@ export default function OMList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState(null);
+  const [deletePreview, setDeletePreview] = useState(null);
+  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
+  const [deletePreviewError, setDeletePreviewError] = useState(null);
+
   const navigate = useNavigate();
 
   const getEstadoBadge = (estado) => {
@@ -248,16 +257,41 @@ export default function OMList() {
     fetchData();
   }, []);
 
+  const openDeleteModal = async (id) => {
+    setDeleteTargetId(id);
+    setDeleteModalOpen(true);
+    setDeletePreview(null);
+    setDeletePreviewError(null);
+    setDeletePreviewLoading(true);
+
+    try {
+      const preview = await api(`/ordenes_manufactura/${id}/delete_preview`, { method: "GET" });
+      setDeletePreview(preview);
+    } catch (err) {
+      console.error("Error obteniendo delete_preview:", err);
+      setDeletePreviewError(err);
+    } finally {
+      setDeletePreviewLoading(false);
+    }
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModalOpen(false);
+    setDeleteTargetId(null);
+    setDeletePreview(null);
+    setDeletePreviewError(null);
+    setDeletePreviewLoading(false);
+  };
+
   const actions = (row) => (
     <div className="flex gap-2">
       <ViewDetailButton
         onClick={() => navigate(`/Orden_de_Manufactura/${row.id}`)}
         tooltipText="Ver Detalle"
       />
-      <TrashButton
-        onConfirmDelete={() => handleDelete(row.id)}
+      <TrashIconButton
+        onClick={() => openDeleteModal(row.id)}
         tooltipText="Eliminar OM"
-        entityName="Orden de Manufactura"
       />
     </div>
   );
@@ -267,8 +301,9 @@ export default function OMList() {
       await api(`/ordenes_manufactura/${id}`, { method: "DELETE" });
       setOrdenes((prev) => prev.filter((o) => o.id !== id));
       setFilteredOrdenes((prev) => prev.filter((o) => o.id !== id));
+      toast.success(`OM #${id} eliminada correctamente`);
     } catch {
-      alert("Error al eliminar");
+      toast.error("Error al eliminar la orden de manufactura");
     }
   };
 
@@ -278,6 +313,30 @@ export default function OMList() {
 
   return (
     <div className="p-6 bg-background min-h-screen">
+      <ConfirmDeletePreviewModal
+        isOpen={deleteModalOpen}
+        onClose={closeDeleteModal}
+        onConfirm={async () => {
+          if (deleteTargetId == null) return;
+
+          // Si el backend bloquea, el modal ya lo muestra.
+          if (deletePreview?.canDelete === false) return;
+
+          // Si no pudimos obtener preview, permitimos eliminar igualmente.
+          if (deletePreviewError) {
+            toast.error("No se pudo cargar el detalle; eliminando igualmente…");
+          }
+
+          await handleDelete(deleteTargetId);
+          closeDeleteModal();
+        }}
+        entityName={deleteTargetId != null ? `OM #${deleteTargetId}` : "Orden de Manufactura"}
+        title={deleteTargetId != null ? `¿Eliminar OM #${deleteTargetId}?` : "¿Eliminar Orden de Manufactura?"}
+        preview={deletePreview}
+        loading={deletePreviewLoading}
+        error={deletePreviewError}
+      />
+
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Lista de Elaboración</h1>
         <button

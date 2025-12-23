@@ -148,18 +148,7 @@ export default function AddProcesoValorAgregado() {
           {errors.costo_estimado && <p className="text-red-500 text-sm mt-1">{errors.costo_estimado}</p>}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Tiempo estimado</label>
-          <input
-            name="tiempo_estimado"
-            value={formData.tiempo_estimado}
-            onChange={handleChange}
-            placeholder="Ej: 3"
-            className={`w-full border rounded-lg px-3 py-2 ${errors.tiempo_estimado ? "border-red-500" : "border-gray-300"}`}
-          />
-          {errors.tiempo_estimado && <p className="text-red-500 text-sm mt-1">{errors.tiempo_estimado}</p>}
-        </div>
-
+        
         <div>
           <label className="block text-sm font-medium mb-1">Unidad de tiempo</label>
           <select
@@ -176,6 +165,19 @@ export default function AddProcesoValorAgregado() {
           </select>
           {errors.unidad_tiempo && <p className="text-red-500 text-sm mt-1">{errors.unidad_tiempo}</p>}
         </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Tiempo estimado</label>
+          <input
+            name="tiempo_estimado"
+            value={formData.tiempo_estimado}
+            onChange={handleChange}
+            placeholder="Ej: 3"
+            className={`w-full border rounded-lg px-3 py-2 ${errors.tiempo_estimado ? "border-red-500" : "border-gray-300"}`}
+          />
+          {errors.tiempo_estimado && <p className="text-red-500 text-sm mt-1">{errors.tiempo_estimado}</p>}
+        </div>
+
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center">
