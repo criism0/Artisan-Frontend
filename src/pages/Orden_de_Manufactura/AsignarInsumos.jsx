@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
+import { BackButton } from "../../components/Buttons/ActionButtons";
 
 const formatDecimal = (num) => {
   const numValue = Number(num);
@@ -58,6 +59,36 @@ export default function AsignarInsumos() {
   const [revertModalOpen, setRevertModalOpen] = useState(false);
   const [revertTarget, setRevertTarget] = useState(null); // { registroId, bulto, unidadMedida, pesoUtilizado, unidades }
 
+  // null = aún no verificado; true/false = verificado
+  const [hasPasos, setHasPasos] = useState(null);
+  const [noPasosConfirmOpen, setNoPasosConfirmOpen] = useState(false);
+  const [noPasosConfirmTitle, setNoPasosConfirmTitle] = useState("");
+  const [noPasosConfirmDescription, setNoPasosConfirmDescription] = useState("");
+  const [pendingAction, setPendingAction] = useState(null);
+
+  const parsePasosResponse = (data) => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.pasos)) return data.pasos;
+    if (Array.isArray(data?.registros)) return data.registros;
+    return [];
+  };
+
+  const ensureHasPasos = useCallback(async () => {
+    if (hasPasos !== null) return hasPasos;
+
+    try {
+      const pasosRes = await api(`/registro-paso-produccion/${id}/pasos`, { method: "GET" });
+      const pasos = parsePasosResponse(pasosRes);
+      const computed = pasos.length > 0;
+      setHasPasos(computed);
+      return computed;
+    } catch {
+      // Si no podemos validar, preferimos ser conservadores y pedir confirmación.
+      setHasPasos(false);
+      return false;
+    }
+  }, [api, hasPasos, id]);
+
   const cargarInsumosYBultos = async () => {
     const [resInsumos, resOrden] = await Promise.all([
       api(`/registros-insumo-produccion?id_orden_manufactura=${id}`, {
@@ -98,13 +129,39 @@ export default function AsignarInsumos() {
     const fetchData = async () => {
       try {
         await cargarInsumosYBultos();
+
+        // Prefetch (no bloqueante) del estado de pasos para minimizar latencia al asignar.
+        void ensureHasPasos();
       } catch {
         alert("No se pudieron cargar los datos");
       }
     };
 
     fetchData();
-  }, [id]);
+  }, [id, ensureHasPasos]);
+
+  const closeNoPasosConfirm = () => {
+    setNoPasosConfirmOpen(false);
+    setNoPasosConfirmTitle("");
+    setNoPasosConfirmDescription("");
+    setPendingAction(null);
+  };
+
+  const runWithNoPasosConfirmation = async (action, label) => {
+    const computedHasPasos = await ensureHasPasos();
+    if (computedHasPasos) {
+      await action();
+      return;
+    }
+
+    setNoPasosConfirmTitle("Esta receta no tiene pasos");
+    setNoPasosConfirmDescription(
+      `Al ${label}, la OM avanzará automáticamente a "Esperando salidas".\n\n` +
+        `¿Deseas continuar? Si necesitas revertir asignaciones, es mejor cancelar y revisar antes.`
+    );
+    setPendingAction(() => action);
+    setNoPasosConfirmOpen(true);
+  };
 
   const handlePesoChange = (registroId, bultoId, peso) => {
     setAsignaciones((prev) => {
@@ -184,47 +241,26 @@ export default function AsignarInsumos() {
     const pesoUtilizadoActual = Number(insumoActual?.peso_utilizado ?? 0);
     const pesoFaltante = Math.max(0, Number(pesoNecesario) - pesoUtilizadoActual);
 
-    console.log("=== ANTES DE FORMATEAR ===");
-    console.log("Peso necesario (raw):", pesoNecesario, "tipo:", typeof pesoNecesario);
-    console.log("Bultos asignados (raw):", bultosAsignados);
-    bultosAsignados.forEach((b, idx) => {
-      console.log(`Bulto ${idx}:`, b.peso_utilizado, "tipo:", typeof b.peso_utilizado);
-    });
-
     const bultosFormateados = bultosAsignados.map(b => ({
       ...b,
       peso_utilizado: formatDecimal(b.peso_utilizado)
     }));
-
-    console.log("=== DESPUÉS DE FORMATEAR ===");
-    console.log("Bultos formateados:", bultosFormateados);
-    bultosFormateados.forEach((b, idx) => {
-      console.log(`Bulto ${idx} formateado:`, b.peso_utilizado, "tipo:", typeof b.peso_utilizado, "JSON:", JSON.stringify(b.peso_utilizado));
-    });
 
     const totalAsignado = bultosFormateados.reduce(
       (acc, b) => acc + b.peso_utilizado,
       0
     );
 
-    console.log("=== COMPARACIÓN ===");
-    console.log("Peso necesario (BACKEND ESPERA):", pesoNecesario, "JSON:", JSON.stringify(pesoNecesario));
-    console.log("Total asignado:", totalAsignado, "JSON:", JSON.stringify(totalAsignado));
-    console.log("Diferencia:", totalAsignado - pesoNecesario);
-
     const tolerancia = Math.max(0.0001, pesoNecesario * 0.01);
     const diferencia = totalAsignado - pesoNecesario;
     
     if (diferencia > 0 && diferencia <= tolerancia) {
-      console.log("⚠️ Ajustando último bulto para coincidir exactamente con el backend");
       const ultimoBulto = bultosFormateados[bultosFormateados.length - 1];
       const sumaAnteriores = bultosFormateados.slice(0, -1).reduce((acc, b) => acc + b.peso_utilizado, 0);
       const pesoAjustado = pesoNecesario - sumaAnteriores;
       
       if (pesoAjustado > 0) {
         ultimoBulto.peso_utilizado = formatDecimal(pesoAjustado);
-        console.log("Último bulto ajustado de", bultosFormateados[bultosFormateados.length - 1].peso_utilizado, "a", ultimoBulto.peso_utilizado);
-        console.log("Nuevo total:", bultosFormateados.reduce((acc, b) => acc + b.peso_utilizado, 0));
       }
     }
     
@@ -232,7 +268,6 @@ export default function AsignarInsumos() {
     const diferenciaFinal = totalFinal - pesoNecesario;
     
     if (diferenciaFinal > tolerancia) {
-      console.log("❌ VALIDACIÓN FALLÓ - Excede el peso necesario");
       const u = unidadMedida ? ` ${unidadMedida}` : "";
       const intentando = mostrarNumeroExacto(totalFinal);
       const faltan = mostrarNumeroExacto(pesoFaltante);
@@ -241,42 +276,21 @@ export default function AsignarInsumos() {
       );
       return;
     }
-    
-    console.log("✅ VALIDACIÓN PASÓ - Total:", totalFinal, "Necesario:", pesoNecesario);
 
     try {
       const payload = {
         bultos: bultosFormateados,
       };
       
-      console.log("=== ENVIANDO AL BACKEND ===");
-      console.log("Payload completo:", JSON.stringify(payload, null, 2));
-      console.log("Bultos formateados:", bultosFormateados);
-      console.log("Peso necesario:", pesoNecesario);
-      console.log("Total asignado:", totalAsignado);
-      console.log("==========================");
-      
       const response = await api(`/registros-insumo-produccion/${idRegistro}`, {
         method: "PUT",
         body: JSON.stringify(payload),
       });
       
-      console.log("=== RESPUESTA DEL BACKEND ===");
-      console.log("Response completa:", response);
-      console.log("============================");
-      
       const resInsumos = await api(`/registros-insumo-produccion?id_orden_manufactura=${id}`, {
         method: "GET",
       });
       const insumoRecargado = resInsumos.registros.find(r => r.id === idRegistro);
-      
-      console.log("=== DATOS RECARGADOS ===");
-      console.log("Insumo recargado:", insumoRecargado?.ingredienteReceta?.materiaPrima?.nombre);
-      console.log("Peso utilizado recargado:", insumoRecargado?.peso_utilizado);
-      console.log("Peso necesario:", insumoRecargado?.peso_necesario);
-      console.log("Tipo de peso_utilizado:", typeof insumoRecargado?.peso_utilizado);
-      console.log("Tipo de peso_necesario:", typeof insumoRecargado?.peso_necesario);
-      console.log("========================");
       
       setInsumos(resInsumos.registros);
       
@@ -343,13 +357,7 @@ export default function AsignarInsumos() {
         const payload = {
           bultos: bultosFormateados,
         };
-        
-        console.log(`=== ASIGNAR TODO - ${insumo.ingredienteReceta.materiaPrima.nombre} ===`);
-        console.log("Payload:", JSON.stringify(payload, null, 2));
-        console.log("Peso necesario:", pesoNecesario);
-        console.log("Total asignado:", totalAsignado);
-        console.log("=========================================");
-        
+
         await api(`/registros-insumo-produccion/${idRegistro}`, {
           method: "PUT",
           body: JSON.stringify(payload),
@@ -368,16 +376,41 @@ export default function AsignarInsumos() {
       
       setAsignaciones({});
       
-      toast.success("Todos los insumos fueron asignados correctamente");
+      toast.success("Asignación confirmada");
 
-      await cargarInsumosYBultos();
+      return true;
     } catch {
       toast.error("Error al asignar los insumos");
+      return false;
     }
+  };
+
+  const handleConfirmarAsignacion = async () => {
+    const ok = await handleAsignarTodo();
+    if (!ok) return;
+    navigate(`/Orden_de_Manufactura/${id}`);
   };
 
   return (
     <div className="p-6 bg-background min-h-screen">
+      <ConfirmActionModal
+        isOpen={noPasosConfirmOpen}
+        onClose={closeNoPasosConfirm}
+        onConfirm={async () => {
+          try {
+            if (typeof pendingAction === "function") {
+              await pendingAction();
+            }
+          } finally {
+            closeNoPasosConfirm();
+          }
+        }}
+        title={noPasosConfirmTitle || "Confirmar"}
+        description={noPasosConfirmDescription}
+        confirmText="Sí, continuar"
+        cancelText="Cancelar"
+      />
+
       <ConfirmActionModal
         isOpen={revertModalOpen}
         onClose={closeRevertModal}
@@ -397,9 +430,13 @@ export default function AsignarInsumos() {
         cancelText="Cancelar"
       />
 
-      <h1 className="text-2xl font-bold mb-6 text-text">
-        Asignar Insumos a OM #{id}
-      </h1>
+      <div className="mb-4">
+        <BackButton to={`/Orden_de_Manufactura/${id}`} />
+      </div>
+
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-text">Asignar insumos · OM #{id}</h1>
+      </div>
 
       {insumos.map((insumo) => {
         const bultos = bultosPorInsumo[insumo.id] || [];
@@ -413,120 +450,126 @@ export default function AsignarInsumos() {
 
         return (
           <div key={insumo.id} className="mb-6 bg-white shadow rounded-xl p-4">
-            <h2 className="text-lg font-semibold mb-2">
-              {insumo.ingredienteReceta.materiaPrima.nombre} (
-              {mostrarNumeroExacto(insumo.peso_utilizado)} /{" "}
-              {mostrarNumeroExacto(insumo.peso_necesario)}{sufijoUnidad})
-            </h2>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+              <h2 className="text-lg font-semibold text-text">
+                {insumo.ingredienteReceta.materiaPrima.nombre}
+              </h2>
 
-            {yaAsignado && (
-              <p className="text-sm text-green-700 font-medium mb-2">
-                ✔ Insumo ya asignado.
-              </p>
-            )}
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">Asignado:</span> {mostrarNumeroExacto(insumo.peso_utilizado)} / {mostrarNumeroExacto(insumo.peso_necesario)}{sufijoUnidad}
+                {yaAsignado && (
+                  <span className="ml-2 px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-medium">OK</span>
+                )}
+              </div>
+            </div>
 
             {bultosAsignados.length > 0 && (
               <div className="mb-4">
-                <div className="text-sm font-semibold text-gray-700 mb-2">
-                  Bultos ya asignados
-                </div>
-                <div className="space-y-2">
-                  {bultosAsignados.map((b) => {
-                    const pesoUtilizado = Number(
-                      b?.RegistroMateriaPrimaProduccionBulto?.peso_utilizado ?? 0
-                    );
-                    const pesoUnitario = Number(b?.peso_unitario ?? 0);
-                    const unidades = pesoUnitario > 0 ? pesoUtilizado / pesoUnitario : 0;
+                <div className="text-sm font-semibold text-gray-700 mb-2">Bultos ya asignados</div>
 
-                    return (
-                      <div
-                        key={b.id}
-                        className="flex items-center justify-between gap-4 border rounded p-2"
-                      >
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-800">
-                            {b.identificador || `Bulto ${b.id}`}
-                          </div>
-                          <div className="text-gray-600">
-                            Usado: {mostrarNumeroExacto(pesoUtilizado)}{sufijoUnidad} (
-                            {unidades.toFixed(6)} unidades)
-                          </div>
-                        </div>
-                        <button
-                          className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700 text-sm"
-                          onClick={() => openRevertModal(insumo.id, b)}
-                        >
-                          Revertir
-                        </button>
-                      </div>
-                    );
-                  })}
+                <div className="bg-white rounded-lg border border-border overflow-hidden">
+                  <div className="w-full overflow-x-auto">
+                    <table className="min-w-max w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-text uppercase tracking-wider">Bulto</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-text uppercase tracking-wider">Usado</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-text uppercase tracking-wider">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {bultosAsignados.map((b) => {
+                          const pesoUtilizado = Number(
+                            b?.RegistroMateriaPrimaProduccionBulto?.peso_utilizado ?? 0
+                          );
+                          return (
+                            <tr key={b.id}>
+                              <td className="px-4 py-2 text-text font-medium">
+                                {b.identificador || `Bulto ${b.id}`}
+                              </td>
+                              <td className="px-4 py-2 text-text">
+                                {mostrarNumeroExacto(pesoUtilizado)}{sufijoUnidad}
+                              </td>
+                              <td className="px-4 py-2 text-right">
+                                <button
+                                  className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700 text-xs"
+                                  onClick={() => openRevertModal(insumo.id, b)}
+                                >
+                                  Revertir
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             )}
 
             {!yaAsignado && (
               <div className="space-y-2">
-                {bultos.map((b) => (
-                  <div key={b.id} className="border rounded p-3 flex flex-col gap-2">
-                    <div className="flex justify-between items-start gap-4">
-                      <div className="text-sm">
-                        <div className="font-medium text-gray-800">
-                          {b.identificador ? `Bulto ${b.identificador}` : `Bulto #${b.id}`}
-                        </div>
-                        {b?.Pallet?.identificador && (
-                          <div className="text-gray-600">Pallet: {b.Pallet.identificador}</div>
-                        )}
-                        {b?.LoteMateriaPrima?.identificador_proveedor && (
-                          <div className="text-gray-600">
-                            Lote proveedor: {b.LoteMateriaPrima.identificador_proveedor}
-                          </div>
-                        )}
-                        {b?.LoteMateriaPrima?.fecha_vencimiento && (
-                          <div className="text-gray-600">
-                            Vence: {new Date(b.LoteMateriaPrima.fecha_vencimiento).toLocaleDateString()}
-                          </div>
-                        )}
+                <div className="text-sm font-semibold text-gray-700 mb-2">Bultos disponibles</div>
 
-                        <div className="text-gray-600">
-                          Stock: {mostrarNumeroExacto(b.unidades_disponibles)} unidades
-                        </div>
-                        <div className="text-gray-600">
-                          Conversión: 1 unidad = {mostrarNumeroExacto(b.peso_unitario)}{sufijoUnidad}
-                        </div>
-                        <div className="text-gray-600">
-                          Equivalente disponible: {mostrarNumeroExacto(b.unidades_disponibles * b.peso_unitario)}{sufijoUnidad}
-                        </div>
-                      </div>
-
-                      <div className="text-sm text-gray-600 text-right">
-                        {b.costo_unitario != null && (
-                          <div>Costo unitario: ${b.costo_unitario}</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col">
-                      <input
-                        type="number"
-                        min="0"
-                        step={stepInput}
-                        placeholder={`Necesario: ${mostrarNumeroExacto(insumo.peso_necesario)}${sufijoUnidad}`}
-                        onChange={(e) =>
-                          handlePesoChange(
-                            insumo.id,
-                            b.id,
-                            parseFloat(e.target.value)
-                          )
-                        }
-                        className="p-2 border rounded w-40"
-                      />
-                      <span className="text-xs text-gray-500 mt-1">
-                        Necesario: {mostrarNumeroExacto(insumo.peso_necesario)}{sufijoUnidad}
-                      </span>
-                    </div>
+                <div className="bg-white rounded-lg border border-border overflow-hidden">
+                  <div className="w-full overflow-x-auto">
+                    <table className="min-w-max w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-text uppercase tracking-wider">Bulto</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-text uppercase tracking-wider">Unidades de consumo disponibles</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-text uppercase tracking-wider">Peso Unitario</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-text uppercase tracking-wider">Equivalente Disponible</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-text uppercase tracking-wider">Costo unit.</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-text uppercase tracking-wider">Asignar</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {bultos.map((b) => {
+                          const equivalente = Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0);
+                          return (
+                            <tr key={b.id}>
+                              <td className="px-4 py-2 text-text font-medium">
+                                {b.identificador ? `Bulto ${b.identificador}` : `Bulto #${b.id}`}
+                              </td>
+                              <td className="px-4 py-2 text-right text-text">
+                                {mostrarNumeroExacto(b.unidades_disponibles)} / {mostrarNumeroExacto(b.cantidad_unidades)}
+                              </td>
+                              <td className="px-4 py-2 text-right text-text">
+                                {mostrarNumeroExacto(b.peso_unitario)}{sufijoUnidad}
+                              </td>
+                              <td className="px-4 py-2 text-right text-text">
+                                {mostrarNumeroExacto(equivalente)}{sufijoUnidad}
+                              </td>
+                              <td className="px-4 py-2 text-right text-text">
+                                {b.costo_unitario != null ? `$${b.costo_unitario}` : "—"}
+                              </td>
+                              <td className="px-4 py-2">
+                                <div className="flex flex-col">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step={stepInput}
+                                    onChange={(e) =>
+                                      handlePesoChange(
+                                        insumo.id,
+                                        b.id,
+                                        parseFloat(e.target.value)
+                                      )
+                                    }
+                                    className="px-3 py-2 border border-border rounded-lg w-44"
+                                    placeholder={`0${sufijoUnidad}`}
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
-                ))}
+                </div>
 
                 {bultos.length === 0 && (
                   <p className="text-sm text-red-600">
@@ -537,7 +580,12 @@ export default function AsignarInsumos() {
             )}
 
             <button
-              onClick={handleAsignar(insumo.id, insumo.peso_necesario, unidadMedida)}
+              onClick={() =>
+                void runWithNoPasosConfirmation(
+                  handleAsignar(insumo.id, insumo.peso_necesario, unidadMedida),
+                  "asignar insumos"
+                )
+              }
               disabled={yaAsignado}
               className={`mt-4 px-4 py-2 rounded ${yaAsignado
                 ? "bg-gray-300 cursor-not-allowed"
@@ -552,10 +600,15 @@ export default function AsignarInsumos() {
 
       <div className="mt-10 flex justify-center">
         <button
-          onClick={handleAsignarTodo}
+          onClick={() =>
+            void runWithNoPasosConfirmation(
+              handleConfirmarAsignacion,
+              "confirmar la asignación"
+            )
+          }
           className="px-6 py-3 bg-primary text-white rounded-lg text-lg hover:bg-hover shadow"
         >
-          Asignar TODOS los insumos
+          Confirmar Asignación
         </button>
       </div>
 
@@ -573,23 +626,13 @@ export default function AsignarInsumos() {
           <div className="mt-8 flex justify-center">
             <button
               onClick={() => navigate(`/Orden_de_Manufactura/${id}/pasos`)}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg text-lg hover:bg-green-700 shadow"
+              className="px-6 py-3 bg-primary text-white rounded-lg text-lg hover:bg-hover shadow"
             >
               Ejecutar Pasos de Producción
             </button>
           </div>
         ) : null;
       })()}
-
-      <div className="mt-8">
-        <button
-          onClick={() => navigate(`/Orden_de_Manufactura/${id}`)}
-          className="px-4 py-2 bg-gray-300 hover:bg-gray-400 rounded"
-        >
-          Volver al detalle
-        </button>
-      </div>
-
     </div>
   );
 }

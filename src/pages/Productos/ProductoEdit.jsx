@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useApi } from "../../lib/api";
 import DynamicFormWithSelect from "../../components/DynamicFormWithSelect";
 import { BackButton } from "../../components/Buttons/ActionButtons";
+import { toast } from "../../lib/toast";
 
 export default function ProductoEdit() {
   const { id } = useParams();
@@ -113,6 +114,8 @@ export default function ProductoEdit() {
   const handleFormSubmit = async (formData) => {
     try {
       setError(null);
+
+      const prevUnidad = productoData?.data?.unidad_medida || '';
       const formattedData = {
         nombre: formData.nombre,
         precio_unitario: parseFloat(formData.precio),
@@ -125,6 +128,47 @@ export default function ProductoEdit() {
       };
 
       await api(`/productos-base/${id}`, { method: 'PUT', body: JSON.stringify(formattedData) });
+
+      // Si cambia la unidad del producto base, mantener la receta asociada consistente.
+      const nextUnidad = formattedData.unidad_medida || '';
+      if (prevUnidad && nextUnidad && prevUnidad !== nextUnidad) {
+        try {
+          const recetas = await api(
+            `/recetas/buscar-por-id-producto-base?id_producto_base=${id}`,
+            { method: 'GET' }
+          );
+
+          const lista = Array.isArray(recetas) ? recetas : [];
+          if (lista.length > 0) {
+            // Normalmente debería existir 1 receta por producto base, pero soportamos múltiples.
+            for (const r of lista) {
+              const recetaId = r?.id;
+              if (!recetaId) continue;
+
+              const recetaFull = await api(`/recetas/${recetaId}`, { method: 'GET' });
+              await api(`/recetas/${recetaId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                  id_producto_base: recetaFull.id_producto_base ?? null,
+                  id_materia_prima: recetaFull.id_materia_prima ?? null,
+                  nombre: recetaFull.nombre,
+                  descripcion: recetaFull.descripcion,
+                  peso: recetaFull.peso,
+                  unidad_medida: nextUnidad,
+                  costo_referencial_produccion: recetaFull.costo_referencial_produccion,
+                  id_pauta_elaboracion: recetaFull.id_pauta_elaboracion ?? null,
+                }),
+              });
+            }
+            toast.success('Producto actualizado y receta asociada sincronizada.');
+          }
+        } catch (syncErr) {
+          console.warn('No se pudo sincronizar la unidad de la receta asociada:', syncErr);
+          // No bloqueamos el guardado del producto: la regla de consistencia se refuerza cuando se edita la receta.
+          toast.error('Producto actualizado, pero no se pudo sincronizar la receta asociada.');
+        }
+      }
+
       navigate(`/Productos/${id}`);
     } catch (error) {
       console.error("Error updating product:", error);

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { toast } from "../../lib/toast";
 import { api } from "../../lib/api";
+import { BackButton } from "../../components/Buttons/ActionButtons";
 
 export default function EjecutarPasos() {
   const { id } = useParams();
@@ -222,18 +223,31 @@ export default function EjecutarPasos() {
 
   if (loading)
     return (
-      <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow">
+      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
         Cargando pasos...
       </div>
     );
 
   return (
-    <div className="max-w-5xl mx-auto p-6 bg-white rounded shadow">
-      <h1 className="text-2xl font-bold mb-6">Ejecución de Pasos</h1>
+    <div className="p-6 bg-background min-h-screen">
+      <div className="mb-4">
+        <BackButton to={`/Orden_de_Manufactura/${id}`} />
+      </div>
 
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold text-text">Ejecución de pasos · OM #{id}</h1>
+      </div>
 
-      <table className="w-full border border-gray-200 rounded-lg text-sm">
-        <thead className="bg-gray-100">
+      <div className="bg-gray-200 p-4 rounded-lg">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {pasos.length === 0 ? (
+            <div className="p-6 text-gray-600">
+              Esta OM no tiene pasos para ejecutar.
+            </div>
+          ) : (
+            <div className="w-full overflow-x-auto">
+              <table className="min-w-max w-full text-sm">
+                <thead className="bg-gray-50">
           <tr>
             <th className="p-2 text-left">#</th>
             <th className="p-2 text-left">Descripción</th>
@@ -244,10 +258,10 @@ export default function EjecutarPasos() {
             <th className="p-2 text-center">Estado</th>
             <th className="p-2 text-center">Acción</th>
           </tr>
-        </thead>
-        <tbody>
-          {pasos.map((p, idx) => (
-            <tr key={p.id} className="border-t border-gray-200">
+                </thead>
+                <tbody className="bg-white divide-y divide-border">
+                  {pasos.map((p, idx) => (
+                    <tr key={p.id}>
               <td className="p-2 font-medium text-gray-700">
                 {p.pasoPautaElaboracion?.orden ?? idx + 1}
               </td>
@@ -294,7 +308,7 @@ export default function EjecutarPasos() {
                         max="14"
                         step="0.1"
                         placeholder="Ej: 6.8"
-                        className="border rounded px-2 py-1 w-32"
+                        className="border border-border rounded px-2 py-1 w-32"
                         value={p.ph}
                         onChange={(e) => handleChange(idx, "ph", e.target.value)}
                       />
@@ -308,7 +322,7 @@ export default function EjecutarPasos() {
                         type="number"
                         step="0.1"
                         placeholder="Ej: 45°C"
-                        className="border rounded px-2 py-1 w-32"
+                        className="border border-border rounded px-2 py-1 w-32"
                         value={p.temperatura}
                         onChange={(e) => handleChange(idx, "temperatura", e.target.value)}
                       />
@@ -322,7 +336,7 @@ export default function EjecutarPasos() {
                         type="number"
                         step="1"
                         placeholder="Ej: 750"
-                        className="border rounded px-2 py-1 w-32"
+                        className="border border-border rounded px-2 py-1 w-32"
                         value={p.cantidad_obtenida}
                         onChange={(e) => handleChange(idx, "cantidad_obtenida", e.target.value)}
                       />
@@ -341,7 +355,7 @@ export default function EjecutarPasos() {
                                 type="number"
                                 step="any"
                                 placeholder={def.name}
-                                className="border rounded px-2 py-1 w-32"
+                                className="border border-border rounded px-2 py-1 w-32"
                                 value={val}
                                 onChange={(e) => handleExtraChange(idx, def.name, e.target.value)}
                               />
@@ -349,7 +363,7 @@ export default function EjecutarPasos() {
                               <input
                                 type="text"
                                 placeholder={def.name}
-                                className="border rounded px-2 py-1 w-32"
+                                className="border border-border rounded px-2 py-1 w-32"
                                 value={val}
                                 onChange={(e) => handleExtraChange(idx, def.name, e.target.value)}
                               />
@@ -368,7 +382,7 @@ export default function EjecutarPasos() {
               <td className="p-2 text-center">
                 <input
                   type="time"
-                  className="border rounded px-2 py-1 w-28 text-center"
+                  className="border border-border rounded px-2 py-1 w-28 text-center"
                   value={p.hora_inicio_local || ''}
                   onChange={(e) => handleTimeChange(idx, 'hora_inicio_local', e.target.value)}
                 />
@@ -377,7 +391,7 @@ export default function EjecutarPasos() {
               <td className="p-2 text-center">
                 <input
                   type="time"
-                  className="border rounded px-2 py-1 w-28 text-center"
+                  className="border border-border rounded px-2 py-1 w-28 text-center"
                   value={p.hora_termino_local || ''}
                   onChange={(e) => handleTimeChange(idx, 'hora_termino_local', e.target.value)}
                 />
@@ -387,7 +401,7 @@ export default function EjecutarPasos() {
                 <input
                   type="text"
                   placeholder="Ej: sin impurezas visibles"
-                  className="border rounded px-2 py-1 w-full placeholder-gray-400"
+                  className="border border-border rounded px-2 py-1 w-full placeholder-gray-400"
                   value={p.observaciones}
                   onChange={(e) =>
                     handleChange(idx, "observaciones", e.target.value)
@@ -405,15 +419,19 @@ export default function EjecutarPasos() {
                 <button
                   onClick={() => handleGuardar(p, idx)}
                   disabled={saving}
-                  className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-60"
+                  className="px-3 py-1 bg-primary text-white rounded hover:bg-hover disabled:opacity-60"
                 >
                   Guardar
                 </button>
               </td>
             </tr>
-          ))}
-        </tbody>
-      </table>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="mt-6 flex justify-between items-center">
         <button
@@ -427,14 +445,14 @@ export default function EjecutarPasos() {
           <>
             {ordenData?.receta?.posiblesSubproductos?.length > 0 ? (
               <button
-                className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+                className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
                 onClick={() => navigate(`/Orden_de_Manufactura/${id}/subproductos-decision`)}
               >
                 Siguiente paso: Verificar Subproductos
               </button>
             ) : (
               <button
-                className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+                className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
                 onClick={() => navigate(`/Orden_de_Manufactura/${id}/produccion-final`)}
               >
                 Siguiente paso: Producción Final

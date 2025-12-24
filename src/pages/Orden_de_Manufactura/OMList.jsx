@@ -19,6 +19,10 @@ export default function OMList() {
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
+  // Detalles bajo demanda (reduce ruido + llamadas por fila)
+  const [omExtrasById, setOmExtrasById] = useState({});
+  const [omExtrasLoading, setOmExtrasLoading] = useState(new Set());
+
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [deletePreview, setDeletePreview] = useState(null);
@@ -49,9 +53,89 @@ export default function OMList() {
 
   const toggleRow = (id) => {
     const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) newExpanded.delete(id);
-    else newExpanded.add(id);
+    if (newExpanded.has(id)) {
+      newExpanded.delete(id);
+    } else {
+      newExpanded.add(id);
+      void ensureOmExtrasLoaded(id);
+    }
     setExpandedRows(newExpanded);
+  };
+
+  const ensureOmExtrasLoaded = async (id) => {
+    if (omExtrasById[id]) return;
+    if (omExtrasLoading.has(id)) return;
+
+    const nextLoading = new Set(omExtrasLoading);
+    nextLoading.add(id);
+    setOmExtrasLoading(nextLoading);
+
+    try {
+      let lote = null;
+      try {
+        const resProceso = await api(
+          `/lotes-producto-en-proceso?id_orden_manufactura=${id}`
+        );
+        if (Array.isArray(resProceso) && resProceso.length > 0) {
+          lote = resProceso[0];
+        }
+      } catch (_) {
+        // noop
+      }
+
+      if (!lote) {
+        try {
+          const resFinal = await api(
+            `/lotes-producto-final?id_orden_manufactura=${id}`
+          );
+          if (Array.isArray(resFinal) && resFinal.length > 0) {
+            lote = resFinal[0];
+          }
+        } catch (_) {
+          // noop
+        }
+      }
+
+      let pautas = [];
+      if (lote?.id) {
+        const loteId = lote.id;
+
+        let query = "";
+        let lotIdKey = "";
+
+        if (lote.id_producto_base) {
+          query = `/pautas-valor-agregado/lote?id_lote_productoFinal=${loteId}`;
+          lotIdKey = "id_lote_producto_final";
+        } else if (lote.id_materia_prima) {
+          query = `/pautas-valor-agregado/lote?id_lote_producto_en_proceso=${loteId}`;
+          lotIdKey = "id_lote_producto_en_proceso";
+        }
+
+        if (query) {
+          try {
+            const resPautas = await api(query);
+            if (Array.isArray(resPautas)) {
+              pautas = resPautas.filter(
+                (pauta) => String(pauta[lotIdKey]) === String(loteId)
+              );
+            }
+          } catch (_) {
+            // noop
+          }
+        }
+      }
+
+      setOmExtrasById((prev) => ({
+        ...prev,
+        [id]: { lote, pautas },
+      }));
+    } finally {
+      setOmExtrasLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }
   };
 
   const handleSort = (key) => {
@@ -120,50 +204,9 @@ export default function OMList() {
       accessor: "peso_objetivo",
       Cell: ({ value }) => (value ? `${value} kg` : ""),
     },
-    {
-      header: "Estado PVA",
-      accessor: "estado_pva",
-      Cell: ({ row }) =>
-        row.pautas && row.pautas.length > 0 ? (
-          <span className="text-gray-700">
-            {row.pautas.length > 1
-              ? (row.pautas.every(
-                (p) => p.estado === "Completado"
-              ) ? `Múltiples (Completado)` : `Múltiples (En Progreso)`)
-              : row.pautas[0].estado}
-          </span>
-        ) : (
-          <span className="text-gray-400 text-xs italic">Sin PVA</span>
-        ),
-    },
-    {
-      header: "PVA",
-      accessor: "pva",
-      Cell: ({ row }) =>
-        row.pautas && row.pautas.length > 0 ? (
-          <div className="flex flex-col space-y-1">
-            <span className="text-xs font-semibold text-gray-600 block mb-1">
-              Lote #{row.lote?.id || 'N/A'}
-            </span>
-            {row.pautas.map((pauta, index) => (
-              <button
-                key={pauta.id}
-                onClick={() => navigate(`/PautasValorAgregado/${pauta.id}`)}
-                className={`px-3 py-1 rounded text-xs text-white 
-                ${pauta.estado === "Completado"
-                    ? "bg-yellow-500 hover:bg-yellow-600"
-                    : "bg-indigo-600 hover:bg-indigo-700"
-                  }`}
-              >
-                Ver Pauta {row.pautas.length > 1 ? `#${index + 1}` : ''}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <span className="text-gray-400 text-xs italic">Sin PVA</span>
-        ),
-    },
   ];
+
+  const totalColumns = columns.length + 1; // + OPCIONES (actions)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -183,71 +226,8 @@ export default function OMList() {
           om.bodega = bodegasData.find((b) => b.id === om.id_bodega) || null;
         }
 
-        const withPVA = await Promise.all(
-          ordenesData.map(async (om) => {
-            let lote = null;
-
-            // 1. INTENTAR BUSCAR LOTE EN PROCESO
-            try {
-              const resProceso = await api(
-                `/lotes-producto-en-proceso?id_orden_manufactura=${om.id}`
-              );
-              if (Array.isArray(resProceso) && resProceso.length > 0) {
-                lote = resProceso[0];
-              }
-            } catch (err) { }
-
-            // 2. SI NO HAY LOTE EN PROCESO, INTENTAR BUSCAR LOTE FINAL
-            if (!lote) {
-              try {
-                const resFinal = await api(
-                  `/lotes-producto-final?id_orden_manufactura=${om.id}`
-                );
-                if (Array.isArray(resFinal) && resFinal.length > 0) {
-                  lote = resFinal[0];
-                }
-              } catch (err) { }
-            }
-
-            let pautasOM = [];
-
-            // 3. SI HAY UN LOTE ENCONTRADO, BUSCAR TODAS SUS PAUTAS Y FILTRAR
-            if (lote) {
-              const loteId = lote.id;
-
-              let query = '';
-              let lotIdKey = '';
-
-              // Lote Final: tiene id_producto_base. 
-              if (lote.id_producto_base) {
-                query = `/pautas-valor-agregado/lote?id_lote_productoFinal=${loteId}`;
-                // *** CORRECCIÓN APLICADA AQUÍ: Asumiendo snake_case en el objeto de respuesta ***
-                lotIdKey = 'id_lote_producto_final';
-              }
-              // Lote Proceso: tiene id_materia_prima.
-              else if (lote.id_materia_prima) {
-                query = `/pautas-valor-agregado/lote?id_lote_producto_en_proceso=${loteId}`;
-                lotIdKey = 'id_lote_producto_en_proceso';
-              }
-
-              if (query) {
-                try {
-                  const resPautas = await api(query);
-
-                  if (Array.isArray(resPautas)) {
-                    // FILTRADO MANUAL CORREGIDO: Convertir a String para evitar errores de tipo.
-                    pautasOM = resPautas.filter(pauta => String(pauta[lotIdKey]) === String(loteId));
-                  }
-                } catch (_) { }
-              }
-            }
-
-            return { ...om, lote: lote, pautas: pautasOM };
-          })
-        );
-
-        setOrdenes(withPVA);
-        setFilteredOrdenes(withPVA);
+        setOrdenes(ordenesData);
+        setFilteredOrdenes(ordenesData);
         setBodegas(bodegasData);
       } catch (err) {
         console.error("FETCH ERROR:", err);
@@ -256,6 +236,80 @@ export default function OMList() {
 
     fetchData();
   }, []);
+
+  const handleSearch = (query) => {
+    const q = String(query || "").toLowerCase().trim();
+    if (!q) {
+      setFilteredOrdenes(ordenes);
+      setCurrentPage(1);
+      return;
+    }
+
+    const filtered = ordenes.filter((om) => {
+      const receta = om.receta?.nombre || "";
+      const bodega = om.bodega?.nombre ||
+        bodegas.find((b) => b.id === om.id_bodega)?.nombre ||
+        "";
+      const estado = om.estado || "";
+      const idStr = String(om.id ?? "");
+      return (
+        idStr.toLowerCase().includes(q) ||
+        String(receta).toLowerCase().includes(q) ||
+        String(bodega).toLowerCase().includes(q) ||
+        String(estado).toLowerCase().includes(q)
+      );
+    });
+
+    setFilteredOrdenes(filtered);
+    setCurrentPage(1);
+  };
+
+  const renderExpandedRow = (row) => {
+    const extra = omExtrasById[row.id];
+    const isLoading = omExtrasLoading.has(row.id);
+    const lote = extra?.lote || null;
+    const pautas = Array.isArray(extra?.pautas) ? extra.pautas : [];
+
+    return (
+      <tr className="bg-gray-50" key={`expanded-${row.id}`}>
+        <td colSpan={totalColumns} className="px-6 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+              <div className="text-gray-500">Lote</div>
+              <div className="text-text font-medium">
+                {isLoading
+                  ? "Cargando…"
+                  : lote?.id
+                    ? `#${lote.id} (${lote.id_producto_base ? "Final" : "Proceso"})`
+                    : "Sin lote"}
+              </div>
+            </div>
+
+            <div className="md:col-span-2">
+              <div className="text-gray-500">Pauta(s) de valor agregado</div>
+              {isLoading ? (
+                <div className="text-text">Cargando…</div>
+              ) : pautas.length === 0 ? (
+                <div className="text-gray-400 italic">Sin PVA</div>
+              ) : (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {pautas.map((pauta, index) => (
+                    <button
+                      key={pauta.id}
+                      onClick={() => navigate(`/PautasValorAgregado/${pauta.id}`)}
+                      className="px-3 py-1 rounded text-xs bg-primary text-white hover:bg-hover"
+                    >
+                      Pauta{pautas.length > 1 ? ` #${index + 1}` : ""} · {pauta.estado}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
 
   const openDeleteModal = async (id) => {
     setDeleteTargetId(id);
@@ -289,10 +343,12 @@ export default function OMList() {
         onClick={() => navigate(`/Orden_de_Manufactura/${row.id}`)}
         tooltipText="Ver Detalle"
       />
-      <TrashIconButton
-        onClick={() => openDeleteModal(row.id)}
-        tooltipText="Eliminar OM"
-      />
+      {row.estado === "Borrador" && (
+        <TrashIconButton
+          onClick={() => openDeleteModal(row.id)}
+          tooltipText="Eliminar OM"
+        />
+      )}
     </div>
   );
 
@@ -338,24 +394,25 @@ export default function OMList() {
       />
 
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Lista de Elaboración</h1>
+        <h1 className="text-2xl font-bold text-text">Órdenes de Manufactura</h1>
         <button
-          className="bg-primary text-white px-4 py-2 rounded hover:bg-primary-dark"
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
           onClick={() => navigate("/Orden_de_Manufactura/add")}
         >
-          Ingresar Elaboración
+          Añadir OM
         </button>
       </div>
 
       <div className="flex justify-between items-center mb-6">
         <RowsPerPageSelector onRowsChange={setRowsPerPage} />
-        <SearchBar onSearch={setFilteredOrdenes} />
+        <SearchBar onSearch={handleSearch} />
       </div>
 
       <Table
         columns={columns}
         data={pageData}
         actions={actions}
+        renderExpandedRow={(row) => (expandedRows.has(row.id) ? renderExpandedRow(row) : null)}
       />
 
       <div className="mt-6 flex justify-end">

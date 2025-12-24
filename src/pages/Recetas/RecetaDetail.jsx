@@ -27,6 +27,7 @@ export default function RecetaDetail() {
   const [subproductos, setSubproductos] = useState([]);
   const [pasos, setPasos] = useState([]);
   const [pautaElaboracion, setPautaElaboracion] = useState(null);
+  const [pautasElaboracion, setPautasElaboracion] = useState([]);
   const [materiasPrimas, setMateriasPrimas] = useState([]);
   const [productos, setProductos] = useState([]); // For future use with product-based recipes
   const [showAddSubproduct, setShowAddSubproduct] = useState(false);
@@ -43,64 +44,153 @@ export default function RecetaDetail() {
   const [subproductQuery, setSubproductQuery] = useState("");
   const [showSubproductOptions, setShowSubproductOptions] = useState(false);
 
+  // Pauta selector state (similar a ingredientes/subproductos)
+  const [showPautaSelector, setShowPautaSelector] = useState(false);
+  const [pautaQuery, setPautaQuery] = useState("");
+  const [showPautaOptions, setShowPautaOptions] = useState(false);
+  const [selectedPautaId, setSelectedPautaId] = useState("");
+
+  const fetchReceta = async () => {
+    try {
+      setLoading(true);
+
+      const [recetaRes, materiasPrimasRes, productosRes, categoriasRes] =
+        await Promise.all([
+          api(`/recetas/${id}`),
+          api(`/materias-primas`),
+          api(`/productos-base`),
+          api(`/categorias-materia-prima`),
+        ]);
+
+      const recetaData = recetaRes;
+
+      const pasosData = recetaData.pautaElaboracion?.pasosPautaElaboracion || [];
+      const ingredientesData = recetaData.ingredientesReceta || [];
+      const subproductosData = recetaData.posiblesSubproductos || [];
+
+      if (recetaData.id_producto_base) {
+        recetaData.tipo = RECIPE_TYPES.PRODUCTO_TERMINADO;
+      } else if (recetaData.id_materia_prima) {
+        recetaData.tipo = RECIPE_TYPES.PIP;
+      }
+
+      setReceta(recetaData);
+      setPasos(pasosData);
+      setIngredientes(ingredientesData);
+      setSubproductos(subproductosData);
+      setMateriasPrimas(Array.isArray(materiasPrimasRes) ? materiasPrimasRes : []);
+      setProductos(productosRes);
+      setCategoriasMaterias(Array.isArray(categoriasRes) ? categoriasRes : []);
+
+      if (recetaData.pautaElaboracion) {
+        setPautaElaboracion(recetaData.pautaElaboracion);
+      } else {
+        setPautaElaboracion(null);
+      }
+
+      setError(null);
+    } catch (err) {
+      console.error("Error cargando receta:", err);
+      setError("No se pudo cargar la receta. Intenta nuevamente.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ───────────────────────────────
   // Fetch completa de receta + pasos + subproductos + ingredientes + cat. MP
   // ───────────────────────────────
   useEffect(() => {
-    const fetchReceta = async () => {
+    void fetchReceta();
+  }, [id, api]);
+
+  useEffect(() => {
+    const fetchPautas = async () => {
       try {
-        setLoading(true);
-
-        const [recetaRes, materiasPrimasRes, productosRes, categoriasRes] =
-          await Promise.all([
-            api(`/recetas/${id}`),
-            api(`/materias-primas`),
-            api(`/productos-base`),
-            api(`/categorias-materia-prima`),
-          ]);
-
-        const recetaData = recetaRes;
-
-        // Handle new API structure with nested pautaElaboracion
-        const pasosData =
-          recetaData.pautaElaboracion?.pasosPautaElaboracion || [];
-        const ingredientesData = recetaData.ingredientesReceta || [];
-        // Handle new API structure with nested subproducts
-        const subproductosData = recetaData.posiblesSubproductos || [];
-
-        // Infer recipe type based on available fields
-        if (recetaData.id_producto_base) {
-          recetaData.tipo = RECIPE_TYPES.PRODUCTO_TERMINADO;
-        } else if (recetaData.id_materia_prima) {
-          recetaData.tipo = RECIPE_TYPES.PIP;
-        }
-
-        setReceta(recetaData);
-        setPasos(pasosData);
-        setIngredientes(ingredientesData);
-        setSubproductos(subproductosData);
-        setMateriasPrimas(
-          Array.isArray(materiasPrimasRes) ? materiasPrimasRes : []
-        );
-        setProductos(productosRes);
-        setCategoriasMaterias(
-          Array.isArray(categoriasRes) ? categoriasRes : []
-        ); // 👈 set categorías
-
-        if (recetaData.pautaElaboracion) {
-          setPautaElaboracion(recetaData.pautaElaboracion);
-        }
-
-        setError(null);
+        const pautasRes = await api(`/pautas-elaboracion`);
+        const lista = Array.isArray(pautasRes) ? pautasRes : [];
+        // Preferimos mostrar activas primero, pero mantenemos el resto si existen.
+        const ordenadas = [...lista].sort((a, b) => {
+          const aActiva = a?.is_active === false ? 0 : 1;
+          const bActiva = b?.is_active === false ? 0 : 1;
+          if (aActiva !== bActiva) return bActiva - aActiva;
+          return String(a?.name || '').localeCompare(String(b?.name || ''));
+        });
+        setPautasElaboracion(ordenadas);
       } catch (err) {
-        console.error("Error cargando receta:", err);
-        setError("No se pudo cargar la receta. Intenta nuevamente.");
-      } finally {
-        setLoading(false);
+        console.warn('No se pudieron cargar pautas de elaboración:', err);
+        setPautasElaboracion([]);
       }
     };
-    fetchReceta();
-  }, [id, api]);
+    void fetchPautas();
+  }, [api]);
+
+  const openPautaSelector = () => {
+    setShowPautaSelector(true);
+    setShowPautaOptions(true);
+    setSelectedPautaId(pautaElaboracion?.id != null ? String(pautaElaboracion.id) : '');
+    setPautaQuery(pautaElaboracion?.name || '');
+  };
+
+  const closePautaSelector = () => {
+    setShowPautaSelector(false);
+    setShowPautaOptions(false);
+    setSelectedPautaId('');
+    setPautaQuery('');
+  };
+
+  const updatePautaElaboracion = async (nextPautaIdOrNull) => {
+    if (!receta) return;
+
+    try {
+      const payload = {
+        nombre: receta.nombre,
+        descripcion: receta.descripcion || '',
+        peso: typeof receta.peso === 'string' ? parseFloat(receta.peso) : receta.peso,
+        unidad_medida: receta.unidad_medida,
+        costo_referencial_produccion:
+          typeof receta.costo_referencial_produccion === 'string'
+            ? parseFloat(receta.costo_referencial_produccion)
+            : receta.costo_referencial_produccion,
+        id_pauta_elaboracion: nextPautaIdOrNull,
+      };
+
+      if (receta.id_producto_base != null) {
+        payload.id_producto_base = Number(receta.id_producto_base);
+      }
+      if (receta.id_materia_prima != null) {
+        payload.id_materia_prima = Number(receta.id_materia_prima);
+      }
+
+      await api(`/recetas/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+
+      closePautaSelector();
+      await fetchReceta();
+      return true;
+    } catch (err) {
+      console.error('Error actualizando pauta de elaboración:', err);
+      return false;
+    }
+  };
+
+  const handleSavePauta = async () => {
+    if (!selectedPautaId) {
+      toast.error('Selecciona una pauta de elaboración.');
+      return;
+    }
+    const ok = await updatePautaElaboracion(parseInt(selectedPautaId));
+    if (ok) toast.success('Pauta de elaboración actualizada.');
+    else toast.error('No se pudo actualizar la pauta de elaboración.');
+  };
+
+  const handleUnassignPauta = async () => {
+    const ok = await updatePautaElaboracion(null);
+    if (ok) toast.success('Pauta de elaboración desasignada.');
+    else toast.error('No se pudo desasignar la pauta de elaboración.');
+  };
 
   // ───────────────────────────────
   // Eliminar receta
@@ -333,79 +423,119 @@ export default function RecetaDetail() {
 
   return (
     <div className="p-6 bg-background min-h-screen">
-      <div className="flex justify-between items-center mb-6">
-        <BackButton onClick={() => navigate("/Recetas")} />
-        <div className="flex gap-2">
-          <ModifyButton onClick={() => navigate(`/Recetas/${id}/edit`)} />
-          <DeleteButton
-            onConfirmDelete={handleDelete}
-            tooltipText="Eliminar Receta"
-            entityName="receta"
-          />
-        </div>
-      </div>
-
-      {/* ─────────────── DATOS PRINCIPALES ─────────────── */}
-      <div className="bg-white p-6 rounded-lg shadow space-y-6 mb-8">
-        <h1 className="text-2xl font-bold text-center text-text mb-4">
-          {receta.nombre}
-        </h1>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
-          <div>
-            <span className="font-semibold">Tipo de Producto Resultante:</span>{" "}
-            {receta.tipo || "—"}
-          </div>
-          <div>
-            <span className="font-semibold">Descripción:</span>{" "}
-            {receta.descripcion || "—"}
-          </div>
-          {receta.tipo === RECIPE_TYPES.PIP && (
-            <div>
-              <span className="font-semibold">Materia Prima a Producir:</span>{" "}
-              {receta.materiaPrima?.nombre || receta.id_materia_prima}
-            </div>
-          )}
-          {receta.tipo === RECIPE_TYPES.PRODUCTO_TERMINADO && (
-            <div>
-              <span className="font-semibold">Producto a Producir:</span>{" "}
-              {receta.productoBase?.nombre ||
-                (receta.id_producto_base &&
-                  productos.find((p) => p.id === receta.id_producto_base)
-                    ?.nombre) ||
-                receta.id_producto_base}
-            </div>
-          )}
-          <div>
-            <span className="font-semibold">Unidad de Medida:</span>{" "}
-            {receta.unidad_medida}
-          </div>
-          <div>
-            <span className="font-semibold">Rendimiento Teórico:</span>{" "}
-            {receta.peso} {receta.unidad_medida}
-          </div>
-          <div>
-            <span className="font-semibold">Costo Referencial Producción:</span>{" "}
-            ${receta.costo_referencial_produccion}
-          </div>
-          <div>
-            <span className="font-semibold">Fecha de Creación:</span>{" "}
-            {new Date(receta.createdAt).toLocaleString()}
-          </div>
-          <div>
-            <span className="font-semibold">Última Actualización:</span>{" "}
-            {new Date(receta.updatedAt).toLocaleString()}
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-between gap-4 mb-4">
+          <BackButton to="/Recetas" />
+          <div className="flex gap-2">
+            <ModifyButton onClick={() => navigate(`/Recetas/${id}/edit`)} />
+            <DeleteButton
+              onConfirmDelete={handleDelete}
+              tooltipText="Eliminar Receta"
+              entityName="receta"
+            />
           </div>
         </div>
-      </div>
+
+        <div className="mb-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold text-text">{receta.nombre}</h1>
+            {receta.tipo ? (
+              <span className="px-3 py-1 rounded-full text-xs border border-gray-200 text-text bg-white">
+                {receta.tipo}
+              </span>
+            ) : null}
+          </div>
+          {receta.descripcion ? (
+            <p className="mt-2 text-sm text-gray-600">{receta.descripcion}</p>
+          ) : (
+            <p className="mt-2 text-sm text-gray-500">Sin descripción.</p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Sidebar / Resumen */}
+          <div className="lg:col-span-1 lg:order-2 space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow space-y-4">
+              <h2 className="text-lg font-semibold text-text">Resumen</h2>
+
+              <div className="space-y-3 text-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-gray-500">Tipo</span>
+                  <span className="text-text font-medium text-right">
+                    {receta.tipo || "—"}
+                  </span>
+                </div>
+
+                {receta.tipo === RECIPE_TYPES.PIP && (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-gray-500">Materia prima a producir</span>
+                    <span className="text-text font-medium text-right">
+                      {receta.materiaPrima?.nombre || receta.id_materia_prima}
+                    </span>
+                  </div>
+                )}
+
+                {receta.tipo === RECIPE_TYPES.PRODUCTO_TERMINADO && (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-gray-500">Producto a producir</span>
+                    <span className="text-text font-medium text-right">
+                      {receta.productoBase?.nombre ||
+                        (receta.id_producto_base &&
+                          productos.find((p) => p.id === receta.id_producto_base)
+                            ?.nombre) ||
+                        receta.id_producto_base}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-gray-500">Unidad de medida</span>
+                  <span className="text-text font-medium text-right">
+                    {receta.unidad_medida || "—"}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-gray-500">Rendimiento teórico</span>
+                  <span className="text-text font-medium text-right">
+                    {receta.peso} {receta.unidad_medida}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-gray-500">Costo referencial</span>
+                  <span className="text-text font-medium text-right">
+                    ${receta.costo_referencial_produccion}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-gray-500">Creación</span>
+                  <span className="text-text font-medium text-right">
+                    {new Date(receta.createdAt).toLocaleString()}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-4">
+                  <span className="text-gray-500">Última actualización</span>
+                  <span className="text-text font-medium text-right">
+                    {new Date(receta.updatedAt).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Contenido principal */}
+          <div className="lg:col-span-2 lg:order-1 space-y-6">
 
       {/* ─────────────── INGREDIENTES ─────────────── */}
-      <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-8">
+      <div className="bg-white p-6 rounded-lg shadow space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-lg font-semibold text-gray-800">Ingredientes</h2>
+          <h2 className="text-lg font-semibold text-text">Ingredientes</h2>
           <button
             onClick={() => setShowAddIngredient(!showAddIngredient)}
-            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm"
           >
             {showAddIngredient ? "Cancelar" : "Agregar Ingrediente"}
           </button>
@@ -417,7 +547,7 @@ export default function RecetaDetail() {
 
         {/* Add Ingredient Form */}
         {showAddIngredient && (
-          <div className="bg-green-50 p-4 rounded-lg space-y-4">
+          <div className="bg-white p-4 rounded-lg border border-gray-200 space-y-4">
             <h3 className="font-medium text-gray-800">
               Agregar Nuevo Ingrediente
             </h3>
@@ -555,7 +685,7 @@ export default function RecetaDetail() {
                   const costoPromedio = selectedMP.costo_promedio;
                   const costoEstimado = costoPromedio * peso;
                   return (
-                    <div className="col-span-full mt-2 p-3 bg-blue-50 rounded-lg">
+                    <div className="col-span-full mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                       <p className="text-sm">
                         <span className="font-semibold">
                           Costo promedio por unidad de medida:
@@ -588,7 +718,7 @@ export default function RecetaDetail() {
                   setIngredientQuery("");
                   setShowIngredientOptions(false);
                 }}
-                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+                className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded"
               >
                 Agregar
               </button>
@@ -601,7 +731,7 @@ export default function RecetaDetail() {
                   setIngredientQuery(""); // limpiar query al cancelar
                   setShowIngredientOptions(false); // cerrar dropdown
                 }}
-                className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+                className="px-4 py-2 rounded border border-gray-300 text-text hover:bg-gray-100"
               >
                 Cancelar
               </button>
@@ -743,14 +873,14 @@ export default function RecetaDetail() {
       </div>
 
       {/* ─────────────── SUBPRODUCTOS POSIBLES ─────────────── */}
-      <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-8">
+      <div className="bg-white p-6 rounded-lg shadow space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-lg font-semibold text-gray-800">
+          <h2 className="text-lg font-semibold text-text">
             Subproductos Posibles
           </h2>
           <button
             onClick={() => setShowAddSubproduct(!showAddSubproduct)}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm"
           >
             {showAddSubproduct ? "Cancelar" : "Agregar Subproducto"}
           </button>
@@ -758,7 +888,7 @@ export default function RecetaDetail() {
 
         {/* Add Subproduct Form */}
         {showAddSubproduct && (
-          <div className="bg-blue-50 p-4 rounded-lg space-y-4">
+          <div className="bg-white p-4 rounded-lg border border-gray-200 space-y-4">
             <h3 className="font-medium text-gray-800">
               Agregar Nuevo Subproducto
             </h3>
@@ -856,7 +986,7 @@ export default function RecetaDetail() {
                   setSubproductQuery("");
                   setShowSubproductOptions(false);
                 }}
-                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+                className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded"
               >
                 Agregar
               </button>
@@ -919,18 +1049,115 @@ export default function RecetaDetail() {
         {pautaElaboracion ? (
           <>
             <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-800">
+              <h2 className="text-lg font-semibold text-text">
                 Pauta de Elaboración: {pautaElaboracion.name}
               </h2>
-              <button
-                onClick={() =>
-                  navigate(`/PautasElaboracion/${pautaElaboracion.id}`)
-                }
-                className="text-blue-600 hover:text-blue-800 text-sm underline"
-              >
-                Ver detalles completos
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={openPautaSelector}
+                  className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm"
+                >
+                  Cambiar pauta
+                </button>
+                <button
+                  onClick={() =>
+                    navigate(`/PautasElaboracion/${pautaElaboracion.id}`)
+                  }
+                  className="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
+                >
+                  Ver detalles
+                </button>
+              </div>
             </div>
+
+            {showPautaSelector && (
+              <div className="bg-white p-4 rounded-lg border border-gray-200 space-y-3">
+                <h3 className="font-medium text-gray-800">Seleccionar pauta de elaboración</h3>
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={pautaQuery}
+                    onChange={(e) => {
+                      setPautaQuery(e.target.value);
+                      setShowPautaOptions(true);
+                    }}
+                    onFocus={() => setShowPautaOptions(true)}
+                    onBlur={() => setTimeout(() => setShowPautaOptions(false), 120)}
+                    placeholder="Buscar pauta (ej: Elaboración Shampoo)"
+                    className="w-full border border-gray-300 rounded px-3 py-2"
+                  />
+
+                  {showPautaOptions && (
+                    <div className="absolute z-10 mt-1 w-full max-h-64 overflow-auto bg-white border border-gray-200 rounded shadow">
+                      {(() => {
+                        const base = (pautasElaboracion || []).filter((p) => p);
+                        const q = (pautaQuery || '').toLowerCase().trim();
+                        const filtradas = q
+                          ? base.filter((p) =>
+                              String(p.name || '').toLowerCase().includes(q)
+                            )
+                          : base;
+
+                        if (!filtradas.length) {
+                          return (
+                            <div className="px-3 py-2 text-sm text-gray-500">
+                              Sin resultados
+                            </div>
+                          );
+                        }
+
+                        return filtradas.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setSelectedPautaId(String(p.id));
+                              setPautaQuery(p.name || '');
+                              setShowPautaOptions(false);
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+                            title={p.description || ''}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-gray-800">{p.name}</span>
+                              {p.is_active === false ? (
+                                <span className="text-xs text-gray-500">Inactiva</span>
+                              ) : null}
+                            </div>
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                  )}
+                </div>
+
+                <input type="hidden" value={selectedPautaId} readOnly />
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => void handleSavePauta()}
+                    className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded"
+                  >
+                    Confirmar
+                  </button>
+                  <button
+                    onClick={() => void handleUnassignPauta()}
+                    className="px-4 py-2 rounded border border-red-300 text-red-700 hover:bg-red-50"
+                    title="Quita la pauta de elaboración de esta receta"
+                  >
+                    Desasignar
+                  </button>
+                  <button
+                    onClick={closePautaSelector}
+                    className="px-4 py-2 rounded border border-gray-300 text-text hover:bg-gray-100"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700 mb-6">
               <div>
@@ -941,7 +1168,7 @@ export default function RecetaDetail() {
               </div>
             </div>
 
-            <h3 className="text-md font-semibold text-gray-800 mb-4">
+            <h3 className="text-md font-semibold text-text mb-4">
               Pasos de Elaboración
             </h3>
             {pasos.length > 0 ? (
@@ -959,17 +1186,17 @@ export default function RecetaDetail() {
                         </h4>
                         <div className="flex gap-2">
                           {paso.requires_ph && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
                               pH
                             </span>
                           )}
                           {paso.requires_temperature && (
-                            <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
                               Temperatura
                             </span>
                           )}
                           {paso.requires_obtained_quantity && (
-                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
                               Cantidad
                             </span>
                           )}
@@ -989,24 +1216,117 @@ export default function RecetaDetail() {
           </>
         ) : (
           <>
-            <h2 className="text-lg font-semibold text-gray-800">
+            <h2 className="text-lg font-semibold text-text">
               Pasos de Elaboración
             </h2>
-            <div className="bg-yellow-50 p-4 rounded-lg">
-              <p className="text-sm text-yellow-800">
+            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+              <p className="text-sm text-gray-700">
                 <strong>Sin pauta asignada:</strong> Esta receta no tiene una
                 pauta de elaboración asociada. Crea una pauta y asóciala
                 haciendo click en editar.
               </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  onClick={openPautaSelector}
+                  className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded text-sm"
+                >
+                  Asignar pauta
+                </button>
               <button
                 onClick={() => navigate("/PautasElaboracion")}
-                className="mt-4 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm"
+                className="px-4 py-2 rounded border border-gray-300 text-text hover:bg-gray-100 text-sm"
               >
                 Crear Pauta
               </button>
+              </div>
+
+              {showPautaSelector && (
+                <div className="mt-4 bg-white p-4 rounded-lg border border-gray-200 space-y-3">
+                  <h3 className="font-medium text-gray-800">Seleccionar pauta de elaboración</h3>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={pautaQuery}
+                      onChange={(e) => {
+                        setPautaQuery(e.target.value);
+                        setShowPautaOptions(true);
+                      }}
+                      onFocus={() => setShowPautaOptions(true)}
+                      onBlur={() => setTimeout(() => setShowPautaOptions(false), 120)}
+                      placeholder="Buscar pauta (ej: Elaboración Shampoo)"
+                      className="w-full border border-gray-300 rounded px-3 py-2"
+                    />
+
+                    {showPautaOptions && (
+                      <div className="absolute z-10 mt-1 w-full max-h-64 overflow-auto bg-white border border-gray-200 rounded shadow">
+                        {(() => {
+                          const base = (pautasElaboracion || []).filter((p) => p);
+                          const q = (pautaQuery || '').toLowerCase().trim();
+                          const filtradas = q
+                            ? base.filter((p) =>
+                                String(p.name || '').toLowerCase().includes(q)
+                              )
+                            : base;
+
+                          if (!filtradas.length) {
+                            return (
+                              <div className="px-3 py-2 text-sm text-gray-500">
+                                Sin resultados
+                              </div>
+                            );
+                          }
+
+                          return filtradas.map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                setSelectedPautaId(String(p.id));
+                                setPautaQuery(p.name || '');
+                                setShowPautaOptions(false);
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+                              title={p.description || ''}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-gray-800">{p.name}</span>
+                                {p.is_active === false ? (
+                                  <span className="text-xs text-gray-500">Inactiva</span>
+                                ) : null}
+                              </div>
+                            </button>
+                          ));
+                        })()}
+                      </div>
+                    )}
+                  </div>
+
+                  <input type="hidden" value={selectedPautaId} readOnly />
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => void handleSavePauta()}
+                      className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded"
+                    >
+                      Confirmar
+                    </button>
+                    <button
+                      onClick={closePautaSelector}
+                      className="px-4 py-2 rounded border border-gray-300 text-text hover:bg-gray-100"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
+      </div>
+          </div>
+        </div>
       </div>
     </div>
   );

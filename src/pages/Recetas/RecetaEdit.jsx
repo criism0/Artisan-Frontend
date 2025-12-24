@@ -76,18 +76,45 @@ export default function RecetaEdit() {
   // ────────────────────────────────────────────────
   const handleChange = (e) => {
     const { name, value } = e.target;
+
+    // Unidad de medida no es editable: siempre se deriva.
+    if (name === 'unidad_medida') return;
+
+    // Derivar unidad al seleccionar materia prima
+    if (name === 'id_materia_prima') {
+      const mp = materiasPrimas.find((m) => String(m.id) === String(value));
+      setReceta((prev) => ({
+        ...prev,
+        id_materia_prima: value,
+        unidad_medida: mp?.unidad_medida || '',
+      }));
+      return;
+    }
+
+    // Derivar unidad al seleccionar producto base
+    if (name === 'id_producto_base') {
+      const producto = productos.find((p) => String(p.id) === String(value));
+      setReceta((prev) => ({
+        ...prev,
+        id_producto_base: value,
+        unidad_medida: producto?.unidad_medida || '',
+      }));
+      return;
+    }
+
     setReceta((prev) => {
       const newData = { ...prev, [name]: value };
-      
-      // Si cambia el tipo, limpiar el campo que no corresponde
-      if (name === "tipo") {
+
+      // Si cambia el tipo, limpiar el campo que no corresponde y resetear unidad
+      if (name === 'tipo') {
         if (value === RECIPE_TYPES.PIP) {
-          newData.id_producto_base = "";
+          newData.id_producto_base = '';
         } else if (value === RECIPE_TYPES.PRODUCTO_TERMINADO) {
-          newData.id_materia_prima = "";
+          newData.id_materia_prima = '';
         }
+        newData.unidad_medida = '';
       }
-      
+
       return newData;
     });
   };
@@ -98,7 +125,7 @@ export default function RecetaEdit() {
   const handleSave = async () => {
     // Validate required fields based on recipe type
     if (receta.tipo === RECIPE_TYPES.PIP && !receta.id_materia_prima) {
-      toast.error("Debe seleccionar una materia prima para recetas PIP.");
+      toast.error("Debe seleccionar un insumo para recetas PIP.");
       return;
     }
     if (receta.tipo === RECIPE_TYPES.PRODUCTO_TERMINADO && !receta.id_producto_base) {
@@ -175,7 +202,7 @@ export default function RecetaEdit() {
   return (
     <div className="p-6 bg-background min-h-screen">
       <div className="mb-4">
-        <BackButton onClick={() => navigate("/Recetas")} />
+        <BackButton to={`/Recetas/${id}`} />
       </div>
 
       <h1 className="text-2xl font-bold text-text mb-6">Editar Receta</h1>
@@ -187,7 +214,7 @@ export default function RecetaEdit() {
           {receta.tipo === RECIPE_TYPES.PIP && !receta.id_materia_prima && (
             <div className="flex items-center text-orange-600 text-sm">
               <AlertTriangle className="w-4 h-4 mr-1" />
-              Materia prima a producir requerida
+              Insumo a producir requerido
             </div>
           )}
           {receta.tipo === RECIPE_TYPES.PRODUCTO_TERMINADO && !receta.id_producto_base && (
@@ -226,14 +253,14 @@ export default function RecetaEdit() {
 
           {receta.tipo === RECIPE_TYPES.PIP && (
             <div>
-              <label className="block text-sm font-medium mb-1">Materia prima a producir:</label>
+              <label className="block text-sm font-medium mb-1">Insumo a producir:</label>
               <select
                 name="id_materia_prima"
                 value={receta.id_materia_prima || ""}
                 onChange={handleChange}
                 className="w-full border border-gray-300 rounded px-3 py-2"
               >
-                <option value="">Seleccionar materia prima a producir</option>
+                <option value="">Seleccionar insumo a producir</option>
                 {materiasPrimas.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.nombre}
@@ -264,16 +291,16 @@ export default function RecetaEdit() {
 
           <div>
             <label className="block text-sm font-medium mb-1">Unidad de Medida:</label>
-            <select
+            <input
               name="unidad_medida"
               value={receta.unidad_medida || ""}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-            >
-              <option value="Kilogramos">Kilogramos</option>
-              <option value="Litros">Litros</option>
-              <option value="Unidades">Unidades</option>
-            </select>
+              readOnly
+              placeholder="Se completa automáticamente según el producto a producir"
+              className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50 text-gray-700 placeholder-gray-400"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              La unidad de medida se obtiene desde el producto base o insumo seleccionado.
+            </p>
           </div>
 
           <div>
@@ -325,22 +352,7 @@ export default function RecetaEdit() {
         <div className="bg-blue-50 p-4 rounded-lg">
           <p className="text-sm text-blue-800">
             <strong>Nota:</strong> Los ingredientes y subproductos se gestionan desde la vista de detalle de la receta.
-            Una vez guardados los cambios básicos, puedes acceder a la gestión completa desde el botón "Ver detalle".
           </p>
-        </div>
-        <div className="flex gap-4">
-          <button
-            onClick={() => navigate(`/Recetas/${id}`)}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
-          >
-            Ver Detalle Completo
-          </button>
-          <button
-            onClick={() => navigate('/PautasElaboracion')}
-            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
-          >
-            Gestionar Pautas
-          </button>
         </div>
       </div>
 

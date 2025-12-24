@@ -160,7 +160,7 @@ export default function AddProcesoValorAgregado() {
             <option value="">Seleccionar...</option>
             <option value="Minutos">Minutos</option>
             <option value="Horas">Horas</option>
-            <option value="Días">Días</option>
+            <option value="Dias">Dias</option>
             <option value="Semanas">Semanas</option>
           </select>
           {errors.unidad_tiempo && <p className="text-red-500 text-sm mt-1">{errors.unidad_tiempo}</p>}

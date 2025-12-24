@@ -72,7 +72,7 @@ export default function PautaElaboracionDetail() {
   return (
     <div className="p-6 bg-background min-h-screen">
       <div className="flex justify-between items-center mb-6">
-        <BackButton to="/PautasElaboracion" />
+        <BackButton to={`/PautasElaboracion`} />
         <div className="flex gap-2">
           <ModifyButton onClick={() => navigate(`/PautasElaboracion/${id}/edit`)} />
           <DeleteButton
