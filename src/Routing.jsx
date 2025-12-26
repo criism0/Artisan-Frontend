@@ -72,6 +72,7 @@ import InsumoEdit from "./pages/Insumos/InsumoEdit";
 import InsumoDetail from "./pages/Insumos/InsumoDetail";
 import AddAsociacion from "./pages/Insumos/AddAsociacion.jsx";
 import EditAsociacion from "./pages/Insumos/EditAsociacion";
+import InsumosPorProveedor from "./pages/Insumos/InsumosPorProveedor";
 
 // ====== Usuarios / Roles ======
 import Usuarios from "./pages/Usuarios/Usuarios";
@@ -405,6 +406,10 @@ function Routing() {
           <Route
             path="/Insumos/asociar/edit/:id"
             element={<EditAsociacion />}
+          />
+          <Route
+            path="/Insumos/por-proveedor"
+            element={<InsumosPorProveedor />}
           />
           <Route
 
