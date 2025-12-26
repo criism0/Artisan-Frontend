@@ -8,7 +8,8 @@ import {
   ViewDetailButton,
   UndoButton,
   ValidarButton,
-  PagarButton
+  PagarButton,
+  AddButton
 } from "../../components/Buttons/ActionButtons";
 import { FiTrash2 } from "react-icons/fi";
 import ConfirmModal from "../../components/ConfirmModal";
@@ -32,6 +33,8 @@ export default function Ordenes() {
   const [errorMessage, setErrorMessage] = useState("");
   const [showRetrocederModal, setShowRetrocederModal] = useState(false);
   const [selectedOrdenId, setSelectedOrdenId] = useState(null);
+  const [retrocederPreview, setRetrocederPreview] = useState(null);
+  const [loadingRetrocederPreview, setLoadingRetrocederPreview] = useState(false);
   const [showValidarModal, setShowValidarModal] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [isCompactView, setIsCompactView] = useState(false);
@@ -76,9 +79,23 @@ export default function Ordenes() {
       }
   };
 
-  const confirmRetrocederOrden = (id) => {
+  const confirmRetrocederOrden = async (id) => {
     setSelectedOrdenId(id);
     setShowRetrocederModal(true);
+    setLoadingRetrocederPreview(true);
+    setRetrocederPreview(null);
+    try {
+      const orden = await api(`/proceso-compra/ordenes/${id}`, { method: "GET" });
+      const bultos = Array.isArray(orden?.Bultos) ? orden.Bultos : (Array.isArray(orden?.bultos) ? orden.bultos : []);
+      setRetrocederPreview({
+        estado: orden?.estado,
+        bultos,
+      });
+    } catch (e) {
+      setRetrocederPreview(null);
+    } finally {
+      setLoadingRetrocederPreview(false);
+    }
   };
 
   const handleRetrocederConfirm = async () => {
@@ -102,6 +119,7 @@ export default function Ordenes() {
     } finally {
       setShowRetrocederModal(false);
       setSelectedOrdenId(null);
+      setRetrocederPreview(null);
     }
   };
 
@@ -262,6 +280,13 @@ export default function Ordenes() {
               <ValidarButton
                 onClick={() => navigate(`/Ordenes/recepcionar/${row.id}`)}
                 tooltipText="Recepcionar"
+              />
+            )}
+
+            {estado === "parcialmente recepcionada" && (
+              <AddButton
+                onClick={() => navigate(`/Ordenes/recepcionar/${row.id}`)}
+                tooltipText="Completar recepción"
               />
             )}
 
@@ -467,6 +492,13 @@ export default function Ordenes() {
                 />
               )}
 
+              {estado === "parcialmente recepcionada" && (
+                <AddButton
+                  onClick={() => navigate(`/Ordenes/recepcionar/${row.id}`)}
+                  tooltipText="Completar recepción"
+                />
+              )}
+
               {estado !== "creada" && (
                 <UndoButton
                   onClick={() => confirmRetrocederOrden(row.id)}
@@ -614,10 +646,41 @@ export default function Ordenes() {
             <h3 className="text-lg font-semibold mb-4 text-gray-900">
               ¿Retroceder estado de la orden?
             </h3>
-            <p className="text-sm text-gray-700 mb-4">
-              Esta acción eliminará los datos relacionados si la orden ya fue
-              recepcionada.
+            <p className="text-sm text-gray-700 mb-3">
+              Si la orden está recepcionada (total o parcial), se eliminarán los bultos y lotes asociados.
             </p>
+
+            {loadingRetrocederPreview && (
+              <p className="text-sm text-gray-500 mb-3">Cargando detalle de bultos…</p>
+            )}
+
+            {!loadingRetrocederPreview && retrocederPreview?.estado &&
+              (retrocederPreview.estado === "Recepcionada" || retrocederPreview.estado === "Parcialmente recepcionada") && (
+                <div className="text-sm text-gray-700 mb-4">
+                  <p className="mb-2">
+                    Se eliminarán <strong>{retrocederPreview?.bultos?.length || 0}</strong> bultos.
+                  </p>
+                  {Array.isArray(retrocederPreview?.bultos) && retrocederPreview.bultos.length > 0 && (
+                    <div className="max-h-40 overflow-auto border border-gray-200 rounded p-2 bg-gray-50">
+                      {retrocederPreview.bultos.slice(0, 10).map((b) => {
+                        const mpNombre = b?.MateriumPrima?.nombre || b?.MateriaPrima?.nombre || b?.materiaPrima?.nombre || "Materia prima";
+                        const lote = b?.LoteMateriaPrima?.identificador_proveedor || b?.lote?.identificador_proveedor || "(sin lote)";
+                        const unidades = b?.cantidad_unidades ?? "—";
+                        return (
+                          <div key={b.id} className="py-1 border-b border-gray-200 last:border-b-0">
+                            <span className="font-medium">#{b.id}</span> · {mpNombre} · {unidades} · lote: {lote}
+                          </div>
+                        );
+                      })}
+                      {retrocederPreview.bultos.length > 10 && (
+                        <div className="pt-2 text-xs text-gray-500">
+                          Mostrando 10 de {retrocederPreview.bultos.length}.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             <div className="flex justify-end gap-3">
               <button
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"

@@ -279,6 +279,15 @@ export default function OrdenDetail() {
 
   if (!orden) return null;
 
+  const bultosList = Array.isArray(orden?.bultos)
+    ? orden.bultos
+    : (Array.isArray(orden?.Bultos) ? orden.Bultos : []);
+  const totalNetoFacturado = bultosList.reduce((acc, b) => {
+    const costoUnitario = Number(b?.costo_unitario) || 0;
+    const unidades = Number(b?.cantidad_unidades) || 0;
+    return acc + (costoUnitario * unidades);
+  }, 0);
+
   return (
     <div className="p-6 bg-background min-h-screen">
       <div className="mb-4">
@@ -525,6 +534,14 @@ export default function OrdenDetail() {
                     <td className="px-6 py-4 text-sm font-medium text-text bg-purple-300">Total</td>
                     <td className="px-6 py-4 text-sm text-text bg-purple-300">
                       {formatCLP(orden.total_pago)}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <td className="px-6 py-4" />
+                    <td className="px-6 py-4" />
+                    <td className="px-6 py-4 text-sm font-medium text-text">Total Neto Facturado</td>
+                    <td className="px-6 py-4 text-sm text-text">
+                      {formatCLP(totalNetoFacturado)}
                     </td>
                   </tr>
                   </table>
