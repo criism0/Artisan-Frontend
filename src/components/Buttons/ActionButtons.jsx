@@ -167,6 +167,18 @@ export function TrashButton({ onConfirmDelete, tooltipText, entityName = "elemen
   );
 }
 
+export function TrashIconButton({ onClick, tooltipText }) {
+  return (
+    <button
+      onClick={onClick}
+      className="text-red-600 hover:text-red-700"
+      title={tooltipText}
+    >
+      <FiTrash className="w-5 h-5" />
+    </button>
+  );
+}
+
 export function ModifyButton({ onClick }) {
   return (
     <button onClick={onClick} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover">

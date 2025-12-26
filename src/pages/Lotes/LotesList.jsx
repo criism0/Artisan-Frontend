@@ -14,7 +14,6 @@ export default function LotesList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRows, setExpandedRows] = useState(new Set());
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const [searchQuery, setSearchQuery] = useState("");
 
   const toggleRow = (id) => {
     const next = new Set(expandedRows);
@@ -25,8 +24,13 @@ export default function LotesList() {
 
   const normalized = useMemo(() => {
     return filtered.map((l) => {
-      const bultos = Array.isArray(l.LoteProductoEnProcesoBultos)
-        ? l.LoteProductoEnProcesoBultos
+      const isFinal = l.__tipoLote === "FINAL";
+      const bultos = Array.isArray(
+        isFinal ? l.LoteProductoFinalBultos : l.LoteProductoEnProcesoBultos
+      )
+        ? isFinal
+          ? l.LoteProductoFinalBultos
+          : l.LoteProductoEnProcesoBultos
         : [];
       const cantidadInicial = bultos.reduce(
         (acc, b) => acc + (Number(b.cantidad_unidades) || 0),
@@ -48,6 +52,7 @@ export default function LotesList() {
         l.id_orden_manufactura ||
         "";
       const producto =
+        l.productoBase?.nombre ||
         l.producto?.nombre ||
         l.materiaPrima?.nombre ||
         l.producto_nombre ||
@@ -133,11 +138,20 @@ export default function LotesList() {
       Cell: ({ row }) => (
         <Link
           className="font-medium text-primary-700 hover:underline"
-          to={`/lotes-producto-en-proceso/${row.id}`}
+          to={
+            row.__tipoLote === "FINAL"
+              ? `/lotes-producto-final/${row.id}`
+              : `/lotes-producto-en-proceso/${row.id}`
+          }
         >
           {row.numeroLote}
         </Link>
       ),
+    },
+    {
+      header: renderHeader("TIPO", "__tipoLote"),
+      accessor: "__tipoLote",
+      Cell: ({ row }) => (row.__tipoLote === "FINAL" ? "Producto Final" : "PIP"),
     },
     {
       header: renderHeader("FECHA DE ELABORACIÓN", "fechaElab"),
@@ -171,13 +185,33 @@ export default function LotesList() {
     const fetchData = async () => {
       try {
         const base = import.meta.env.VITE_BACKEND_URL;
-        const url = `${base}/lotes-producto-en-proceso/`;
-        const { data } = await axiosInstance.get(url);
-        const arr = Array.isArray(data?.lotes || data)
-          ? data.lotes || data
-          : [];
-        setLotes(arr);
-        setFiltered(arr);
+        const safeGet = async (url) => {
+          try {
+            const { data } = await axiosInstance.get(url);
+            const arr = Array.isArray(data?.lotes || data) ? data.lotes || data : [];
+            return arr;
+          } catch {
+            // Si no hay registros, backend ahora debería devolver [], pero toleramos 404 antiguos.
+            return [];
+          }
+        };
+
+        const [lotesPip, lotesFinal] = await Promise.all([
+          safeGet(`${base}/lotes-producto-en-proceso/`),
+          safeGet(`${base}/lotes-producto-final/`),
+        ]);
+
+        const merged = [
+          ...lotesPip.map((l) => ({ ...l, __tipoLote: "PIP" })),
+          ...lotesFinal.map((l) => ({ ...l, __tipoLote: "FINAL" })),
+        ].sort((a, b) => {
+          const aDate = new Date(a.fecha_elaboracion || a.createdAt || 0).getTime();
+          const bDate = new Date(b.fecha_elaboracion || b.createdAt || 0).getTime();
+          return bDate - aDate;
+        });
+
+        setLotes(merged);
+        setFiltered(merged);
       } catch (err) {
         console.error("Error cargando lotes:", err);
         setLotes([]);
@@ -189,7 +223,6 @@ export default function LotesList() {
 
   const handleSearch = (query) => {
     const q = (query || "").toLowerCase().trim();
-    setSearchQuery(q);
     if (!q) {
       setFiltered(lotes);
       setCurrentPage(1);
@@ -197,8 +230,13 @@ export default function LotesList() {
     }
 
     const filteredRes = lotes.filter((l) => {
-      const bultos = Array.isArray(l.LoteProductoEnProcesoBultos)
-        ? l.LoteProductoEnProcesoBultos
+      const isFinal = l.__tipoLote === "FINAL";
+      const bultos = Array.isArray(
+        isFinal ? l.LoteProductoFinalBultos : l.LoteProductoEnProcesoBultos
+      )
+        ? isFinal
+          ? l.LoteProductoFinalBultos
+          : l.LoteProductoEnProcesoBultos
         : [];
       const primerIdentificador = bultos[0]?.identificador || "";
 
@@ -210,7 +248,9 @@ export default function LotesList() {
         l.ordenManufactura?.id,
         l.id_orden_manufactura,
         l.materiaPrima?.nombre,
+        l.productoBase?.nombre,
         l.producto?.nombre,
+        l.__tipoLote,
         l.fecha_elaboracion,
         l.fecha,
       ]
@@ -247,6 +287,10 @@ export default function LotesList() {
               <span className="font-semibold">Producto:</span> {row.producto}
             </div>
             <div>
+              <span className="font-semibold">Tipo:</span>{" "}
+              {row.__tipoLote === "FINAL" ? "Producto Final" : "PIP"}
+            </div>
+            <div>
               <span className="font-semibold">Fecha Elab.:</span>{" "}
               {row.fechaElab
                 ? new Date(row.fechaElab).toLocaleString("es-CL")
@@ -260,7 +304,11 @@ export default function LotesList() {
 
           <div className="mt-4">
             <Link
-              to={`/lotes-producto-en-proceso/${row.id}`}
+              to={
+                row.__tipoLote === "FINAL"
+                  ? `/lotes-producto-final/${row.id}`
+                  : `/lotes-producto-en-proceso/${row.id}`
+              }
               className="inline-flex items-center px-4 py-2 rounded-lg bg-primary text-white hover:opacity-90 shadow"
             >
               Ver detalle
@@ -274,7 +322,7 @@ export default function LotesList() {
   return (
     <div className="p-6 bg-background min-h-screen">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Lotes en Proceso</h1>
+        <h1 className="text-2xl font-bold">Lotes</h1>
       </div>
 
       <div className="flex justify-between items-center mb-6">

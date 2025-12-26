@@ -1,7 +1,7 @@
 // src/Routing.jsx
 import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useAuth } from "./auth/AuthContext";
+// import { useAuth } from "./auth/AuthContext";
 import RequireAuth from "./auth/RequireAuth";
 
 import Layout from "./components/Layout";
@@ -72,6 +72,7 @@ import InsumoEdit from "./pages/Insumos/InsumoEdit";
 import InsumoDetail from "./pages/Insumos/InsumoDetail";
 import AddAsociacion from "./pages/Insumos/AddAsociacion.jsx";
 import EditAsociacion from "./pages/Insumos/EditAsociacion";
+import InsumosPorProveedor from "./pages/Insumos/InsumosPorProveedor";
 
 // ====== Usuarios / Roles ======
 import Usuarios from "./pages/Usuarios/Usuarios";
@@ -123,6 +124,7 @@ import ListaPrecioDetail from "./pages/ListasPrecio/ListaPrecioDetail";
 import ListaPrecioEdit from "./pages/ListasPrecio/ListaPrecioEdit";
 import LotesList from "./pages/Lotes/LotesList.jsx";
 import LoteDetail from "./pages/Lotes/LotesDetail.jsx";
+import LoteProductoFinalDetail from "./pages/Lotes/LoteProductoFinalDetail.jsx";
 import CostoMarginalList from "./pages/CostoMarginal/CostoMarginalList";
 import CostoMarginalDetail from "./pages/CostoMarginal/CostoMarginalDetail";
 
@@ -166,7 +168,7 @@ import PalletsDashboard from "./pages/Logistica/PalletsDashboard";
 
 
 function Routing() {
-  const { user, isAuth } = useAuth();
+  // const { user, isAuth } = useAuth();
 
   // Ajusta si tu JWT trae role/scope de otra forma:
   // TODO: (DANKO O TOM): CAMMBIAR ESTE CHECK
@@ -406,6 +408,10 @@ function Routing() {
             element={<EditAsociacion />}
           />
           <Route
+            path="/Insumos/por-proveedor"
+            element={<InsumosPorProveedor />}
+          />
+          <Route
 
             path="/Orden_de_Manufactura/:id/subproductos-decision"
             element={<SubproductosDecision />}
@@ -425,6 +431,7 @@ function Routing() {
 
           <Route path="/lotes-producto-en-proceso" element={<LotesList />} />
           <Route path="/lotes-producto-en-proceso/:id" element={<LoteDetail />} />
+          <Route path="/lotes-producto-final/:id" element={<LoteProductoFinalDetail />} />
 
           <Route path="/CostoMarginal" element={<CostoMarginalList />} />
           <Route path="/CostoMarginal/:tipo/:id" element={<CostoMarginalDetail />} />

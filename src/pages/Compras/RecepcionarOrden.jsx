@@ -8,6 +8,7 @@ import { getToken, API_BASE, useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { notifyOrderChange } from "../../services/emailService";
 import { useAuth } from "../../auth/AuthContext";
+import axiosInstance from "../../axiosInstance";
 
 
 export default function RecepcionarOrden() {
@@ -24,6 +25,27 @@ export default function RecepcionarOrden() {
   const [showRejectPopup, setShowRejectPopup] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const fechaActual = new Date().toISOString().split("T")[0];
+
+  const downloadEtiquetasForBultos = async ({ idsBultos, ordenIdForName }) => {
+    const ids_bultos = Array.isArray(idsBultos) ? idsBultos.filter(Boolean) : [];
+    if (ids_bultos.length === 0) return;
+
+    const response = await axiosInstance.post(
+      "/bultos/etiquetas",
+      { ids_bultos },
+      { responseType: "blob" }
+    );
+
+    const blob = new Blob([response.data], { type: "application/pdf" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Etiquetas_OC_${ordenIdForName ?? ""}_Recepcion.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     setIsLoading(true);
@@ -42,6 +64,24 @@ export default function RecepcionarOrden() {
         if (!response.ok) throw new Error("Error al obtener orden");
 
         const raw = await response.json();
+
+        // Neto ya facturado en recepciones anteriores (desde bultos existentes)
+        const rawBultos = Array.isArray(raw?.bultos)
+          ? raw.bultos
+          : (Array.isArray(raw?.Bultos) ? raw.Bultos : []);
+
+        const netoFacturadoPrevByMpocId = {};
+        for (const b of rawBultos) {
+          const mpocId = b?.id_materia_prima_orden_de_compra ?? b?.materiaPrimaOrdenDeCompra?.id;
+          if (!mpocId) continue;
+
+          const costoUnitario = Number(b?.costo_unitario);
+          const unidades = Number(b?.cantidad_unidades);
+          if (!Number.isFinite(costoUnitario) || !Number.isFinite(unidades)) continue;
+
+          netoFacturadoPrevByMpocId[mpocId] =
+            (Number(netoFacturadoPrevByMpocId[mpocId]) || 0) + (costoUnitario * unidades);
+        }
 
         // Para poder mostrar equivalencias y declarar bultos directo acá,
         // necesitamos la info completa de formatos del proveedor (PMP).
@@ -100,7 +140,14 @@ export default function RecepcionarOrden() {
           const ratio = baseQty > 0 ? (purchaseQty / baseQty) : 1;
 
           const cantidadSolicitadaFormato = Number(mp.cantidad_formato) || 0;
-          const expectedBaseUnits = cantidadSolicitadaFormato * ratio;
+          const cantidadRecepcionadaAcumFormato = Number(mp.cantidad_recepcionada) || 0;
+          const cantidadPendienteFormato = Math.max(
+            0,
+            cantidadSolicitadaFormato - cantidadRecepcionadaAcumFormato
+          );
+
+          // Por defecto se asume que se recepciona lo pendiente
+          const expectedBaseUnits = cantidadPendienteFormato * ratio;
 
           const precioUnitarioOC = Number(mp.precio_unitario) || 0;
           const defaultNeto = precioUnitarioOC * cantidadSolicitadaFormato;
@@ -127,16 +174,20 @@ export default function RecepcionarOrden() {
 
             // Pedido
             cantidad_solicitada: cantidadSolicitadaFormato,
+            cantidad_recepcionada_acumulada: cantidadRecepcionadaAcumFormato,
+            cantidad_pendiente: cantidadPendienteFormato,
 
             // Recepción (nuevo flujo)
             bultos: 0,
             bultos_detalle: [],
             total_neto_factura: defaultNeto,
             costoEdited: false,
+            neto_facturado_prev: Number(netoFacturadoPrevByMpocId?.[mp.id]) || 0,
 
             // Derivados
             expected_base_units: expectedBaseUnits,
             total_base_units: 0,
+            // cantidad_recibida ahora significa "cantidad recepcionada en ESTA recepción" (en formato comprado)
             cantidad_recibida: 0,
 
             // Info OC
@@ -256,12 +307,14 @@ export default function RecepcionarOrden() {
       const updatedInsumos = prev.insumos.map((insumo) => {
         if (insumo.id_proveedor_materia_prima !== insumoId) return insumo;
 
+        // Distribuir por defecto sobre lo pendiente
         const expected = Number(insumo.expected_base_units) || 0;
         const dist = buildDefaultDistribution(expected, bCount);
         const bultos_detalle = dist.map((u) => ({
           cantidad_unidades: u,
           identificador_proveedor: "",
           loteEdited: false,
+          unitsEdited: false,
         }));
 
         return recalcInsumoDerived({
@@ -285,9 +338,22 @@ export default function RecepcionarOrden() {
       ...prev,
       insumos: prev.insumos.map((insumo) => {
         if (insumo.id_proveedor_materia_prima !== insumoId) return insumo;
-        const nextDetalle = (insumo.bultos_detalle || []).map((b, i) =>
-          i === idx ? { ...b, cantidad_unidades: value } : b
-        );
+        const detalle = Array.isArray(insumo.bultos_detalle) ? insumo.bultos_detalle : [];
+        const nextDetalle = detalle.map((b) => ({ ...b }));
+
+        // Marca corte en el bulto editado
+        nextDetalle[idx] = {
+          ...nextDetalle[idx],
+          cantidad_unidades: value,
+          unitsEdited: true,
+        };
+
+        // Propagar hacia adelante hasta el siguiente editado manualmente
+        for (let i = idx + 1; i < nextDetalle.length; i++) {
+          if (nextDetalle[i]?.unitsEdited) break;
+          nextDetalle[i] = { ...nextDetalle[i], cantidad_unidades: value };
+        }
+
         return recalcInsumoDerived({ ...insumo, bultos_detalle: nextDetalle });
       }),
     }));
@@ -429,6 +495,18 @@ export default function RecepcionarOrden() {
       setBultosGenerados(response.bultos || []);
       setShowConfirmation(true);
       toast.success("Orden recepcionada y bultos declarados correctamente");
+
+      // Descargar etiquetas SOLO de los bultos recién recepcionados
+      try {
+        await downloadEtiquetasForBultos({
+          idsBultos: response.ids_bultos_creados,
+          ordenIdForName: ordenId,
+        });
+        toast.success("Etiquetas descargadas correctamente");
+      } catch (e) {
+        toast.error("Error al descargar etiquetas: " + (e?.message || e));
+      }
+
       try {
         emailSender(ordenId);
       } catch (emailErr) {
@@ -495,7 +573,23 @@ export default function RecepcionarOrden() {
         return `${formato ? `${formato} - ` : ""} ${nombre}`;
       },
     },
-    { header: "Cantidad Solicitada", accessor: "cantidad_solicitada" },
+    {
+      header: "Cantidad Solicitada",
+      accessor: "cantidad_solicitada",
+      Cell: ({ row }) => {
+        const sol = Number(row.cantidad_solicitada) || 0;
+        const rec = Number(row.cantidad_recepcionada_acumulada) || 0;
+        const pend = Number(row.cantidad_pendiente) || 0;
+        const fmt = row.formato || "";
+        return (
+          <div className="flex flex-col">
+            <span className="font-medium">{sol.toFixed(2)} {fmt}</span>
+            <span className="text-xs text-gray-600">Ya recepcionado: {rec.toFixed(2)} {fmt}</span>
+            <span className="text-xs text-gray-600">Pendiente: {pend.toFixed(2)} {fmt}</span>
+          </div>
+        );
+      },
+    },
     { header: "Bultos", accessor: "bultos", Cell: ({ row }) => (
         <input
           type="number"
@@ -518,11 +612,18 @@ export default function RecepcionarOrden() {
         const recibidoFormato = ratio > 0 ? (totalBase / ratio) : 0;
         const fmt = row.formato || "";
         const baseLabel = row.base_formato?.trim?.() || "un. base";
+
+        const pendienteFmt = Number(row.cantidad_pendiente) || 0;
+        const pendienteBase = pendienteFmt * ratio;
+        const excede = totalBase > 0 && pendienteBase > 0 && totalBase > pendienteBase + 1e-9;
         return (
           <div className="flex flex-col">
             <span className="font-medium">{totalBase.toFixed(2)} {baseLabel}</span>
             {ratio > 1.01 && (
               <span className="text-xs text-blue-600">≈ {recibidoFormato.toFixed(2)} {fmt}</span>
+            )}
+            {excede && (
+              <span className="text-xs text-amber-700">Supera lo pendiente</span>
             )}
           </div>
         );
@@ -531,22 +632,47 @@ export default function RecepcionarOrden() {
     {
       header: "Costo Neto Factura",
       accessor: "total_neto_factura",
-      Cell: ({ row }) => (
-        <input
-          type="number"
-          min="0"
-          step="0.01"
-          value={row.total_neto_factura ?? ""}
-          onChange={(e) => handleCostoFacturaChange(row.id_proveedor_materia_prima, e.target.value)}
-          className="w-32 px-2 py-1 border border-gray-300 rounded-md"
-          placeholder="0"
-        />
-      ),
+      Cell: ({ row }) => {
+        const yaFacturado = Number(row?.neto_facturado_prev) || 0;
+        const fmtCLP = (n) =>
+          new Intl.NumberFormat("es-CL", {
+            style: "currency",
+            currency: "CLP",
+            maximumFractionDigits: 0,
+          }).format(Number.isFinite(n) ? n : 0);
+
+        return (
+          <div className="flex flex-col">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={row.total_neto_factura ?? ""}
+              onChange={(e) => handleCostoFacturaChange(row.id_proveedor_materia_prima, e.target.value)}
+              className="w-32 px-2 py-1 border border-gray-300 rounded-md"
+              placeholder="0"
+            />
+            {yaFacturado > 0 && (
+              <span className="text-xs text-gray-600 mt-1">Ya facturado: {fmtCLP(yaFacturado)}</span>
+            )}
+          </div>
+        );
+      },
     },
     {
-      header: "Costo OC",
+      header: "Costo Neto OC",
       accessor: "precio_unitario",
-      Cell: ({ value }) => `$${Number(value || 0).toLocaleString()}`,
+      Cell: ({ row }) => {
+        const precioUnitario = Number(row?.precio_unitario) || 0;
+        const cantidadSolicitada = Number(row?.cantidad_solicitada) || 0;
+        const total = precioUnitario * cantidadSolicitada;
+
+        return new Intl.NumberFormat("es-CL", {
+          style: "currency",
+          currency: "CLP",
+          maximumFractionDigits: 0,
+        }).format(Number.isFinite(total) ? total : 0);
+      },
     },
   ];
 

@@ -155,15 +155,16 @@ export default function AddPautaElaboracion() {
 
   return (
     <div className="p-6 bg-background min-h-screen">
-      <div className="mb-4">
-        <BackButton to="/PautasElaboracion" />
-      </div>
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-4">
+          <BackButton to="/PautasElaboracion" />
+        </div>
 
-      <h1 className="text-2xl font-bold text-text mb-6">Añadir Pauta de Elaboración</h1>
+        <h1 className="text-2xl font-bold text-text mb-6">Añadir Pauta de Elaboración</h1>
 
-      {/* ─────────────── SECCIÓN 1: DATOS DE LA PAUTA ─────────────── */}
-      <div className="bg-white p-6 rounded-lg shadow space-y-6">
-        <h2 className="text-lg font-semibold text-gray-800">Datos de la Pauta</h2>
+        {/* ─────────────── SECCIÓN 1: DATOS DE LA PAUTA ─────────────── */}
+        <div className="bg-white p-6 rounded-lg shadow space-y-6 mb-8">
+          <h2 className="text-lg font-semibold text-gray-800">Datos de la Pauta</h2>
 
         {/* Nombre */}
         <div>
@@ -200,31 +201,30 @@ export default function AddPautaElaboracion() {
           {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
         </div>
 
-      </div>
+        </div>
 
-      {/* ─────────────── SECCIÓN 2: PASOS DE ELABORACIÓN ─────────────── */}
-      <div className="bg-white mt-8 p-6 rounded-lg shadow space-y-6">
-        <h2 className="text-lg font-semibold text-gray-800">Pasos de Elaboración</h2>
-        <StepsEditor pasos={pasos} setPasos={setPasos} errors={errors} />
-        {errors.pasos && (
-          <p className="text-red-500 text-sm">{errors.pasos}</p>
-        )}
-      </div>
+        {/* ─────────────── SECCIÓN 2: PASOS DE ELABORACIÓN ─────────────── */}
+        <div className="bg-white p-6 rounded-lg shadow space-y-6 mb-8">
+          <h2 className="text-lg font-semibold text-gray-800">Pasos de Elaboración</h2>
+          <StepsEditor pasos={pasos} setPasos={setPasos} errors={errors} />
+          {errors.pasos && <p className="text-red-500 text-sm">{errors.pasos}</p>}
+        </div>
 
-      {/* BOTONES */}
-      <div className="flex justify-between items-center mt-8">
-        <button
-          onClick={handleAddPaso}
-          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
-        >
-          Agregar Paso
-        </button>
-        <button
-          onClick={handleSubmit}
-          className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
-        >
-          Crear Pauta de Elaboración
-        </button>
+        {/* BOTONES */}
+        <div className="flex justify-between items-center">
+          <button
+            onClick={handleAddPaso}
+            className="px-4 py-2 rounded border border-gray-300 text-text hover:bg-gray-100"
+          >
+            Agregar Paso
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+          >
+            Crear Pauta de Elaboración
+          </button>
+        </div>
       </div>
     </div>
   );

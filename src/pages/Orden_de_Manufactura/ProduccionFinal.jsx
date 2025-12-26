@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
+import { BackButton } from "../../components/Buttons/ActionButtons";
 
 export default function ProduccionFinal() {
   const { id } = useParams();
@@ -55,10 +56,18 @@ export default function ProduccionFinal() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded shadow">
-      <h1 className="text-2xl font-bold mb-6">Registrar Producción Final</h1>
+    <div className="p-6 bg-background min-h-screen">
+      <div className="mb-4">
+        <BackButton to={`/Orden_de_Manufactura/${id}`} />
+      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold text-text">Producción final · OM #{id}</h1>
+      </div>
+
+      <div className="bg-gray-200 p-4 rounded-lg">
+        <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
+          <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className="block text-sm font-medium mb-1">
             Peso obtenido (kg)
@@ -67,7 +76,7 @@ export default function ProduccionFinal() {
             type="number"
             min="0"
             step="0.01"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
             value={form.peso_obtenido}
             onChange={(e) => setField("peso_obtenido", e.target.value)}
             placeholder="500"
@@ -83,7 +92,7 @@ export default function ProduccionFinal() {
             type="number"
             min="1"
             step="1"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
             value={form.unidades_obtenidas}
             onChange={(e) => setField("unidades_obtenidas", e.target.value)}
             placeholder="5"
@@ -100,7 +109,7 @@ export default function ProduccionFinal() {
           </label>
           <input
             type="date"
-            className="w-full border rounded px-3 py-2"
+            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
             value={form.fecha_vencimiento}
             onChange={(e) => setField("fecha_vencimiento", e.target.value)}
             required
@@ -110,7 +119,7 @@ export default function ProduccionFinal() {
         <div className="flex justify-end gap-3 mt-6">
           <button
             type="button"
-            className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
             onClick={() => navigate(`/Orden_de_Manufactura/${id}`)}
           >
             Cancelar
@@ -118,12 +127,14 @@ export default function ProduccionFinal() {
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60"
+            className="px-4 py-2 bg-primary text-white rounded hover:bg-hover disabled:opacity-60"
           >
             {loading ? "Guardando…" : "Registrar Producción"}
           </button>
         </div>
-      </form>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import jsPDF from "jspdf";
 import QRCode from "qrcode";
 import JsBarcode from "jsbarcode";
 import 'svg2pdf.js';
+import Selector from "../../components/Selector";
 
 export default function DetailPautaValorAgregado() {
   const { id } = useParams();
@@ -170,8 +171,8 @@ export default function DetailPautaValorAgregado() {
       toast.success("Pauta comenzada correctamente.");
       setShowModal(false);
       await fetchPauta();
-    } catch {
-      toast.error("Error al comenzar la pauta.");
+    } catch(err) {
+      toast.error(err?.message || "Error al comenzar la pauta.");
     } finally {
       setSaving(false);
     }
@@ -481,21 +482,18 @@ export default function DetailPautaValorAgregado() {
                   </p>
 
                   {bultos.length > 0 ? (
-                    <select
-                      value={seleccionados[insumo.id_materia_prima] || ""}
-                      onChange={(e) =>
-                        handleSeleccion(insumo.id_materia_prima, e.target.value)
-                      }
+                    <Selector
+                      options={[
+                        { value: "", label: "Seleccionar bulto..." },
+                        ...bultos.map((bulto) => ({
+                          value: String(bulto.id),
+                          label: `${bulto.identificador} — ${bulto.materiaPrima.nombre} — ${bulto.unidades_disponibles} unidades`
+                        }))
+                      ]}
+                      selectedValue={seleccionados[insumo.id_materia_prima] ? String(seleccionados[insumo.id_materia_prima]) : ""}
+                      onSelect={(v) => handleSeleccion(insumo.id_materia_prima, v)}
                       className="w-full border rounded px-3 py-2"
-                    >
-                      <option value="">Seleccionar bulto...</option>
-                      {bultos.map((bulto) => (
-                        <option key={bulto.id} value={bulto.id}>
-                          {bulto.identificador} — {bulto.materiaPrima.nombre} —{" "}
-                          {bulto.unidades_disponibles} unidades
-                        </option>
-                      ))}
-                    </select>
+                    />
                   ) : (
                     <p className="text-sm text-gray-500">
                       No hay bultos disponibles de este insumo en la bodega.

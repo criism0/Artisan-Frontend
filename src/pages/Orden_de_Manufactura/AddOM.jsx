@@ -4,6 +4,7 @@ import { useApi } from "../../lib/api";
 import { useAuth } from "../../auth/AuthContext";
 import { jwtDecode } from "jwt-decode";
 import { toast } from "../../lib/toast";
+import { BackButton } from "../../components/Buttons/ActionButtons";
 
 export default function AddOM() {
   const apiFetch = useApi();
@@ -18,6 +19,14 @@ export default function AddOM() {
     id_bodega: "",
     peso_objetivo: "",
   });
+
+  const recetaSeleccionada = useMemo(() => {
+    const idReceta = Number(form.id_receta);
+    if (!idReceta) return null;
+    return recetas.find((r) => Number(r.id) === idReceta) || null;
+  }, [form.id_receta, recetas]);
+
+  const unidadObjetivo = recetaSeleccionada?.unidad_medida || "";
 
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [disponibilidad, setDisponibilidad] = useState(null);
@@ -78,7 +87,6 @@ export default function AddOM() {
         method: "GET",
       });
       const disponibilidadData = res?.disponibilidad ?? res;
-      console.log('Disponibilidad recibida:', disponibilidadData);
       setDisponibilidad(disponibilidadData);
     } catch (e) {
       toast.error(
@@ -111,14 +119,6 @@ export default function AddOM() {
         return;
       }
 
-      const ingredientes = selectedRecipe.ingredientesReceta || [];
-      if (ingredientes.length === 0) {
-        toast.error(
-          `La receta "${selectedRecipe.nombre}" no tiene ingredientes definidos.`
-        );
-        return;
-      }
-
       const payload = {
         id_receta: Number(form.id_receta),
         id_elaborador_encargado: Number(idElaborador),
@@ -134,8 +134,10 @@ export default function AddOM() {
 
       toast.success("Orden de Manufactura creada con éxito.");
 
-      if (nuevaOM?.id) {
-        navigate(`/Orden_de_Manufactura/${nuevaOM.id}`);
+      const omId = nuevaOM?.id ?? nuevaOM?.nuevaProduccion?.id;
+
+      if (omId) {
+        navigate(`/Orden_de_Manufactura/${omId}`);
       } else {
         navigate("/Orden_de_Manufactura");
       }
@@ -147,40 +149,39 @@ export default function AddOM() {
   };
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="text-2xl font-bold mb-4">Crear Orden de Manufactura</h1>
+    <div className="p-6 bg-background min-h-screen">
+      <div className="mb-4">
+        <BackButton to="/Orden_de_Manufactura" />
+      </div>
+
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold text-text">Crear Orden de Manufactura</h1>
+      </div>
 
       {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
       {success && <div className="mb-3 text-sm text-green-700">{success}</div>}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="bg-gray-200 p-4 rounded-lg">
+        <form onSubmit={handleSubmit} className="space-y-6 bg-white rounded-lg shadow p-6">
         <div>
           <label className="block text-sm font-medium mb-1">Receta</label>
           <select
             value={form.id_receta}
             onChange={(e) => setField("id_receta", e.target.value)}
-            className="w-full border rounded-md px-3 py-2"
+            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
           >
             <option value="">Selecciona una receta</option>
             {recetas.map((r) => {
-              const ingredientes = r.ingredientesReceta || [];
-              const hasIngredients = ingredientes.length > 0;
               return (
                 <option
                   key={r.id}
                   value={r.id}
-                  disabled={!hasIngredients}
-                  style={{ color: hasIngredients ? "black" : "gray" }}
                 >
                   {r.nombre ?? `Receta ${r.id}`}{" "}
-                  {!hasIngredients ? "(Sin ingredientes)" : ""}
                 </option>
               );
             })}
           </select>
-          <p className="text-xs text-gray-500 mt-1">
-            Solo se pueden seleccionar recetas que tengan ingredientes definidos.
-          </p>
         </div>
 
         <div>
@@ -188,7 +189,7 @@ export default function AddOM() {
           <select
             value={form.id_bodega}
             onChange={(e) => setField("id_bodega", e.target.value)}
-            className="w-full border rounded-md px-3 py-2"
+            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
           >
             <option value="">Selecciona una bodega</option>
             {bodegas.map((b) => (
@@ -201,7 +202,7 @@ export default function AddOM() {
 
         <div>
           <label className="block text-sm font-medium mb-1">
-            Peso Objetivo (kg)
+            Cantidad Objetivo{unidadObjetivo ? ` (${unidadObjetivo})` : ""}
           </label>
           <input
             type="number"
@@ -209,8 +210,8 @@ export default function AddOM() {
             step="1"
             value={form.peso_objetivo}
             onChange={(e) => setField("peso_objetivo", e.target.value)}
-            className="w-full border rounded-md px-3 py-2"
-            placeholder="Ej: 1000"
+            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+            placeholder={unidadObjetivo === "unidades" ? "Ej: 100" : "Ej: 1000"}
           />
         </div>
 
@@ -219,7 +220,7 @@ export default function AddOM() {
             type="button"
             onClick={checkAvailability}
             disabled={checkingAvailability}
-            className="px-4 py-2 rounded-md bg-blue-600 text-white disabled:opacity-60"
+            className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-hover disabled:opacity-60"
           >
             {checkingAvailability ? "Consultando…" : "Ver Disponibilidad"}
           </button>
@@ -227,16 +228,18 @@ export default function AddOM() {
           <button
             type="submit"
             disabled={loading || !idElaborador}
-            className="px-4 py-2 rounded-md bg-indigo-600 text-white disabled:opacity-60"
+            className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-hover disabled:opacity-60"
           >
             {loading ? "Creando…" : "Crear Orden de Manufactura"}
           </button>
         </div>
-      </form>
+        </form>
+      </div>
 
       {disponibilidad && (
-        <div className="mt-6 border rounded-md p-4 bg-white">
-          <h2 className="font-semibold mb-4 text-lg">Disponibilidad de Insumos</h2>
+        <div className="mt-6 bg-gray-200 p-4 rounded-lg">
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="font-semibold mb-4 text-lg text-text">Disponibilidad de insumos</h2>
           
           {(() => {
             let items = [];
@@ -270,6 +273,14 @@ export default function AddOM() {
                       {items.map((item, index) => {
                         const cantidadNecesaria = item.peso_necesario ?? item.cantidad_necesaria ?? item.cantidadNecesaria ?? item.necesario ?? item.pesoNecesario ?? 0;
                         const cantidadDisponible = item.peso_disponible ?? item.cantidad_disponible ?? item.cantidadDisponible ?? item.disponible ?? item.pesoDisponible ?? 0;
+
+                        const unidadItem =
+                          item.unidad_medida ??
+                          item.ingrediente?.unidad_medida ??
+                          item.ingredienteReceta?.unidad_medida ??
+                          item.materiaPrima?.unidad_medida ??
+                          item.ingrediente?.materiaPrima?.unidad_medida ??
+                          "";
                         
                         let nombreInsumo = 
                           item.materiaPrima?.nombre ?? 
@@ -283,7 +294,6 @@ export default function AddOM() {
                           item.key;
                         
                         if (!nombreInsumo) {
-                          console.log('Item sin nombre encontrado:', item);
                           nombreInsumo = `Insumo ${index + 1}`;
                         }
                         
@@ -292,8 +302,8 @@ export default function AddOM() {
                         return (
                           <tr key={index} className={disponible ? "bg-green-50" : "bg-red-50"}>
                             <td className="border border-gray-300 px-4 py-2 text-sm">{nombreInsumo}</td>
-                            <td className="border border-gray-300 px-4 py-2 text-sm">{Number(cantidadNecesaria || 0).toFixed(2)} kg</td>
-                            <td className="border border-gray-300 px-4 py-2 text-sm">{Number(cantidadDisponible || 0).toFixed(2)} kg</td>
+                            <td className="border border-gray-300 px-4 py-2 text-sm">{Number(cantidadNecesaria || 0).toFixed(2)}{unidadItem ? ` ${unidadItem}` : ""}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-sm">{Number(cantidadDisponible || 0).toFixed(2)}{unidadItem ? ` ${unidadItem}` : ""}</td>
                             <td className="border border-gray-300 px-4 py-2 text-sm">
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
                                 disponible 
@@ -322,6 +332,7 @@ export default function AddOM() {
               </div>
             );
           })()}
+          </div>
         </div>
       )}
     </div>

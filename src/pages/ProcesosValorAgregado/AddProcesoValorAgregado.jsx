@@ -148,6 +148,24 @@ export default function AddProcesoValorAgregado() {
           {errors.costo_estimado && <p className="text-red-500 text-sm mt-1">{errors.costo_estimado}</p>}
         </div>
 
+        
+        <div>
+          <label className="block text-sm font-medium mb-1">Unidad de tiempo</label>
+          <select
+            name="unidad_tiempo"
+            value={formData.unidad_tiempo}
+            onChange={handleChange}
+            className={`w-full border rounded-lg px-3 py-2 ${errors.unidad_tiempo ? "border-red-500" : "border-gray-300"}`}
+          >
+            <option value="">Seleccionar...</option>
+            <option value="Minutos">Minutos</option>
+            <option value="Horas">Horas</option>
+            <option value="Dias">Dias</option>
+            <option value="Semanas">Semanas</option>
+          </select>
+          {errors.unidad_tiempo && <p className="text-red-500 text-sm mt-1">{errors.unidad_tiempo}</p>}
+        </div>
+
         <div>
           <label className="block text-sm font-medium mb-1">Tiempo estimado</label>
           <input
@@ -160,22 +178,6 @@ export default function AddProcesoValorAgregado() {
           {errors.tiempo_estimado && <p className="text-red-500 text-sm mt-1">{errors.tiempo_estimado}</p>}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Unidad de tiempo</label>
-          <select
-            name="unidad_tiempo"
-            value={formData.unidad_tiempo}
-            onChange={handleChange}
-            className={`w-full border rounded-lg px-3 py-2 ${errors.unidad_tiempo ? "border-red-500" : "border-gray-300"}`}
-          >
-            <option value="">Seleccionar...</option>
-            <option value="Minutos">Minutos</option>
-            <option value="Horas">Horas</option>
-            <option value="Días">Días</option>
-            <option value="Semanas">Semanas</option>
-          </select>
-          {errors.unidad_tiempo && <p className="text-red-500 text-sm mt-1">{errors.unidad_tiempo}</p>}
-        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center">
