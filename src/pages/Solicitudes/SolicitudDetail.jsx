@@ -4,6 +4,38 @@ import { useState, useEffect } from "react";
 import Table from "../../components/Table";
 import { useApi } from "../../lib/api";
 
+function formatDateTime(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("es-CL");
+}
+
+function getEstadoBadgeClasses(estado) {
+  switch (estado) {
+    case "Creada":
+      return "border-gray-200 bg-gray-50 text-gray-800";
+    case "Validada":
+      return "border-blue-200 bg-blue-50 text-blue-800";
+    case "En preparación":
+    case "Lista para despacho":
+      return "border-amber-200 bg-amber-50 text-amber-800";
+    case "En tránsito":
+      return "border-violet-200 bg-violet-50 text-violet-800";
+    case "Recepcionada":
+      return "border-green-200 bg-green-50 text-green-800";
+    case "Cancelada":
+      return "border-red-200 bg-red-50 text-red-800";
+    default:
+      return "border-gray-200 bg-gray-50 text-gray-800";
+  }
+}
+
+function safeNumber(value) {
+  const n = typeof value === "string" ? Number(value) : value;
+  return Number.isFinite(n) ? n : null;
+}
+
 export default function SolicitudDetail() {
   const { solicitudId } = useParams();
   const navigate = useNavigate();
@@ -11,6 +43,8 @@ export default function SolicitudDetail() {
   const [success, setSuccess] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const [expandedPalletIds, setExpandedPalletIds] = useState(() => new Set());
 
   const [guiaDespacho, setGuiaDespacho] = useState("");
   const [medioTransporte, setMedioTransporte] = useState("");
@@ -20,17 +54,21 @@ export default function SolicitudDetail() {
 
   const fetchSolicitud = async () => {
     try {
+      setLoading(true);
+      setError(null);
       const res = await api(`/solicitudes-mercaderia/${solicitudId}`);
       setSolicitud(res);
     } catch (err) {
       console.error("Error fetching solicitud:", err);
       setError("Error cargando la solicitud");
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchSolicitud();
-  }, [solicitudId]);
+  }, [solicitudId, api]);
 
   const handleCancelarSolicitud = async () => {
     setLoading(true);
@@ -103,38 +141,110 @@ export default function SolicitudDetail() {
     }
   };
 
-  if (!solicitud) return <div>Cargando...</div>;
+  if (loading && !solicitud) {
+    return (
+      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+        <span className="ml-3 text-primary">Cargando solicitud...</span>
+      </div>
+    );
+  }
+
+  if (error && !solicitud) {
+    return (
+      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
+        <div className="p-4 text-red-700 bg-red-100 rounded-lg">{error}</div>
+      </div>
+    );
+  }
+
+  if (!solicitud) return null;
+
+  const detalles = Array.isArray(solicitud?.detalles) ? solicitud.detalles : [];
+  const pallets = Array.isArray(solicitud?.pallets) ? solicitud.pallets : [];
+  const bultos = pallets.flatMap((p) =>
+    Array.isArray(p?.Bultos) ? p.Bultos : Array.isArray(p?.bultos) ? p.bultos : []
+  );
+
+  const solicitanteNombre =
+    solicitud?.Usuario?.nombre ??
+    solicitud?.usuario?.nombre ??
+    solicitud?.usuarioSolicitante?.nombre ??
+    "—";
 
   const solicitudInfo = {
-    ID: solicitud.id,
-    "Bodega Proveedora": solicitud.bodegaProveedora?.nombre,
-    "Bodega Solicitante": solicitud.bodegaSolicitante?.nombre,
-    Estado: solicitud.estado,
-    "Fecha de Creación": new Date(solicitud.createdAt).toLocaleString(),
-    "Última Actualización": new Date(solicitud.updatedAt).toLocaleString(),
-    "Fecha de Envío": solicitud.fecha_envio
-      ? new Date(solicitud.fecha_envio).toLocaleString()
-      : "Pendiente",
-    "Fecha de Recepción": solicitud.fecha_recepcion
-      ? new Date(solicitud.fecha_recepcion).toLocaleString()
-      : "Pendiente",
-    "N° Guía Despacho": solicitud.numero_guia_despacho,
-    "Medio de Transporte": solicitud.medio_transporte,
+    ID: solicitud.id ?? "—",
+    Estado: solicitud.estado ?? "—",
+    Solicitante: solicitanteNombre,
+    "Bodega Proveedora": solicitud.bodegaProveedora?.nombre ?? "—",
+    "Bodega Solicitante": solicitud.bodegaSolicitante?.nombre ?? "—",
+    "Fecha de Creación": formatDateTime(solicitud.createdAt),
+    "Última Actualización": formatDateTime(solicitud.updatedAt),
+    "Fecha de Envío": solicitud.fecha_envio ? formatDateTime(solicitud.fecha_envio) : "Pendiente",
+    "Fecha de Recepción": solicitud.fecha_recepcion ? formatDateTime(solicitud.fecha_recepcion) : "Pendiente",
+    "N° Guía Despacho": solicitud.numero_guia_despacho ?? "—",
+    "Medio de Transporte": solicitud.medio_transporte ?? "—",
   };
 
-  const detalles = solicitud?.detalles ?? [];
   const insumosData = detalles.map((detalle) => ({
+    id: detalle?.id,
     nombre: detalle?.materiaPrima?.nombre ?? "—",
     cantidad_solicitada: detalle?.cantidad_solicitada ?? 0,
+    cantidad_recepcionada:
+      detalle?.cantidad_recepcionada == null ? "—" : detalle.cantidad_recepcionada,
     unidad_medida: detalle?.materiaPrima?.unidad_medida ?? "—",
     comentario: detalle?.comentario ?? "",
   }));
 
   const insumosColumns = [
     { header: "Insumo", accessor: "nombre" },
-    { header: "Cantidad Solicitada", accessor: "cantidad_solicitada" },
-    { header: "Unidad de Medida", accessor: "unidad_medida" },
+    { header: "Solicitada", accessor: "cantidad_solicitada" },
+    { header: "Recepcionada", accessor: "cantidad_recepcionada" },
+    { header: "Unidad", accessor: "unidad_medida" },
+    {
+      header: "Comentario",
+      accessor: "comentario",
+      Cell: ({ value }) => (value ? value : "—"),
+    },
   ];
+
+  const palletsData = pallets.map((pallet) => {
+    const palletBultos = Array.isArray(pallet?.Bultos)
+      ? pallet.Bultos
+      : Array.isArray(pallet?.bultos)
+        ? pallet.bultos
+        : [];
+    return {
+      id: pallet?.id,
+      identificador: pallet?.identificador ?? "—",
+      estado: pallet?.estado ?? "—",
+      bultos_count: palletBultos.length,
+      _raw: pallet,
+    };
+  });
+
+  const palletsColumns = [
+    { header: "Pallet", accessor: "identificador" },
+    { header: "Estado", accessor: "estado" },
+    { header: "Bultos", accessor: "bultos_count" },
+  ];
+
+  const bultosColumns = [
+    { header: "BULTO", accessor: "identificador" },
+    { header: "INSUMO", accessor: "materia_prima" },
+    { header: "UNIDADES", accessor: "unidades_disponibles" },
+    { header: "CANTIDAD UN.", accessor: "cantidad_un" },
+  ];
+
+  const toggleExpandedPallet = (palletId) => {
+    if (palletId == null) return;
+    setExpandedPalletIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(palletId)) next.delete(palletId);
+      else next.add(palletId);
+      return next;
+    });
+  };
 
   const puedeCancelar = [
     "Creada",
@@ -145,112 +255,284 @@ export default function SolicitudDetail() {
 
   return (
     <div className="p-6 bg-background min-h-screen">
-      <div className="mb-4">
-        <BackButton to="/Solicitudes" />
-      </div>
-      <h1 className="text-2xl font-bold text-text mb-4">
-        Detalle de la Solicitud
-      </h1>
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <BackButton to="/Solicitudes" />
+        </div>
 
-      <div className="bg-gray-200 p-4 rounded-lg mb-6">
-        <h2 className="text-xl font-semibold mb-2">Información Principal</h2>
-        <table className="w-full bg-white rounded-lg shadow">
-          <tbody>
-            {Object.entries(solicitudInfo).map(([key, value]) => (
-              <tr key={key} className="border-b border-border">
-                <td className="px-6 py-4 font-medium">{key}</td>
-                <td className="px-6 py-4">{value}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="bg-gray-200 p-4 rounded-lg mb-6">
-        <h2 className="text-xl font-semibold mb-2">Insumos Solicitados</h2>
-        <Table data={insumosData} columns={insumosColumns} />
-      </div>
-
-      {error && <div className="text-red-500 mb-2">{error}</div>}
-      {success && <div className="text-green-600 mb-2">{success}</div>}
-
-      {/* Acciones por estado */}
-      <div className="flex flex-wrap gap-4 justify-between">
-        {puedeCancelar && (
-          <button
-            onClick={handleCancelarSolicitud}
-            disabled={loading}
-            className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-          >
-            Cancelar Solicitud
-          </button>
-        )}
-        {solicitud.estado === "Creada" && (
-          <>
-            <button
-              onClick={handleValidarSolicitud}
-              disabled={loading}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-violet-700"
+        <div className="mb-6">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold text-text">
+              Solicitud #{solicitud.id}
+            </h1>
+            <span
+              className={`px-3 py-1 rounded-full text-xs border ${getEstadoBadgeClasses(
+                solicitud.estado
+              )}`}
             >
-              Validar Solicitud
-            </button>
-          </>
-        )}
-        {solicitud.estado === "En tránsito" && (
-          <button
-            onClick={() => navigate(`/Solicitudes/${solicitudId}/recepcionar-solicitud`)}
-            disabled={loading}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-violet-700"
-          >
-            Recepcionar Solicitud
-          </button>
-        )}
+              {solicitud.estado ?? "—"}
+            </span>
+          </div>
+        </div>
 
-        {solicitud.estado === "Lista para despacho" && (
-          <div className="flex flex-col gap-4 max-w-md">
-            {!mostrarFormularioEnvio ? (
-              <button
-                onClick={() => setMostrarFormularioEnvio(true)}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-violet-700"
-              >
-                Enviar Solicitud
-              </button>
-            ) : (
-              <div className="bg-white rounded shadow p-4">
-                <h3 className="text-lg font-bold mb-2">Datos de Envío</h3>
-                <input
-                  type="text"
-                  placeholder="Número de Guía de Despacho"
-                  value={guiaDespacho}
-                  onChange={(e) => setGuiaDespacho(e.target.value)}
-                  className="w-full mb-2 p-2 border rounded"
-                />
-                <input
-                  type="text"
-                  placeholder="Medio de Transporte"
-                  value={medioTransporte}
-                  onChange={(e) => setMedioTransporte(e.target.value)}
-                  className="w-full mb-2 p-2 border rounded"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleEnviarSolicitud}
-                    disabled={loading}
-                    className="bg-green-600 text-white px-4 py-2 rounded"
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Sidebar / Resumen */}
+          <div className="lg:col-span-1 lg:order-2 space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow space-y-4">
+              <h2 className="text-lg font-semibold text-text">Resumen</h2>
+
+              <div className="space-y-3 text-sm">
+                {Object.entries(solicitudInfo).map(([key, value]) => (
+                  <div
+                    key={key}
+                    className="flex items-start justify-between gap-4"
                   >
-                    Confirmar Envío
-                  </button>
+                    <span className="text-gray-500">{key}</span>
+                    <span className="text-text font-medium text-right">
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg shadow space-y-4">
+              <h2 className="text-lg font-semibold text-text">Acciones</h2>
+
+              <div className="flex flex-row flex-wrap items-center gap-3">
+                {puedeCancelar && (
                   <button
-                    onClick={() => setMostrarFormularioEnvio(false)}
-                    className="bg-gray-300 px-4 py-2 rounded"
+                    onClick={handleCancelarSolicitud}
+                    disabled={loading}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-60"
                   >
                     Cancelar
                   </button>
+                )}
+
+                {solicitud.estado === "Creada" && (
+                  <button
+                    onClick={handleValidarSolicitud}
+                    disabled={loading}
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-violet-700 disabled:opacity-60"
+                  >
+                    Validar
+                  </button>
+                )}
+
+                {solicitud.estado === "En tránsito" && (
+                  <button
+                    onClick={() =>
+                      navigate(
+                        `/Solicitudes/${solicitudId}/recepcionar-solicitud`
+                      )
+                    }
+                    disabled={loading}
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-violet-700 disabled:opacity-60"
+                  >
+                    Recepcionar
+                  </button>
+                )}
+
+                {solicitud.estado === "Lista para despacho" && (
+                  <>
+                    {!mostrarFormularioEnvio ? (
+                      <button
+                        onClick={() => setMostrarFormularioEnvio(true)}
+                        disabled={loading}
+                        className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-violet-700 disabled:opacity-60"
+                      >
+                        Enviar
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={handleEnviarSolicitud}
+                          disabled={loading}
+                          className="bg-green-600 text-white px-4 py-2 rounded disabled:opacity-60"
+                        >
+                          Confirmar Envío
+                        </button>
+                        <button
+                          onClick={() => setMostrarFormularioEnvio(false)}
+                          disabled={loading}
+                          className="bg-gray-300 px-4 py-2 rounded disabled:opacity-60"
+                        >
+                          Cerrar
+                        </button>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {solicitud.estado === "Lista para despacho" && mostrarFormularioEnvio && (
+                <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+                  <h3 className="text-sm font-semibold text-text">Datos de envío</h3>
+
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Número de Guía de Despacho"
+                      value={guiaDespacho}
+                      onChange={(e) => setGuiaDespacho(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Medio de Transporte"
+                      value={medioTransporte}
+                      onChange={(e) => setMedioTransporte(e.target.value)}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
                 </div>
+              )}
+            </div>
+
+            {(error || success) && (
+              <div className="space-y-2">
+                {error && (
+                  <div className="p-3 text-red-700 bg-red-100 rounded-lg">
+                    {error}
+                  </div>
+                )}
+                {success && (
+                  <div className="p-3 text-green-700 bg-green-100 rounded-lg">
+                    {success}
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
+
+          {/* Contenido principal */}
+          <div className="lg:col-span-2 lg:order-1 space-y-6">
+            <div className="bg-white p-6 rounded-lg shadow space-y-4">
+              <h2 className="text-lg font-semibold text-text">Insumos</h2>
+              {insumosData.length > 0 ? (
+                <Table data={insumosData} columns={insumosColumns} />
+              ) : (
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-gray-500 text-sm">No hay insumos registrados.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-white p-6 rounded-lg shadow space-y-4">
+              <h2 className="text-lg font-semibold text-text">Pallets</h2>
+              {palletsData.length > 0 ? (
+                <Table
+                  data={palletsData}
+                  columns={palletsColumns}
+                  renderActions={(row) => (
+                    <button
+                      onClick={() => toggleExpandedPallet(row.id)}
+                      className="px-3 py-1 rounded border border-gray-200 hover:bg-gray-50"
+                    >
+                      {expandedPalletIds.has(row.id) ? "Ocultar bultos" : "Ver bultos"}
+                    </button>
+                  )}
+                  renderExpandedRow={(row) => {
+                    if (!expandedPalletIds.has(row.id)) return null;
+                    const palletRaw = row?._raw;
+                    const palletBultos = Array.isArray(palletRaw?.Bultos)
+                      ? palletRaw.Bultos
+                      : Array.isArray(palletRaw?.bultos)
+                        ? palletRaw.bultos
+                        : [];
+
+                    const bultosData = palletBultos.map((b) => {
+                      const unidad =
+                        b?.MateriaPrima?.unidad_medida ??
+                        b?.materiaPrima?.unidad_medida ??
+                        "";
+
+                      const cantidadUn = (() => {
+                        if (b?.peso_unitario == null || b?.peso_unitario === "") return "—";
+                        if (!unidad) return String(b.peso_unitario);
+                        return `${b.peso_unitario} ${String(unidad).toUpperCase()}`;
+                      })();
+
+                      return {
+                        id: b?.id,
+                        identificador: b?.identificador ?? "—",
+                        materia_prima:
+                          b?.MateriaPrima?.nombre ??
+                          b?.materiaPrima?.nombre ??
+                          "—",
+                        unidades_disponibles:
+                          b?.unidades_disponibles ?? "—",
+                        cantidad_un: cantidadUn,
+                      };
+                    });
+
+                    return (
+                      <tr>
+                        <td
+                          colSpan={palletsColumns.length + 1}
+                          className="px-6 py-4"
+                        >
+                          {bultosData.length > 0 ? (
+                            <div className="bg-gray-50 rounded-lg p-4 max-w-full">
+                              <div className="text-sm font-medium text-text mb-3">
+                                Bultos del pallet {row.identificador}
+                              </div>
+
+                              {/* Tabla simple para evitar que el expand re-dimensione la tabla de pallets */}
+                              <div className="w-full max-w-full overflow-x-auto">
+                                <table className="min-w-full w-full">
+                                  <thead className="bg-gray-100">
+                                    <tr>
+                                      {bultosColumns.map((col) => (
+                                        <th
+                                          key={col.accessor}
+                                          className="px-4 py-2 text-left text-xs font-medium text-text uppercase tracking-wider whitespace-nowrap"
+                                        >
+                                          {col.header}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody className="bg-white divide-y divide-border">
+                                    {bultosData.map((b) => (
+                                      <tr key={b.id ?? b.identificador}>
+                                        <td className="px-4 py-2 text-sm text-text whitespace-nowrap">
+                                          {b.identificador}
+                                        </td>
+                                        <td className="px-4 py-2 text-sm text-text">
+                                          {b.materia_prima}
+                                        </td>
+                                        <td className="px-4 py-2 text-sm text-text whitespace-nowrap">
+                                          {b.unidades_disponibles}
+                                        </td>
+                                        <td className="px-4 py-2 text-sm text-text whitespace-nowrap">
+                                          {b.cantidad_un}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-600">
+                              No hay bultos asociados a este pallet.
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  }}
+                />
+              ) : (
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-gray-500 text-sm">No hay pallets asociados.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* TODO: REVISAR SI TIENE QUE ESTAR EN FRONT, O SOLO EN MOBILE */}
         {/* {(solicitud.estado === "Validada" || solicitud.estado === "En preparación") && (

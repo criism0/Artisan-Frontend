@@ -12,6 +12,14 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
   const lastAddSignal = useRef(addSignal);
   const api = useApi();
 
+  const normalizeInventario = (response) => {
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response?.inventario)) return response.inventario;
+    if (Array.isArray(response?.data)) return response.data;
+    if (Array.isArray(response?.data?.inventario)) return response.data.inventario;
+    return [];
+  };
+
   const optionById = useMemo(() => {
     const m = new Map();
     for (const o of opcionesInsumos) m.set(o.value, o);
@@ -37,7 +45,7 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
           return;
         }
         const response = await api(`/inventario/${bodegaId}`);
-        const inventario = Array.isArray(response) ? response : [];
+        const inventario = normalizeInventario(response);
         const insumosData = inventario
           .map((item) => {
             const mp = item?.materiaPrima;
@@ -68,7 +76,7 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
           return;
         }
         const response = await api(`/inventario/${bodegaSolicitanteId}`);
-        const inventario = Array.isArray(response) ? response : [];
+        const inventario = normalizeInventario(response);
         const map = new Map();
         inventario.forEach((item) => {
           const mp = item?.materiaPrima;
