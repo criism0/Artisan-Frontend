@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../../axiosInstance";
 import { toast } from "../../lib/toast";
+import { fuzzyMatch, insumoToSearchText } from "../../services/fuzzyMatch";
 
 export default function InsumosPage() {
   const [insumos, setInsumos] = useState([]);
@@ -121,14 +122,10 @@ export default function InsumosPage() {
     }
 
     if (searchQuery) {
-      const lowercasedQuery = searchQuery.toLowerCase();
-      filtered = filtered.filter((insumo) =>
-        Object.values(insumo).some(
-          (value) =>
-            value &&
-            value.toString().toLowerCase().includes(lowercasedQuery)
-        )
-      );
+      filtered = filtered.filter((insumo) => {
+        const text = insumoToSearchText(insumo);
+        return fuzzyMatch(text, searchQuery);
+      });
     }
 
     setFilteredInsumos(filtered);
