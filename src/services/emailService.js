@@ -56,6 +56,18 @@ function buildItemsTableHtml(items) {
     </table>`;
 }
 
+function buildItemsText(items) {
+  const safeItems = Array.isArray(items) ? items : [];
+  if (safeItems.length === 0) return "(Sin insumos registrados)";
+
+  const header = "Insumo | Cantidad | Valor Neto";
+  const sep = "---|---:|---:";
+  const lines = safeItems.map(
+    (it) => `${String(it.nombre)} | ${String(it.cantidad)} | ${String(it.valorNeto)}`
+  );
+  return [header, sep, ...lines].join("\n");
+}
+
 /**
  * Construye los items de email (insumos) desde la respuesta de la OC.
  * Se envían como strings para no depender de formateo en Brevo.
@@ -154,6 +166,7 @@ export async function notifyOrderChange({
       oc_id: ordenId,
       items: safeItems,
       items_table: buildItemsTableHtml(safeItems),
+      items_text: buildItemsText(safeItems),
     };
 
     await sendTransactionalEmail({
