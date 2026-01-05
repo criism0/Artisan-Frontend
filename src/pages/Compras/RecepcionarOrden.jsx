@@ -6,7 +6,7 @@ import Table from "../../components/Table";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { getToken, API_BASE, useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { notifyOrderChange } from "../../services/emailService";
+import { buildOcEmailItemsFromOrden, notifyOrderChange } from "../../services/emailService";
 import { useAuth } from "../../auth/AuthContext";
 import axiosInstance from "../../axiosInstance";
 
@@ -257,6 +257,7 @@ export default function RecepcionarOrden() {
       const ordenData = await api(
         `/proceso-compra/ordenes/${ordenId}`, { method: "GET" }
       );
+      const items = buildOcEmailItemsFromOrden(ordenData);
       const bodegaId = ordenData.BodegaSolicitante?.id;
       let encargados = [];
       if (bodegaId) {
@@ -286,6 +287,7 @@ export default function RecepcionarOrden() {
         state: newState || "Estado desconocido",
         bodega: ordenData.BodegaSolicitante?.nombre || "No especificada",
         clientNames: encargadosNames || "",
+        items,
       });
     } catch (emailError) {
       console.error("Error enviando correo de notificación:", emailError);

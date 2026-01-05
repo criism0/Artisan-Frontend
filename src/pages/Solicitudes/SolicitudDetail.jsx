@@ -11,8 +11,22 @@ function formatDateTime(value) {
   return d.toLocaleString("es-CL");
 }
 
-function getEstadoBadgeClasses(estado) {
+function normalizeEstadoSolicitud(estado) {
+  if (!estado) return estado;
   switch (estado) {
+    case "Recepcionada Completa":
+      return "Recepción Completa";
+    case "Recepcionada Parcial Falta Stock":
+      return "Recepción Parcial";
+    case "Recepcionada Parcial Perdida":
+      return "Recepción Parcial con Pérdida";
+    default:
+      return estado;
+  }
+}
+
+function getEstadoBadgeClasses(estado) {
+  switch (normalizeEstadoSolicitud(estado)) {
     case "Creada":
       return "border-gray-200 bg-gray-50 text-gray-800";
     case "Validada":
@@ -22,6 +36,20 @@ function getEstadoBadgeClasses(estado) {
       return "border-amber-200 bg-amber-50 text-amber-800";
     case "En tránsito":
       return "border-violet-200 bg-violet-50 text-violet-800";
+    case "Recepción Completa":
+      return "border-green-200 bg-green-50 text-green-800";
+    case "Recepción Completa con Pérdida":
+      return "border-amber-200 bg-amber-50 text-amber-800";
+    case "Recepción Parcial":
+      return "border-yellow-200 bg-yellow-50 text-yellow-900";
+    case "Recepción Parcial con Pérdida":
+      return "border-orange-200 bg-orange-50 text-orange-900";
+    case "Recepcionada Completa":
+      return "border-green-200 bg-green-50 text-green-800";
+    case "Recepcionada Parcial Falta Stock":
+      return "border-yellow-200 bg-yellow-50 text-yellow-900";
+    case "Recepcionada Parcial Perdida":
+      return "border-orange-200 bg-orange-50 text-orange-900";
     case "Recepcionada":
       return "border-green-200 bg-green-50 text-green-800";
     case "Cancelada":
@@ -270,7 +298,7 @@ export default function SolicitudDetail() {
                 solicitud.estado
               )}`}
             >
-              {solicitud.estado ?? "—"}
+              {normalizeEstadoSolicitud(solicitud.estado) ?? "—"}
             </span>
           </div>
         </div>

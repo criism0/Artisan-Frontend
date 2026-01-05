@@ -76,25 +76,64 @@ export default function Envios() {
 
   const getEstadoChip = (estado) => {
     const base = "px-3 py-1 rounded-full text-xs font-semibold inline-block";
-    switch ((estado || "").toLowerCase()) {
+
+    const normalizeEstadoSolicitud = (raw) => {
+      if (!raw) return raw;
+      switch (raw) {
+        case "Recepcionada Completa":
+          return "Recepción Completa";
+        case "Recepcionada Parcial Falta Stock":
+          return "Recepción Parcial";
+        case "Recepcionada Parcial Perdida":
+          return "Recepción Parcial con Pérdida";
+        default:
+          return raw;
+      }
+    };
+
+    const normalized = normalizeEstadoSolicitud(estado);
+
+    switch ((normalized || "").toLowerCase()) {
       case "lista para despacho":
         return <span className={`${base} bg-yellow-100 text-yellow-800`}>Lista para despacho</span>;
       case "validada":
         return <span className={`${base} bg-blue-100 text-blue-800`}>Validada</span>;
       case "en transito":
         return <span className={`${base} bg-indigo-100 text-indigo-800`}>En tránsito</span>;
+      case "recepción completa":
+      case "recepcionada completa":
       case "completada":
       case "recepcionada":
-        return <span className={`${base} bg-green-200 text-green-900`}>Recepcionada</span>;
+        return <span className={`${base} bg-green-200 text-green-900`}>Recepción Completa</span>;
+      case "recepción completa con pérdida":
+        return <span className={`${base} bg-amber-100 text-amber-900`}>Recepción Completa con Pérdida</span>;
+      case "recepción parcial":
+        return <span className={`${base} bg-yellow-100 text-yellow-900`}>Recepción Parcial</span>;
+      case "recepción parcial con pérdida":
+      case "recepcionada parcial perdida":
+        return <span className={`${base} bg-orange-100 text-orange-900`}>Recepción Parcial con Pérdida</span>;
+      case "recepcionada parcial falta stock":
+        return <span className={`${base} bg-yellow-100 text-yellow-900`}>Recepción Parcial</span>;
       default:
-        return <span className={`${base} bg-gray-200 text-gray-700`}>{estado || "-"}</span>;
+        return <span className={`${base} bg-gray-200 text-gray-700`}>{normalized || "-"}</span>;
     }
   };
 
   const filtered = useMemo(() => {
     if (!estado) return solicitudes;
     return solicitudes.filter(
-      (s) => s.estado?.toLowerCase() === estado.toLowerCase()
+      (s) => {
+        const raw = s.estado;
+        const normalized =
+          raw === "Recepcionada Completa"
+            ? "Recepción Completa"
+            : raw === "Recepcionada Parcial Falta Stock"
+              ? "Recepción Parcial"
+              : raw === "Recepcionada Parcial Perdida"
+                ? "Recepción Parcial con Pérdida"
+                : raw;
+        return (normalized || "").toLowerCase() === estado.toLowerCase();
+      }
     );
   }, [solicitudes, estado]);
 
@@ -165,7 +204,10 @@ export default function Envios() {
           <option value="Lista para despacho">Lista para despacho</option>
           <option value="Validada">Validada</option>
           <option value="En transito">En tránsito</option>
-          <option value="Recepcionada">Recepcionada</option>
+          <option value="Recepción Completa">Recepción Completa</option>
+          <option value="Recepción Completa con Pérdida">Recepción Completa con Pérdida</option>
+          <option value="Recepción Parcial">Recepción Parcial</option>
+          <option value="Recepción Parcial con Pérdida">Recepción Parcial con Pérdida</option>
         </select>
       </div>
 

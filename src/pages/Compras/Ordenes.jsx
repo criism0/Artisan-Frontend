@@ -15,7 +15,7 @@ import { FiTrash2 } from "react-icons/fi";
 import ConfirmModal from "../../components/ConfirmModal";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { notifyOrderChange } from "../../services/emailService";
+import { buildOcEmailItemsFromOrden, notifyOrderChange } from "../../services/emailService";
 import { useAuth } from "../../auth/AuthContext";
 
 export default function Ordenes() {
@@ -48,6 +48,7 @@ export default function Ordenes() {
       const ordenData = await api(
         `/proceso-compra/ordenes/${selectedOrdenId}`
       );
+      const items = buildOcEmailItemsFromOrden(ordenData);
       const bodegaId = ordenData.BodegaSolicitante?.id;
       let encargados = [];
       if (bodegaId) {
@@ -73,6 +74,7 @@ export default function Ordenes() {
         state: ordenData.estado || "Estado desconocido",
         bodega: ordenData.BodegaSolicitante?.nombre || "No especificada",
         clientNames: encargadosNames || "",
+        items,
       });
     } catch (emailError) {
       console.error("Error enviando correo de notificación:", emailError); // porque la orden igual se valida aunque falle el email

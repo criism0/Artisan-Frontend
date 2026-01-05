@@ -1,6 +1,91 @@
 import { API_BASE, getToken } from "../lib/api";
 import { toast } from "../lib/toast";
 
+const clpFormatter = new Intl.NumberFormat("es-CL", {
+  style: "currency",
+  currency: "CLP",
+  maximumFractionDigits: 0,
+});
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function buildItemsTableHtml(items) {
+  const safeItems = Array.isArray(items) ? items : [];
+  if (safeItems.length === 0) {
+    return (
+      "<p style=\"margin:0;\"><strong>Insumos:</strong> Sin insumos registrados.</p>"
+    );
+  }
+
+  const rows = safeItems
+    .map(
+      (it) => `
+        <tr>
+          <td style="border-bottom:1px solid #eee; padding:6px 8px;">${escapeHtml(
+            it.nombre
+          )}</td>
+          <td style="border-bottom:1px solid #eee; padding:6px 8px; text-align:right;">${escapeHtml(
+            it.cantidad
+          )}</td>
+          <td style="border-bottom:1px solid #eee; padding:6px 8px; text-align:right;">${escapeHtml(
+            it.valorNeto
+          )}</td>
+        </tr>`
+    )
+    .join("\n");
+
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; margin-top:8px;">
+      <thead>
+        <tr>
+          <th align="left" style="border-bottom:2px solid #ddd; padding:6px 8px;">Insumo</th>
+          <th align="right" style="border-bottom:2px solid #ddd; padding:6px 8px;">Cantidad</th>
+          <th align="right" style="border-bottom:2px solid #ddd; padding:6px 8px;">Valor Neto</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+      </tbody>
+    </table>`;
+}
+
+/**
+ * Construye los items de email (insumos) desde la respuesta de la OC.
+ * Se envían como strings para no depender de formateo en Brevo.
+ */
+export function buildOcEmailItemsFromOrden(ordenData) {
+  const materiasPrimas = Array.isArray(ordenData?.materiasPrimas)
+    ? ordenData.materiasPrimas
+    : [];
+
+  return materiasPrimas
+    .map((mp) => {
+      const nombre =
+        mp?.proveedorMateriaPrima?.materiaPrima?.nombre ||
+        (mp?.id_proveedor_materia_prima
+          ? `MP #${mp.id_proveedor_materia_prima}`
+          : "Insumo");
+
+      const cantidad = Number(mp?.cantidad_formato ?? mp?.cantidad ?? 0);
+      const precioUnitario = Number(mp?.precio_unitario ?? 0);
+      const valorNeto = precioUnitario * cantidad;
+
+      return {
+        nombre,
+        cantidad: cantidad.toLocaleString("es-CL"),
+        valorNeto: clpFormatter.format(valorNeto),
+      };
+    })
+    .filter((i) => i.nombre);
+}
+
 /**
  * Envía un correo transaccional al backend (sin hooks).
  * @param {Object} options - Configuración del correo.
@@ -55,9 +140,11 @@ export async function notifyOrderChange({
   state,
   bodega,
   clientNames,
+  items,
 }) {
   try {
     const subject = `Orden ${ordenId} - Estado: ${state}`;
+    const safeItems = Array.isArray(items) ? items : [];
     const params = {
       name: bodega,
       clientNames,
@@ -65,6 +152,8 @@ export async function notifyOrderChange({
       operador,
       state,
       oc_id: ordenId,
+      items: safeItems,
+      items_table: buildItemsTableHtml(safeItems),
     };
 
     await sendTransactionalEmail({

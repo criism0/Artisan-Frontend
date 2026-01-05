@@ -1,9 +1,10 @@
 import { CheckCircle2 } from 'lucide-react';
 import axiosInstance from "../../axiosInstance";
 import React, { useEffect, useState } from 'react';
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import Table from "../../components/Table";
 import { BackButton } from "../../components/Buttons/ActionButtons";
+import { toast } from 'react-toastify';
 
 function formatDateTime(value) {
   if (!value) return "—";
@@ -14,6 +15,7 @@ function formatDateTime(value) {
 
 export default function RecepcionarSolicitud() {
   const { solicitudId } = useParams();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [error, setError] = useState(null);
@@ -71,13 +73,20 @@ export default function RecepcionarSolicitud() {
     setSuccess(null);
     try {
       const totalRecepcionada = Object.values(cantidades).reduce((a, b) => a + b, 0);
-      await axiosInstance.put(`/solicitudes-mercaderia/${solicitudId}/recepcionar`, {
+      const res = await axiosInstance.put(`/solicitudes-mercaderia/${solicitudId}/recepcionar`, {
         cantidades,
         totalRecepcionada,
       });
-      setSuccess('Solicitud recepcionada correctamente');
+      const nuevoEstado = res?.data?.solicitudActualizada?.estado;
+      toast.success(
+        nuevoEstado
+          ? `Solicitud recepcionada: ${nuevoEstado}`
+          : 'Solicitud recepcionada correctamente'
+      );
+      navigate("/Solicitudes");
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al recepcionar solicitud');
+      toast.error(err.response?.data?.error || 'Error al recepcionar solicitud');
+      navigate("/Solicitudes");
     } finally {
       setLoading(false);
     }

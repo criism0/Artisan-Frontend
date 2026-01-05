@@ -4,7 +4,7 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import ConfirmModal from "../../components/ConfirmModal";
-import { notifyOrderChange } from "../../services/emailService";
+import { buildOcEmailItemsFromOrden, notifyOrderChange } from "../../services/emailService";
 import { useAuth } from "../../auth/AuthContext";
 
 export default function EditOrden() {
@@ -174,6 +174,7 @@ export default function EditOrden() {
       const ordenData = await api(
         `/proceso-compra/ordenes/${ordenId}`, { method: "GET" }
       );
+      const items = buildOcEmailItemsFromOrden(ordenData);
       const bodegaId = ordenData.BodegaSolicitante?.id;
       let encargados = [];
       if (bodegaId) {
@@ -199,6 +200,7 @@ export default function EditOrden() {
         state: "Editada",
         bodega: ordenData.BodegaSolicitante?.nombre || "No especificada",
         clientNames: encargadosNames || "",
+        items,
       });
     } catch (emailError) {
       console.error("Error enviando correo de notificación:", emailError); 
