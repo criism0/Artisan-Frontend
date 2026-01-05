@@ -60,11 +60,45 @@ function buildItemsText(items) {
   const safeItems = Array.isArray(items) ? items : [];
   if (safeItems.length === 0) return "(Sin insumos registrados)";
 
-  const header = "Insumo | Cantidad | Valor Neto";
-  const sep = "---|---:|---:";
-  const lines = safeItems.map(
-    (it) => `${String(it.nombre)} | ${String(it.cantidad)} | ${String(it.valorNeto)}`
+  const maxName = Math.min(
+    42,
+    Math.max(10, ...safeItems.map((it) => String(it.nombre ?? "").length))
   );
+  const maxQty = Math.min(
+    10,
+    Math.max(7, ...safeItems.map((it) => String(it.cantidad ?? "").length))
+  );
+  const maxValue = Math.min(
+    14,
+    Math.max(9, ...safeItems.map((it) => String(it.valorNeto ?? "").length))
+  );
+
+  const header =
+    "INSUMO".padEnd(maxName) +
+    "  " +
+    "CANT.".padStart(maxQty) +
+    "  " +
+    "VALOR NETO".padStart(maxValue);
+  const sep =
+    "-".repeat(maxName) + "  " + "-".repeat(maxQty) + "  " + "-".repeat(maxValue);
+
+  const lines = safeItems.map((it) => {
+    const nombreRaw = String(it.nombre ?? "");
+    const nombre =
+      nombreRaw.length > maxName
+        ? `${nombreRaw.slice(0, Math.max(0, maxName - 1))}…`
+        : nombreRaw;
+    const cantidad = String(it.cantidad ?? "");
+    const valor = String(it.valorNeto ?? "");
+    return (
+      nombre.padEnd(maxName) +
+      "  " +
+      cantidad.padStart(maxQty) +
+      "  " +
+      valor.padStart(maxValue)
+    );
+  });
+
   return [header, sep, ...lines].join("\n");
 }
 
