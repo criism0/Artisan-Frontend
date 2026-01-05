@@ -193,7 +193,9 @@ export default function RecepcionarOrden() {
             // Info OC
             precio_unitario: precioUnitarioOC,
           };
-        });
+        })
+        // Ocultar insumos ya totalmente recepcionados (pendiente = 0)
+        .filter((i) => (Number(i?.cantidad_pendiente) || 0) > 1e-9);
 
         setOrdenData({
           ...raw,
