@@ -22,14 +22,34 @@ export default function Solicitudes() {
   const navigate = useNavigate();
   const api = useApi();
 
+  const normalizeEstadoSolicitud = (estado) => {
+    if (!estado) return estado;
+    switch (estado) {
+      case "Recepcionada Completa":
+        return "Recepción Completa";
+      case "Recepcionada Parcial Falta Stock":
+        return "Recepción Parcial";
+      case "Recepcionada Parcial Perdida":
+        return "Recepción Parcial con Pérdida";
+      default:
+        return estado;
+    }
+  };
+
   const ESTADO_STYLES = {
     "Creada": { bg: "bg-gray-200", text: "text-gray-800", label: "Creada" },
     "Validada": { bg: "bg-sky-200", text: "text-sky-800", label: "Validada" },
     "En preparación": { bg: "bg-amber-200", text: "text-amber-800", label: "En preparación" },
     "Lista para despacho": { bg: "bg-lime-200", text: "text-lime-800", label: "Lista para despacho" },
     "En tránsito": { bg: "bg-indigo-200", text: "text-indigo-800", label: "En tránsito" },
-    "Recepcionada Parcial Falta Stock": { bg: "bg-green-200", text: "text-green-800", label: "Recepcionada Parcial" },
-    "Recepcionada Completa": { bg: "bg-green-400", text: "text-green-900", label: "Recepcionada Completa" },
+    "Recepción Completa": { bg: "bg-green-400", text: "text-green-900", label: "Recepción Completa" },
+    "Recepción Completa con Pérdida": { bg: "bg-amber-200", text: "text-amber-900", label: "Recepción Completa con Pérdida" },
+    "Recepción Parcial": { bg: "bg-yellow-200", text: "text-yellow-900", label: "Recepción Parcial" },
+    "Recepción Parcial con Pérdida": { bg: "bg-orange-200", text: "text-orange-900", label: "Recepción Parcial con Pérdida" },
+    // Compatibilidad con estados antiguos
+    "Recepcionada Parcial Falta Stock": { bg: "bg-yellow-200", text: "text-yellow-900", label: "Recepción Parcial" },
+    "Recepcionada Parcial Perdida": { bg: "bg-orange-200", text: "text-orange-900", label: "Recepción Parcial con Pérdida" },
+    "Recepcionada Completa": { bg: "bg-green-400", text: "text-green-900", label: "Recepción Completa" },
     "Pendiente": { bg: "bg-orange-200", text: "text-orange-800", label: "Pendiente" },
     "Cancelada": { bg: "bg-red-200", text: "text-red-800", label: "Cancelada" },
   };
@@ -123,7 +143,7 @@ export default function Solicitudes() {
                 bodegaProveedora: s.bodegaProveedora,
                 bodegaSolicitante: s.bodegaSolicitante,
                 usuarioSolicitante: s.usuarioSolicitante,
-                estado: s.estado,
+                estado: normalizeEstadoSolicitud(s.estado),
                 fecha_envio: s.fecha_envio,
                 fecha_recepcion: s.fecha_recepcion,
                 numero_guia_despacho: s.numero_guia_despacho,

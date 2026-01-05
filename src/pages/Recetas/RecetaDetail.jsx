@@ -44,6 +44,13 @@ export default function RecetaDetail() {
   const [subproductQuery, setSubproductQuery] = useState("");
   const [showSubproductOptions, setShowSubproductOptions] = useState(false);
 
+  // Editor de MPs secundarias (equivalentes) por ingrediente
+  const [editingEquivalentesIngredient, setEditingEquivalentesIngredient] =
+    useState(null);
+  const [equivalentesSelectedIds, setEquivalentesSelectedIds] = useState([]);
+  const [equivalentesQuery, setEquivalentesQuery] = useState("");
+  const [showEquivalentesOptions, setShowEquivalentesOptions] = useState(false);
+
   // Pauta selector state (similar a ingredientes/subproductos)
   const [showPautaSelector, setShowPautaSelector] = useState(false);
   const [pautaQuery, setPautaQuery] = useState("");
@@ -353,6 +360,58 @@ export default function RecetaDetail() {
     } catch (err) {
       console.error("Error eliminando ingrediente:", err);
       toast.error("No se pudo eliminar el ingrediente.");
+    }
+  };
+
+  const normalizeUnidad = (value) =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase();
+
+  const openEquivalentesEditor = (ingrediente) => {
+    setEditingEquivalentesIngredient(ingrediente.id);
+    const currentIds = (ingrediente.materiasPrimasEquivalentes || [])
+      .map((mp) => mp?.id)
+      .filter(Boolean);
+    setEquivalentesSelectedIds(currentIds);
+    setEquivalentesQuery("");
+    setShowEquivalentesOptions(false);
+  };
+
+  const closeEquivalentesEditor = () => {
+    setEditingEquivalentesIngredient(null);
+    setEquivalentesSelectedIds([]);
+    setEquivalentesQuery("");
+    setShowEquivalentesOptions(false);
+  };
+
+  const toggleEquivalente = (idMateriaPrima) => {
+    setEquivalentesSelectedIds((prev) => {
+      const idNum = Number(idMateriaPrima);
+      if (!Number.isFinite(idNum)) return prev;
+      return prev.includes(idNum)
+        ? prev.filter((x) => x !== idNum)
+        : [...prev, idNum];
+    });
+  };
+
+  const handleSaveEquivalentes = async () => {
+    if (!editingEquivalentesIngredient) return;
+    try {
+      await api(`/ingredientes-receta/${editingEquivalentesIngredient}/equivalentes`, {
+        method: "PUT",
+        body: JSON.stringify({
+          ids_materia_prima: equivalentesSelectedIds,
+        }),
+      });
+
+      const recetaRes = await api(`/recetas/${id}`);
+      setIngredientes(recetaRes.ingredientesReceta || []);
+      toast.success("MPs secundarias actualizadas.");
+      closeEquivalentesEditor();
+    } catch (err) {
+      console.error("Error guardando equivalentes:", err);
+      toast.error(err?.message || "No se pudieron guardar las MPs secundarias.");
     }
   };
 
@@ -801,6 +860,202 @@ export default function RecetaDetail() {
                         <p className="text-sm text-gray-600">
                           {ingrediente.peso} {ingrediente.unidad_medida}
                         </p>
+
+                        <p className="text-xs text-gray-500 mt-1">
+                          <span className="font-semibold">MPs secundarias:</span>{" "}
+                          {(ingrediente.materiasPrimasEquivalentes || []).length > 0
+                            ? (ingrediente.materiasPrimasEquivalentes || [])
+                                .map((mp) => mp?.nombre)
+                                .filter(Boolean)
+                                .join(", ")
+                            : "—"}
+                        </p>
+
+                        {editingEquivalentesIngredient === ingrediente.id && (
+                          <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium text-gray-800">
+                                Editar MPs secundarias
+                              </p>
+                              <button
+                                type="button"
+                                onClick={closeEquivalentesEditor}
+                                className="text-gray-600 hover:text-gray-800 text-sm"
+                                title="Cerrar"
+                              >
+                                ×
+                              </button>
+                            </div>
+
+                            <p className="text-xs text-gray-500 mt-1">
+                              Solo se permiten materias primas con la misma unidad ({
+                                ingrediente.unidad_medida
+                              }).
+                            </p>
+
+                            <div className="mt-3">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Buscar materia prima
+                              </label>
+
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  value={equivalentesQuery}
+                                  onChange={(e) => {
+                                    setEquivalentesQuery(e.target.value);
+                                    setShowEquivalentesOptions(true);
+                                  }}
+                                  onFocus={() => setShowEquivalentesOptions(true)}
+                                  onBlur={() => {
+                                    setTimeout(
+                                      () => setShowEquivalentesOptions(false),
+                                      120
+                                    );
+                                  }}
+                                  placeholder="Ej: Leche"
+                                  className="w-full border border-gray-300 rounded px-3 py-2"
+                                />
+
+                                {showEquivalentesOptions && (
+                                  <div className="absolute z-10 mt-1 w-full max-h-64 overflow-auto bg-white border border-gray-200 rounded shadow">
+                                    {(() => {
+                                      const expectedUnidad = normalizeUnidad(
+                                        ingrediente.unidad_medida ||
+                                          ingrediente.materiaPrima?.unidad_medida
+                                      );
+
+                                      const base = (materiasPrimas || []).filter((mp) => {
+                                        if (!mp) return false;
+                                        if (isEnvase(mp, categoriasMaterias)) return false;
+                                        if (mp.id === ingrediente.materiaPrima?.id) return false;
+                                        return (
+                                          normalizeUnidad(mp.unidad_medida) === expectedUnidad
+                                        );
+                                      });
+
+                                      const q = (equivalentesQuery || "")
+                                        .toLowerCase()
+                                        .trim();
+                                      const filtradas = q
+                                        ? base.filter((mp) =>
+                                            (mp.nombre || "")
+                                              .toLowerCase()
+                                              .includes(q)
+                                          )
+                                        : base;
+
+                                      const grupos = groupMPByCategoria(
+                                        filtradas,
+                                        categoriasMaterias
+                                      );
+
+                                      if (
+                                        !grupos.length ||
+                                        grupos.every((g) => g.items.length === 0)
+                                      ) {
+                                        return (
+                                          <div className="px-3 py-2 text-sm text-gray-500">
+                                            Sin resultados
+                                          </div>
+                                        );
+                                      }
+
+                                      return grupos.map((grupo) => (
+                                        <div key={grupo.label}>
+                                          <div className="px-3 py-1 text-xs uppercase tracking-wide text-gray-500 bg-gray-50 border-b">
+                                            {grupo.label}
+                                          </div>
+                                          {grupo.items.map((mp) => {
+                                            const checked = equivalentesSelectedIds.includes(
+                                              Number(mp.id)
+                                            );
+                                            return (
+                                              <button
+                                                key={mp.id}
+                                                type="button"
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                onClick={() => toggleEquivalente(mp.id)}
+                                                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 flex items-center gap-2"
+                                              >
+                                                <span
+                                                  className={`inline-flex items-center justify-center w-4 h-4 rounded border ${
+                                                    checked
+                                                      ? "bg-primary border-primary text-white"
+                                                      : "bg-white border-gray-300"
+                                                  }`}
+                                                  aria-hidden="true"
+                                                >
+                                                  {checked ? "✓" : ""}
+                                                </span>
+                                                <span className="flex-1">{mp.nombre}</span>
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      ));
+                                    })()}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="mt-3">
+                              <p className="text-sm font-medium text-gray-700 mb-2">
+                                Seleccionadas
+                              </p>
+                              {equivalentesSelectedIds.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                  {equivalentesSelectedIds
+                                    .map((idMp) =>
+                                      (materiasPrimas || []).find(
+                                        (m) => Number(m?.id) === Number(idMp)
+                                      )
+                                    )
+                                    .filter(Boolean)
+                                    .map((mp) => (
+                                      <span
+                                        key={mp.id}
+                                        className="inline-flex items-center gap-2 px-2 py-1 text-xs rounded border border-gray-300 bg-white"
+                                      >
+                                        {mp.nombre}
+                                        <button
+                                          type="button"
+                                          className="text-gray-600 hover:text-gray-900"
+                                          title="Quitar"
+                                          onClick={() => toggleEquivalente(mp.id)}
+                                        >
+                                          ×
+                                        </button>
+                                      </span>
+                                    ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-gray-500">
+                                  No hay MPs secundarias seleccionadas.
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="mt-4 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={handleSaveEquivalentes}
+                                className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded text-sm"
+                              >
+                                Guardar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={closeEquivalentesEditor}
+                                className="px-4 py-2 rounded border border-gray-300 text-text hover:bg-gray-100 text-sm"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {costoPromedio != null && (
                           <div className="mt-2 text-xs text-gray-500 space-y-1">
                             <p>
@@ -843,6 +1098,22 @@ export default function RecetaDetail() {
                         ? "Guardar"
                         : "Editar"}
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editingEquivalentesIngredient === ingrediente.id) {
+                          closeEquivalentesEditor();
+                        } else {
+                          openEquivalentesEditor(ingrediente);
+                        }
+                      }}
+                      className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded border border-gray-300 transition-colors"
+                      title="Gestionar MPs secundarias"
+                    >
+                      Equivalentes
+                    </button>
+
                     <button
                       onClick={() => {
                         if (

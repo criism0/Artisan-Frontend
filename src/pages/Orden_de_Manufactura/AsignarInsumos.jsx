@@ -56,6 +56,24 @@ export default function AsignarInsumos() {
   const [bultosPorInsumo, setBultosPorInsumo] = useState({});
   const [insumosAsignados, setInsumosAsignados] = useState(new Set());
 
+  // Para ingredientes variables: MP seleccionada para filtrar bultos visibles
+  const [mpSeleccionadaPorRegistro, setMpSeleccionadaPorRegistro] = useState({});
+
+  const buildAllowedMateriaPrimas = (insumo) => {
+    const preferida = insumo?.ingredienteReceta?.materiaPrima || null;
+    const equivalentes = Array.isArray(insumo?.ingredienteReceta?.materiasPrimasEquivalentes)
+      ? insumo.ingredienteReceta.materiasPrimasEquivalentes
+      : [];
+
+    const byId = new Map();
+    for (const mp of [preferida, ...equivalentes].filter(Boolean)) {
+      const idMp = Number(mp?.id);
+      if (!Number.isFinite(idMp)) continue;
+      byId.set(idMp, mp);
+    }
+    return Array.from(byId.values());
+  };
+
   const [revertModalOpen, setRevertModalOpen] = useState(false);
   const [revertTarget, setRevertTarget] = useState(null); // { registroId, bulto, unidadMedida, pesoUtilizado, unidades }
 
@@ -106,12 +124,13 @@ export default function AsignarInsumos() {
 
     const bultosMap = {};
     for (const insumo of resInsumos.registros) {
-      const idMP = insumo.id_materia_prima;
-      if (!idMP) continue;
+      const allowedMPs = buildAllowedMateriaPrimas(insumo);
+      const allowedIds = allowedMPs.map((mp) => Number(mp.id)).filter(Number.isFinite);
+      if (allowedIds.length === 0) continue;
 
       try {
         const resBultos = await api(
-          `/bultos/disponibles?id_bodega=${bodega}&id_materia_prima=${idMP}`,
+          `/bultos/disponibles?id_bodega=${bodega}&id_materia_prima=${allowedIds.join(",")}`,
           { method: "GET" }
         );
         bultosMap[insumo.id] = Array.isArray(resBultos)
@@ -123,6 +142,31 @@ export default function AsignarInsumos() {
     }
 
     setBultosPorInsumo(bultosMap);
+
+    // Inicializar/normalizar selección de MP por registro (preferida por defecto)
+    setMpSeleccionadaPorRegistro((prev) => {
+      const next = { ...prev };
+      for (const insumo of resInsumos.registros) {
+        const allowed = buildAllowedMateriaPrimas(insumo);
+        if (allowed.length <= 1) {
+          delete next[insumo.id];
+          continue;
+        }
+
+        const preferida = insumo?.ingredienteReceta?.materiaPrima || null;
+        const allowedIds = allowed.map((m) => Number(m.id)).filter(Number.isFinite);
+        const current = Number(next[insumo.id]);
+        if (Number.isFinite(current) && allowedIds.includes(current)) {
+          continue;
+        }
+
+        const fallback = preferida?.id != null ? Number(preferida.id) : allowedIds[0];
+        if (fallback != null) {
+          next[insumo.id] = fallback;
+        }
+      }
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -439,7 +483,14 @@ export default function AsignarInsumos() {
       </div>
 
       {insumos.map((insumo) => {
-        const bultos = bultosPorInsumo[insumo.id] || [];
+        const allowedMPs = buildAllowedMateriaPrimas(insumo);
+        const isVariable = allowedMPs.length > 1;
+
+        const allBultos = bultosPorInsumo[insumo.id] || [];
+        const mpSeleccionada = Number(mpSeleccionadaPorRegistro[insumo.id]);
+        const bultos = isVariable && Number.isFinite(mpSeleccionada)
+          ? allBultos.filter((b) => Number(b?.id_materia_prima) === mpSeleccionada)
+          : allBultos;
         const yaAsignado = insumo.peso_utilizado >= insumo.peso_necesario;
 
         const unidadMedida = insumo?.ingredienteReceta?.unidad_medida || "";
@@ -510,6 +561,34 @@ export default function AsignarInsumos() {
 
             {!yaAsignado && (
               <div className="space-y-2">
+                {isVariable && (
+                  <div className="mb-3">
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">
+                      Materia prima
+                    </label>
+                    <select
+                      className="w-full md:w-[360px] border border-border rounded-lg px-3 py-2 text-sm"
+                      value={Number.isFinite(mpSeleccionada) ? String(mpSeleccionada) : ""}
+                      onChange={(e) => {
+                        const v = e.target.value ? Number(e.target.value) : "";
+                        setMpSeleccionadaPorRegistro((prev) => ({
+                          ...prev,
+                          [insumo.id]: v,
+                        }));
+                      }}
+                    >
+                      {allowedMPs.map((mp) => (
+                        <option key={mp.id} value={mp.id}>
+                          {mp.nombre}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-1 text-xs text-gray-500">
+                      Puedes mezclar bultos de distintas materias primas para completar el requerimiento.
+                    </div>
+                  </div>
+                )}
+
                 <div className="text-sm font-semibold text-gray-700 mb-2">Bultos disponibles</div>
 
                 <div className="bg-white rounded-lg border border-border overflow-hidden">
@@ -528,6 +607,8 @@ export default function AsignarInsumos() {
                       <tbody className="divide-y divide-border">
                         {bultos.map((b) => {
                           const equivalente = Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0);
+                          const currentAssigned = asignaciones?.[insumo.id]?.find((x) => x.id_bulto === b.id);
+                          const currentValue = currentAssigned?.peso_utilizado;
                           return (
                             <tr key={b.id}>
                               <td className="px-4 py-2 text-text font-medium">
@@ -551,6 +632,7 @@ export default function AsignarInsumos() {
                                     type="number"
                                     min="0"
                                     step={stepInput}
+                                    value={currentValue ?? ""}
                                     onChange={(e) =>
                                       handlePesoChange(
                                         insumo.id,
