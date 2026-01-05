@@ -31,8 +31,26 @@ export default function EditOrden() {
   const [showInsumoError, setShowInsumoError] = useState(false);
   const [insumoErrorMsg, setInsumoErrorMsg] = useState("");
 
+  const hydrateProveedorInsumosWithOC = (proveedorInsumos, seleccionados) => {
+    const byId = new Map(
+      (seleccionados || [])
+        .map((s) => [Number(s?.id_proveedor_materia_prima), s])
+        .filter(([k]) => Number.isFinite(k))
+    );
+
+    return (proveedorInsumos || []).map((pi) => {
+      const sel = byId.get(Number(pi?.id));
+      if (!sel) return pi;
+      return {
+        ...pi,
+        cantidad_formato: Number(sel.cantidad_formato) || 0,
+        precio_unitario_input: Math.round(Number(sel.precio_unitario) || 0),
+      };
+    });
+  };
+
   const total_neto = insumosSeleccionados.reduce(
-    (acc, item) => acc + item.cantidad * item.precio_unitario,
+    (acc, item) => acc + (Number(item.cantidad_formato) || 0) * (Number(item.precio_unitario) || 0),
     0
   );
   const iva = Math.round(total_neto * 0.19);
@@ -77,12 +95,25 @@ export default function EditOrden() {
         });
 
         setInsumosSeleccionados(
-          ordenRes.materias_primas?.map((i) => ({
-            id_proveedor_materia_prima: i.id_proveedor_materia_prima,
-            nombre: i.nombre,
-            cantidad: i.cantidad,
-            precio_unitario: i.precio_unitario,
-          })) || []
+          (ordenRes.materiasPrimas || ordenRes.materias_primas || []).map(
+            (i) => ({
+              id_proveedor_materia_prima: Number(
+                i.id_proveedor_materia_prima ?? i.proveedorMateriaPrima?.id
+              ),
+              nombre:
+                i.proveedorMateriaPrima?.materiaPrima?.nombre ||
+                i.nombre ||
+                `MP #${i.id_proveedor_materia_prima ?? i.proveedorMateriaPrima?.id ?? i.id}`,
+              formato: i.proveedorMateriaPrima?.formato || i.formato || "—",
+              cantidad_por_formato: Number(
+                i.cantidad_por_formato ?? i.proveedorMateriaPrima?.cantidad_por_formato
+              ) || 1,
+              cantidad_formato: Number(i.cantidad_formato ?? i.cantidad) || 0,
+              cantidad: Number(i.cantidad) || 0,
+              precio_unitario: Math.round(Number(i.precio_unitario) || 0),
+            })
+          )
+            .filter((x) => Number.isFinite(x.id_proveedor_materia_prima))
         );
       } catch (error) {
         toast.error("Error al cargar datos de la orden:", error);
@@ -97,8 +128,14 @@ export default function EditOrden() {
       if (!form.id_proveedor) return;
       try {
         const res = await api(`/proveedores/${form.id_proveedor}`, { method: "GET" });
-        const activos = res.materiasPrimas?.filter((i) => i.materiaPrima?.activo) || [];
-        setMateriasPrimas(activos);
+        const activosBase = res.materiasPrimas?.filter((i) => i.materiaPrima?.activo) || [];
+        const activos = (activosBase || []).map((i) => ({
+          ...i,
+          precio_unitario: Math.round(Number(i?.precio_unitario) || 0),
+        }));
+        setMateriasPrimas(
+          hydrateProveedorInsumosWithOC(activos, insumosSeleccionados)
+        );
       } catch (error) {
         toast.error("Error al cargar materias primas del proveedor:", error);
         setMateriasPrimas([]);
@@ -106,6 +143,14 @@ export default function EditOrden() {
     };
     fetchInsumos();
   }, [form.id_proveedor]);
+
+  // Si la OC carga insumos seleccionados después del fetch del proveedor,
+  // aseguramos que se reflejen en la tabla (cantidad/precio).
+  useEffect(() => {
+    if (!Array.isArray(insumosSeleccionados) || insumosSeleccionados.length === 0)
+      return;
+    setMateriasPrimas((prev) => hydrateProveedorInsumosWithOC(prev, insumosSeleccionados));
+  }, [insumosSeleccionados]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -115,45 +160,80 @@ export default function EditOrden() {
     }));
   };
 
-  const handleCantidadChange = (id, rawValue) => {
-    const value = Number(rawValue) || 0;
+  const handleCantidadChange = (insumoRow, rawValue) => {
+    const idNum = Number(insumoRow?.id);
+    const cantidadFormato = Number(rawValue) || 0;
+
     setMateriasPrimas((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, cantidad: value } : m))
+      prev.map((m) =>
+        Number(m?.id) === idNum ? { ...m, cantidad_formato: cantidadFormato } : m
+      )
     );
 
     setInsumosSeleccionados((prev) => {
-      if (value <= 0) {
-        return prev.filter((i) => i.id_proveedor_materia_prima !== id);
+      if (cantidadFormato <= 0) {
+        return prev.filter((i) => Number(i?.id_proveedor_materia_prima) !== idNum);
       }
 
-      const existente = prev.find((i) => i.id_proveedor_materia_prima === id);
-      const insumo = materiasPrimas.find((m) => m.id === id);
-      if (!insumo) return prev;
+      const existente = prev.find(
+        (i) => Number(i?.id_proveedor_materia_prima) === idNum
+      );
 
-      const nombre = insumo.materiaPrima?.nombre || `MP #${id}`;
-      const precio_unitario =
-        insumo.precio_unitario_input ?? insumo.precio_unitario ?? 0;
+      const nombre =
+        insumoRow?.materiaPrima?.nombre || insumoRow?.nombre || `MP #${idNum}`;
+      const formato = insumoRow?.formato || "—";
+      const cantidad_por_formato = Number(insumoRow?.cantidad_por_formato) || 1;
+      const cantidad_total = cantidadFormato * cantidad_por_formato;
+      const precio_unitario = Math.round(
+        Number(
+          insumoRow?.precio_unitario_input ?? insumoRow?.precio_unitario ?? 0
+        ) || 0
+      );
 
       if (existente) {
         return prev.map((i) =>
-          i.id_proveedor_materia_prima === id ? { ...i, cantidad: value } : i
+          Number(i?.id_proveedor_materia_prima) === idNum
+            ? {
+                ...i,
+                nombre,
+                formato,
+                precio_unitario,
+                cantidad_formato: cantidadFormato,
+                cantidad_por_formato,
+                cantidad: cantidad_total,
+              }
+            : i
         );
       }
 
       return [
         ...prev,
-        { id_proveedor_materia_prima: id, nombre, cantidad: value, precio_unitario },
+        {
+          id_proveedor_materia_prima: idNum,
+          nombre,
+          formato,
+          precio_unitario,
+          cantidad_formato: cantidadFormato,
+          cantidad_por_formato,
+          cantidad: cantidad_total,
+        },
       ];
     });
   };
 
-  const handlePrecioChange = (id, value) => {
+  const handlePrecioChange = (insumoRow, rawValue) => {
+    const idNum = Number(insumoRow?.id);
+    const value = Math.round(Number(rawValue) || 0);
     setMateriasPrimas((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, precio_unitario_input: value } : m))
+      prev.map((m) =>
+        Number(m?.id) === idNum ? { ...m, precio_unitario_input: value } : m
+      )
     );
     setInsumosSeleccionados((prev) =>
       prev.map((i) =>
-        i.id_proveedor_materia_prima === id ? { ...i, precio_unitario: value } : i
+        Number(i?.id_proveedor_materia_prima) === idNum
+          ? { ...i, precio_unitario: value }
+          : i
       )
     );
   };
@@ -218,7 +298,14 @@ export default function EditOrden() {
       condiciones: form.condiciones,
       requiere_prepago: form.requiere_prepago,
       fecha: form.fecha,
-      materias_primas: insumosSeleccionados,
+      materias_primas: (insumosSeleccionados || []).map((i) => ({
+        ...i,
+        id_proveedor_materia_prima: Number(i.id_proveedor_materia_prima),
+        cantidad_formato: Number(i.cantidad_formato) || 0,
+        cantidad_por_formato: Number(i.cantidad_por_formato) || 1,
+        cantidad: Number(i.cantidad) || 0,
+        precio_unitario: Math.round(Number(i.precio_unitario) || 0),
+      })),
     };
 
     try {
@@ -344,7 +431,7 @@ export default function EditOrden() {
                   <thead className="bg-gray-100 text-gray-600">
                     <tr>
                       <th className="px-4 py-2 text-left">Insumo</th>
-                      <th className="px-4 py-2 text-center">Cantidad</th>
+                      <th className="px-4 py-2 text-center">Cantidad a comprar</th>
                       <th className="px-4 py-2 text-center">Precio unitario</th>
                     </tr>
                   </thead>
@@ -365,10 +452,11 @@ export default function EditOrden() {
                           <input
                             type="number"
                             min="0"
-                            value={insumo.cantidad || ""}
+                            placeholder="0"
+                            value={insumo.cantidad_formato ?? ""}
                             onChange={(e) =>
                               handleCantidadChange(
-                                insumo.id,
+                                insumo,
                                 Number(e.target.value)
                               )
                             }
@@ -380,14 +468,15 @@ export default function EditOrden() {
                           <input
                             type="number"
                             min="0"
+                            step="1"
                             value={
                               insumo.precio_unitario_input !== undefined
                                 ? insumo.precio_unitario_input
-                                : insumo.precio_unitario || ""
+                                : insumo.precio_unitario ?? ""
                             }
                             onChange={(e) =>
                               handlePrecioChange(
-                                insumo.id,
+                                insumo,
                                 Number(e.target.value)
                               )
                             }
@@ -428,11 +517,11 @@ export default function EditOrden() {
                           {i.nombre || `MP #${i.id_proveedor_materia_prima}`}
                         </span>
                         <span className="text-gray-500 text-xs">
-                          Cantidad: {i.cantidad}
+                          Cantidad: {i.cantidad_formato} {i.formato === i.nombre ? "" : i.formato || ""}
                         </span>
                       </div>
                       <span className="font-semibold text-gray-900">
-                        ${(i.precio_unitario * i.cantidad).toLocaleString()}
+                        ${(Number(i.precio_unitario || 0) * Number(i.cantidad_formato || 0)).toLocaleString()}
                       </span>
                     </li>
                   ))}
