@@ -44,7 +44,7 @@ export default function RecetaDetail() {
   const [subproductQuery, setSubproductQuery] = useState("");
   const [showSubproductOptions, setShowSubproductOptions] = useState(false);
 
-  // Editor de MPs secundarias (equivalentes) por ingrediente
+  // Editor de insumos secundarias (equivalentes) por ingrediente
   const [editingEquivalentesIngredient, setEditingEquivalentesIngredient] =
     useState(null);
   const [equivalentesSelectedIds, setEquivalentesSelectedIds] = useState([]);
@@ -407,11 +407,11 @@ export default function RecetaDetail() {
 
       const recetaRes = await api(`/recetas/${id}`);
       setIngredientes(recetaRes.ingredientesReceta || []);
-      toast.success("MPs secundarias actualizadas.");
+      toast.success("Insumos secundarios actualizadas.");
       closeEquivalentesEditor();
     } catch (err) {
       console.error("Error guardando equivalentes:", err);
-      toast.error(err?.message || "No se pudieron guardar las MPs secundarias.");
+      toast.error(err?.message || "No se pudieron guardar los insumos secundarios.");
     }
   };
 
@@ -862,7 +862,7 @@ export default function RecetaDetail() {
                         </p>
 
                         <p className="text-xs text-gray-500 mt-1">
-                          <span className="font-semibold">MPs secundarias:</span>{" "}
+                          <span className="font-semibold">Insumos secundarios:</span>{" "}
                           {(ingrediente.materiasPrimasEquivalentes || []).length > 0
                             ? (ingrediente.materiasPrimasEquivalentes || [])
                                 .map((mp) => mp?.nombre)
@@ -875,7 +875,7 @@ export default function RecetaDetail() {
                           <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                             <div className="flex items-center justify-between gap-2">
                               <p className="text-sm font-medium text-gray-800">
-                                Editar MPs secundarias
+                                Editar Insumos secundarios
                               </p>
                               <button
                                 type="button"
@@ -1032,7 +1032,7 @@ export default function RecetaDetail() {
                                 </div>
                               ) : (
                                 <p className="text-xs text-gray-500">
-                                  No hay MPs secundarias seleccionadas.
+                                  No hay Insumos secundarios seleccionadas.
                                 </p>
                               )}
                             </div>
@@ -1109,7 +1109,7 @@ export default function RecetaDetail() {
                         }
                       }}
                       className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded border border-gray-300 transition-colors"
-                      title="Gestionar MPs secundarias"
+                      title="Gestionar Insumos secundarios"
                     >
                       Equivalentes
                     </button>

@@ -1,4 +1,3 @@
-import { CheckCircle2 } from 'lucide-react';
 import axiosInstance from "../../axiosInstance";
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from "react-router-dom";
@@ -18,8 +17,7 @@ export default function RecepcionarSolicitud() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [bultos, setBultos] = useState([]);
   const [cantidades, setCantidades] = useState({});
   const [solicitud, setSolicitud] = useState(null);
@@ -28,7 +26,7 @@ export default function RecepcionarSolicitud() {
     const fetchData = async () => {
       try {
         setLoadingData(true);
-        setError(null);
+        setLoadFailed(false);
 
         const [resSolicitud, resBultos] = await Promise.all([
           axiosInstance.get(`/solicitudes-mercaderia/${solicitudId}`),
@@ -38,7 +36,8 @@ export default function RecepcionarSolicitud() {
         setSolicitud(resSolicitud.data);
         setBultos(resBultos.data);
       } catch {
-        setError('Error al cargar información de la solicitud');
+        setLoadFailed(true);
+        toast.error('Error al cargar información de la solicitud');
       } finally {
         setLoadingData(false);
       }
@@ -69,8 +68,6 @@ export default function RecepcionarSolicitud() {
 
   const handleRecepcionar = async () => {
     setLoading(true);
-    setError(null);
-    setSuccess(null);
     try {
       const totalRecepcionada = Object.values(cantidades).reduce((a, b) => a + b, 0);
       const res = await axiosInstance.put(`/solicitudes-mercaderia/${solicitudId}/recepcionar`, {
@@ -157,15 +154,11 @@ export default function RecepcionarSolicitud() {
           </p>
         </div>
 
-        {(loadingData || (!solicitud && !error)) && (
+        {(loadingData || (!solicitud && !loadFailed)) && (
           <div className="bg-white rounded-lg shadow p-6 flex items-center gap-3">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
             <span className="text-text">Cargando información...</span>
           </div>
-        )}
-
-        {error && (
-          <div className="bg-red-100 text-red-700 rounded-lg p-4">{error}</div>
         )}
 
         {solicitud && (
@@ -215,12 +208,6 @@ export default function RecepcionarSolicitud() {
             </button>
           </div>
 
-          {success && (
-            <div className="text-green-700 flex items-center gap-2 mt-4">
-              <CheckCircle2 className="w-5 h-5" />
-              <span>{success}</span>
-            </div>
-          )}
         </div>
       </div>
     </div>

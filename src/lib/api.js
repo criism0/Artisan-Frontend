@@ -27,7 +27,12 @@ export class ApiError extends Error {
 
 export async function api(path, { auth = true, headers, ...opts } = {}) {
   const h = new Headers(headers || {});
-  if (!h.has("Content-Type") && opts.body) h.set("Content-Type", "application/json");
+
+  const isFormDataBody =
+    typeof FormData !== "undefined" && opts.body instanceof FormData;
+  if (!h.has("Content-Type") && opts.body && !isFormDataBody) {
+    h.set("Content-Type", "application/json");
+  }
 
   if (auth) {
     const t = getToken();

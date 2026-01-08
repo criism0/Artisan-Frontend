@@ -205,6 +205,16 @@ export default function Navbar() {
               <MenuLink to="/AsignarRoles" icon={<FiUsers />} label="Asignar Roles" isAllowed={checkScope(ModelType.ROLE, ScopeType.WRITE)} />
               <MenuLink to="/GenerarQR" icon={<FaQrcode />} label="Generar QR" isAllowed={checkScope(ModelType.USUARIO, ScopeType.WRITE)} />
             </MenuGroup>
+
+            <div role="separator" className="my-2 border-t border-gray-200" />
+
+            <MenuGroup label="Herramientas Admin">
+              <MenuLink
+                to="/admin/bultos/cambiar-bodega"
+                label="Cambiar bodega de bulto"
+                isAllowed={checkScope(ModelType.BULTO, ScopeType.WRITE)}
+              />
+            </MenuGroup>
           </Dropdown>
 
           

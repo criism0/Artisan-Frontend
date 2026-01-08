@@ -59,7 +59,6 @@ import EditOrden from "./pages/Compras/EditarOrden";
 import ValidarOrden from "./pages/Compras/ValidarOrden";
 import EnviarOrden from "./pages/Compras/EnviarOrden";
 import RecepcionarOrden from "./pages/Compras/RecepcionarOrden";
-import DeclararBultosOrden from "./pages/Compras/DeclararBultosOrden.jsx";
 import OrdenDetail from "./pages/Compras/OrdenDetail";
 
 // ====== Insumos ======
@@ -135,6 +134,7 @@ import AsignarVenta from "./pages/Ventas/AsignarVenta.jsx";
 import ResumenAsignacionVenta from "./pages/Ventas/ResumenAsignacionVenta.jsx";
 
 import InventarioBultos from "./pages/Inventario/InventarioBultos.jsx";
+import EditarBulto from "./pages/Inventario/EditarBulto.jsx";
 import EnviosDetail from "./pages/Logistica/EnviosDetail.jsx";
 import UsuariosEdit from "./pages/Usuarios/UsuariosEdit.jsx";
 import CambiarContrasena from "./pages/Usuarios/CambiarContrasena.jsx";
@@ -165,6 +165,7 @@ import EjecutarPasosPVA from "./pages/Orden_de_Manufactura/EjecutarPasosPVA.jsx"
 import DetailPVAPorProducto from "./pages/PVAProducto/DetailPVAPorProducto.jsx";
 import GenerarQR from "./pages/GenerarQR/GenerarQR.jsx";
 import PalletsDashboard from "./pages/Logistica/PalletsDashboard";
+import CambiarBodegaBulto from "./pages/Admin/CambiarBodegaBulto.jsx";
 
 
 function Routing() {
@@ -200,6 +201,10 @@ function Routing() {
           <Route path="/Inventario" element={<Inventario />} />
 
           <Route path="/Inventario/bultos" element={<InventarioBultos />} />
+          <Route path="/Inventario/bultos/editar/:id" element={<EditarBulto />} />
+
+          {/* Admin tools */}
+          <Route path="/admin/bultos/cambiar-bodega" element={<CambiarBodegaBulto />} />
 
           <Route path="/Inventario/:id_bodega" element={<InventarioInsumos />} />
           <Route
@@ -215,7 +220,6 @@ function Routing() {
           <Route path="/Ordenes/edit/:ordenId" element={<EditOrden />} />
           <Route path="/Ordenes/enviar/:ordenId" element={<EnviarOrden />} />
           <Route path="/Ordenes/recepcionar/:ordenId" element={<RecepcionarOrden />} />
-          <Route path="/Ordenes/declarar-bultos/:ordenId" element={<DeclararBultosOrden />} />
           <Route path="/Ordenes/:ordenId" element={<OrdenDetail />} />
 
           {/* Solicitudes */}

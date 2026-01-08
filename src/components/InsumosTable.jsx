@@ -262,7 +262,7 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
                       />
                       {articulo.id_articulo && bodegaSolicitanteId && (
                         <p className="mt-1 text-xs text-gray-500 leading-tight">
-                          En solicitante: {solicitanteStockMap.get(articulo.id_articulo) ?? 0} {optSel?.unidad || ''}
+                          En destino: {solicitanteStockMap.get(articulo.id_articulo) ?? 0} {optSel?.unidad || ''}
                         </p>
                       )}
                       {errores.includes('Debe seleccionar un insumo') && (

@@ -7,6 +7,7 @@ import { FiArrowRight } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { BackButton } from '../../components/Buttons/ActionButtons';
 import { useApi } from '../../lib/api';
+import { toast } from 'react-toastify';
 
 export default function AddSolicitud() {
   const { user } = useAuth();
@@ -17,8 +18,6 @@ export default function AddSolicitud() {
   const [bodegas, setBodegas] = useState([]);
   const [insumosSeleccionados, setInsumosSeleccionados] = useState([]);
   const [showErrors, setShowErrors] = useState(false);
-  const [success, setSuccess] = useState(null);
-  const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [addSignal, setAddSignal] = useState(0);
   const [hasStock, setHasStock] = useState(false);
@@ -41,7 +40,7 @@ export default function AddSolicitud() {
         }));
         setUsers(usersData);
       } catch {
-        setError("Error al cargar usuarios");
+        toast.error('Error al cargar usuarios');
       }
     };
 
@@ -69,7 +68,7 @@ export default function AddSolicitud() {
           }
         }
       } catch (err) {
-        setError(err.message || "Error al cargar bodegas");
+        toast.error(err.message || 'Error al cargar bodegas');
       }
     };
 
@@ -111,8 +110,6 @@ export default function AddSolicitud() {
     if (!validateForm()) return;
 
     setLoading(true);
-    setSuccess(null);
-    setError(null);
 
     try {
       const solicitudData = {
@@ -130,11 +127,11 @@ export default function AddSolicitud() {
         method: 'POST',
         body: JSON.stringify(solicitudData)
       });
-      setSuccess("Solicitud creada exitosamente");
+      toast.success('Solicitud creada exitosamente');
       navigate('/Solicitudes');
     } catch (err) {
       console.error('Error al crear la solicitud:', err);
-      setError(err.message || "Error al crear la solicitud. Por favor intente nuevamente.");
+      toast.error(err.message || 'Error al crear la solicitud. Por favor intente nuevamente.');
     } finally {
       setLoading(false);
     }
@@ -162,7 +159,20 @@ export default function AddSolicitud() {
           {/* Origen y destino */}
           <div className="mb-4 flex gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Bodega Solicitante</label>
+              <label className="block text-sm font-medium mb-1">Bodega Proveedora</label>
+              <Selector
+                options={bodegas}
+                selectedValue={selectedOrigen}
+                onSelect={setSelectedOrigen}
+                className={`w-full px-3 py-2 border ${showErrors && errors.origen ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+              />
+              {showErrors && errors.origen && <p className="mt-1 text-sm text-red-500">{errors.origen}</p>}
+            </div>
+            <div className="flex items-center justify-center text-primary">
+              <FiArrowRight className="w-6 h-6" />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium mb-1">Bodega Destino</label>
               <Selector
                 options={bodegas}
                 selectedValue={selectedDestino}
@@ -179,19 +189,7 @@ export default function AddSolicitud() {
                 </p>
               )}
             </div>
-            <div className="flex items-center justify-center text-primary">
-              <FiArrowRight className="w-6 h-6" />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Bodega Proveedora</label>
-              <Selector
-                options={bodegas}
-                selectedValue={selectedOrigen}
-                onSelect={setSelectedOrigen}
-                className={`w-full px-3 py-2 border ${showErrors && errors.origen ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-              />
-              {showErrors && errors.origen && <p className="mt-1 text-sm text-red-500">{errors.origen}</p>}
-            </div>
+            
           </div>
 
           {/* Usuarios */}
@@ -238,10 +236,6 @@ export default function AddSolicitud() {
               <p className="mt-2 text-sm text-red-500">{errors.insumos}</p>
             )}
           </div>
-
-          {/* Feedback */}
-          {error && <p className="mt-4 text-red-600">{error}</p>}
-          {success && <p className="mt-4 text-green-600">{success}</p>}
 
           {/* Botón */}
           <div className="mt-6 flex items-center justify-between">
