@@ -17,6 +17,7 @@ export default function RecepcionarOrden() {
   const navigate = useNavigate();
   const { ordenId } = useParams();
   const [ordenData, setOrdenData] = useState(null);
+  const [bodegas, setBodegas] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [_hasPartialReception, setHasPartialReception] = useState(false);
   const [errors, setErrors] = useState({});
@@ -25,6 +26,19 @@ export default function RecepcionarOrden() {
   const [showRejectPopup, setShowRejectPopup] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const fechaActual = new Date().toISOString().split("T")[0];
+
+  useEffect(() => {
+    const fetchBodegas = async () => {
+      try {
+        const res = await api(`/bodegas`, { method: "GET" });
+        const list = Array.isArray(res) ? res : (Array.isArray(res?.bodegas) ? res.bodegas : []);
+        setBodegas(list);
+      } catch (e) {
+        setBodegas([]);
+      }
+    };
+    fetchBodegas();
+  }, []);
 
   const downloadEtiquetasForBultos = async ({ idsBultos, ordenIdForName }) => {
     const ids_bultos = Array.isArray(idsBultos) ? idsBultos.filter(Boolean) : [];
@@ -202,6 +216,7 @@ export default function RecepcionarOrden() {
           proveedor: raw.proveedor?.nombre_empresa || raw.id_proveedor,
           lugar: raw.BodegaSolicitante?.nombre || "-",
           numero: `OC-${String(raw.id).padStart(3, "0")}`,
+          id_bodega_recepcion: raw.id_bodega_destino ?? "",
           fecha_recepcion: fechaActual,
           numero_factura: "",
           fecha_documento: "",
@@ -407,6 +422,9 @@ export default function RecepcionarOrden() {
 
   const handleFinalizarRecepcion = async () => {
     const newErrors = {};
+    if (!ordenData?.id_bodega_recepcion) {
+      newErrors.id_bodega_recepcion = "Debe seleccionar la bodega donde se recepciona.";
+    }
     if (!ordenData.fecha_recepcion)
       newErrors.fecha_recepcion = "La fecha de recepción es obligatoria.";
     if (!ordenData.fecha_documento)
@@ -470,6 +488,7 @@ export default function RecepcionarOrden() {
 
       const payload = {
         pagada: true,
+        id_bodega_recepcion: Number(ordenData.id_bodega_recepcion),
         fecha_recepcion: ordenData.fecha_recepcion,
         numero_factura: ordenData.numero_factura,
         fecha_documento: ordenData.fecha_documento,
@@ -634,7 +653,7 @@ export default function RecepcionarOrden() {
       },
     },
     {
-      header: "Costo Neto Factura",
+      header: "Costo Neto Recepción",
       accessor: "total_neto_factura",
       Cell: ({ row }) => {
         const yaFacturado = Number(row?.neto_facturado_prev) || 0;
@@ -736,6 +755,28 @@ export default function RecepcionarOrden() {
               );
             }
           )}
+
+          <div className="flex flex-col">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Bodega de recepción
+            </label>
+            <select
+              name="id_bodega_recepcion"
+              value={ordenData?.id_bodega_recepcion ?? ""}
+              onChange={handleFormChange}
+              className="px-3 py-2 border border-gray-300 rounded-md"
+            >
+              <option value="">Seleccione bodega</option>
+              {bodegas.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.nombre}
+                </option>
+              ))}
+            </select>
+            {errors.id_bodega_recepcion && (
+              <p className="text-red-600 text-sm mt-1">{errors.id_bodega_recepcion}</p>
+            )}
+          </div>
 
           {[
             "fecha_recepcion",

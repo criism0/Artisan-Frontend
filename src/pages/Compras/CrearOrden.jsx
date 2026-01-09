@@ -464,6 +464,7 @@ export default function CrearOrden() {
                           <input
                             type="number"
                             min="0"
+                            step="any"
                             placeholder="0"
                             value={insumo.cantidad_formato ?? ""}
                             onChange={(e) => handleCantidadChange(insumo.id, e.target.value)}
@@ -477,6 +478,7 @@ export default function CrearOrden() {
                           <input
                             type="number"
                             min="0"
+                            step="any"
                             placeholder="0"
                             value={
                               insumo.precio_unitario_input !== undefined
@@ -484,7 +486,7 @@ export default function CrearOrden() {
                                 : insumo.precio_unitario || ""
                             }
                             onChange={(e) =>
-                              handlePrecioChange(insumo.id, Number(e.target.value))
+                              handlePrecioChange(insumo.id, e.target.value)
                             }
                             className="w-24 border border-gray-300 rounded-md px-2 py-1 text-center text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
                           />

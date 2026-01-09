@@ -10,6 +10,7 @@ export const ModelType = {
   USUARIO: "Usuario",
   ROLE: "Role",
   INVENTARIO: "Inventario",
+  BULTO: "Bulto",
   ORDEN_COMPRA: "OrdenCompra",
   ORDEN_VENTA: "OrdenVenta",
   CLIENTE: "Cliente",
@@ -57,6 +58,23 @@ export function getCurrentUserScopes() {
   const token = getToken();
   if (!token) return {};
   return getUserScopesFromToken(token);
+}
+
+export function getCurrentUserRole() {
+  try {
+    const token = getToken();
+    if (!token) return null;
+    const decoded = jwtDecode(token);
+    return decoded?.role ?? null;
+  } catch (error) {
+    console.error("Error decoding JWT token role:", error);
+    return null;
+  }
+}
+
+export function isAdminOrSuperAdmin() {
+  const role = getCurrentUserRole();
+  return role === "Super Admin" || role === "Administrador";
 }
 
 /**

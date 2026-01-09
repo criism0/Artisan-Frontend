@@ -3,14 +3,24 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useState, useEffect } from "react";
 import axiosInstance from "../../axiosInstance";
 import TablePallets from "../../components/TablePallets";
+import { toast } from "react-toastify";
+
+function downloadBlob(blob, filename) {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
 
 export default function PrepararPedido() {
   const { solicitudId } = useParams();
   const navigate = useNavigate();
   const [solicitud, setSolicitud] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(null);
-  const [error, setError] = useState(null);
   const [showBultosFor, setShowBultosFor] = useState(null);
   const [bultos, setBultos] = useState([]);
   const [disponibles, setDisponibles] = useState([]);
@@ -26,7 +36,7 @@ export default function PrepararPedido() {
       const res = await axiosInstance.get(`/solicitudes-mercaderia/${solicitudId}`);
       setSolicitud(res.data);
     } catch {
-      setError("Error al cargar los datos");
+      toast.error("Error al cargar los datos");
     }
   };
 
@@ -44,12 +54,15 @@ export default function PrepararPedido() {
       const res = await axiosInstance.get(`/pallets/${palletId}`);
       setBultos(res.data.bultos || []);
     } catch {
-      setError("Error al cargar bultos");
+      toast.error("Error al cargar bultos");
     }
   };
 
   const handleBuscarDisponibles = async () => {
-    if (!selects.id_materia_prima) return setError("Selecciona una materia prima");
+    if (!selects.id_materia_prima) {
+      toast.error("Selecciona una materia prima");
+      return;
+    }
     try {
       const params = {
         id_bodega: solicitud.bodegaProveedora.id,
@@ -58,7 +71,7 @@ export default function PrepararPedido() {
       const res = await axiosInstance.get("/bultos/disponibles", { params });
       setDisponibles(res.data);
     } catch {
-      setError("Error buscando bultos disponibles");
+      toast.error("Error buscando bultos disponibles");
     }
   };
 
@@ -68,7 +81,10 @@ export default function PrepararPedido() {
 
   const handleAddBulto = async (bulto) => {
     const pesoKg = Number(pesosAsignados[bulto.id]);
-    if (!pesoKg || pesoKg <= 0) return setError("Ingresa un peso válido");
+    if (!pesoKg || pesoKg <= 0) {
+      toast.error("Ingresa un peso válido");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -85,12 +101,11 @@ export default function PrepararPedido() {
       await axiosInstance.post(`/pallets/${showBultosFor}/asociar-bulto`, {
         id_bulto: bultoAAsignar,
       });
-      setSuccess("Bulto asignado correctamente");
-      setTimeout(() => setSuccess(""), 3000);
+      toast.success("Bulto asignado correctamente");
       fetchBultos(showBultosFor);
     } catch (err) {
       console.error("asociar-bulto error:", err.response?.data || err);
-      setError(err.response?.data?.error || "Error asignando bulto");
+      toast.error(err.response?.data?.error || "Error asignando bulto");
     } finally {
       setLoading(false);
     }
@@ -100,12 +115,10 @@ export default function PrepararPedido() {
     setLoading(true);
     try {
       await axiosInstance.delete(`/pallets/bulto/${bultoId}`);
-      setSuccess("Bulto eliminado");
-      setTimeout(() => setSuccess(""), 3000);
+      toast.success("Bulto eliminado");
       fetchBultos(showBultosFor);
     } catch {
-      setError("Error eliminando bulto");
-      setTimeout(() => setError(""), 3000);
+      toast.error("Error eliminando bulto");
     } finally {
       setLoading(false);
     }
@@ -116,12 +129,10 @@ export default function PrepararPedido() {
     try {
       await axiosInstance.post(`/pallets/${palletId}/liberar-bultos`);
       await axiosInstance.delete(`/pallets/${palletId}`);
-      setSuccess("Pallet eliminado");
-      setTimeout(() => setSuccess(""), 3000);
+      toast.success("Pallet eliminado");
       fetchSolicitud();
     } catch {
-      setError("Error eliminando pallet");
-      setTimeout(() => setError(""), 3000);
+      toast.error("Error eliminando pallet");
     } finally {
       setLoading(false);
     }
@@ -130,12 +141,11 @@ export default function PrepararPedido() {
   const handleListaParaDespacho = async (solicitudId) => {
     try {
       await axiosInstance.put(`/solicitudes-mercaderia/${solicitudId}/lista-para-despacho`);
-      setSuccess("Solicitud lista para despacho");
+      toast.success("Solicitud lista para despacho");
       setTimeout(() => navigate("/Solicitudes"), 1500);
     } catch (err) {
       console.error("Error al marcar como listo para despacho:", err.response?.data || err);
-      setError(err.response?.data?.error || "Error modificando estado");
-      setTimeout(() => setError(""), 3000);
+      toast.error(err.response?.data?.error || "Error modificando estado");
     }
   };
 
@@ -146,12 +156,50 @@ export default function PrepararPedido() {
         await axiosInstance.put(`/solicitudes-mercaderia/${solicitudId}/preparar`);
       }
       await axiosInstance.post(`/pallets`, { id_solicitud_mercaderia: Number(solicitudId) });
-      setSuccess("Pallet creado exitosamente");
-      setTimeout(() => setSuccess(""), 3000);
+      toast.success("Pallet creado exitosamente");
       fetchSolicitud();
     } catch {
-      setError("Error creando pallet");
-      setTimeout(() => setError(""), 3000);
+      toast.error("Error creando pallet");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadEtiquetasPallets = async () => {
+    setLoading(true);
+    try {
+      const res = await axiosInstance.put(
+        `/solicitudes-mercaderia/${solicitudId}/obtener_etiquetas`,
+        {},
+        { responseType: "blob" }
+      );
+      
+      // Detectar tipo de archivo por Content-Type
+      const contentType = res.headers["content-type"];
+      const extension = contentType?.includes("zip") ? "zip" : "pdf";
+      
+      downloadBlob(res.data, `pallets-solicitud-${solicitudId}.${extension}`);
+      toast.success("Etiquetas descargadas");
+    } catch (err) {
+      console.error("Error descargando etiquetas pallets:", err);
+      toast.error(err.response?.data?.error || "Error descargando etiquetas");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadQrPallet = async (palletId, palletIdentificador) => {
+    setLoading(true);
+    try {
+      const res = await axiosInstance.get(`/pallets/${palletId}/qr`, {
+        responseType: "blob",
+      });
+      const safeName = palletIdentificador ? `pallet-${palletIdentificador}.png` : `pallet-${palletId}.png`;
+      downloadBlob(res.data, safeName);
+      toast.success("QR descargado");
+    } catch (err) {
+      console.error("Error descargando QR pallet:", err);
+      toast.error(err.response?.data?.error || "Error descargando QR");
     } finally {
       setLoading(false);
     }
@@ -161,13 +209,11 @@ export default function PrepararPedido() {
     setLoading(true);
     try {
       await axiosInstance.put(`/pallets/${palletId}/cerrar`);
-      setSuccess("Pallet cerrado");
-      setTimeout(() => setSuccess(""), 3000);
+      toast.success("Pallet cerrado");
       setShowBultosFor(null);
       fetchSolicitud();
     } catch {
-      setError("Error al cerrar pallet (¿faltan bultos?)");
-      setTimeout(() => setError(""), 3000);
+      toast.error("Error al cerrar pallet (¿faltan bultos?)");
     } finally {
       setLoading(false);
     }
@@ -183,23 +229,32 @@ export default function PrepararPedido() {
   const pallets = solicitud.pallets || [];
   const palletsData = pallets.map((p) => ({
     id: p.id,
+    identificador: p.identificador,
     estado: p.estado,
   }));
   const palletActivo = pallets.find((p) => p.id === showBultosFor)?.estado !== "Completado";
 
   const palletsColumns = [
     { header: "ID", accessor: "id" },
+    { header: "Identificador", accessor: "identificador" },
     { header: "Estado", accessor: "estado" },
     {
       header: "Acciones",
       accessor: "acciones",
-      renderCell: ({ id }) => (
+      renderCell: ({ id, identificador }) => (
         <div className="flex gap-2">
           <button
             onClick={() => handleShowBultos(id)}
             className="mt-4 px-4 py-2 bg-primary text-white rounded hover:bg-hover"
           >
             Bultos
+          </button>
+          <button
+            onClick={() => handleDownloadQrPallet(id, identificador)}
+            disabled={loading}
+            className="mt-4 px-4 py-2 bg-slate-700 text-white rounded hover:bg-slate-800"
+          >
+            Descargar QR
           </button>
           <button
             onClick={() => handleClosePallet(id)}
@@ -238,18 +293,24 @@ export default function PrepararPedido() {
       <BackButton to={`/Solicitudes/${solicitudId}`} />
       <h1 className="mt-4 text-3xl font-bold mb-6">Preparar Pedido #{solicitudId}</h1>
 
-      {error && <div className="text-red-500 mb-4 font-semibold">{error}</div>}
-      {success && <div className="text-green-600 mb-4 font-semibold">{success}</div>}
-
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold">Pallets en Preparación</h2>
-        <button
-          onClick={handleCreatePallet}
-          disabled={loading}
-          className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
-        >
-          Crear Pallet
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleDownloadEtiquetasPallets}
+            disabled={loading || pallets.length === 0}
+            className="bg-slate-700 text-white px-4 py-2 rounded-md hover:bg-slate-800 disabled:opacity-60"
+          >
+            Descargar Etiquetas (PDF)
+          </button>
+          <button
+            onClick={handleCreatePallet}
+            disabled={loading}
+            className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
+          >
+            Crear Pallet
+          </button>
+        </div>
       </div>
 
       <TablePallets data={palletsData} columns={palletsColumns} />

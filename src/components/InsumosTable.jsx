@@ -2,12 +2,16 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { FiTrash } from 'react-icons/fi';
 import Selector from './Selector';
 import { useApi } from '../lib/api';
+import { insumoToSearchText } from '../services/fuzzyMatch';
 
 export default function InsumosTable({ onInsumosChange, disabled = false, bodegaId, addSignal = 0, onAvailabilityChange, bodegaSolicitanteId }) {
   const [articulos, setArticulos] = useState([]);
   const [opcionesInsumos, setOpcionesInsumos] = useState([]);
+  const [materiasPrimas, setMateriasPrimas] = useState([]);
+  const [formatosByMateriaPrimaId, setFormatosByMateriaPrimaId] = useState({});
   // Stock actual en la bodega solicitante (Map id_materia_prima -> stock numérico)
   const [solicitanteStockMap, setSolicitanteStockMap] = useState(new Map());
+  const [proveedoraStockMap, setProveedoraStockMap] = useState(new Map());
   const isAddDisabled = disabled || opcionesInsumos.length === 0;
   const lastAddSignal = useRef(addSignal);
   const api = useApi();
@@ -26,6 +30,77 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
     return m;
   }, [opcionesInsumos]);
 
+  const getUnidadLabel = (unidadLower) => {
+    if (!unidadLower) return '';
+    if (unidadLower === 'unidades') return 'unidades';
+    if (unidadLower === 'kilogramos') return 'kg';
+    if (unidadLower === 'gramos') return 'g';
+    if (unidadLower === 'litros') return 'L';
+    return unidadLower;
+  };
+
+  const coerceNumber = (value) => {
+    if (value === '' || value == null) return null;
+    const num = Number(String(value).replace(',', '.'));
+    return Number.isFinite(num) ? num : null;
+  };
+
+  const fetchFormatosIfNeeded = async (idMateriaPrima) => {
+    const idStr = String(idMateriaPrima);
+    if (!idStr) return;
+    if (Object.prototype.hasOwnProperty.call(formatosByMateriaPrimaId, idStr)) return;
+
+    try {
+      const data = await api(
+        `/proveedor-materia-prima/por-materia-prima?id_materia_prima=${encodeURIComponent(idStr)}`
+      );
+      const rows = Array.isArray(data) ? data : [];
+      const unidadLower = optionById.get(idStr)?.unidad;
+      const unidadLabel = getUnidadLabel(unidadLower);
+
+      const options = rows
+        .map((r) => {
+          const cantidadPorFormato =
+            coerceNumber(r?.cantidad_por_formato) ?? coerceNumber(r?.peso_unitario) ?? null;
+
+          if (!cantidadPorFormato || cantidadPorFormato <= 0) return null;
+
+          const formatoNombre = String(r?.formato ?? 'Formato');
+          const label = `${formatoNombre} (${cantidadPorFormato} ${unidadLabel || ''})`.trim();
+
+          return {
+            value: String(r?.id),
+            label,
+            formatoNombre,
+            multiplier: cantidadPorFormato,
+            es_unidad_consumo: !!r?.es_unidad_consumo,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+          if (a.es_unidad_consumo !== b.es_unidad_consumo) {
+            return a.es_unidad_consumo ? -1 : 1;
+          }
+          return (a.multiplier ?? 0) - (b.multiplier ?? 0);
+        });
+
+      setFormatosByMateriaPrimaId((prev) => ({ ...prev, [idStr]: options }));
+
+      if (options.length > 0) {
+        setArticulos((prev) =>
+          prev.map((a) => {
+            if (a?.id_articulo !== idStr) return a;
+            if (a?.id_formato) return a;
+            return { ...a, id_formato: options[0].value };
+          })
+        );
+      }
+    } catch (e) {
+      console.error('Error fetching formatos por materia prima:', e);
+      setFormatosByMateriaPrimaId((prev) => ({ ...prev, [idStr]: [] }));
+    }
+  };
+
   // Utilidad compartida para parsear "unidades_disponibles"
   const parseStock = (str) => {
     if (!str) return 0;
@@ -35,37 +110,70 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
     return Number.isFinite(num) ? num : 0;
   };
 
-  // Insumos filtrados por la bodega proveedora
+  // Cargar catálogo completo de materias primas (para mostrar TODOS los insumos)
   useEffect(() => {
-    const fetchInsumos = async () => {
+    const fetchCatalogo = async () => {
+      try {
+        const res = await api('/materias-primas');
+        const list = Array.isArray(res) ? res : [];
+        setMateriasPrimas(list);
+      } catch (e) {
+        console.error('Error fetching materias primas:', e);
+        setMateriasPrimas([]);
+      }
+    };
+    fetchCatalogo();
+  }, []);
+
+  // Stock de la bodega proveedora (mapa)
+  useEffect(() => {
+    const fetchProveedora = async () => {
       try {
         if (!bodegaId) {
-          setOpcionesInsumos([]);
-          onAvailabilityChange?.(false);
+          setProveedoraStockMap(new Map());
           return;
         }
         const response = await api(`/inventario/${bodegaId}`);
         const inventario = normalizeInventario(response);
-        const insumosData = inventario
-          .map((item) => {
-            const mp = item?.materiaPrima;
-            if (!mp) return null;
-            const unidad = mp?.unidad_medida ? String(mp.unidad_medida).toLowerCase() : null;
-            const stock = parseStock(item?.unidades_disponibles);
-            return { value: mp.id?.toString(), label: mp.nombre, stock, unidad };
-          })
-          .filter((x) => x && x.value);
-        setOpcionesInsumos(insumosData);
-        onAvailabilityChange?.(insumosData.length > 0);
+        const map = new Map();
+        inventario.forEach((item) => {
+          const mp = item?.materiaPrima;
+          if (!mp?.id) return;
+          const stock = parseStock(item?.unidades_disponibles);
+          map.set(String(mp.id), stock);
+        });
+        setProveedoraStockMap(map);
       } catch (error) {
         console.error("Error fetching insumos por bodega:", error);
-        setOpcionesInsumos([]);
-        onAvailabilityChange?.(false);
+        setProveedoraStockMap(new Map());
       }
     };
 
-    fetchInsumos();
+    fetchProveedora();
   }, [bodegaId]);
+
+  // Construir opciones del selector (todos los insumos, con stock según bodega)
+  useEffect(() => {
+    const list = Array.isArray(materiasPrimas) ? materiasPrimas : [];
+    const options = list
+      .filter((mp) => mp && mp.id)
+      .filter((mp) => mp?.activo !== false)
+      .map((mp) => {
+        const id = String(mp.id);
+        const unidad = mp?.unidad_medida ? String(mp.unidad_medida).toLowerCase() : null;
+        const stock = proveedoraStockMap.has(id) ? proveedoraStockMap.get(id) : 0;
+        const categoria = mp?.categoria?.nombre || 'Sin categoría';
+        return {
+          value: id,
+          label: mp.nombre,
+          unidad,
+          stock,
+          category: categoria,
+          searchText: insumoToSearchText(mp),
+        };
+      });
+    setOpcionesInsumos(options);
+  }, [materiasPrimas, proveedoraStockMap]);
 
   // Stock actual en la bodega solicitante
   useEffect(() => {
@@ -96,6 +204,7 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
   // Limpiar artículos cuando cambia la bodega
   useEffect(() => {
     setArticulos([]);
+    setFormatosByMateriaPrimaId({});
   }, [bodegaId]);
 
   const validateArticulo = (articulo) => {
@@ -103,19 +212,16 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
     if (!articulo.id_articulo) {
       errors.push('Debe seleccionar un insumo');
     }
-    if (!articulo.cantidad_solicitada || Number(articulo.cantidad_solicitada) <= 0) {
-      errors.push('La cantidad debe ser mayor a 0');
+
+    // Bloqueante: no permitir solicitar insumos sin disponibilidad en la bodega proveedora.
+    const stock = optionById.get(articulo.id_articulo)?.stock;
+    if (articulo.id_articulo && (stock == null || Number(stock) <= 0)) {
+      errors.push('No hay disponibilidad en la bodega proveedora');
     }
-    // Validar stock disponible
-    const stock = optionById.get(articulo.id_articulo)?.stock ?? null;
-    if (
-      articulo.id_articulo &&
-      stock != null &&
-      articulo.cantidad_solicitada &&
-      Number.isFinite(Number(articulo.cantidad_solicitada)) &&
-      Number(articulo.cantidad_solicitada) > stock
-    ) {
-      errors.push('No puede superar el stock disponible');
+
+    const cantidadFormato = Number(articulo.cantidad_formato);
+    if (!cantidadFormato || cantidadFormato <= 0) {
+      errors.push('La cantidad debe ser mayor a 0');
     }
     return errors;
   };
@@ -129,13 +235,25 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
 
   // Notificar cambios al componente padre
   useEffect(() => {
-    const articulosValidos = getArticulosValidos();
+    const articulosValidos = getArticulosValidos().map((a) => {
+      const unidadLower = optionById.get(a.id_articulo)?.unidad;
+      const formatos = formatosByMateriaPrimaId[a.id_articulo] || [];
+      const fmt = formatos.find((f) => f.value === a.id_formato);
+      const multiplier = Number(fmt?.multiplier) || 1;
+      const cantidadFormato = Number(a.cantidad_formato) || 0;
+      const cantidadBase = cantidadFormato * multiplier;
+      const cantidadBaseFinal =
+        unidadLower === 'unidades'
+          ? Math.round(cantidadBase)
+          : Math.round(cantidadBase * 100) / 100;
+      return { ...a, cantidad_solicitada: cantidadBaseFinal };
+    });
     onInsumosChange(articulosValidos);
   }, [articulos, onInsumosChange]);
 
   const handleAddArticulo = () => {
     if (isAddDisabled) return;
-    setArticulos([...articulos, { id_articulo: '', cantidad_solicitada: '', comentario: '' }]);
+    setArticulos([...articulos, { id_articulo: '', id_formato: '', cantidad_formato: '', comentario: '' }]);
   };
 
   const handleRemoveArticulo = (index) => {
@@ -143,39 +261,33 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
   };
 
   const handleInputChange = (index, field, value) => {
-    if (field === 'cantidad_solicitada') {
-      // Permite números > 0. Si unidad es 'Unidades' aplica entero; en 'Litros'/'Kilogramos' permite decimales.
+    if (field === 'cantidad_formato') {
       if (value === '') {
         const newArticulos = [...articulos];
-        newArticulos[index] = { ...newArticulos[index], [field]: '' };
+        newArticulos[index] = { ...newArticulos[index], cantidad_formato: '' };
         setArticulos(newArticulos);
         return;
       }
-      const idSel = articulos[index]?.id_articulo;
-      const unidad = optionById.get(idSel)?.unidad;
-      let numValue = Number(String(value).replace(',', '.'));
-      if (!Number.isFinite(numValue)) return; // ignorar
-      if (unidad === 'unidades') {
-        numValue = Math.floor(numValue);
-      }
-      if (numValue > 0) {
-        const stock = optionById.get(idSel)?.stock ?? null;
-        const clamped = stock != null ? Math.min(numValue, stock) : numValue;
-        const newArticulos = [...articulos];
-        const formatted = unidad === 'unidades' ? String(clamped) : String(Math.round(clamped * 100) / 100);
-        newArticulos[index] = { ...newArticulos[index], [field]: formatted };
-        setArticulos(newArticulos);
-      }
+
+      const numValue = coerceNumber(value);
+      if (numValue == null) return;
+
+      const floored = Math.floor(numValue);
+      if (floored <= 0) return;
+
+      const newArticulos = [...articulos];
+      newArticulos[index] = { ...newArticulos[index], cantidad_formato: String(floored) };
+      setArticulos(newArticulos);
     } else if (field === 'id_articulo') {
-      // Al cambiar de insumo, ajustar la cantidad si se excede del stock
-      const stock = optionById.get(value)?.stock ?? null;
-      const prevCantidad = Number(articulos[index]?.cantidad_solicitada);
-      const next = { ...articulos[index], id_articulo: value };
-      if (Number.isFinite(prevCantidad) && stock != null && prevCantidad > stock) {
-        next.cantidad_solicitada = stock.toString();
-      }
+      const next = { ...articulos[index], id_articulo: value, id_formato: '', cantidad_formato: '' };
       const newArticulos = [...articulos];
       newArticulos[index] = next;
+      setArticulos(newArticulos);
+
+      fetchFormatosIfNeeded(value);
+    } else if (field === 'id_formato') {
+      const newArticulos = [...articulos];
+      newArticulos[index] = { ...newArticulos[index], id_formato: value };
       setArticulos(newArticulos);
     } else {
       const newArticulos = [...articulos];
@@ -198,19 +310,16 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
     }
   }, [addSignal, isAddDisabled]);
 
-  // Asegurar que las cantidades no queden por sobre el stock disponible
+  // Cargar formatos para las filas existentes
   useEffect(() => {
-    setArticulos((prev) =>
-      prev.map((a) => {
-        const stock = optionById.get(a.id_articulo)?.stock ?? null;
-        const cant = Number(a.cantidad_solicitada);
-        if (a.id_articulo && stock != null && Number.isFinite(cant) && cant > stock) {
-          return { ...a, cantidad_solicitada: stock.toString() };
-        }
-        return a;
-      })
+    const uniqueIds = Array.from(
+      new Set(articulos.map((a) => a?.id_articulo).filter(Boolean))
     );
-  }, [opcionesInsumos, optionById]);
+    uniqueIds.forEach((id) => {
+      fetchFormatosIfNeeded(id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [articulos, opcionesInsumos]);
 
   // Informar disponibilidad considerando los ya seleccionados (para deshabilitar el botón externo si no quedan opciones únicas)
   useEffect(() => {
@@ -233,6 +342,9 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
                   Cantidad
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
+                  Formato
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
                   Comentario
                 </th>
                 <th scope="col" className="pr-3 py-3 text-center text-s font-medium text-text uppercase tracking-wider">
@@ -248,6 +360,17 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
               const errores = getErroresArticulo(index);
               const optSel = optionById.get(articulo.id_articulo);
               const availableStock = optSel?.stock ?? null;
+              const unidadLower = optSel?.unidad;
+              const unidadLabel = getUnidadLabel(unidadLower);
+              const formatos = formatosByMateriaPrimaId[articulo.id_articulo] || [];
+              const fmt = formatos.find((f) => f.value === articulo.id_formato);
+              const multiplier = Number(fmt?.multiplier) || 1;
+              const cantidadFormato = Number(articulo.cantidad_formato) || 0;
+              const cantidadBase = cantidadFormato * multiplier;
+              const cantidadBaseText =
+                unidadLower === 'unidades'
+                  ? String(Math.round(cantidadBase))
+                  : String(Math.round(cantidadBase * 100) / 100);
               const optionsForRow = opcionesInsumos.filter(opt => opt.value === articulo.id_articulo || !selectedIds.has(opt.value));
               return (
                 <tr key={index}>
@@ -258,11 +381,13 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
                         selectedValue={articulo.id_articulo}
                         onSelect={(value) => handleInputChange(index, 'id_articulo', value)}
                         disabled={disabled}
+                        useFuzzy
+                        groupBy="category"
                         className={`w-full px-3 py-2 border ${errores.includes('Debe seleccionar un insumo') ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary`}
                       />
                       {articulo.id_articulo && bodegaSolicitanteId && (
                         <p className="mt-1 text-xs text-gray-500 leading-tight">
-                          En solicitante: {solicitanteStockMap.get(articulo.id_articulo) ?? 0} {optSel?.unidad || ''}
+                          En destino: {solicitanteStockMap.get(articulo.id_articulo) ?? 0} {optSel?.unidad || ''}
                         </p>
                       )}
                       {errores.includes('Debe seleccionar un insumo') && (
@@ -274,26 +399,58 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
                   </td>
                   <td className="px-6 py-2 whitespace-nowrap align-top">
                     <div>
+
                       <input
                         type="number"
                         min="1"
-                        value={articulo.cantidad_solicitada}
-                        onChange={(e) => handleInputChange(index, 'cantidad_solicitada', e.target.value)}
+                        step={1}
+                        value={articulo.cantidad_formato}
+                        onChange={(e) => handleInputChange(index, 'cantidad_formato', e.target.value)}
                         disabled={disabled}
-                        max={availableStock != null ? availableStock : undefined}
-                        step={optSel?.unidad === 'unidades' ? 1 : 0.01}
                         className={`w-full px-3 py-2 border ${errores.includes('La cantidad debe ser mayor a 0') ? 'border-red-500' : 'border-gray-300'} rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary`}
-                        placeholder="Ingrese cantidad"
+                        placeholder={`Cantidad de ${fmt ? fmt.formatoNombre : 'formato'}`}
                       />
-                      {availableStock != null && (
-                        <p className="mt-1 text-xs text-gray-500 leading-tight">Disponibles: {availableStock} {optSel?.unidad || ''}</p>
+
+                      {errores.includes('No hay disponibilidad en la bodega proveedora') && (
+                        <p className="mt-0.5 text-xs text-red-600 leading-tight">
+                          No hay disponibilidad en la bodega proveedora. Quita este insumo para continuar.
+                        </p>
                       )}
-                      {errores.includes('No puede superar el stock disponible') && (
-                        <div className="mt-0.5">
-                          <p className="text-xs text-red-500 leading-tight">No puede superar el stock disponible</p>
-                        </div>
+
+                      {articulo.id_articulo && fmt && (
+                        <p className="mt-1 text-xs text-gray-600 leading-tight">
+                          Equivalente: {cantidadBaseText} {unidadLabel}
+                        </p>
+                      )}
+
+                      {availableStock != null && articulo.id_articulo && (
+                        <p className="mt-1 text-xs text-gray-500 leading-tight">
+                          Disponibles: {availableStock} {unidadLabel}
+                        </p>
+                      )}
+
+                      {articulo.id_articulo && availableStock != null && availableStock > 0 && cantidadFormato > 0 && cantidadBase > availableStock && (
+                        <p className="mt-0.5 text-xs text-red-600 leading-tight">
+                          Solicitas {cantidadBaseText} {unidadLabel}, pero hay {availableStock} disponibles.
+                        </p>
                       )}
                     </div>
+                  </td>
+                  <td className="px-6 py-2 whitespace-nowrap align-top">
+                                        <div className="mb-1">
+                        <Selector
+                          options={formatos}
+                          selectedValue={articulo.id_formato}
+                          onSelect={(value) => handleInputChange(index, 'id_formato', value)}
+                          disabled={disabled || !articulo.id_articulo}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                        />
+                        {articulo.id_articulo && formatos.length === 0 && (
+                          <p className="mt-1 text-xs text-gray-500 leading-tight">
+                            No hay formatos configurados para este insumo.
+                          </p>
+                        )}
+                      </div>
                   </td>
                   <td className="px-6 py-2 whitespace-nowrap align-top">
                     <input

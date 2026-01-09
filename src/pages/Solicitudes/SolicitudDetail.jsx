@@ -2,7 +2,19 @@ import { useParams, useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useState, useEffect } from "react";
 import Table from "../../components/Table";
-import { useApi } from "../../lib/api";
+import { useApi, API_BASE, getToken } from "../../lib/api";
+import { toast } from "react-toastify";
+
+function downloadBlob(blob, filename) {
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
 
 function formatDateTime(value) {
   if (!value) return "—";
@@ -68,27 +80,65 @@ export default function SolicitudDetail() {
   const { solicitudId } = useParams();
   const navigate = useNavigate();
   const [solicitud, setSolicitud] = useState(null);
-  const [success, setSuccess] = useState(null);
-  const [error, setError] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const handleDescargarEtiquetasPallets = async () => {
+    setLoading(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        toast.error("Sesión expirada: vuelve a iniciar sesión");
+        return;
+      }
+
+      const res = await fetch(
+        `${API_BASE}/solicitudes-mercaderia/${solicitudId}/obtener_etiquetas`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      if (!res.ok) {
+        throw new Error("No se pudo descargar etiquetas");
+      }
+      const blob = await res.blob();
+      
+      // Detectar tipo de archivo por Content-Type
+      const contentType = res.headers.get("Content-Type");
+      const extension = contentType?.includes("zip") ? "zip" : "pdf";
+      
+      downloadBlob(blob, `pallets-solicitud-${solicitudId}.${extension}`);
+      toast.success("Etiquetas descargadas");
+    } catch (err) {
+      console.error(err);
+      toast.error("Error descargando etiquetas");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [expandedPalletIds, setExpandedPalletIds] = useState(() => new Set());
 
   const [guiaDespacho, setGuiaDespacho] = useState("");
   const [medioTransporte, setMedioTransporte] = useState("");
   const [mostrarFormularioEnvio, setMostrarFormularioEnvio] = useState(false);
+  const [archivosGuia, setArchivosGuia] = useState([]);
 
   const api = useApi();
 
   const fetchSolicitud = async () => {
     try {
       setLoading(true);
-      setError(null);
+      setLoadFailed(false);
       const res = await api(`/solicitudes-mercaderia/${solicitudId}`);
       setSolicitud(res);
     } catch (err) {
       console.error("Error fetching solicitud:", err);
-      setError("Error cargando la solicitud");
+      setLoadFailed(true);
+      toast.error("Error cargando la solicitud");
     } finally {
       setLoading(false);
     }
@@ -100,15 +150,13 @@ export default function SolicitudDetail() {
 
   const handleCancelarSolicitud = async () => {
     setLoading(true);
-    setError(null);
-    setSuccess(null);
     try {
       await api(`/solicitudes-mercaderia/${solicitudId}/cancelar`, { method: 'PUT' });
-      setSuccess("Solicitud cancelada exitosamente");
+      toast.success("Solicitud cancelada exitosamente");
       navigate("/Solicitudes");
     } catch (err) {
       console.error("Error al cancelar solicitud:", err);
-      setError("Error al cancelar solicitud");
+      toast.error("Error al cancelar solicitud");
     } finally {
       setLoading(false);
     }
@@ -116,22 +164,37 @@ export default function SolicitudDetail() {
 
   const handleEnviarSolicitud = async () => {
     setLoading(true);
-    setError(null);
-    setSuccess(null);
     try {
+      let archivos_guia_despacho = [];
+      if (Array.isArray(archivosGuia) && archivosGuia.length > 0) {
+        for (const file of archivosGuia) {
+          const form = new FormData();
+          form.append("file", file);
+          const uploadResp = await api("/s3/upload", {
+            method: "POST",
+            body: form,
+          });
+          if (uploadResp?.s3_reference?.s3_key) {
+            archivos_guia_despacho.push(uploadResp.s3_reference);
+          }
+        }
+      }
+
       await api(`/solicitudes-mercaderia/${solicitudId}/enviar`, {
         method: "PUT",
         body: JSON.stringify({
           numero_guia_despacho: guiaDespacho,
           medio_transporte: medioTransporte,
+          archivos_guia_despacho,
         }),
       });
-      setSuccess("Solicitud enviada exitosamente");
+      toast.success("Solicitud enviada exitosamente");
       navigate("/Solicitudes");
       setMostrarFormularioEnvio(false);
+      setArchivosGuia([]);
     } catch (err) {
       console.error("Error al enviar solicitud:", err);
-      setError("Error al enviar solicitud");
+      toast.error("Error al enviar solicitud");
     } finally {
       setLoading(false);
     }
@@ -139,15 +202,13 @@ export default function SolicitudDetail() {
 
   const handleValidarSolicitud = async () => {
     setLoading(true);
-    setError(null);
-    setSuccess(null);
     try {
       await api(`/solicitudes-mercaderia/${solicitudId}/validar`, { method: "PUT" });
-      setSuccess("Solicitud validada exitosamente");
+      toast.success("Solicitud validada exitosamente");
       navigate(`/Solicitudes`);
     } catch (err) {
       console.error("Error al validar solicitud:", err);
-      setError("Error al validar solicitud");
+      toast.error("Error al validar solicitud");
     } finally {
       setLoading(false);
     }
@@ -155,15 +216,13 @@ export default function SolicitudDetail() {
 
   const handlePrepararPedido = async () => {
     setLoading(true);
-    setError(null);
-    setSuccess(null);
     try {
       await api(`/solicitudes-mercaderia/${solicitudId}/preparar`, { method: "PUT" });
-      setSuccess("Solicitud preparada exitosamente");
+      toast.success("Solicitud preparada exitosamente");
       navigate(`/Solicitudes/${solicitudId}/preparar-pedido`);
     } catch (err) {
       console.error("Error al preparar solicitud:", err);
-      setError("Error al preparar solicitud");
+      toast.error("Error al preparar solicitud");
     } finally {
       setLoading(false);
     }
@@ -178,10 +237,12 @@ export default function SolicitudDetail() {
     );
   }
 
-  if (error && !solicitud) {
+  if (loadFailed && !solicitud) {
     return (
       <div className="p-6 bg-background min-h-screen flex items-center justify-center">
-        <div className="p-4 text-red-700 bg-red-100 rounded-lg">{error}</div>
+        <div className="p-4 text-red-700 bg-red-100 rounded-lg">
+          No se pudo cargar la solicitud.
+        </div>
       </div>
     );
   }
@@ -221,7 +282,12 @@ export default function SolicitudDetail() {
     cantidad_recepcionada:
       detalle?.cantidad_recepcionada == null ? "—" : detalle.cantidad_recepcionada,
     unidad_medida: detalle?.materiaPrima?.unidad_medida ?? "—",
-    comentario: detalle?.comentario ?? "",
+    comentario:
+      detalle?.comentario ??
+      detalle?.Comentario ??
+      detalle?.comentarios ??
+      detalle?.Comentarios ??
+      "",
   }));
 
   const insumosColumns = [
@@ -232,7 +298,10 @@ export default function SolicitudDetail() {
     {
       header: "Comentario",
       accessor: "comentario",
-      Cell: ({ value }) => (value ? value : "—"),
+      Cell: ({ value }) => {
+        const v = typeof value === "string" ? value.trim() : value;
+        return v ? v : "—";
+      },
     },
   ];
 
@@ -392,6 +461,17 @@ export default function SolicitudDetail() {
                     )}
                   </>
                 )}
+                {pallets.length > 0 && (
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleDescargarEtiquetasPallets}
+                      disabled={loading}
+                      className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-60"
+                    >
+                      Descargar Etiquetas Pallets (PDF)
+                    </button>
+                  </div>
+                )}
               </div>
 
               {solicitud.estado === "Lista para despacho" && mostrarFormularioEnvio && (
@@ -413,25 +493,31 @@ export default function SolicitudDetail() {
                       onChange={(e) => setMedioTransporte(e.target.value)}
                       className="w-full p-2 border rounded"
                     />
+
+                    <div className="space-y-2">
+                      <label className="block text-sm text-gray-700">
+                        Adjuntar archivos guía de despacho (opcional)
+                      </label>
+                      <input
+                        type="file"
+                        multiple
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          setArchivosGuia(files);
+                        }}
+                        className="w-full"
+                      />
+                      {archivosGuia.length > 0 && (
+                        <div className="text-xs text-gray-600">
+                          {archivosGuia.length} archivo(s) seleccionado(s)
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
             </div>
 
-            {(error || success) && (
-              <div className="space-y-2">
-                {error && (
-                  <div className="p-3 text-red-700 bg-red-100 rounded-lg">
-                    {error}
-                  </div>
-                )}
-                {success && (
-                  <div className="p-3 text-green-700 bg-green-100 rounded-lg">
-                    {success}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Contenido principal */}

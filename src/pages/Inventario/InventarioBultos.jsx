@@ -1,15 +1,26 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axiosInstance from "../../axiosInstance";
 import DividirBultoModal from "../../components/DividirBultoModal";
 import { toast } from "../../lib/toast";
+import {
+  checkScope,
+  isAdminOrSuperAdmin,
+  ModelType,
+  ScopeType,
+} from "../../services/scopeCheck";
 
 export default function InventarioBultos() {
+  const navigate = useNavigate();
   const [bodegas, setBodegas] = useState([]);
   const [bodegaSeleccionada, setBodegaSeleccionada] = useState("");
   const [bultos, setBultos] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(false);
   const [bultoADividir, setBultoADividir] = useState(null);
+
+  const canEditBulto =
+    checkScope(ModelType.BULTO, ScopeType.WRITE) || isAdminOrSuperAdmin();
 
   useEffect(() => {
     const fetchBodegas = async () => {
@@ -155,6 +166,16 @@ export default function InventarioBultos() {
                     >
                       Descargar Etiqueta
                     </button>
+
+                    {canEditBulto && (
+                      <button
+                        onClick={() => navigate(`/Inventario/bultos/editar/${b.id}`)}
+                        className="bg-slate-700 hover:bg-slate-800 text-white px-3 py-1 rounded text-sm"
+                      >
+                        Editar
+                      </button>
+                    )}
+
                     <button
                       onClick={() => setBultoADividir(b)}
                       className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded text-sm"
