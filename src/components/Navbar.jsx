@@ -187,7 +187,6 @@ export default function Navbar() {
 
             <MenuGroup label="Catálogos y Productos">
               <MenuLink to="/Insumos" icon={<FiHome />} label="Insumos" />
-              <MenuLink to="/Insumos/por-proveedor" icon={<FiHome />} label="Insumos por Proveedor" />
               <MenuLink to="/Productos" icon={<FiTag />} label="Categorías de Productos" />
               <MenuLink to="/PautasElaboracion" icon={<FiClipboard />} label="Pautas de Elaboración" />
               <MenuLink to="/Recetas" icon={<FiClipboard />} label="Recetas" />
