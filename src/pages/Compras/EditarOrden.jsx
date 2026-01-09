@@ -44,7 +44,7 @@ export default function EditOrden() {
       return {
         ...pi,
         cantidad_formato: Number(sel.cantidad_formato) || 0,
-        precio_unitario_input: Math.round(Number(sel.precio_unitario) || 0),
+        precio_unitario_input: Number(sel.precio_unitario) || 0,
       };
     });
   };
@@ -110,7 +110,7 @@ export default function EditOrden() {
               ) || 1,
               cantidad_formato: Number(i.cantidad_formato ?? i.cantidad) || 0,
               cantidad: Number(i.cantidad) || 0,
-              precio_unitario: Math.round(Number(i.precio_unitario) || 0),
+              precio_unitario: Number(i.precio_unitario) || 0,
             })
           )
             .filter((x) => Number.isFinite(x.id_proveedor_materia_prima))
@@ -131,7 +131,7 @@ export default function EditOrden() {
         const activosBase = res.materiasPrimas?.filter((i) => i.materiaPrima?.activo) || [];
         const activos = (activosBase || []).map((i) => ({
           ...i,
-          precio_unitario: Math.round(Number(i?.precio_unitario) || 0),
+          precio_unitario: Number(i?.precio_unitario) || 0,
         }));
         setMateriasPrimas(
           hydrateProveedorInsumosWithOC(activos, insumosSeleccionados)
@@ -184,11 +184,8 @@ export default function EditOrden() {
       const formato = insumoRow?.formato || "—";
       const cantidad_por_formato = Number(insumoRow?.cantidad_por_formato) || 1;
       const cantidad_total = cantidadFormato * cantidad_por_formato;
-      const precio_unitario = Math.round(
-        Number(
-          insumoRow?.precio_unitario_input ?? insumoRow?.precio_unitario ?? 0
-        ) || 0
-      );
+      const precio_unitario =
+        Number(insumoRow?.precio_unitario_input ?? insumoRow?.precio_unitario ?? 0) || 0;
 
       if (existente) {
         return prev.map((i) =>
@@ -223,7 +220,7 @@ export default function EditOrden() {
 
   const handlePrecioChange = (insumoRow, rawValue) => {
     const idNum = Number(insumoRow?.id);
-    const value = Math.round(Number(rawValue) || 0);
+    const value = Number(rawValue) || 0;
     setMateriasPrimas((prev) =>
       prev.map((m) =>
         Number(m?.id) === idNum ? { ...m, precio_unitario_input: value } : m
@@ -304,7 +301,7 @@ export default function EditOrden() {
         cantidad_formato: Number(i.cantidad_formato) || 0,
         cantidad_por_formato: Number(i.cantidad_por_formato) || 1,
         cantidad: Number(i.cantidad) || 0,
-        precio_unitario: Math.round(Number(i.precio_unitario) || 0),
+        precio_unitario: Number(i.precio_unitario) || 0,
       })),
     };
 
@@ -457,10 +454,11 @@ export default function EditOrden() {
                             onChange={(e) =>
                               handleCantidadChange(
                                 insumo,
-                                Number(e.target.value)
+                                e.target.value
                               )
                             }
                             className="w-20 border border-gray-300 rounded-md px-2 py-1 text-center text-sm"
+                            step="any"
                           />
                         </td>
 
@@ -468,7 +466,6 @@ export default function EditOrden() {
                           <input
                             type="number"
                             min="0"
-                            step="1"
                             value={
                               insumo.precio_unitario_input !== undefined
                                 ? insumo.precio_unitario_input
@@ -477,10 +474,11 @@ export default function EditOrden() {
                             onChange={(e) =>
                               handlePrecioChange(
                                 insumo,
-                                Number(e.target.value)
+                                e.target.value
                               )
                             }
                             className="w-24 border border-gray-300 rounded-md px-2 py-1 text-center text-sm"
+                            step="any"
                           />
                         </td>
                       </tr>
