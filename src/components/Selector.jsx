@@ -1,9 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FiChevronDown } from 'react-icons/fi';
+import { fuzzyMatch } from '../services/fuzzyMatch';
 
 // Selector con búsqueda dentro del dropdown
-const Selector = ({ options = [], onSelect, selectedValue, className = '', disabled = false }) => {
+// - `useFuzzy`: usa fuzzyMatch con `option.searchText` (o label) en vez de substring
+// - `groupBy`: agrupa resultados (string key o function(option) -> groupLabel)
+const Selector = ({
+  options = [],
+  onSelect,
+  selectedValue,
+  className = '',
+  disabled = false,
+  useFuzzy = false,
+  groupBy,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const containerRef = useRef(null);
@@ -23,10 +34,43 @@ const Selector = ({ options = [], onSelect, selectedValue, className = '', disab
     .replace(/\p{Diacritic}/gu, '');
 
   const filtered = useMemo(() => {
-    const q = norm(query.trim());
+    const raw = query.trim();
+    const q = norm(raw);
     if (!q) return options;
+
+    if (useFuzzy) {
+      return options.filter((o) => {
+        const base = o?.searchText != null ? String(o.searchText) : String(o?.label ?? '');
+        // fuzzyMatch espera texto ya "normalizado"; normalizamos acá para hacerlo robusto.
+        const text = norm(base);
+        return fuzzyMatch(text, raw);
+      });
+    }
+
     return options.filter((o) => norm(o.label).includes(q));
-  }, [options, query]);
+  }, [options, query, useFuzzy]);
+
+  const grouped = useMemo(() => {
+    if (!groupBy) return null;
+
+    const getGroup =
+      typeof groupBy === 'function'
+        ? groupBy
+        : (opt) => {
+            const key = groupBy;
+            return opt?.[key];
+          };
+
+    const map = new Map();
+    for (const opt of filtered) {
+      const groupLabel = String(getGroup(opt) ?? 'Sin categoría');
+      if (!map.has(groupLabel)) map.set(groupLabel, []);
+      map.get(groupLabel).push(opt);
+    }
+
+    const entries = Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], 'es'));
+    return entries;
+  }, [filtered, groupBy]);
 
   // Cerrar al hacer click fuera y posicionar el menú
   useEffect(() => {
@@ -128,16 +172,35 @@ const Selector = ({ options = [], onSelect, selectedValue, className = '', disab
               {filtered.length === 0 ? (
                 <div className="px-3 py-2 text-sm text-gray-500">Sin resultados</div>
               ) : (
-                filtered.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => handleSelect(opt.value)}
-                    className={`w-full text-left px-3 py-2 hover:bg-gray-100 ${String(opt.value) === String(selectedValue) ? 'bg-primary/10 text-primary' : 'text-gray-900'}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))
+                (grouped
+                  ? grouped.flatMap(([groupLabel, opts]) => [
+                      <div
+                        key={`__group__${groupLabel}`}
+                        className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 border-t border-gray-200"
+                      >
+                        {groupLabel}
+                      </div>,
+                      ...opts.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => handleSelect(opt.value)}
+                          className={`w-full text-left px-3 py-2 hover:bg-gray-100 ${String(opt.value) === String(selectedValue) ? 'bg-primary/10 text-primary' : 'text-gray-900'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      )),
+                    ])
+                  : filtered.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => handleSelect(opt.value)}
+                        className={`w-full text-left px-3 py-2 hover:bg-gray-100 ${String(opt.value) === String(selectedValue) ? 'bg-primary/10 text-primary' : 'text-gray-900'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    )))
               )}
             </div>
             {openUpwards && (

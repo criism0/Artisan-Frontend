@@ -117,7 +117,7 @@ export default function AddSolicitud() {
         id_bodega_solicitante: parseInt(selectedDestino),
         materias_primas: insumosSeleccionados.map(insumo => ({
           id_materia_prima: parseInt(insumo.id_articulo),
-          cantidad_solicitada: parseInt(insumo.cantidad_solicitada),
+          cantidad_solicitada: Number(insumo.cantidad_solicitada),
           comentario: insumo.comentario || ''
         })),
         notificaciones: selectedUsers.map(user => user.email)
