@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axiosInstance from '../axiosInstance';
+import { api } from '../lib/api';
 import { toast } from '../lib/toast';
 
 export default function DividirBultoModal({ bulto, onClose, onSuccess }) {
@@ -42,12 +42,13 @@ export default function DividirBultoModal({ bulto, onClose, onSuccess }) {
     }
 
     try {
-      const res = await axiosInstance.post(`/bultos/${bulto.id}/dividir`, {
-        divisiones: cantidades
+      const res = await api(`/bultos/${bulto.id}/dividir`, {
+        method: 'POST',
+        body: JSON.stringify({ divisiones: cantidades }),
       });
       
-      if (res.data.mensaje) {
-        toast.success(`Éxito: ${res.data.mensaje}`);
+      if (res?.mensaje) {
+        toast.success(`Éxito: ${res.mensaje}`);
       } else {
         toast.success('Bulto dividido exitosamente.');
       }
@@ -56,7 +57,7 @@ export default function DividirBultoModal({ bulto, onClose, onSuccess }) {
       onClose();
     } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.error || 'Error al dividir el bulto.');
+      toast.error(err?.message || 'Error al dividir el bulto.');
     } finally {
       setLoading(false);
     }

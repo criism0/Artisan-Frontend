@@ -60,6 +60,41 @@ export async function api(path, { auth = true, headers, ...opts } = {}) {
   return res.json();
 }
 
+export async function apiBlob(path, { auth = true, headers, ...opts } = {}) {
+  const h = new Headers(headers || {});
+
+  const isFormDataBody =
+    typeof FormData !== "undefined" && opts.body instanceof FormData;
+  if (!h.has("Content-Type") && opts.body && !isFormDataBody) {
+    h.set("Content-Type", "application/json");
+  }
+
+  if (auth) {
+    const t = getToken();
+    if (t) h.set("Authorization", `Bearer ${t}`);
+  }
+
+  const res = await fetch(`${API_BASE}${path}`, { ...opts, headers: h });
+
+  if (!res.ok) {
+    const data = await safeJson(res);
+    const message =
+      data?.detalles ||
+      data?.message ||
+      data?.error ||
+      `${res.status} ${res.statusText}` ||
+      "Error desconocido";
+
+    if (res.status === 401 && window.location.pathname !== "/login") {
+      clearToken();
+      window.location.href = "/login";
+    }
+    throw new ApiError(message, res.status, data);
+  }
+
+  return res.blob();
+}
+
 // Compat con tu Sidebar: `const api = useApi();`
 import { useCallback } from "react";
 export function useApi() {
