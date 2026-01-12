@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 export default function AddAsociacion() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const [proveedores, setProveedores] = useState([]);
   const [insumos, setInsumos] = useState([]);
   const api = useApi();
@@ -23,6 +24,17 @@ export default function AddAsociacion() {
 
   const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
+
+  // Permite entrar desde Detalle de Proveedor con proveedor preseleccionado
+  useEffect(() => {
+    const fromQuery =
+      searchParams.get("proveedor") ||
+      searchParams.get("id_proveedor") ||
+      searchParams.get("proveedorId");
+    if (!fromQuery) return;
+    setFormData((prev) => ({ ...prev, id_proveedor: String(fromQuery) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -363,6 +375,7 @@ export default function AddAsociacion() {
             name="id_proveedor"
             value={formData.id_proveedor}
             onChange={handleChange}
+            disabled={!!(searchParams.get("proveedor") || searchParams.get("id_proveedor") || searchParams.get("proveedorId"))}
             className={`w-full border rounded-lg px-3 py-2 ${errors.id_proveedor ? "border-red-500" : "border-gray-300"}`}
           >
             <option value="">Seleccionar proveedor</option>
