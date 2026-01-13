@@ -186,8 +186,8 @@ export default function Navbar() {
             <div role="separator" className="my-2 border-t border-gray-200" />
 
             <MenuGroup label="Catálogos y Productos">
-              <MenuLink to="/Insumos" icon={<FiHome />} label="Insumos" />
-              <MenuLink to="/Productos" icon={<FiTag />} label="Categorías de Productos" />
+              <MenuLink to="/InsumosPIPProductos" icon={<FiTag />} label="Insumos / PIP / Productos" />
+              <MenuLink to="/CostosIndirectos" icon={<MdEqualizer />} label="Costos Indirectos" />
               <MenuLink to="/PautasElaboracion" icon={<FiClipboard />} label="Pautas de Elaboración" />
               <MenuLink to="/Recetas" icon={<FiClipboard />} label="Recetas" />
               <MenuLink to="/Bodegas" icon={<FaWarehouse />} label="Bodegas" />
@@ -207,13 +207,6 @@ export default function Navbar() {
 
             <div role="separator" className="my-2 border-t border-gray-200" />
 
-            <MenuGroup label="Herramientas Admin">
-              <MenuLink
-                to="/admin/bultos/cambiar-bodega"
-                label="Cambiar bodega de bulto"
-                isAllowed={checkScope(ModelType.BULTO, ScopeType.WRITE)}
-              />
-            </MenuGroup>
           </Dropdown>
 
           
