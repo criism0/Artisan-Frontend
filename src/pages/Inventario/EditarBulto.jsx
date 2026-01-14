@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
@@ -43,10 +43,6 @@ export default function EditarBulto() {
   const [categoria, setCategoria] = useState("");
   const [esMerma, setEsMerma] = useState(false);
   const [idPalletDestino, setIdPalletDestino] = useState("");
-
-  const [cantidadUnidades, setCantidadUnidades] = useState("");
-  const [pesoUnitario, setPesoUnitario] = useState("");
-  const [unidadesDisponibles, setUnidadesDisponibles] = useState("");
   const [costoUnitario, setCostoUnitario] = useState("");
 
   useEffect(() => {
@@ -79,20 +75,6 @@ export default function EditarBulto() {
 
         const palletId = bultoResp?.id_pallet ?? "";
         setIdPalletDestino(palletId ? String(palletId) : "");
-
-        setCantidadUnidades(
-          bultoResp?.cantidad_unidades != null
-            ? String(bultoResp.cantidad_unidades)
-            : ""
-        );
-        setPesoUnitario(
-          bultoResp?.peso_unitario != null ? String(bultoResp.peso_unitario) : ""
-        );
-        setUnidadesDisponibles(
-          bultoResp?.unidades_disponibles != null
-            ? String(bultoResp.unidades_disponibles)
-            : ""
-        );
         setCostoUnitario(
           bultoResp?.costo_unitario != null ? String(bultoResp.costo_unitario) : ""
         );
@@ -128,10 +110,6 @@ export default function EditarBulto() {
         categoria,
         es_merma: Boolean(esMerma),
         id_pallet: idPalletDestino ? Number(idPalletDestino) : null,
-        cantidad_unidades: cantidadUnidades === "" ? undefined : Number(cantidadUnidades),
-        peso_unitario: pesoUnitario === "" ? undefined : Number(pesoUnitario),
-        unidades_disponibles:
-          unidadesDisponibles === "" ? undefined : Number(unidadesDisponibles),
         costo_unitario: costoUnitario === "" ? undefined : Number(costoUnitario),
       };
 
@@ -199,6 +177,31 @@ export default function EditarBulto() {
               {bulto?.Pallet?.identificador ??
                 bulto?.pallet?.identificador ??
                 "(sin pallet)"}
+            </div>
+
+            <div className="pt-2">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                <div className="bg-gray-50 border rounded p-2">
+                  <div className="text-gray-500">Cantidad unidades (total)</div>
+                  <div className="font-semibold text-gray-800">{bulto?.cantidad_unidades ?? "—"} un.</div>
+                </div>
+                <div className="bg-gray-50 border rounded p-2">
+                  <div className="text-gray-500">Unidades disponibles</div>
+                  <div className="font-semibold text-gray-800">{bulto?.unidades_disponibles ?? "—"} un.</div>
+                </div>
+                <div className="bg-gray-50 border rounded p-2">
+                  <div className="text-gray-500">Peso unitario (formato)</div>
+                  <div className="font-semibold text-gray-800">{bulto?.peso_unitario ?? "—"}</div>
+                </div>
+              </div>
+
+              <div className="mt-3 p-3 rounded border border-amber-200 bg-amber-50 text-amber-900 text-sm">
+                <div className="font-semibold">Importante: diferencias de inventario</div>
+                <div className="mt-1">
+                  Las <span className="font-semibold">unidades</span> y el <span className="font-semibold">peso unitario</span> no se editan desde esta pantalla.
+                  Si hay pérdidas o diferencias, primero <span className="font-semibold">divide el bulto</span> por la cantidad afectada y luego marca como <span className="font-semibold">merma</span> el bulto generado.
+                </div>
+              </div>
             </div>
           </div>
 
@@ -273,36 +276,6 @@ export default function EditarBulto() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold mb-2">Cantidad unidades</label>
-              <input
-                type="number"
-                step="any"
-                className="border rounded px-3 py-2 w-full"
-                value={cantidadUnidades}
-                onChange={(e) => setCantidadUnidades(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2">Unidades disponibles</label>
-              <input
-                type="number"
-                step="any"
-                className="border rounded px-3 py-2 w-full"
-                value={unidadesDisponibles}
-                onChange={(e) => setUnidadesDisponibles(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2">Peso unitario</label>
-              <input
-                type="number"
-                step="any"
-                className="border rounded px-3 py-2 w-full"
-                value={pesoUnitario}
-                onChange={(e) => setPesoUnitario(e.target.value)}
-              />
-            </div>
             <div>
               <label className="block text-sm font-semibold mb-2">Costo unitario</label>
               <input

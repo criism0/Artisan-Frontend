@@ -189,7 +189,7 @@ export default function AddPVAPorProducto() {
               }
               className="w-full border rounded px-3 py-2"
             >
-              <option value="">Seleccionar Producto Base...</option>
+              <option value="">Seleccionar Producto Comercial...</option>
               {productosBase.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.nombre}

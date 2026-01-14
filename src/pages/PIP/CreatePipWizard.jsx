@@ -1,32 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import Selector from "../../components/Selector";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { insumoToSearchText } from "../../services/fuzzyMatch";
 
-function TabButton({ active, disabled, children, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`px-3 py-2 rounded-lg text-sm border transition disabled:opacity-50 disabled:cursor-not-allowed ${
-        active
-          ? "bg-primary text-white border-primary"
-          : "bg-white hover:bg-gray-50 border-gray-200 text-gray-800"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
+import TabButton from "../../components/Wizard/TabButton";
+import { toNumber } from "../../utils/toNumber";
 
-function toNumber(value) {
-  const n = typeof value === "number" ? value : Number(String(value).replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
-}
+import DatosPipTab from "../../components/WizardTabs/DatosPipTab";
+import RecetaTab from "../../components/WizardTabs/RecetaTab";
+import CostosSecosTab from "../../components/WizardTabs/CostosSecosTab";
+import PautaTab from "../../components/WizardTabs/PautaTab";
+import CostosIndirectosTab from "../../components/WizardTabs/CostosIndirectosTab";
 
 export default function CreatePipWizard() {
   const api = useApi();
@@ -38,6 +24,11 @@ export default function CreatePipWizard() {
   const [materiasPrimas, setMateriasPrimas] = useState([]);
   const [pautas, setPautas] = useState([]);
   const [costosCatalogo, setCostosCatalogo] = useState([]);
+
+  const pipCategoriaId = useMemo(() => {
+    const pip = (categorias || []).find((c) => String(c?.nombre || "").toLowerCase() === "pip");
+    return pip?.id ?? null;
+  }, [categorias]);
 
   const [pipId, setPipId] = useState(null);
   const [recetaId, setRecetaId] = useState(null);
@@ -58,51 +49,53 @@ export default function CreatePipWizard() {
 
   const [ingredientes, setIngredientes] = useState([]);
   const [subproductos, setSubproductos] = useState([]);
+  const [costosSecos, setCostosSecos] = useState([]);
+
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [ingredientPeso, setIngredientPeso] = useState("");
   const [ingredientUnidad, setIngredientUnidad] = useState("");
+
+  const [selectedEquivalenteId, setSelectedEquivalenteId] = useState("");
+  const [equivalentesIds, setEquivalentesIds] = useState([]);
+  const [editingIngredienteId, setEditingIngredienteId] = useState(null);
+
   const [selectedSubproductId, setSelectedSubproductId] = useState("");
 
-  const [selectedPautaId, setSelectedPautaId] = useState("");
+  const [selectedCostoSecoId, setSelectedCostoSecoId] = useState("");
 
-  const [crearPautaOpen, setCrearPautaOpen] = useState(false);
-  const [nuevaPauta, setNuevaPauta] = useState({
-    name: "",
-    description: "",
-    paso1: "",
-    is_active: true,
-  });
+  const [selectedPautaId, setSelectedPautaId] = useState("");
 
   const [recetaCostos, setRecetaCostos] = useState([]);
   const [selectedCostoId, setSelectedCostoId] = useState("");
   const [costoPorKg, setCostoPorKg] = useState("0");
   const [nuevoCosto, setNuevoCosto] = useState({ nombre: "", descripcion: "" });
 
-  const idCategoriaPip = useMemo(() => {
-    const pip = (categorias || []).find((c) => String(c?.nombre || "").toLowerCase() === "pip");
-    return pip?.id ?? null;
-  }, [categorias]);
-
   useEffect(() => {
     const load = async () => {
       try {
-        const [cats, mps, pautasRes, costosRes] = await Promise.all([
+        const [catRes, mps, pautasRes, costosRes] = await Promise.all([
           api("/categorias-materia-prima"),
           api("/materias-primas"),
           api("/pautas-elaboracion"),
           api("/costos-indirectos?is_active=true"),
         ]);
-        setCategorias(Array.isArray(cats) ? cats : []);
+        setCategorias(Array.isArray(catRes) ? catRes : []);
         setMateriasPrimas(Array.isArray(mps) ? mps : []);
         setPautas(Array.isArray(pautasRes) ? pautasRes : []);
         setCostosCatalogo(Array.isArray(costosRes) ? costosRes : []);
       } catch (e) {
         console.error(e);
-        toast.error("No se pudieron cargar catálogos para el wizard");
+        toast.error("No se pudieron cargar datos iniciales: " + (e?.message || e));
       }
     };
     void load();
   }, [api]);
+
+  useEffect(() => {
+    const u = String(pipForm.unidad_medida || "");
+    if (!u) return;
+    setRecetaForm((prev) => ({ ...prev, unidad_medida: u }));
+  }, [pipForm.unidad_medida]);
 
   const mpById = useMemo(() => {
     const map = new Map();
@@ -117,6 +110,7 @@ export default function CreatePipWizard() {
     const list = Array.isArray(materiasPrimas) ? materiasPrimas : [];
     return list
       .filter((mp) => mp && mp.id)
+      .filter((mp) => (pipId ? String(mp.id) !== String(pipId) : true))
       .filter((mp) => mp?.activo !== false)
       .map((mp) => {
         const categoria = mp?.categoria?.nombre || "Sin categoría";
@@ -128,7 +122,7 @@ export default function CreatePipWizard() {
           searchText: insumoToSearchText(mp),
         };
       });
-  }, [materiasPrimas]);
+  }, [materiasPrimas, pipId]);
 
   const opcionesIngredientes = useMemo(() => {
     const selectedIds = new Set(
@@ -154,59 +148,51 @@ export default function CreatePipWizard() {
 
   const refreshRecetaParts = async (targetRecetaId) => {
     if (!targetRecetaId) return;
-    const [ings, subs, costos] = await Promise.all([
+    const [ings, subs, costos, secos] = await Promise.all([
       api(`/recetas/${targetRecetaId}/ingredientes`),
       api(`/recetas/${targetRecetaId}/subproductos`),
       api(`/recetas/${targetRecetaId}/costos-indirectos`),
+      api(`/recetas/${targetRecetaId}/costos-secos`),
     ]);
     setIngredientes(Array.isArray(ings) ? ings : []);
     setSubproductos(Array.isArray(subs) ? subs : []);
     setRecetaCostos(Array.isArray(costos) ? costos : []);
+    setCostosSecos(Array.isArray(secos) ? secos : []);
   };
 
   const handleGuardarPip = async () => {
-    if (!idCategoriaPip) {
-      toast.error("No existe la categoría PIP en el sistema");
-      return;
-    }
-    if (!pipForm.nombre.trim()) {
-      toast.error("Nombre es obligatorio");
-      return;
-    }
-    if (!pipForm.unidad_medida.trim()) {
-      toast.error("Unidad de medida es obligatoria");
-      return;
-    }
+    if (!pipCategoriaId) return toast.error("No existe la categoría 'PIP' en el sistema");
+    if (!pipForm.nombre.trim()) return toast.error("Nombre es obligatorio");
+    if (!pipForm.unidad_medida) return toast.error("Unidad de medida es obligatoria");
+
+    const stockCriticoNum = toNumber(pipForm.stock_critico);
+    if (stockCriticoNum < 0) return toast.error("Stock crítico no puede ser negativo");
 
     try {
       const payload = {
         nombre: pipForm.nombre.trim(),
-        id_categoria: Number(idCategoriaPip),
+        id_categoria: Number(pipCategoriaId),
         unidad_medida: pipForm.unidad_medida,
-        stock_critico: Number(pipForm.stock_critico || 0),
+        stock_critico: stockCriticoNum,
       };
 
       if (pipId) {
-        const updated = await api(`/materias-primas/${pipId}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        });
-        setPipId(updated?.id ?? pipId);
-        toast.success("PIP actualizado. Ahora completa la receta.");
+        await api(`/materias-primas/${pipId}`, { method: "PUT", body: JSON.stringify(payload) });
+        toast.success("PIP actualizado");
       } else {
-        const created = await api("/materias-primas", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        setPipId(created?.id ?? null);
-        toast.success("PIP creado. Ahora completa la receta.");
+        const created = await api(`/materias-primas`, { method: "POST", body: JSON.stringify(payload) });
+        const newId = created?.id ?? null;
+        setPipId(newId);
+        toast.success("PIP creado");
+
+        setRecetaForm((prev) => ({
+          ...prev,
+          nombre: prev.nombre || payload.nombre,
+          descripcion: prev.descripcion || "",
+          unidad_medida: prev.unidad_medida || payload.unidad_medida,
+        }));
       }
 
-      setRecetaForm((prev) => ({
-        ...prev,
-        nombre: prev.nombre || payload.nombre,
-        unidad_medida: prev.unidad_medida || payload.unidad_medida,
-      }));
       setTab("receta");
     } catch (e) {
       console.error(e);
@@ -227,134 +213,98 @@ export default function CreatePipWizard() {
   };
 
   const handleGuardarReceta = async () => {
-    if (!pipId) {
-      toast.error("Primero debes crear el PIP");
-      return;
-    }
-
+    if (!pipId) return toast.error("Primero debes guardar el PIP");
     const pesoNum = toNumber(recetaForm.peso);
-    if (pesoNum <= 0) {
-      toast.error("El peso debe ser mayor a 0");
-      return;
-    }
-    if (!recetaForm.unidad_medida.trim()) {
-      toast.error("Unidad de medida es obligatoria");
-      return;
-    }
-    if (!recetaForm.nombre.trim()) {
-      toast.error("Nombre de receta es obligatorio");
-      return;
-    }
+    if (pesoNum <= 0) return toast.error("El peso debe ser mayor a 0");
+    if (!recetaForm.unidad_medida) return toast.error("Unidad de medida es obligatoria");
+    if (!recetaForm.nombre.trim()) return toast.error("Nombre de receta es obligatorio");
 
     try {
       const payload = buildRecetaPayload();
-
       if (recetaId) {
         await api(`/recetas/${recetaId}`, { method: "PUT", body: JSON.stringify(payload) });
         await refreshRecetaParts(recetaId);
-        toast.success("Receta actualizada. Puedes seguir con ingredientes/subproductos.");
+        toast.success("Receta actualizada");
       } else {
-        const created = await api("/recetas", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        const created = await api("/recetas", { method: "POST", body: JSON.stringify(payload) });
         const newId = created?.id ?? null;
         setRecetaId(newId);
         await refreshRecetaParts(newId);
-        toast.success("Receta creada. Ahora agrega ingredientes/subproductos.");
+        toast.success("Receta creada");
       }
-
-      setTab("ingredientes");
     } catch (e) {
       console.error(e);
       toast.error(`Error guardando receta: ${e?.message || e}`);
     }
   };
 
-  const handleCrearPautaInline = async () => {
-    const name = String(nuevaPauta.name || "").trim();
-    const description = String(nuevaPauta.description || "").trim();
-    const paso1 = String(nuevaPauta.paso1 || "").trim();
+  const handleStartEditIngrediente = (ingrediente) => {
+    if (!ingrediente?.id) return;
+    setEditingIngredienteId(String(ingrediente.id));
 
-    if (!name) {
-      toast.error("Nombre de la pauta es obligatorio");
-      return;
-    }
-    if (!description) {
-      toast.error("Descripción de la pauta es obligatoria");
-      return;
-    }
-    if (!paso1 || paso1.length < 5) {
-      toast.error("El paso 1 debe tener al menos 5 caracteres");
-      return;
-    }
+    const principalId =
+      ingrediente?.id_materia_prima ?? ingrediente?.materiaPrima?.id ?? ingrediente?.materiaPrimaId ?? "";
 
-    try {
-      const pautaRes = await api("/pautas-elaboracion", {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          description,
-          is_active: !!nuevaPauta.is_active,
-        }),
-      });
+    setSelectedIngredientId(principalId ? String(principalId) : "");
+    setIngredientPeso(ingrediente?.peso != null ? String(ingrediente.peso) : "");
+    setIngredientUnidad(ingrediente?.unidad_medida != null ? String(ingrediente.unidad_medida) : "");
 
-      const idPauta = pautaRes?.id;
-      await api("/pasos-pauta-elaboracion", {
-        method: "POST",
-        body: JSON.stringify({
-          id_pauta_elaboracion: idPauta,
-          orden: 1,
-          descripcion: paso1,
-          requires_ph: false,
-          requires_temperature: false,
-          requires_obtained_quantity: false,
-          extra_input_data: null,
-        }),
-      });
+    const eqIds = (ingrediente?.materiasPrimasEquivalentes || [])
+      .map((x) => (x?.id != null ? String(x.id) : null))
+      .filter(Boolean);
 
-      const pautasRes = await api("/pautas-elaboracion");
-      setPautas(Array.isArray(pautasRes) ? pautasRes : []);
-      setSelectedPautaId(String(idPauta));
-      setCrearPautaOpen(false);
-      setNuevaPauta({ name: "", description: "", paso1: "", is_active: true });
-      toast.success("Pauta creada y seleccionada");
-    } catch (e) {
-      console.error(e);
-      toast.error(`Error creando pauta: ${e?.message || e}`);
-    }
+    setEquivalentesIds(eqIds);
+    setSelectedEquivalenteId("");
   };
 
-  const handleAddIngrediente = async () => {
+  const handleCancelEditIngrediente = () => {
+    setEditingIngredienteId(null);
+    setSelectedIngredientId("");
+    setIngredientPeso("");
+    setIngredientUnidad("");
+    setSelectedEquivalenteId("");
+    setEquivalentesIds([]);
+  };
+
+  const handleAddOrUpdateIngrediente = async () => {
     if (!recetaId) return;
-    if (!selectedIngredientId) {
-      toast.error("Selecciona un ingrediente");
-      return;
-    }
+    if (!selectedIngredientId) return toast.error("Selecciona un ingrediente");
     const pesoNum = toNumber(ingredientPeso);
-    if (pesoNum <= 0) {
-      toast.error("El peso del ingrediente debe ser mayor a 0");
-      return;
-    }
+    if (pesoNum <= 0) return toast.error("El peso del ingrediente debe ser mayor a 0");
+
+    const idsEquivalentes = (equivalentesIds || [])
+      .map((x) => Number(x))
+      .filter((n) => Number.isFinite(n) && n > 0);
 
     try {
-      await api(`/recetas/${recetaId}/ingredientes`, {
-        method: "POST",
-        body: JSON.stringify({
-          id_materia_prima: Number(selectedIngredientId),
-          peso: pesoNum,
-          unidad_medida: ingredientUnidad || recetaForm.unidad_medida,
-        }),
-      });
+      if (editingIngredienteId) {
+        await api(`/recetas/${recetaId}/ingredientes/${editingIngredienteId}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            peso: pesoNum,
+            unidad_medida: ingredientUnidad || recetaForm.unidad_medida,
+            ids_materia_prima_equivalentes: idsEquivalentes,
+          }),
+        });
+        toast.success("Ingrediente actualizado");
+      } else {
+        await api(`/recetas/${recetaId}/ingredientes`, {
+          method: "POST",
+          body: JSON.stringify({
+            id_materia_prima: Number(selectedIngredientId),
+            peso: pesoNum,
+            unidad_medida: ingredientUnidad || recetaForm.unidad_medida,
+            ids_materia_prima_equivalentes: idsEquivalentes,
+          }),
+        });
+        toast.success("Ingrediente agregado");
+      }
 
-      setSelectedIngredientId("");
-      setIngredientPeso("");
-      setIngredientUnidad("");
+      handleCancelEditIngrediente();
       await refreshRecetaParts(recetaId);
-      toast.success("Ingrediente agregado");
     } catch (e) {
       console.error(e);
-      toast.error(`Error agregando ingrediente: ${e?.message || e}`);
+      toast.error(`Error guardando ingrediente: ${e?.message || e}`);
     }
   };
 
@@ -372,10 +322,7 @@ export default function CreatePipWizard() {
 
   const handleAddSubproducto = async () => {
     if (!recetaId) return;
-    if (!selectedSubproductId) {
-      toast.error("Selecciona un subproducto");
-      return;
-    }
+    if (!selectedSubproductId) return toast.error("Selecciona un subproducto");
     try {
       await api(`/recetas/${recetaId}/subproductos`, {
         method: "POST",
@@ -390,10 +337,10 @@ export default function CreatePipWizard() {
     }
   };
 
-  const handleRemoveSubproducto = async (mpId) => {
+  const handleRemoveSubproducto = async (idMateriaPrima) => {
     if (!recetaId) return;
     try {
-      await api(`/recetas/${recetaId}/subproductos/${mpId}`, { method: "DELETE" });
+      await api(`/recetas/${recetaId}/subproductos/${idMateriaPrima}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
       toast.success("Subproducto eliminado");
     } catch (e) {
@@ -402,26 +349,53 @@ export default function CreatePipWizard() {
     }
   };
 
+  const handleAddCostoSeco = async () => {
+    if (!recetaId) return;
+    if (!selectedCostoSecoId) return toast.error("Selecciona un costo seco");
+    try {
+      await api(`/recetas/${recetaId}/costos-secos`, {
+        method: "POST",
+        body: JSON.stringify({ id_materia_prima: Number(selectedCostoSecoId) }),
+      });
+      setSelectedCostoSecoId("");
+      await refreshRecetaParts(recetaId);
+      toast.success("Costo seco agregado");
+    } catch (e) {
+      console.error(e);
+      toast.error(`Error agregando costo seco: ${e?.message || e}`);
+    }
+  };
+
+  const handleRemoveCostoSeco = async (idMateriaPrima) => {
+    if (!recetaId) return;
+    try {
+      await api(`/recetas/${recetaId}/costos-secos/${idMateriaPrima}`, { method: "DELETE" });
+      await refreshRecetaParts(recetaId);
+      toast.success("Costo seco eliminado");
+    } catch (e) {
+      console.error(e);
+      toast.error(`Error eliminando costo seco: ${e?.message || e}`);
+    }
+  };
+
   const handleGuardarPauta = async () => {
     if (!recetaId) return;
-    if (!selectedPautaId) {
-      toast.error("Selecciona una pauta");
-      return;
-    }
-
+    if (!selectedPautaId) return toast.error("Selecciona una pauta");
     try {
       const recetaActual = await api(`/recetas/${recetaId}`);
-      const payload = {
-        nombre: recetaActual.nombre,
-        descripcion: recetaActual.descripcion || "",
-        peso: recetaActual.peso,
-        unidad_medida: recetaActual.unidad_medida,
-        costo_referencial_produccion: recetaActual.costo_referencial_produccion ?? 0,
-        id_pauta_elaboracion: Number(selectedPautaId),
-        id_materia_prima: recetaActual.id_materia_prima ?? null,
-        id_producto_base: recetaActual.id_producto_base ?? null,
-      };
-      await api(`/recetas/${recetaId}`, { method: "PUT", body: JSON.stringify(payload) });
+      await api(`/recetas/${recetaId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          nombre: recetaActual.nombre,
+          descripcion: recetaActual.descripcion || "",
+          peso: recetaActual.peso,
+          unidad_medida: recetaActual.unidad_medida,
+          costo_referencial_produccion: recetaActual.costo_referencial_produccion ?? 0,
+          id_pauta_elaboracion: Number(selectedPautaId),
+          id_materia_prima: recetaActual.id_materia_prima ?? null,
+          id_producto_base: recetaActual.id_producto_base ?? null,
+        }),
+      });
       toast.success("Pauta asignada");
       setTab("costos");
     } catch (e) {
@@ -432,10 +406,7 @@ export default function CreatePipWizard() {
 
   const handleCrearCosto = async () => {
     const nombre = String(nuevoCosto.nombre || "").trim();
-    if (!nombre) {
-      toast.error("Nombre de costo indirecto es obligatorio");
-      return;
-    }
+    if (!nombre) return toast.error("Nombre de costo indirecto es obligatorio");
     try {
       await api("/costos-indirectos", {
         method: "POST",
@@ -453,23 +424,13 @@ export default function CreatePipWizard() {
 
   const handleAddCostoReceta = async () => {
     if (!recetaId) return;
-    if (!selectedCostoId) {
-      toast.error("Selecciona un costo indirecto");
-      return;
-    }
+    if (!selectedCostoId) return toast.error("Selecciona un costo indirecto");
     const costoNum = toNumber(costoPorKg);
-    if (costoNum < 0) {
-      toast.error("Costo por kg no puede ser negativo");
-      return;
-    }
-
+    if (costoNum < 0) return toast.error("Costo por kg no puede ser negativo");
     try {
       const updated = await api(`/recetas/${recetaId}/costos-indirectos`, {
         method: "POST",
-        body: JSON.stringify({
-          id_costo_indirecto: Number(selectedCostoId),
-          costo_por_kg: costoNum,
-        }),
+        body: JSON.stringify({ id_costo_indirecto: Number(selectedCostoId), costo_por_kg: costoNum }),
       });
       setRecetaCostos(Array.isArray(updated) ? updated : []);
       setSelectedCostoId("");
@@ -510,555 +471,136 @@ export default function CreatePipWizard() {
   };
 
   const canGoReceta = !!pipId;
-  const canGoIngredientes = !!recetaId;
+  const canGoRest = !!recetaId;
 
   return (
     <div className="p-6 bg-background min-h-screen">
       <div className="mb-4">
-        <BackButton to="/InsumosPIPProductos" />
+        <BackButton to="/PIP" />
       </div>
 
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
         <div>
           <h1 className="text-2xl font-bold text-text">Crear PIP</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Flujo centralizado: datos del PIP → receta → ingredientes/subproductos → pauta → costos indirectos.
-          </p>
+          <div className="text-sm text-gray-600">
+            Wizard para crear insumo PIP + receta (con alternativas y costos secos).
+          </div>
         </div>
-        <div className="flex gap-2">
-          {recetaId ? (
-            <button
-              type="button"
-              className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-              onClick={() => navigate(`/Recetas/${recetaId}`)}
-            >
-              Abrir receta
-            </button>
-          ) : null}
-        </div>
-      </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>1) Datos</TabButton>
-        <TabButton
-          active={tab === "receta"}
-          disabled={!canGoReceta}
-          onClick={() => setTab("receta")}
-        >
-          2) Receta
-        </TabButton>
-        <TabButton
-          active={tab === "ingredientes"}
-          disabled={!canGoIngredientes}
-          onClick={() => setTab("ingredientes")}
-        >
-          3) Ingredientes
-        </TabButton>
-        <TabButton
-          active={tab === "pauta"}
-          disabled={!canGoIngredientes}
-          onClick={() => setTab("pauta")}
-        >
-          4) Pauta
-        </TabButton>
-        <TabButton
-          active={tab === "costos"}
-          disabled={!canGoIngredientes}
-          onClick={() => setTab("costos")}
-        >
-          5) Costos indirectos
-        </TabButton>
+        <div className="flex gap-2 flex-wrap">
+          <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>
+            Datos
+          </TabButton>
+          <TabButton active={tab === "receta"} onClick={() => setTab("receta")} disabled={!canGoReceta}>
+            Receta
+          </TabButton>
+          <TabButton
+            active={tab === "costos-secos"}
+            onClick={() => setTab("costos-secos")}
+            disabled={!canGoRest}
+          >
+            Costos Secos
+          </TabButton>
+          <TabButton active={tab === "pauta"} onClick={() => setTab("pauta")} disabled={!canGoRest}>
+            Pauta
+          </TabButton>
+          <TabButton active={tab === "costos"} onClick={() => setTab("costos")} disabled={!canGoRest}>
+            Costos indirectos
+          </TabButton>
+        </div>
       </div>
 
       {tab === "datos" ? (
-        <div className="bg-white p-6 rounded-lg shadow space-y-4">
-          <div className="text-sm font-semibold text-gray-800">Datos del PIP</div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Nombre *</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2"
-              value={pipForm.nombre}
-              onChange={(e) => setPipForm((p) => ({ ...p, nombre: e.target.value }))}
-              placeholder="Ej: Mezcla base shampoo"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium mb-1">Unidad de medida *</label>
-              <input
-                className="w-full border rounded-lg px-3 py-2"
-                value={pipForm.unidad_medida}
-                onChange={(e) => setPipForm((p) => ({ ...p, unidad_medida: e.target.value }))}
-                placeholder="Ej: Kilogramos, Litros, Unidades"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Stock crítico</label>
-              <input
-                type="number"
-                className="w-full border rounded-lg px-3 py-2"
-                value={pipForm.stock_critico}
-                onChange={(e) => setPipForm((p) => ({ ...p, stock_critico: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="text-xs text-gray-600">
-            Categoría: <span className="font-medium">PIP</span>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              className="bg-primary hover:bg-hover text-white px-6 py-2 rounded"
-              onClick={handleGuardarPip}
-            >
-              {pipId ? "Actualizar y continuar" : "Guardar y continuar"}
-            </button>
-          </div>
-        </div>
+        <DatosPipTab pipId={pipId} pipForm={pipForm} setPipForm={setPipForm} onGuardarPip={handleGuardarPip} />
       ) : null}
 
       {tab === "receta" ? (
-        <div className="bg-white p-6 rounded-lg shadow space-y-4">
-          <div className="text-sm font-semibold text-gray-800">Receta del PIP</div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Nombre receta *</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2"
-              value={recetaForm.nombre}
-              onChange={(e) => setRecetaForm((r) => ({ ...r, nombre: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Descripción</label>
-            <textarea
-              className="w-full border rounded-lg px-3 py-2"
-              value={recetaForm.descripcion}
-              onChange={(e) => setRecetaForm((r) => ({ ...r, descripcion: e.target.value }))}
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm font-medium mb-1">Peso *</label>
-              <input
-                type="number"
-                className="w-full border rounded-lg px-3 py-2"
-                value={recetaForm.peso}
-                onChange={(e) => setRecetaForm((r) => ({ ...r, peso: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Unidad de medida *</label>
-              <input
-                className="w-full border rounded-lg px-3 py-2"
-                value={recetaForm.unidad_medida}
-                onChange={(e) => setRecetaForm((r) => ({ ...r, unidad_medida: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Costo referencial producción</label>
-              <input
-                type="number"
-                className="w-full border rounded-lg px-3 py-2"
-                value={recetaForm.costo_referencial_produccion}
-                onChange={(e) => setRecetaForm((r) => ({ ...r, costo_referencial_produccion: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              className="bg-primary hover:bg-hover text-white px-6 py-2 rounded"
-              onClick={handleGuardarReceta}
-            >
-              {recetaId ? "Actualizar receta y continuar" : "Crear receta y continuar"}
-            </button>
-          </div>
-        </div>
+        <RecetaTab
+          titulo="Receta del PIP"
+          recetaId={recetaId}
+          recetaForm={recetaForm}
+          setRecetaForm={setRecetaForm}
+          onGuardarReceta={handleGuardarReceta}
+          mpById={mpById}
+          opcionesIngredientes={opcionesIngredientes}
+          opcionesMateriaPrima={opcionesMateriaPrima}
+          selectedIngredientId={selectedIngredientId}
+          setSelectedIngredientId={setSelectedIngredientId}
+          ingredientPeso={ingredientPeso}
+          setIngredientPeso={setIngredientPeso}
+          ingredientUnidad={ingredientUnidad}
+          setIngredientUnidad={setIngredientUnidad}
+          selectedEquivalenteId={selectedEquivalenteId}
+          setSelectedEquivalenteId={setSelectedEquivalenteId}
+          equivalentesIds={equivalentesIds}
+          setEquivalentesIds={setEquivalentesIds}
+          editingIngredienteId={editingIngredienteId}
+          onSubmitIngrediente={handleAddOrUpdateIngrediente}
+          onCancelEditIngrediente={handleCancelEditIngrediente}
+          ingredientes={ingredientes}
+          onStartEditIngrediente={handleStartEditIngrediente}
+          onRemoveIngrediente={handleRemoveIngrediente}
+          opcionesSubproductos={opcionesSubproductos}
+          selectedSubproductId={selectedSubproductId}
+          setSelectedSubproductId={setSelectedSubproductId}
+          onAddSubproducto={handleAddSubproducto}
+          subproductos={subproductos}
+          onRemoveSubproducto={handleRemoveSubproducto}
+          onNext={() => setTab("costos-secos")}
+        />
       ) : null}
 
-      {tab === "ingredientes" ? (
-        <div className="space-y-4">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-sm font-semibold text-gray-800 mb-3">Agregar ingrediente</div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Materia prima</label>
-                <Selector
-                  options={opcionesIngredientes}
-                  selectedValue={selectedIngredientId}
-                  onSelect={(value) => {
-                    setSelectedIngredientId(value);
-                    const mp = mpById.get(String(value));
-                    if (mp?.unidad_medida) setIngredientUnidad(String(mp.unidad_medida));
-                  }}
-                  useFuzzy
-                  groupBy="category"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Peso *</label>
-                <input
-                  type="number"
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={ingredientPeso}
-                  onChange={(e) => setIngredientPeso(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Unidad</label>
-                <input
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={ingredientUnidad}
-                  onChange={(e) => setIngredientUnidad(e.target.value)}
-                />
-              </div>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                  onClick={handleAddIngrediente}
-                >
-                  Agregar
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-sm font-semibold text-gray-800 mb-3">Ingredientes</div>
-            {ingredientes.length === 0 ? (
-              <div className="text-sm text-gray-600">Sin ingredientes por ahora.</div>
-            ) : (
-              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-                <thead className="bg-gray-50 text-gray-700">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Materia prima</th>
-                    <th className="px-3 py-2 text-left">Peso</th>
-                    <th className="px-3 py-2 text-left">Unidad</th>
-                    <th className="px-3 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ingredientes.map((i) => (
-                    <tr key={i.id} className="border-t">
-                      <td className="px-3 py-2">{i?.materiaPrima?.nombre || "—"}</td>
-                      <td className="px-3 py-2">{i.peso}</td>
-                      <td className="px-3 py-2">{i.unidad_medida}</td>
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          className="text-red-600 hover:underline"
-                          onClick={() => handleRemoveIngrediente(i.id)}
-                        >
-                          Quitar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-sm font-semibold text-gray-800 mb-3">Subproductos</div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Materia prima</label>
-                <Selector
-                  options={opcionesSubproductos}
-                  selectedValue={selectedSubproductId}
-                  onSelect={(value) => setSelectedSubproductId(value)}
-                  useFuzzy
-                  groupBy="category"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                />
-              </div>
-            </div>
-
-            <div className="flex justify-end mt-3">
-              <button
-                type="button"
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                onClick={handleAddSubproducto}
-              >
-                Agregar subproducto
-              </button>
-            </div>
-
-            <div className="mt-4">
-              {subproductos.length === 0 ? (
-                <div className="text-sm text-gray-600">Sin subproductos por ahora.</div>
-              ) : (
-                <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-                  <thead className="bg-gray-50 text-gray-700">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Materia prima</th>
-                      <th className="px-3 py-2 text-left">Unidad</th>
-                      <th className="px-3 py-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {subproductos.map((s) => (
-                      <tr key={s.id} className="border-t">
-                        <td className="px-3 py-2">{s.nombre}</td>
-                        <td className="px-3 py-2">{s.unidad_medida}</td>
-                        <td className="px-3 py-2 text-right">
-                          <button
-                            type="button"
-                            className="text-red-600 hover:underline"
-                            onClick={() => handleRemoveSubproducto(s.id)}
-                          >
-                            Quitar
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-            <div className="flex justify-end mt-4">
-              <button
-                type="button"
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                onClick={() => setTab("pauta")}
-              >
-                Continuar
-              </button>
-            </div>
-          </div>
-        </div>
+      {tab === "costos-secos" ? (
+        <CostosSecosTab
+          recetaId={recetaId}
+          opcionesMateriaPrima={opcionesMateriaPrima}
+          costosSecos={costosSecos}
+          selectedCostoSecoId={selectedCostoSecoId}
+          setSelectedCostoSecoId={setSelectedCostoSecoId}
+          onAddCostoSeco={handleAddCostoSeco}
+          onRemoveCostoSeco={handleRemoveCostoSeco}
+          onNext={() => setTab("pauta")}
+        />
       ) : null}
 
       {tab === "pauta" ? (
-        <div className="bg-white p-6 rounded-lg shadow space-y-4">
-          <div className="text-sm font-semibold text-gray-800">Asignar pauta de elaboración</div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Pauta</label>
-            <select
-              className="w-full border rounded-lg px-3 py-2"
-              value={selectedPautaId}
-              onChange={(e) => setSelectedPautaId(e.target.value)}
-            >
-              <option value="">Seleccionar</option>
-              {pautas.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} {p.is_active === false ? "(inactiva)" : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="pt-2">
-            <button
-              type="button"
-              className="text-sm text-primary hover:underline"
-              onClick={() => setCrearPautaOpen((v) => !v)}
-            >
-              {crearPautaOpen ? "Cerrar creación rápida" : "+ Crear nueva pauta"}
-            </button>
-          </div>
-
-          {crearPautaOpen ? (
-            <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
-              <div className="text-sm font-semibold text-gray-800">Nueva pauta (rápida)</div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Nombre *</label>
-                <input
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={nuevaPauta.name}
-                  onChange={(e) => setNuevaPauta((p) => ({ ...p, name: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Descripción *</label>
-                <input
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={nuevaPauta.description}
-                  onChange={(e) => setNuevaPauta((p) => ({ ...p, description: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Paso 1 (mínimo) *</label>
-                <input
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={nuevaPauta.paso1}
-                  onChange={(e) => setNuevaPauta((p) => ({ ...p, paso1: e.target.value }))}
-                  placeholder="Ej: Mezclar hasta homogeneizar"
-                />
-              </div>
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                  onClick={handleCrearPautaInline}
-                >
-                  Crear y seleccionar
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-              onClick={() => setTab("costos")}
-            >
-              Omitir
-            </button>
-            <button
-              type="button"
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-              onClick={handleGuardarPauta}
-            >
-              Guardar pauta
-            </button>
-          </div>
-        </div>
+        <PautaTab
+          api={api}
+          pautas={pautas}
+          setPautas={setPautas}
+          selectedPautaId={selectedPautaId}
+          setSelectedPautaId={setSelectedPautaId}
+          onOmitir={() => setTab("costos")}
+          onGuardar={handleGuardarPauta}
+        />
       ) : null}
 
       {tab === "costos" ? (
-        <div className="space-y-4">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-sm font-semibold text-gray-800 mb-3">Asociar costo indirecto a receta (por kg)</div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Costo indirecto</label>
-                <select
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={selectedCostoId}
-                  onChange={(e) => setSelectedCostoId(e.target.value)}
-                >
-                  <option value="">Seleccionar</option>
-                  {costosCatalogo.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Costo $/kg</label>
-                <input
-                  type="number"
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={costoPorKg}
-                  onChange={(e) => setCostoPorKg(e.target.value)}
-                />
-              </div>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                  onClick={handleAddCostoReceta}
-                >
-                  Asociar
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-sm font-semibold text-gray-800 mb-3">Costos indirectos asociados</div>
-            {recetaCostos.length === 0 ? (
-              <div className="text-sm text-gray-600">Sin costos indirectos asociados.</div>
-            ) : (
-              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
-                <thead className="bg-gray-50 text-gray-700">
-                  <tr>
-                    <th className="px-3 py-2 text-left">Nombre</th>
-                    <th className="px-3 py-2 text-left">Costo $/kg</th>
-                    <th className="px-3 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recetaCostos.map((c) => (
-                    <tr key={c.id} className="border-t">
-                      <td className="px-3 py-2">{c.nombre}</td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          className="border rounded-lg px-2 py-1 w-32"
-                          defaultValue={c?.RecetaCostoIndirecto?.costo_por_kg ?? c?.recetaCostoIndirecto?.costo_por_kg ?? 0}
-                          onBlur={(e) => handleUpdateCostoReceta(c.id, e.target.value)}
-                        />
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          className="text-red-600 hover:underline"
-                          onClick={() => handleRemoveCostoReceta(c.id)}
-                        >
-                          Quitar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow">
-            <div className="text-sm font-semibold text-gray-800 mb-3">Crear nuevo costo indirecto</div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium mb-1">Nombre *</label>
-                <input
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={nuevoCosto.nombre}
-                  onChange={(e) => setNuevoCosto((p) => ({ ...p, nombre: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Descripción</label>
-                <input
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={nuevoCosto.descripcion}
-                  onChange={(e) => setNuevoCosto((p) => ({ ...p, descripcion: e.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="flex justify-end mt-3">
-              <button
-                type="button"
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                onClick={handleCrearCosto}
-              >
-                Crear costo
-              </button>
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="button"
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-              onClick={() => {
-                toast.success("PIP creado");
-                navigate(`/Recetas/${recetaId}`);
-              }}
-              disabled={!recetaId}
-            >
-              Finalizar
-            </button>
-          </div>
-        </div>
+        <CostosIndirectosTab
+          costosCatalogo={costosCatalogo}
+          recetaCostos={recetaCostos}
+          selectedCostoId={selectedCostoId}
+          setSelectedCostoId={setSelectedCostoId}
+          costoPorKg={costoPorKg}
+          setCostoPorKg={setCostoPorKg}
+          nuevoCosto={nuevoCosto}
+          setNuevoCosto={setNuevoCosto}
+          onCrearCosto={handleCrearCosto}
+          onAddCostoReceta={handleAddCostoReceta}
+          onUpdateCostoReceta={handleUpdateCostoReceta}
+          onRemoveCostoReceta={handleRemoveCostoReceta}
+        />
       ) : null}
+
+      <div className="mt-8 flex justify-end">
+        <button
+          type="button"
+          className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          onClick={() => navigate("/PIP")}
+        >
+          Volver a PIP
+        </button>
+      </div>
     </div>
   );
 }

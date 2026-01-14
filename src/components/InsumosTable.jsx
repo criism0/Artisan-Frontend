@@ -342,7 +342,7 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
                   Cantidad
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
-                  Formato
+                  Formatow
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
                   Comentario

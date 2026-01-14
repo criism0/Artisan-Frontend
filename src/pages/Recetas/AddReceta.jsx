@@ -86,7 +86,7 @@ export default function AddReceta() {
       newErrors.id_materia_prima = "Para recetas PIP debe seleccionar una materia prima.";
     }
     if (formData.tipo === RECIPE_TYPES.PRODUCTO_TERMINADO && !formData.id_producto_base) {
-      newErrors.id_producto_base = "Para recetas de producto terminado debe seleccionar un producto base.";
+      newErrors.id_producto_base = "Para recetas de producto terminado debe seleccionar un Producto Comercial.";
     }
     
     if (!formData.unidad_medida) newErrors.unidad_medida = "Debe seleccionar una unidad.";
@@ -447,7 +447,7 @@ export default function AddReceta() {
         {/* Costo */}
         <div>
           <label className="block text-sm font-medium mb-1">
-            Costo Referencial Producción: <span className="text-red-500">*</span>
+            Costo Directo Produccion Referencial: <span className="text-red-500">*</span>
           </label>
           <input
             name="costo_referencial_produccion"

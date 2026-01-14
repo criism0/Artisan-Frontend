@@ -1,5 +1,4 @@
 // src/Routing.jsx
-import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 // import { useAuth } from "./auth/AuthContext";
 import RequireAuth from "./auth/RequireAuth";
@@ -47,7 +46,6 @@ import AddPautaElaboracion from "./pages/PautasElaboracion/AddPautaElaboracion";
 import Productos from "./pages/Productos/Productos";
 import ProductDetail from "./pages/Productos/ProductDetail";
 import ProductoEdit from "./pages/Productos/ProductoEdit";
-import AddProducto from "./pages/Productos/AddProducto";
 
 // ====== PIP ======
 import PIPList from "./pages/PIP/PIPList";
@@ -362,10 +360,7 @@ function Routing() {
             element={<Productos />}
           />
           <Route path="/Productos/crear" element={<CreateProductoWizard />} />
-          <Route
-            path="/Productos/add"
-            element={<AddProducto />}
-          />
+
           <Route
             path="/Productos/:id"
             element={<ProductDetail />}

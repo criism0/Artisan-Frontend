@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { formatRutDisplay, toTitle, formatPhone, formatEmail, fmt } from "../../services/formatHelpers";
 import { BackButton, ModifyButton, ToggleActiveButton } from "../../components/Buttons/ActionButtons";
@@ -7,10 +7,7 @@ import { toast } from "../../lib/toast";
 
 const MONEDAS_POSIBLES = ["CLP", "USD", "EUR", "UF"];
 
-function toNumber(value) {
-  const n = typeof value === "number" ? value : Number(String(value).replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
-}
+import { toNumber } from "../../utils/toNumber";
 
 function formatNumberCL(value) {
   const n = toNumber(value);

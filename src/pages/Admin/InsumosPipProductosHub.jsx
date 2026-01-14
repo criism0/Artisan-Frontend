@@ -106,8 +106,8 @@ export default function InsumosPipProductosHub() {
               onClick={() => navigate("/Productos")}
             />
             <Card
-              title="Crear Producto Base"
-              description="Formulario para agregar un nuevo producto base."
+              title="Crear Producto Comercial"
+              description="Formulario para agregar un nuevo Producto Comercial."
               icon={<FiPlus size={18} />}
               tone="primary"
               onClick={() => navigate("/Productos/crear")}

@@ -81,13 +81,13 @@ export default function ResumenAsignacionVenta() {
         // Obtener productos de la orden
         const productosOrden = ordenData.productos || ordenData.productosOrden || [];
 
-        // Construir el resumen usando los bultos asignados por producto base
+        // Construir el resumen usando los bultos asignados por Producto Comercial
         const productosAsignados = productosOrden.map((productoOrden) => {
           // Buscar el nombre del producto en la lista de productos base
           const productoBase = productosBase.find(p => p.id === productoOrden.id_producto);
           const nombreProducto = productoBase?.nombre || `Producto #${productoOrden.id_producto}`;
           
-          // Obtener los bultos asignados para este producto base
+          // Obtener los bultos asignados para este Producto Comercial
           const idProductoBase = String(productoOrden.id_producto);
           const bultosProducto = Array.isArray(bultosPorProductoBase[idProductoBase]) 
             ? bultosPorProductoBase[idProductoBase] 

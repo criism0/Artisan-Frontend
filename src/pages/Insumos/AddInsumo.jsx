@@ -168,15 +168,16 @@ export default function AddInsumo() {
 
         <div>
           <label className="block text-sm font-medium mb-1">Unidad de Medida *</label>
-          <input
-            name="unidad_medida"
-            value={formData.unidad_medida}
-            onChange={handleChange}
-            placeholder="Ej: Unidades, Litros, Kilogramos, N/A, etc."
-            className={`w-full border rounded-lg px-3 py-2 placeholder-gray-400 ${
-              errors.unidad_medida ? "border-red-500" : "border-gray-300"
-            }`}
-          />
+          <select
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+                value={formData.unidad_medida}
+                onChange={handleChange}
+              >
+                <option value="">Seleccionar</option>
+                <option value="Kilogramos">Kilogramos</option>
+                <option value="Litros">Litros</option>
+                <option value="Unidades">Unidades</option>
+              </select>
           {errors.unidad_medida && <p className="text-red-500 text-sm mt-1">{errors.unidad_medida}</p>}
         </div>
 

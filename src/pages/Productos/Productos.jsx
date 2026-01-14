@@ -91,11 +91,6 @@ export default function Productos() {
       },
     },
     {
-      header: renderHeader("Precio Unitario", "precio_unitario"),
-      accessor: "precio_unitario",
-      Cell: ({ value }) => `$${value?.toLocaleString("es-CL") || "0"}`,
-    },
-    {
       header: renderHeader("Unidades por Caja", "unidades_por_caja"),
       accessor: "unidades_por_caja",
       Cell: ({ value }) => `${value?.toLocaleString("es-CL") || "0"}`,
