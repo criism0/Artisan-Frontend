@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+﻿import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import TabButton from "../../components/Wizard/TabButton";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { insumoToSearchText } from "../../services/fuzzyMatch";
+
+import TabButton from "../../components/Wizard/TabButton";
 import { toNumber } from "../../utils/toNumber";
 
 import DatosProductoComercialTab from "../../components/WizardTabs/DatosProductoComercialTab";
@@ -13,12 +14,10 @@ import CostosSecosTab from "../../components/WizardTabs/CostosSecosTab";
 import PautaTab from "../../components/WizardTabs/PautaTab";
 import CostosIndirectosTab from "../../components/WizardTabs/CostosIndirectosTab";
 
-export default function ProductoEdit() {
-  const { id } = useParams();
-  const navigate = useNavigate();
+export default function CreateProductoWizard() {
   const api = useApi();
+  const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("datos");
 
   const [materiasPrimas, setMateriasPrimas] = useState([]);
@@ -49,6 +48,7 @@ export default function ProductoEdit() {
   const [ingredientes, setIngredientes] = useState([]);
   const [subproductos, setSubproductos] = useState([]);
   const [costosSecos, setCostosSecos] = useState([]);
+
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [ingredientPeso, setIngredientPeso] = useState("");
   const [ingredientUnidad, setIngredientUnidad] = useState("");
@@ -56,6 +56,7 @@ export default function ProductoEdit() {
   const [selectedEquivalenteId, setSelectedEquivalenteId] = useState("");
   const [equivalentesIds, setEquivalentesIds] = useState([]);
   const [editingIngredienteId, setEditingIngredienteId] = useState(null);
+
   const [selectedSubproductId, setSelectedSubproductId] = useState("");
 
   const [selectedCostoSecoId, setSelectedCostoSecoId] = useState("");
@@ -70,96 +71,21 @@ export default function ProductoEdit() {
   useEffect(() => {
     const load = async () => {
       try {
-        setLoading(true);
-        const productoBaseId = Number(id);
-        if (!productoBaseId) {
-          toast.error("No se proporcionó ID de producto");
-          navigate("/Productos");
-          return;
-        }
-
-        const [mps, pautasRes, costosRes, productoRes, recetasRes] = await Promise.all([
+        const [mps, pautasRes, costosRes] = await Promise.all([
           api("/materias-primas"),
           api("/pautas-elaboracion"),
           api("/costos-indirectos?is_active=true"),
-          api(`/productos-base/${productoBaseId}`),
-          api(`/recetas/buscar-por-id-producto-base?id_producto_base=${productoBaseId}`),
         ]);
-
         setMateriasPrimas(Array.isArray(mps) ? mps : []);
         setPautas(Array.isArray(pautasRes) ? pautasRes : []);
         setCostosCatalogo(Array.isArray(costosRes) ? costosRes : []);
-
-        setProductoId(productoBaseId);
-        setProductoForm({
-          nombre: productoRes?.nombre || "",
-          descripcion: productoRes?.descripcion || "",
-          peso_unitario: productoRes?.peso_unitario != null ? String(productoRes.peso_unitario) : "",
-          unidad_medida: productoRes?.unidad_medida || "",
-          unidades_por_caja: productoRes?.unidades_por_caja != null ? String(productoRes.unidades_por_caja) : "",
-          codigo_ean: productoRes?.codigo_ean || "",
-          codigo_sap: productoRes?.codigo_sap || "",
-        });
-
-        const recetasList = Array.isArray(recetasRes) ? recetasRes : [];
-        const recetaBase = recetasList[0] || null;
-        if (recetaBase?.id) {
-          const rid = recetaBase.id;
-          setRecetaId(rid);
-
-          const recetaFull = await api(`/recetas/${rid}`);
-          setRecetaForm({
-            nombre: recetaFull?.nombre || recetaBase?.nombre || "",
-            descripcion: recetaFull?.descripcion || recetaBase?.descripcion || "",
-            peso: recetaFull?.peso != null ? String(recetaFull.peso) : recetaBase?.peso != null ? String(recetaBase.peso) : "",
-            unidad_medida: productoRes?.unidad_medida || recetaFull?.unidad_medida || "",
-            costo_referencial_produccion:
-              recetaFull?.costo_referencial_produccion != null
-                ? String(recetaFull.costo_referencial_produccion)
-                : "0",
-          });
-          setSelectedPautaId(recetaFull?.id_pauta_elaboracion ? String(recetaFull.id_pauta_elaboracion) : "");
-
-          const [ings, subs, costos, secos] = await Promise.all([
-            api(`/recetas/${rid}/ingredientes`),
-            api(`/recetas/${rid}/subproductos`),
-            api(`/recetas/${rid}/costos-indirectos`),
-            api(`/recetas/${rid}/costos-secos`),
-          ]);
-          setIngredientes(Array.isArray(ings) ? ings : []);
-          setSubproductos(Array.isArray(subs) ? subs : []);
-          setRecetaCostos(Array.isArray(costos) ? costos : []);
-          setCostosSecos(Array.isArray(secos) ? secos : []);
-        } else {
-          setRecetaId(null);
-          setIngredientes([]);
-          setSubproductos([]);
-          setRecetaCostos([]);
-          setCostosSecos([]);
-
-          setRecetaForm((prev) => ({
-            ...prev,
-            nombre: prev.nombre || (productoRes?.nombre || ""),
-            unidad_medida: productoRes?.unidad_medida || prev.unidad_medida,
-            peso: prev.peso || (productoRes?.peso_unitario != null ? String(productoRes.peso_unitario) : ""),
-          }));
-        }
       } catch (e) {
         console.error(e);
-        toast.error("No se pudieron cargar los datos del producto");
-      } finally {
-        setLoading(false);
+        toast.error("No se pudieron cargar datos iniciales: " + (e?.message || e));
       }
     };
     void load();
-  }, [api, id, navigate]);
-
-  useEffect(() => {
-    // La unidad de la receta debe coincidir con la del Producto Comercial.
-    const u = String(productoForm.unidad_medida || "");
-    if (!u) return;
-    setRecetaForm((prev) => ({ ...prev, unidad_medida: u }));
-  }, [productoForm.unidad_medida]);
+  }, [api]);
 
   const mpById = useMemo(() => {
     const map = new Map();
@@ -199,7 +125,11 @@ export default function ProductoEdit() {
   }, [opcionesMateriaPrima, ingredientes, selectedIngredientId]);
 
   const opcionesSubproductos = useMemo(() => {
-    const selectedIds = new Set((subproductos || []).map((s) => String(s?.id ?? s?.id_materia_prima ?? "")).filter(Boolean));
+    const selectedIds = new Set(
+      (subproductos || [])
+        .map((s) => String(s?.id ?? s?.id_materia_prima ?? ""))
+        .filter(Boolean)
+    );
     return (opcionesMateriaPrima || []).filter(
       (opt) => opt.value === String(selectedSubproductId || "") || !selectedIds.has(opt.value)
     );
@@ -220,7 +150,6 @@ export default function ProductoEdit() {
   };
 
   const handleGuardarProducto = async () => {
-    if (!productoId) return;
     if (!productoForm.nombre.trim()) return toast.error("Nombre es obligatorio");
     if (!productoForm.descripcion.trim()) return toast.error("Descripción es obligatoria");
     if (!productoForm.codigo_ean.trim()) return toast.error("Código EAN es obligatorio");
@@ -243,12 +172,28 @@ export default function ProductoEdit() {
         codigo_sap: productoForm.codigo_sap.trim(),
       };
 
-      await api(`/productos-base/${productoId}`, { method: "PUT", body: JSON.stringify(payload) });
-      toast.success("Producto Comercial actualizado");
+      if (productoId) {
+        await api(`/productos-base/${productoId}`, { method: "PUT", body: JSON.stringify(payload) });
+        toast.success("Producto Comercial actualizado");
+      } else {
+        const created = await api(`/productos-base`, { method: "POST", body: JSON.stringify(payload) });
+        const newId = created?.id ?? null;
+        setProductoId(newId);
+        toast.success("Producto Comercial creado");
+
+        setRecetaForm((prev) => ({
+          ...prev,
+          nombre: prev.nombre || payload.nombre,
+          descripcion: prev.descripcion || "",
+          peso: prev.peso || String(peso || 1),
+          unidad_medida: prev.unidad_medida || payload.unidad_medida,
+        }));
+      }
+
       setTab("receta");
     } catch (e) {
       console.error(e);
-      toast.error(`Error actualizando producto: ${e?.message || e}`);
+      toast.error(`Error guardando producto: ${e?.message || e}`);
     }
   };
 
@@ -284,7 +229,6 @@ export default function ProductoEdit() {
         await refreshRecetaParts(newId);
         toast.success("Receta creada");
       }
-      setTab("receta");
     } catch (e) {
       console.error(e);
       toast.error(`Error guardando receta: ${e?.message || e}`);
@@ -390,10 +334,10 @@ export default function ProductoEdit() {
     }
   };
 
-  const handleRemoveSubproducto = async (mpId) => {
+  const handleRemoveSubproducto = async (idMateriaPrima) => {
     if (!recetaId) return;
     try {
-      await api(`/recetas/${recetaId}/subproductos/${mpId}`, { method: "DELETE" });
+      await api(`/recetas/${recetaId}/subproductos/${idMateriaPrima}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
       toast.success("Subproducto eliminado");
     } catch (e) {
@@ -526,63 +470,41 @@ export default function ProductoEdit() {
   const canGoReceta = !!productoId;
   const canGoRest = !!recetaId;
 
-  if (loading) {
-    return (
-      <div className="p-6 bg-background min-h-screen">
-        <div className="flex justify-center items-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-          <span className="ml-3 text-primary">Cargando datos...</span>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="p-6 bg-background min-h-screen">
       <div className="mb-4">
-        <BackButton to={`/Productos/${id}`} />
+        <BackButton to="/Productos" />
       </div>
 
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-text">Editar Producto Comercial</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Flujo centralizado: datos del producto → receta → ingredientes/subproductos → pauta → costos indirectos.
-          </p>
+          <h1 className="text-2xl font-bold text-text">Crear Producto Comercial</h1>
+          <div className="text-sm text-gray-600">Wizard para crear producto + receta (con alternativas y costos secos).</div>
         </div>
-        <div className="flex gap-2">
-          {recetaId ? (
-            <button
-              type="button"
-              className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-              onClick={() => navigate(`/Recetas/${recetaId}`)}
-            >
-              Abrir receta
-            </button>
-          ) : null}
-        </div>
-      </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>
-          Datos
-        </TabButton>
-        <TabButton active={tab === "receta"} disabled={!canGoReceta} onClick={() => setTab("receta")}>
-          Receta
-        </TabButton>
-        <TabButton
-          active={tab === "costos-secos"}
-          disabled={!canGoRest}
-          onClick={() => setTab("costos-secos")}
-        >
-          Costos Secos
-        </TabButton>
-        <TabButton active={tab === "pauta"} disabled={!canGoRest} onClick={() => setTab("pauta")}>
-          Pauta
-        </TabButton>
-        <TabButton active={tab === "costos"} disabled={!canGoRest} onClick={() => setTab("costos")}>
-          Costos indirectos
-        </TabButton>
+        <div className="flex gap-2 flex-wrap">
+          <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>Datos</TabButton>
+          <TabButton
+            active={tab === "receta"}
+            onClick={() => setTab("receta")}
+            disabled={!canGoReceta}
+          >
+            Receta
+          </TabButton>
+          <TabButton
+            active={tab === "costos-secos"}
+            onClick={() => setTab("costos-secos")}
+            disabled={!canGoRest}
+          >
+            Costos Secos
+          </TabButton>
+          <TabButton active={tab === "pauta"} onClick={() => setTab("pauta")} disabled={!canGoRest}>
+            Pauta
+          </TabButton>
+          <TabButton active={tab === "costos"} onClick={() => setTab("costos")} disabled={!canGoRest}>
+            Costos indirectos
+          </TabButton>
+        </div>
       </div>
 
       {tab === "datos" ? (
@@ -601,7 +523,6 @@ export default function ProductoEdit() {
           recetaForm={recetaForm}
           setRecetaForm={setRecetaForm}
           onGuardarReceta={handleGuardarReceta}
-          unidadMedidaReadOnly
           mpById={mpById}
           opcionesIngredientes={opcionesIngredientes}
           opcionesMateriaPrima={opcionesMateriaPrima}
@@ -672,6 +593,16 @@ export default function ProductoEdit() {
           onRemoveCostoReceta={handleRemoveCostoReceta}
         />
       ) : null}
+
+      <div className="mt-8 flex justify-end">
+        <button
+          type="button"
+          className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          onClick={() => navigate("/Productos")}
+        >
+          Volver a Productos
+        </button>
+      </div>
     </div>
   );
 }

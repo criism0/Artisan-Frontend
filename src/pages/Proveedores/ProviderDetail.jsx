@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { formatRutDisplay, toTitle, formatPhone, formatEmail, fmt } from "../../services/formatHelpers";
 import { BackButton, ModifyButton, ToggleActiveButton } from "../../components/Buttons/ActionButtons";
@@ -7,10 +7,7 @@ import { toast } from "../../lib/toast";
 
 const MONEDAS_POSIBLES = ["CLP", "USD", "EUR", "UF"];
 
-function toNumber(value) {
-  const n = typeof value === "number" ? value : Number(String(value).replace(",", "."));
-  return Number.isFinite(n) ? n : 0;
-}
+import { toNumber } from "../../utils/toNumber";
 
 function formatNumberCL(value) {
   const n = toNumber(value);
@@ -68,6 +65,7 @@ function EstadoPill({ activo }) {
 
 function ProveedorInsumos({ proveedorId }) {
   const api = useApi();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(true);
 
   const [asociaciones, setAsociaciones] = useState([]);
@@ -396,6 +394,19 @@ function ProveedorInsumos({ proveedorId }) {
 
         <div className="flex items-center gap-2 px-4 py-3">
           <button
+            className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-60"
+            onClick={() =>
+              navigate(
+                `/Insumos/asociar?proveedor=${encodeURIComponent(String(proveedorId ?? ""))}`
+              )
+            }
+            disabled={loading || !proveedorId}
+            type="button"
+            title="Agregar una nueva asociación de insumo para este proveedor"
+          >
+            + Asociación
+          </button>
+          <button
             className="px-3 py-2 bg-gray-200 text-gray-900 rounded-lg hover:bg-gray-300 disabled:opacity-60"
             onClick={handleDescartarCambios}
             disabled={loading || resumen.pendientes === 0}
@@ -431,7 +442,23 @@ function ProveedorInsumos({ proveedorId }) {
             <div key={g.key} className="border border-gray-200 rounded-lg overflow-hidden bg-white">
               <div className="bg-gray-100 px-4 py-2 flex items-center justify-between">
                 <div className="font-semibold text-gray-900">{g.nombre}</div>
-                <div className="text-xs text-gray-600">{g.rows.length} formato(s)</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-xs text-gray-600">{g.rows.length} formato(s)</div>
+                  <button
+                    className="px-2 py-1 text-xs border rounded-lg bg-white hover:bg-gray-50"
+                    onClick={() =>
+                      navigate(
+                        `/Insumos/asociar/${encodeURIComponent(String(g.key))}?proveedor=${encodeURIComponent(
+                          String(proveedorId ?? "")
+                        )}`
+                      )
+                    }
+                    type="button"
+                    title="Extender formatos (caja, pallet, etc.) para este insumo"
+                  >
+                    Extender formatos
+                  </button>
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -533,7 +560,7 @@ function ProveedorInsumos({ proveedorId }) {
                               <input
                                 type="checkbox"
                                 checked={!!d?.es_unidad_consumo}
-                                onChange={(e) => setDraftField(row.id, "es_unidad_consumo", e.target.checked)}
+                                disabled
                               />
                               <span className="text-sm">Unidad consumo</span>
                             </label>

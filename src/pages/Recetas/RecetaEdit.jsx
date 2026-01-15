@@ -91,7 +91,7 @@ export default function RecetaEdit() {
       return;
     }
 
-    // Derivar unidad al seleccionar producto base
+    // Derivar unidad al seleccionar Producto Comercial
     if (name === 'id_producto_base') {
       const producto = productos.find((p) => String(p.id) === String(value));
       setReceta((prev) => ({
@@ -129,7 +129,7 @@ export default function RecetaEdit() {
       return;
     }
     if (receta.tipo === RECIPE_TYPES.PRODUCTO_TERMINADO && !receta.id_producto_base) {
-      toast.error("Debe seleccionar un producto base para recetas de producto terminado.");
+      toast.error("Debe seleccionar un Producto Comercial para recetas de producto terminado.");
       return;
     }
 
@@ -299,7 +299,7 @@ export default function RecetaEdit() {
               className="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50 text-gray-700 placeholder-gray-400"
             />
             <p className="text-xs text-gray-500 mt-1">
-              La unidad de medida se obtiene desde el producto base o insumo seleccionado.
+              La unidad de medida se obtiene desde el Producto Comercial o insumo seleccionado.
             </p>
           </div>
 
@@ -316,7 +316,7 @@ export default function RecetaEdit() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">Costo Referencial Producción:</label>
+            <label className="block text-sm font-medium mb-1">Costo Directo Produccion Referencial:</label>
             <input
               type="number"
               name="costo_referencial_produccion"

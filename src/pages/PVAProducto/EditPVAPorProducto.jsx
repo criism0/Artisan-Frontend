@@ -59,7 +59,7 @@ export default function EditPVAPorProducto() {
     const newErrors = {};
     if (!formData.id_proceso) newErrors.id_proceso = "Debe seleccionar un proceso.";
     if (!formData.id_materia_prima && !formData.id_producto_base)
-      newErrors.producto = "Debe seleccionar un producto base o una materia prima.";
+      newErrors.producto = "Debe seleccionar un Producto Comercial o una materia prima.";
     if (!formData.orden) newErrors.orden = "Debe ingresar un orden.";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -224,7 +224,7 @@ export default function EditPVAPorProducto() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Producto Base</label>
+          <label className="block text-sm font-medium mb-1">Producto Comercial</label>
           <select
             disabled={formData.id_materia_prima !== ""}
             value={formData.id_producto_base}

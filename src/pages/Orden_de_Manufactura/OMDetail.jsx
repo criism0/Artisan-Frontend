@@ -292,9 +292,6 @@ export default function OMDetail() {
                   Fecha Vencimiento
                 </th>
                 <th className="text-left px-4 py-3 text-sm font-medium text-text">
-                  Precio Venta
-                </th>
-                <th className="text-left px-4 py-3 text-sm font-medium text-text">
                   Costo
                 </th>
               </tr>
@@ -315,9 +312,6 @@ export default function OMDetail() {
                     {prod.loteProductoFinal?.fecha_vencimiento
                       ? new Date(prod.loteProductoFinal?.fecha_vencimiento).toLocaleDateString()
                       : ""}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-text">
-                    {prod.loteProductoFinal?.productoBase?.precio_unitario || ""}
                   </td>
                   <td className="px-4 py-3 text-sm text-text">
                     {(prod.costo_unitario).toFixed(2)}

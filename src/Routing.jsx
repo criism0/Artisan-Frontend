@@ -1,5 +1,4 @@
 // src/Routing.jsx
-import React from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 // import { useAuth } from "./auth/AuthContext";
 import RequireAuth from "./auth/RequireAuth";
@@ -47,7 +46,6 @@ import AddPautaElaboracion from "./pages/PautasElaboracion/AddPautaElaboracion";
 import Productos from "./pages/Productos/Productos";
 import ProductDetail from "./pages/Productos/ProductDetail";
 import ProductoEdit from "./pages/Productos/ProductoEdit";
-import AddProducto from "./pages/Productos/AddProducto";
 
 // ====== PIP ======
 import PIPList from "./pages/PIP/PIPList";
@@ -166,6 +164,12 @@ import GenerarQR from "./pages/GenerarQR/GenerarQR.jsx";
 import PalletsDashboard from "./pages/Logistica/PalletsDashboard";
 import CambiarBodegaBulto from "./pages/Admin/CambiarBodegaBulto.jsx";
 
+// ====== Hub + Wizards (admin) ======
+import InsumosPipProductosHub from "./pages/Admin/InsumosPipProductosHub.jsx";
+import CreatePipWizard from "./pages/PIP/CreatePipWizard.jsx";
+import CreateProductoWizard from "./pages/Productos/CreateProductoWizard.jsx";
+import CostosIndirectos from "./pages/CostosIndirectos/CostosIndirectos.jsx";
+
 
 function Routing() {
   // const { user, isAuth } = useAuth();
@@ -204,6 +208,9 @@ function Routing() {
 
           {/* Admin tools */}
           <Route path="/admin/bultos/cambiar-bodega" element={<CambiarBodegaBulto />} />
+
+          {/* Hub central de creación (admin) */}
+          <Route path="/InsumosPIPProductos" element={<InsumosPipProductosHub />} />
 
           <Route path="/Inventario/:id_bodega" element={<InventarioInsumos />} />
           <Route
@@ -343,16 +350,17 @@ function Routing() {
             element={<PautaElaboracionEdit />}
           />
 
+          {/* Costos Indirectos (admin) */}
+          <Route path="/CostosIndirectos" element={<CostosIndirectos />} />
+
           {/* Productos (admin) */}
           <Route path="/productos-terminados" element={<InventarioProductosTerminados />} />
           <Route
             path="/Productos"
             element={<Productos />}
           />
-          <Route
-            path="/Productos/add"
-            element={<AddProducto />}
-          />
+          <Route path="/Productos/crear" element={<CreateProductoWizard />} />
+
           <Route
             path="/Productos/:id"
             element={<ProductDetail />}
@@ -364,6 +372,7 @@ function Routing() {
 
           {/* PIP (admin) */}
           <Route path="/PIP" element={<PIPList />} />
+          <Route path="/PIP/crear" element={<CreatePipWizard />} />
 
           {/* Insumos (admin) */}
           <Route

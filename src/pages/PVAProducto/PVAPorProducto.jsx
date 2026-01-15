@@ -45,7 +45,7 @@ export default function PVAPorProducto() {
   const getNombreProducto = (r) => {
     if (r.id_producto_base) {
       const p = productosBase.find((x) => x.id === r.id_producto_base);
-      return p ? p.nombre : `Producto Base #${r.id_producto_base}`;
+      return p ? p.nombre : `Producto Comercial #${r.id_producto_base}`;
     }
     if (r.id_materia_prima) {
       const m = materiasPrimas.find((x) => x.id === r.id_materia_prima);
