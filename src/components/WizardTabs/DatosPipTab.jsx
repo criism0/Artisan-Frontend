@@ -8,7 +8,7 @@ export default function DatosPipTab({
   return (
     <div className="bg-white p-6 rounded-lg shadow space-y-4">
       <div className="text-sm font-semibold text-gray-800">Datos del PIP</div>
-      <div className="text-sm text-gray-600">Crea el PIP (insumo) y luego define su receta.</div>
+      <div className="text-sm text-gray-600">Crea el PIP y luego define su receta.</div>
 
       <div>
         <label className="block text-sm font-medium mb-1">Nombre *</label>
@@ -16,7 +16,7 @@ export default function DatosPipTab({
           className="w-full border rounded-lg px-3 py-2"
           value={pipForm.nombre}
           onChange={(e) => setPipForm((p) => ({ ...p, nombre: e.target.value }))}
-          placeholder="Ej: Mezcla base shampoo"
+          placeholder="Ej: PIP Yogurt Griego"
         />
       </div>
 
