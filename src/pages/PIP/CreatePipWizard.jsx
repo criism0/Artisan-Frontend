@@ -12,6 +12,7 @@ import DatosPipTab from "../../components/WizardTabs/DatosPipTab";
 import RecetaTab from "../../components/WizardTabs/RecetaTab";
 import CostosSecosTab from "../../components/WizardTabs/CostosSecosTab";
 import PautaTab from "../../components/WizardTabs/PautaTab";
+import PVAsTab from "../../components/WizardTabs/PVAsTab";
 import CostosIndirectosTab from "../../components/WizardTabs/CostosIndirectosTab";
 
 export default function CreatePipWizard() {
@@ -49,7 +50,6 @@ export default function CreatePipWizard() {
 
   const [ingredientes, setIngredientes] = useState([]);
   const [subproductos, setSubproductos] = useState([]);
-  const [costosSecos, setCostosSecos] = useState([]);
 
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [ingredientPeso, setIngredientPeso] = useState("");
@@ -60,8 +60,6 @@ export default function CreatePipWizard() {
   const [editingIngredienteId, setEditingIngredienteId] = useState(null);
 
   const [selectedSubproductId, setSelectedSubproductId] = useState("");
-
-  const [selectedCostoSecoId, setSelectedCostoSecoId] = useState("");
 
   const [selectedPautaId, setSelectedPautaId] = useState("");
 
@@ -148,16 +146,14 @@ export default function CreatePipWizard() {
 
   const refreshRecetaParts = async (targetRecetaId) => {
     if (!targetRecetaId) return;
-    const [ings, subs, costos, secos] = await Promise.all([
+    const [ings, subs, costos] = await Promise.all([
       api(`/recetas/${targetRecetaId}/ingredientes`),
       api(`/recetas/${targetRecetaId}/subproductos`),
       api(`/recetas/${targetRecetaId}/costos-indirectos`),
-      api(`/recetas/${targetRecetaId}/costos-secos`),
     ]);
     setIngredientes(Array.isArray(ings) ? ings : []);
     setSubproductos(Array.isArray(subs) ? subs : []);
     setRecetaCostos(Array.isArray(costos) ? costos : []);
-    setCostosSecos(Array.isArray(secos) ? secos : []);
   };
 
   const handleGuardarPip = async () => {
@@ -349,34 +345,6 @@ export default function CreatePipWizard() {
     }
   };
 
-  const handleAddCostoSeco = async () => {
-    if (!recetaId) return;
-    if (!selectedCostoSecoId) return toast.error("Selecciona un costo seco");
-    try {
-      await api(`/recetas/${recetaId}/costos-secos`, {
-        method: "POST",
-        body: JSON.stringify({ id_materia_prima: Number(selectedCostoSecoId) }),
-      });
-      setSelectedCostoSecoId("");
-      await refreshRecetaParts(recetaId);
-      toast.success("Costo seco agregado");
-    } catch (e) {
-      console.error(e);
-      toast.error(`Error agregando costo seco: ${e?.message || e}`);
-    }
-  };
-
-  const handleRemoveCostoSeco = async (idMateriaPrima) => {
-    if (!recetaId) return;
-    try {
-      await api(`/recetas/${recetaId}/costos-secos/${idMateriaPrima}`, { method: "DELETE" });
-      await refreshRecetaParts(recetaId);
-      toast.success("Costo seco eliminado");
-    } catch (e) {
-      console.error(e);
-      toast.error(`Error eliminando costo seco: ${e?.message || e}`);
-    }
-  };
 
   const handleGuardarPauta = async () => {
     if (!recetaId) return;
@@ -397,7 +365,7 @@ export default function CreatePipWizard() {
         }),
       });
       toast.success("Pauta asignada");
-      setTab("costos");
+      setTab("pvas");
     } catch (e) {
       console.error(e);
       toast.error(`Error asignando pauta: ${e?.message || e}`);
@@ -483,7 +451,7 @@ export default function CreatePipWizard() {
         <div>
           <h1 className="text-2xl font-bold text-text">Crear PIP</h1>
           <div className="text-sm text-gray-600">
-            Wizard para crear insumo PIP + receta (con alternativas y costos secos).
+            Formulario para crear insumo PIP + receta.
           </div>
         </div>
 
@@ -503,6 +471,9 @@ export default function CreatePipWizard() {
           </TabButton>
           <TabButton active={tab === "pauta"} onClick={() => setTab("pauta")} disabled={!canGoRest}>
             Pauta
+          </TabButton>
+          <TabButton active={tab === "pvas"} onClick={() => setTab("pvas")} disabled={!canGoRest}>
+            PVAs
           </TabButton>
           <TabButton active={tab === "costos"} onClick={() => setTab("costos")} disabled={!canGoRest}>
             Costos indirectos
@@ -554,11 +525,6 @@ export default function CreatePipWizard() {
         <CostosSecosTab
           recetaId={recetaId}
           opcionesMateriaPrima={opcionesMateriaPrima}
-          costosSecos={costosSecos}
-          selectedCostoSecoId={selectedCostoSecoId}
-          setSelectedCostoSecoId={setSelectedCostoSecoId}
-          onAddCostoSeco={handleAddCostoSeco}
-          onRemoveCostoSeco={handleRemoveCostoSeco}
           onNext={() => setTab("pauta")}
         />
       ) : null}
@@ -570,8 +536,15 @@ export default function CreatePipWizard() {
           setPautas={setPautas}
           selectedPautaId={selectedPautaId}
           setSelectedPautaId={setSelectedPautaId}
-          onOmitir={() => setTab("costos")}
+          onOmitir={() => setTab("pvas")}
           onGuardar={handleGuardarPauta}
+        />
+      ) : null}
+
+      {tab === "pvas" ? (
+        <PVAsTab
+          materiaPrimaId={pipId}
+          onNext={() => setTab("costos")}
         />
       ) : null}
 

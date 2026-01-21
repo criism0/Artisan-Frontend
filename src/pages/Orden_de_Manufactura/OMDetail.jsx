@@ -1,7 +1,69 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { api } from "../../lib/api";
+import { api, apiBlob } from "../../lib/api";
 import { BackButton } from "../../components/Buttons/ActionButtons";
+import { toast } from "../../lib/toast";
+import { downloadBlob } from "../../lib/downloadBlob";
+import { FileDown, Pencil } from "lucide-react";
+
+const CATEGORIAS = [
+  { value: "I", label: "Insumos (I)" },
+  { value: "PIP", label: "PIP" },
+  { value: "PT", label: "PT" },
+  { value: "M", label: "Merma (M)" },
+];
+
+function getBodegaNombre(b) {
+  return b?.Bodega?.nombre ?? b?.bodega?.nombre ?? "(sin bodega)";
+}
+
+function getItemNombre(b) {
+  return (
+    b?.materiaPrima?.nombre ??
+    b?.MateriaPrima?.nombre ??
+    b?.loteProductoFinal?.productoBase?.nombre ??
+    b?.LoteProductoFinal?.productoBase?.nombre ??
+    "Desconocido"
+  );
+}
+
+function getUnidadMedida(b) {
+  return (
+    b?.materiaPrima?.unidad_medida ??
+    b?.MateriaPrima?.unidad_medida ??
+    b?.loteProductoFinal?.productoBase?.unidad_medida ??
+    b?.LoteProductoFinal?.productoBase?.unidad_medida ??
+    ""
+  );
+}
+
+function getClaveCategoria(b) {
+  return b?.clave_categoria ?? (b?.es_merma ? "M" : b?.categoria) ?? "";
+}
+
+function BadgeCategoria({ value }) {
+  const v = value || "";
+  const base =
+    "inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-semibold";
+  if (v === "M") return <span className={`${base} bg-red-100 text-red-700`}>M</span>;
+  if (v === "PT") return <span className={`${base} bg-green-100 text-green-700`}>PT</span>;
+  if (v === "PIP") return <span className={`${base} bg-amber-100 text-amber-800`}>PIP</span>;
+  if (v === "I") return <span className={`${base} bg-blue-100 text-blue-700`}>I</span>;
+  return <span className={`${base} bg-gray-100 text-gray-600`}>—</span>;
+}
+
+function BadgeEstadoPVA({ value }) {
+  const v = String(value || "").toLowerCase();
+  const base = "px-2 py-0.5 rounded-full text-xs font-semibold";
+  if (!v) return <span className={`${base} bg-gray-100 text-gray-600`}>—</span>;
+  if (v.includes("pend")) return <span className={`${base} bg-amber-100 text-amber-800`}>Pendiente</span>;
+  if (v.includes("progres") || v.includes("ejec") || v.includes("inici"))
+    return <span className={`${base} bg-blue-100 text-blue-700`}>En progreso</span>;
+  if (v.includes("termin") || v.includes("complet"))
+    return <span className={`${base} bg-green-100 text-green-700`}>Completado</span>;
+  if (v.includes("cancel")) return <span className={`${base} bg-red-100 text-red-700`}>Cancelado</span>;
+  return <span className={`${base} bg-gray-100 text-gray-600`}>{value}</span>;
+}
 
 export default function OMDetail() {
   const { id } = useParams();
@@ -9,7 +71,14 @@ export default function OMDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [productosFinales, setProductosFinales] = useState([]);
+  const [loteProductoEnProceso, setLoteProductoEnProceso] = useState(null);
   const [subproductos, setSubproductos] = useState([]);
+  const [consumoInsumos, setConsumoInsumos] = useState([]);
+  const [bultosAsociados, setBultosAsociados] = useState([]);
+  const [loadingBultos, setLoadingBultos] = useState(false);
+  const [pautasPVA, setPautasPVA] = useState([]);
+  const [loadingPVA, setLoadingPVA] = useState(false);
+  const [selectedBultoIds, setSelectedBultoIds] = useState(() => new Set());
   const [showSubproductos, setShowSubproductos] = useState(false);
   const [insumosAsignados, setInsumosAsignados] = useState(false);
   const [tieneRegistrosInsumo, setTieneRegistrosInsumo] = useState(false);
@@ -32,9 +101,41 @@ export default function OMDetail() {
         const res = await api(`/ordenes_manufactura/${id}/productos_finales`);
         setProductosFinales(res.productosFinales || []);
         setSubproductos(res.subproductos || []);
+        setLoteProductoEnProceso(res.loteProductoEnProceso || null);
+
+        const loteId = Number(res?.loteProductoEnProceso?.id);
+        if (Number.isFinite(loteId) && loteId > 0) {
+          setLoadingPVA(true);
+          try {
+            const pautas = await api(`/pautas-valor-agregado/lote?id_lote_producto_en_proceso=${loteId}`);
+            setPautasPVA(Array.isArray(pautas) ? pautas : []);
+          } catch {
+            setPautasPVA([]);
+          } finally {
+            setLoadingPVA(false);
+          }
+        } else {
+          setPautasPVA([]);
+        }
       } catch {
         setProductosFinales([]);
         setSubproductos([]);
+        setLoteProductoEnProceso(null);
+        setPautasPVA([]);
+      }
+    };
+
+    const fetchBultosAsociados = async () => {
+      try {
+        setLoadingBultos(true);
+        const res = await api(`/ordenes_manufactura/${id}/bultos`);
+        setBultosAsociados(Array.isArray(res?.bultos) ? res.bultos : []);
+        setSelectedBultoIds(new Set());
+      } catch {
+        setBultosAsociados([]);
+        setSelectedBultoIds(new Set());
+      } finally {
+        setLoadingBultos(false);
       }
     };
 
@@ -42,6 +143,7 @@ export default function OMDetail() {
       try {
         const res = await api(`/registros-insumo-produccion?id_orden_manufactura=${id}`);
         const registros = res.registros || [];
+        setConsumoInsumos(Array.isArray(registros) ? registros : []);
         setTieneRegistrosInsumo(registros.length > 0);
 
         // Si no hay registros de insumo, no hay nada que asignar.
@@ -62,13 +164,54 @@ export default function OMDetail() {
       } catch {
         setInsumosAsignados(false);
         setTieneRegistrosInsumo(false);
+        setConsumoInsumos([]);
       }
     };
 
     fetchOM();
     fetchProductosFinales();
     fetchInsumos();
+    fetchBultosAsociados();
   }, [id]);
+
+  const descargarEtiquetas = async (ids, filename) => {
+    const idsNum = (Array.isArray(ids) ? ids : [ids])
+      .map((x) => Number(x))
+      .filter((x) => Number.isFinite(x) && x > 0);
+
+    if (idsNum.length === 0) return toast.error("No hay bultos/cajas para etiquetar.");
+
+    try {
+      const blob = await apiBlob(`/bultos/etiquetas`, {
+        method: "POST",
+        body: JSON.stringify({ ids_bultos: idsNum }),
+      });
+      downloadBlob(blob, filename || `etiquetas_OM_${id}.pdf`);
+    } catch (err) {
+      toast.error(err?.message || "No se pudieron descargar las etiquetas.");
+    }
+  };
+
+  const toggleSelectAllBultos = (checked) => {
+    if (!checked) {
+      setSelectedBultoIds(new Set());
+      return;
+    }
+    const next = new Set();
+    (bultosAsociados || []).forEach((b) => {
+      if (b?.id) next.add(b.id);
+    });
+    setSelectedBultoIds(next);
+  };
+
+  const toggleSelectOneBulto = (bultoId, checked) => {
+    setSelectedBultoIds((prev) => {
+      const next = new Set(prev);
+      if (!checked) next.delete(bultoId);
+      else next.add(bultoId);
+      return next;
+    });
+  };
 
   if (loading)
     return (
@@ -116,6 +259,12 @@ export default function OMDetail() {
             Esperando salidas
           </span>
         );
+      case "esperando pvas":
+        return (
+          <span className={`${base} bg-purple-100 text-purple-700`}>
+            Esperando PVAs
+          </span>
+        );
       case "cerrada":
         return (
           <span className={`${base} bg-green-100 text-green-700`}>Cerrada</span>
@@ -129,6 +278,12 @@ export default function OMDetail() {
 
   const estado = om.estado;
   const hasPasos = (om?.registrosPasoProduccion?.length ?? 0) > 0;
+  const esPostCierre = ["Cerrada", "Esperando PVAs"].includes(estado);
+
+  // Cálculo de progreso
+  const totalInsumos = (consumoInsumos || []).length || 0;
+  const insumosConsumidos = (consumoInsumos || []).filter((r) => Number(r?.peso_utilizado || 0) > 0).length || 0;
+  const porcentajeInsumos = totalInsumos > 0 ? Math.round((insumosConsumidos / totalInsumos) * 100) : 0;
 
   return (
     <div className="p-6 bg-background min-h-screen">
@@ -141,7 +296,256 @@ export default function OMDetail() {
         <div>{getEstadoBadge(om.estado)}</div>
       </div>
 
-      <div className="bg-gray-200 p-4 rounded-lg">
+      {/* Panel de estado rápido: 4 tarjetas informativas */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+        {/* Receta */}
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
+          <div className="text-xs text-gray-500 font-medium">RECETA</div>
+          <div className="font-bold text-text mt-1">{om.receta?.nombre || "—"}</div>
+          <div className="text-xs text-gray-600 mt-2">
+            Costo ref: ${Number(om.receta?.costo_referencial_produccion || 0).toFixed(2)}
+          </div>
+        </div>
+
+        {/* Progreso de ingredientes */}
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+          <div className="text-xs text-gray-500 font-medium">INGREDIENTES</div>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="flex-1">
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-500 h-2 rounded-full" 
+                  style={{ width: `${porcentajeInsumos}%` }}
+                ></div>
+              </div>
+            </div>
+            <span className="text-sm font-bold">{porcentajeInsumos}%</span>
+          </div>
+          <div className="text-xs text-gray-600 mt-2">{insumosConsumidos}/{totalInsumos} consumidos</div>
+        </div>
+
+        {/* Costos */}
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+          <div className="text-xs text-gray-500 font-medium">COSTO TOTAL</div>
+          <div className="text-lg font-bold text-text mt-1">${Number(om.costo_total || 0).toFixed(2)}</div>
+          <div className="text-xs text-gray-600 mt-2">
+            Objetivo: {om.peso_objetivo || 0} kg
+          </div>
+        </div>
+
+        {/* Información de estado */}
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
+          <div className="text-xs text-gray-500 font-medium">ENCARGADO</div>
+          <div className="font-bold text-text mt-1">{om.elaboradorEncargado?.nombre || "—"}</div>
+          <div className="text-xs text-gray-600 mt-2">
+            Bodega: {om.bodega?.nombre || "—"}
+          </div>
+        </div>
+      </div>
+
+      {/* Bultos / Cajas asociados + etiquetas (estilo Inventario, sin filtros) */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="flex items-start justify-between gap-4 mb-3">
+          <div>
+            <h2 className="text-base font-semibold text-text">Bultos / Cajas generados</h2>
+            <div className="text-xs text-gray-600">
+              {loadingBultos
+                ? "Cargando…"
+                : `Filas: ${(bultosAsociados || []).length} · Seleccionadas: ${selectedBultoIds.size}`}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              className="px-4 py-2 bg-white border border-border rounded-lg hover:bg-gray-100 text-sm disabled:opacity-50"
+              onClick={() => descargarEtiquetas(Array.from(selectedBultoIds), `etiquetas_OM_${id}_seleccion.pdf`)}
+              disabled={loadingBultos || selectedBultoIds.size === 0}
+              title="Descargar etiquetas de seleccionados"
+            >
+              Descargar seleccionados
+            </button>
+            <button
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium shadow disabled:opacity-50"
+              onClick={() => descargarEtiquetas((bultosAsociados || []).map((b) => b.id), `etiquetas_OM_${id}.pdf`)}
+              disabled={loadingBultos || (bultosAsociados || []).length === 0}
+              title="Descargar etiquetas de todos"
+            >
+              Descargar todo
+            </button>
+          </div>
+        </div>
+
+        {loadingBultos ? (
+          <div className="text-sm text-gray-600">Cargando bultos…</div>
+        ) : (bultosAsociados || []).length === 0 ? (
+          <div className="text-sm text-gray-600">Aún no hay bultos/cajas asociados a esta OM.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full border border-gray-200 text-sm">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-2 border w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={(bultosAsociados || []).length > 0 && selectedBultoIds.size === (bultosAsociados || []).length}
+                      onChange={(e) => toggleSelectAllBultos(e.target.checked)}
+                      aria-label="Seleccionar todo"
+                    />
+                  </th>
+                  <th className="p-2 border text-center">Cat</th>
+                  <th className="p-2 border">ID</th>
+                  <th className="p-2 border">Identificador</th>
+                  <th className="p-2 border">Item</th>
+                  <th className="p-2 border">Bodega</th>
+                  <th className="p-2 border">Formato</th>
+                  <th className="p-2 border">Disponible</th>
+                  <th className="p-2 border">Rango</th>
+                  <th className="p-2 border w-28 text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(bultosAsociados || []).map((b) => {
+                  const clave = getClaveCategoria(b);
+                  const nombre = getItemNombre(b);
+                  const bodegaNombre = getBodegaNombre(b);
+                  const unidad = getUnidadMedida(b);
+
+                  const checked = selectedBultoIds.has(b.id);
+
+                  const peso = Number(b?.peso_unitario ?? 0);
+                  const unidades = Number(b?.cantidad_unidades ?? 0);
+                  const disp = Number(b?.unidades_disponibles ?? 0);
+                  const rangos = Array.isArray(b?.cajaRangos) ? b.cajaRangos : [];
+                  const rangoTxt = rangos.length
+                    ? `${Number(rangos[0]?.nro_inicio || 0)}-${Number(rangos[rangos.length - 1]?.nro_fin || 0)}`
+                    : "—";
+
+                  return (
+                    <tr key={b.id} className="hover:bg-gray-50">
+                      <td className="p-2 border text-center">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => toggleSelectOneBulto(b.id, e.target.checked)}
+                          aria-label={`Seleccionar bulto ${b?.identificador || b?.id}`}
+                        />
+                      </td>
+                      <td className="p-2 border text-center">
+                        <BadgeCategoria value={clave} />
+                      </td>
+                      <td className="p-2 border">{b.id}</td>
+                      <td className="p-2 border font-mono text-xs">{b?.identificador || "—"}</td>
+                      <td className="p-2 border">{nombre}</td>
+                      <td className="p-2 border">{bodegaNombre}</td>
+                      <td className="p-2 border">
+                        {Number.isFinite(peso) ? peso.toFixed(2) : "0.00"} {unidad || "kg"}
+                      </td>
+                      <td className="p-2 border">
+                        <div className="font-medium">{Number.isFinite(disp) ? disp : 0} un.</div>
+                        <div className="text-xs text-gray-500">({disp}/{unidades} un.)</div>
+                      </td>
+                      <td className="p-2 border">{rangoTxt}</td>
+                      <td className="p-2 border text-center">
+                        <div className="flex items-center justify-center gap-3">
+                          <button
+                            onClick={() => descargarEtiquetas([b.id], `etiqueta_${b?.identificador || b.id}.pdf`)}
+                            className="text-gray-400 hover:text-blue-600"
+                            title="Descargar etiqueta"
+                          >
+                            <FileDown className="w-5 h-5" />
+                          </button>
+
+                          <button
+                            onClick={() => navigate(`/Inventario/bultos/editar/${b.id}`)}
+                            className="text-gray-400 hover:text-blue-600"
+                            title="Editar bulto"
+                          >
+                            <Pencil className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* PVAs (ordenado, acciones directas) */}
+      {loteProductoEnProceso ? (
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex items-start justify-between gap-4 mb-3">
+            <div>
+              <h2 className="text-base font-semibold text-text">PVAs del PIP</h2>
+              <div className="text-xs text-gray-600">
+                Lote PIP #{loteProductoEnProceso?.id} · Estado PVA: {loteProductoEnProceso?.estado_PVA || "—"}
+              </div>
+            </div>
+          </div>
+
+          {loadingPVA ? (
+            <div className="text-sm text-gray-600">Cargando PVAs…</div>
+          ) : (pautasPVA || []).length === 0 ? (
+            <div className="text-sm text-gray-600">Este PIP no tiene PVAs asociados.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border border-gray-200 text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2 border">Orden</th>
+                    <th className="p-2 border">Proceso</th>
+                    <th className="p-2 border text-center">Estado</th>
+                    <th className="p-2 border w-56 text-center">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...pautasPVA]
+                    .sort((a, b) => Number(a?.pvaPorProducto?.orden || 0) - Number(b?.pvaPorProducto?.orden || 0))
+                    .map((p) => {
+                      const orden = Number(p?.pvaPorProducto?.orden || 0) || "—";
+                      const nombreProceso =
+                        p?.pvaPorProducto?.procesoValorAgregado?.nombre ||
+                        `Proceso #${p?.id_proceso || "—"}`;
+
+                      return (
+                        <tr key={p.id} className="hover:bg-gray-50">
+                          <td className="p-2 border">{orden}</td>
+                          <td className="p-2 border">
+                            <div className="font-medium text-text">{nombreProceso}</div>
+                            <div className="text-xs text-gray-500">Pauta #{p.id}</div>
+                          </td>
+                          <td className="p-2 border text-center">
+                            <BadgeEstadoPVA value={p?.estado} />
+                          </td>
+                          <td className="p-2 border">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                className="px-3 py-2 bg-white border border-border rounded hover:bg-gray-100 text-sm"
+                                onClick={() => navigate(`/PautasValorAgregado/asignar-insumos/${p.id}`)}
+                              >
+                                Insumos
+                              </button>
+                              <button
+                                className="px-3 py-2 bg-primary text-white rounded hover:bg-hover text-sm shadow"
+                                onClick={() => navigate(`/PautasValorAgregado/ejecutar/${p.id}`)}
+                              >
+                                Ejecutar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      <div className="bg-gray-200 p-4 rounded-lg hidden">
         <table className="w-full bg-white rounded-lg shadow overflow-hidden">
           <thead className="bg-gray-100 text-sm text-gray-600">
             <tr>
@@ -174,7 +578,7 @@ export default function OMDetail() {
               <td className="px-6 py-4 text-sm font-medium text-text">Peso objetivo</td>
               <td className="px-6 py-4 text-sm text-text">{om.peso_objetivo ? `${om.peso_objetivo} kg` : "—"}</td>
             </tr>
-            {om.estado === "Cerrada" && (
+            {esPostCierre && (
               <tr className="border-b border-border">
                 <td className="px-6 py-4 text-sm font-medium text-text">Peso obtenido</td>
                 <td className="px-6 py-4 text-sm text-text">{om.peso_obtenido ? `${om.peso_obtenido} kg` : "—"}</td>
@@ -188,7 +592,7 @@ export default function OMDetail() {
               <td className="px-6 py-4 text-sm font-medium text-text">Costo total</td>
               <td className="px-6 py-4 text-sm text-text">{om.costo_total != null ? `$${om.costo_total}` : "—"}</td>
             </tr>
-            {om.estado === "Cerrada" && om.peso_objetivo && om.peso_obtenido && (
+            {esPostCierre && om.peso_objetivo && om.peso_obtenido && (
               <tr className="border-b border-border">
                 <td className="px-6 py-4 text-sm font-medium text-text">Rendimiento</td>
                 <td className="px-6 py-4 text-sm text-text">{((om.peso_obtenido / om.peso_objetivo) * 100).toFixed(2)}%</td>
@@ -201,10 +605,10 @@ export default function OMDetail() {
       <div className="mt-8 flex flex-wrap gap-3">
         {estado === "Borrador" && !insumosAsignados && tieneRegistrosInsumo && (
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium shadow"
             onClick={() => navigate(`/Orden_de_Manufactura/${id}/insumos`)}
           >
-            Asignar Insumos
+            ➜ Asignar Insumos
           </button>
         )}
 
@@ -214,23 +618,23 @@ export default function OMDetail() {
           "Validada",
           "Completado",
           "Esperando Salidas",
-        ].includes(estado)) && estado !== "Cerrada") && (
+        ].includes(estado)) && !["Cerrada", "Esperando PVAs"].includes(estado)) && (
             <button
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium shadow"
               onClick={() => navigate(`/Orden_de_Manufactura/${id}/pasos`)}
             >
-              Ejecutar Pasos de Producción
+              ▶ Ejecutar Pasos
             </button>
           )}
 
         {["Esperando Salidas"].includes(estado) && subproductos.length > 0 && (
           <button
-            className="px-4 py-2 bg-blue-300 text-blue-700 rounded hover:bg-blue-400"
+            className="px-4 py-2 bg-yellow-400 text-yellow-700 rounded-lg hover:bg-yellow-500 font-medium shadow"
             onClick={() =>
               navigate(`/Orden_de_Manufactura/${id}/subproductos-decision`)
             }
           >
-            Verificar Subproductos
+            ⚠ Verificar Subproductos
           </button>
         )}
 
@@ -239,34 +643,34 @@ export default function OMDetail() {
           (!hasPasos && estado === "Insumos Asignados")
         ) && (
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium shadow"
             onClick={() =>
               navigate(`/Orden_de_Manufactura/${id}/produccion-final`)
             }
           >
-            Producción Final
+            ✓ Producción Final
           </button>
         )}
 
-        {["Cerrada"].includes(estado) && subproductos.length > 0 && (
+        {["Cerrada", "Esperando PVAs"].includes(estado) && subproductos.length > 0 && (
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium shadow"
             onClick={() => setShowSubproductos(true)}
           >
-            Ver subproductos
+            📦 Ver Subproductos
           </button>
         )}
 
-        {["Cerrada"].includes(estado) && (
+        {["Cerrada", "Esperando PVAs"].includes(estado) && (
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium shadow"
             onClick={() =>
               navigate(
                 `/Orden_de_Manufactura/${id}/historial-pasos`
               )
             }
           >
-            Ver registro de pasos
+            📋 Historial de Pasos
           </button>
         )}
       </div>

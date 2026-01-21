@@ -2,7 +2,7 @@ export default function DatosProductoComercialTab({ productoId, productoForm, se
   return (
     <div className="bg-white p-6 rounded-lg shadow space-y-4">
       <div className="text-sm font-semibold text-gray-800">Datos del Producto Comercial</div>
-      <div className="text-sm text-gray-600">Crea el producto base (sin precio). Luego pasarás a definir la receta.</div>
+      <div className="text-sm text-gray-600">Crea el producto base. Luego pasarás a definir la receta.</div>
 
       <div>
         <label className="block text-sm font-medium mb-1">Nombre *</label>
