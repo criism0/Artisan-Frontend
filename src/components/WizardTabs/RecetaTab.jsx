@@ -368,7 +368,7 @@ export default function RecetaTab({
             <div className="flex justify-end mt-4">
               <button
                 type="button"
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                className="bg-primary hover:bg-hover text-white px-6 py-2 rounded"
                 onClick={onNext}
               >
                 Continuar a Costos Secos

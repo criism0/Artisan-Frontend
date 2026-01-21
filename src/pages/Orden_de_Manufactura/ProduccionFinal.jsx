@@ -14,6 +14,7 @@ export default function ProduccionFinal() {
   const [loadingOm, setLoadingOm] = useState(true);
   const [disponiblesByMp, setDisponiblesByMp] = useState({});
   const [empaqueByMp, setEmpaqueByMp] = useState({});
+  const [formatoEmpaqueId, setFormatoEmpaqueId] = useState("");
 
   const [form, setForm] = useState({
     peso_obtenido: "",
@@ -106,26 +107,52 @@ export default function ProduccionFinal() {
     });
   }, [esPT, form.unidades_obtenidas, form.peso_obtenido, pesosPorUnidadTocados]);
 
-  const costosSecosAplicables = useMemo(() => {
-    const costos = om?.receta?.costosSecos || [];
-    if (!Array.isArray(costos)) return [];
-    const modo = esPT ? "PT_EMPACAR" : "PIP_ALMACENAR";
-
-    return costos
-      .filter((mp) => {
-        const aplicaEn = mp?.RecetaCostoSeco?.aplica_en || "AMBOS";
-        return aplicaEn === "AMBOS" || aplicaEn === modo;
-      })
+  const formatosEmpaqueAplicables = useMemo(() => {
+    const formatos = om?.receta?.formatosEmpaque || [];
+    if (!Array.isArray(formatos)) return [];
+    return formatos
       .sort((a, b) => (a?.nombre || "").localeCompare(b?.nombre || ""));
   }, [om, esPT]);
 
+  const requiereSeleccionFormato = formatosEmpaqueAplicables.length > 0;
+
+  useEffect(() => {
+    if (!requiereSeleccionFormato) {
+      setFormatoEmpaqueId("");
+      return;
+    }
+
+    if (formatoEmpaqueId) return;
+    if (formatosEmpaqueAplicables.length === 1) {
+      setFormatoEmpaqueId(String(formatosEmpaqueAplicables[0].id));
+    }
+  }, [requiereSeleccionFormato, formatosEmpaqueAplicables, formatoEmpaqueId]);
+
+  const formatoEmpaqueSeleccionado = useMemo(() => {
+    if (!formatoEmpaqueId) return null;
+    return (
+      formatosEmpaqueAplicables.find((f) => String(f?.id ?? "") === String(formatoEmpaqueId || "")) || null
+    );
+  }, [formatosEmpaqueAplicables, formatoEmpaqueId]);
+
+  const insumosEmpaqueAplicables = useMemo(() => {
+    if (!formatoEmpaqueSeleccionado) return [];
+    const insumos = formatoEmpaqueSeleccionado?.insumos || [];
+    if (!Array.isArray(insumos)) return [];
+    return insumos.slice().sort((a, b) => (a?.nombre || "").localeCompare(b?.nombre || ""));
+  }, [formatoEmpaqueSeleccionado]);
+
+  const empaquesAplicables = useMemo(() => {
+    return insumosEmpaqueAplicables;
+  }, [insumosEmpaqueAplicables]);
+
   const nombreMp = useMemo(() => {
     const map = new Map();
-    for (const mp of costosSecosAplicables) {
+    for (const mp of empaquesAplicables) {
       map.set(Number(mp.id), mp.nombre);
     }
     return (idMp) => map.get(Number(idMp)) || `MP #${idMp}`;
-  }, [costosSecosAplicables]);
+  }, [empaquesAplicables]);
 
   const bodegaId = om?.bodega?.id;
 
@@ -170,12 +197,19 @@ export default function ProduccionFinal() {
         : pesosCalculados;
     const pesosFinal = Array.isArray(pesosFinalRaw) ? pesosFinalRaw.map((v) => Number(v)) : pesosCalculados;
 
+    const allowedMpIds = new Set((empaquesAplicables || []).map((mp) => Number(mp?.id)).filter((x) => Number.isFinite(x)));
+
     return {
+      id_formato_empaque: formatoEmpaqueId ? Number(formatoEmpaqueId) : null,
       peso_obtenido: pesoTotal,
       unidades_obtenidas: unidades,
       fecha_vencimiento: form.fecha_vencimiento,
       pesos: pesosFinal,
       empaques: Object.entries(empaqueByMp)
+        .filter(([mpId]) => {
+          if (allowedMpIds.size === 0) return true;
+          return allowedMpIds.has(Number(mpId));
+        })
         .map(([mpId, mapByBulto]) => {
           const bultos = Object.entries(mapByBulto || {})
             .map(([bultoId, peso_utilizado]) => ({
@@ -217,11 +251,29 @@ export default function ProduccionFinal() {
       }
     }
 
+    const payload = buildPayload();
+
+    if (esPT) {
+      if (!requiereSeleccionFormato) {
+        return toast.error("La receta no tiene Costos Secos configurados (Formatos de Empaque).");
+      }
+      if (!formatoEmpaqueId) return toast.error("Selecciona un Formato de Empaque.");
+      if (!Array.isArray(payload.empaques) || payload.empaques.length === 0) {
+        return toast.error("Debes declarar al menos un empaque consumido.");
+      }
+    } else {
+      if ((!Array.isArray(payload.empaques) || payload.empaques.length === 0) && !formatoEmpaqueId) {
+        // PIP sin empaques: permitido.
+      } else if (!formatoEmpaqueId) {
+        return toast.error("Selecciona un Formato de Empaque para declarar empaques.");
+      }
+    }
+
     try {
       setLoadingPreview(true);
       const data = await api(`/ordenes_manufactura/${id}/registrar_preview`, {
         method: "POST",
-        body: JSON.stringify(buildPayload()),
+        body: JSON.stringify(payload),
       });
       setPreview(data);
     } catch (err) {
@@ -261,6 +313,22 @@ export default function ProduccionFinal() {
     }
 
     const payload = buildPayload();
+
+    if (esPT) {
+      if (!requiereSeleccionFormato) {
+        return toast.error("La receta no tiene Costos Secos configurados (Formatos de Empaque).");
+      }
+      if (!formatoEmpaqueId) return toast.error("Selecciona un Formato de Empaque.");
+      if (!Array.isArray(payload.empaques) || payload.empaques.length === 0) {
+        return toast.error("Debes declarar al menos un empaque consumido.");
+      }
+    } else {
+      if ((!Array.isArray(payload.empaques) || payload.empaques.length === 0) && !formatoEmpaqueId) {
+        // PIP sin empaques: permitido.
+      } else if (!formatoEmpaqueId) {
+        return toast.error("Selecciona un Formato de Empaque para declarar empaques.");
+      }
+    }
 
     try {
       setLoading(true);
@@ -515,23 +583,72 @@ export default function ProduccionFinal() {
         <div className="border-t border-border pt-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-text">
-              Empaque / costos secos (opcional)
+              Costos Secos
             </h2>
             <div className="text-xs text-gray-500">
               {esPT ? "PT: se consume al empacar" : "PIP: se consume al almacenar"}
             </div>
           </div>
 
-          {!loadingOm && costosSecosAplicables.length === 0 ? (
+          {formatosEmpaqueAplicables.length > 0 ? (
+            <div className="mt-3 bg-white border border-border rounded-lg p-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Formato de Empaque</label>
+                  <select
+                    className="w-full border rounded-lg px-3 py-2 bg-white"
+                    value={formatoEmpaqueId}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setPreview(null);
+                      setFormatoEmpaqueId(next);
+                      setDisponiblesByMp({});
+                      setEmpaqueByMp({});
+                    }}
+                  >
+                    <option value="">Seleccionar</option>
+                    {formatosEmpaqueAplicables.map((f) => (
+                      <option key={f.id} value={String(f.id)}>
+                        {f.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="text-xs text-gray-600">
+                  {formatoEmpaqueSeleccionado?.descripcion ? (
+                    <div>
+                      <span className="font-semibold">Descripción:</span> {formatoEmpaqueSeleccionado.descripcion}
+                    </div>
+                  ) : (
+                    <div>Selecciona un formato para ver sus insumos.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
             <p className="text-sm text-gray-600 mt-2">
-              No hay costos secos sugeridos en la receta. Puedes cerrar la OM sin empaque.
+              {esPT
+                ? "Esta receta no tiene Costos Secos configurados (Formatos de Empaque). Configúralos antes de cerrar."
+                : "Esta receta no tiene Costos Secos configurados (Formatos de Empaque)."}
+            </p>
+          )}
+
+          {formatosEmpaqueAplicables.length > 0 && !formatoEmpaqueSeleccionado ? (
+            <p className="text-sm text-gray-600 mt-2">Selecciona un formato para habilitar el consumo de empaques.</p>
+          ) : null}
+
+          {formatosEmpaqueAplicables.length > 0 && formatoEmpaqueSeleccionado && empaquesAplicables.length === 0 ? (
+            <p className="text-sm text-gray-600 mt-2">
+              Este formato no tiene insumos. {esPT ? "No podrás cerrar PT sin declarar consumos." : "Puedes cerrar PIP sin consumos."}
             </p>
           ) : null}
 
           <div className="space-y-3 mt-3">
-            {costosSecosAplicables.map((mp) => {
+            {empaquesAplicables.map((mp) => {
               const mpId = mp.id;
               const disponibles = disponiblesByMp[mpId];
+              const throughFormato = mp?.FormatoEmpaqueInsumo;
+              const requeridoFormato = !Boolean(throughFormato?.opcional);
               return (
                 <div key={mpId} className="border border-border rounded-lg p-3 bg-gray-50">
                   <div className="flex items-center justify-between gap-3">
@@ -539,8 +656,9 @@ export default function ProduccionFinal() {
                       <div className="font-medium text-text">{mp.nombre}</div>
                       <div className="text-xs text-gray-500">
                         UM: {mp.unidad_medida || "N/A"}
-                        {mp?.RecetaCostoSeco?.cantidad_sugerida_por_kg
-                          ? ` · Sug: ${mp.RecetaCostoSeco.cantidad_sugerida_por_kg}/kg`
+                        {requeridoFormato ? " · Requerido" : " · Opcional"}
+                        {throughFormato?.cantidad_sugerida_por_unidad != null
+                          ? ` · Sug: ${throughFormato.cantidad_sugerida_por_unidad}/u`
                           : ""}
                       </div>
                     </div>
@@ -732,7 +850,7 @@ export default function ProduccionFinal() {
 
               {Array.isArray(preview.detalle_empaques) && preview.detalle_empaques.length > 0 ? (
                 <div className="mt-4 bg-white border border-blue-200 rounded p-3">
-                  <div className="text-sm font-semibold text-text mb-2">Detalle de empaques / costos secos</div>
+                  <div className="text-sm font-semibold text-text mb-2">Detalle de empaques</div>
                   <div className="space-y-3">
                     {preview.detalle_empaques.map((emp) => (
                       <div key={emp.id_materia_prima} className="border border-border rounded p-3">

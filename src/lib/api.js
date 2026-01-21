@@ -30,6 +30,10 @@ export async function api(path, { auth = true, headers, ...opts } = {}) {
 
   const isFormDataBody =
     typeof FormData !== "undefined" && opts.body instanceof FormData;
+
+  if (opts.body && !isFormDataBody && typeof opts.body === "object") {
+    opts.body = JSON.stringify(opts.body);
+  }
   if (!h.has("Content-Type") && opts.body && !isFormDataBody) {
     h.set("Content-Type", "application/json");
   }
@@ -65,6 +69,10 @@ export async function apiBlob(path, { auth = true, headers, ...opts } = {}) {
 
   const isFormDataBody =
     typeof FormData !== "undefined" && opts.body instanceof FormData;
+
+  if (opts.body && !isFormDataBody && typeof opts.body === "object") {
+    opts.body = JSON.stringify(opts.body);
+  }
   if (!h.has("Content-Type") && opts.body && !isFormDataBody) {
     h.set("Content-Type", "application/json");
   }

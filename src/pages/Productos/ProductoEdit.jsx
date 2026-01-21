@@ -48,7 +48,7 @@ export default function ProductoEdit() {
 
   const [ingredientes, setIngredientes] = useState([]);
   const [subproductos, setSubproductos] = useState([]);
-  const [costosSecos, setCostosSecos] = useState([]);
+
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [ingredientPeso, setIngredientPeso] = useState("");
   const [ingredientUnidad, setIngredientUnidad] = useState("");
@@ -56,9 +56,8 @@ export default function ProductoEdit() {
   const [selectedEquivalenteId, setSelectedEquivalenteId] = useState("");
   const [equivalentesIds, setEquivalentesIds] = useState([]);
   const [editingIngredienteId, setEditingIngredienteId] = useState(null);
-  const [selectedSubproductId, setSelectedSubproductId] = useState("");
 
-  const [selectedCostoSecoId, setSelectedCostoSecoId] = useState("");
+  const [selectedSubproductId, setSelectedSubproductId] = useState("");
 
   const [selectedPautaId, setSelectedPautaId] = useState("");
 
@@ -68,15 +67,16 @@ export default function ProductoEdit() {
   const [nuevoCosto, setNuevoCosto] = useState({ nombre: "", descripcion: "" });
 
   useEffect(() => {
+    const productoBaseId = Number(id);
+    if (!Number.isFinite(productoBaseId) || productoBaseId <= 0) {
+      toast.error("ID de producto inválido");
+      navigate("/Productos");
+      return;
+    }
+
     const load = async () => {
       try {
         setLoading(true);
-        const productoBaseId = Number(id);
-        if (!productoBaseId) {
-          toast.error("No se proporcionó ID de producto");
-          navigate("/Productos");
-          return;
-        }
 
         const [mps, pautasRes, costosRes, productoRes, recetasRes] = await Promise.all([
           api("/materias-primas"),
@@ -103,6 +103,7 @@ export default function ProductoEdit() {
 
         const recetasList = Array.isArray(recetasRes) ? recetasRes : [];
         const recetaBase = recetasList[0] || null;
+
         if (recetaBase?.id) {
           const rid = recetaBase.id;
           setRecetaId(rid);
@@ -111,35 +112,39 @@ export default function ProductoEdit() {
           setRecetaForm({
             nombre: recetaFull?.nombre || recetaBase?.nombre || "",
             descripcion: recetaFull?.descripcion || recetaBase?.descripcion || "",
-            peso: recetaFull?.peso != null ? String(recetaFull.peso) : recetaBase?.peso != null ? String(recetaBase.peso) : "",
+            peso:
+              recetaFull?.peso != null
+                ? String(recetaFull.peso)
+                : recetaBase?.peso != null
+                  ? String(recetaBase.peso)
+                  : "",
             unidad_medida: productoRes?.unidad_medida || recetaFull?.unidad_medida || "",
             costo_referencial_produccion:
               recetaFull?.costo_referencial_produccion != null
                 ? String(recetaFull.costo_referencial_produccion)
                 : "0",
           });
+
           setSelectedPautaId(recetaFull?.id_pauta_elaboracion ? String(recetaFull.id_pauta_elaboracion) : "");
 
-          const [ings, subs, costos, secos] = await Promise.all([
+          const [ings, subs, costos] = await Promise.all([
             api(`/recetas/${rid}/ingredientes`),
             api(`/recetas/${rid}/subproductos`),
             api(`/recetas/${rid}/costos-indirectos`),
-            api(`/recetas/${rid}/costos-secos`),
           ]);
           setIngredientes(Array.isArray(ings) ? ings : []);
           setSubproductos(Array.isArray(subs) ? subs : []);
           setRecetaCostos(Array.isArray(costos) ? costos : []);
-          setCostosSecos(Array.isArray(secos) ? secos : []);
         } else {
           setRecetaId(null);
           setIngredientes([]);
           setSubproductos([]);
           setRecetaCostos([]);
-          setCostosSecos([]);
 
           setRecetaForm((prev) => ({
             ...prev,
             nombre: prev.nombre || (productoRes?.nombre || ""),
+            descripcion: prev.descripcion || "",
             unidad_medida: productoRes?.unidad_medida || prev.unidad_medida,
             peso: prev.peso || (productoRes?.peso_unitario != null ? String(productoRes.peso_unitario) : ""),
           }));
@@ -151,6 +156,7 @@ export default function ProductoEdit() {
         setLoading(false);
       }
     };
+
     void load();
   }, [api, id, navigate]);
 
@@ -199,7 +205,11 @@ export default function ProductoEdit() {
   }, [opcionesMateriaPrima, ingredientes, selectedIngredientId]);
 
   const opcionesSubproductos = useMemo(() => {
-    const selectedIds = new Set((subproductos || []).map((s) => String(s?.id ?? s?.id_materia_prima ?? "")).filter(Boolean));
+    const selectedIds = new Set(
+      (subproductos || [])
+        .map((s) => String(s?.id ?? s?.id_materia_prima ?? ""))
+        .filter(Boolean)
+    );
     return (opcionesMateriaPrima || []).filter(
       (opt) => opt.value === String(selectedSubproductId || "") || !selectedIds.has(opt.value)
     );
@@ -207,16 +217,14 @@ export default function ProductoEdit() {
 
   const refreshRecetaParts = async (targetRecetaId) => {
     if (!targetRecetaId) return;
-    const [ings, subs, costos, secos] = await Promise.all([
+    const [ings, subs, costos] = await Promise.all([
       api(`/recetas/${targetRecetaId}/ingredientes`),
       api(`/recetas/${targetRecetaId}/subproductos`),
       api(`/recetas/${targetRecetaId}/costos-indirectos`),
-      api(`/recetas/${targetRecetaId}/costos-secos`),
     ]);
     setIngredientes(Array.isArray(ings) ? ings : []);
     setSubproductos(Array.isArray(subs) ? subs : []);
     setRecetaCostos(Array.isArray(costos) ? costos : []);
-    setCostosSecos(Array.isArray(secos) ? secos : []);
   };
 
   const handleGuardarProducto = async () => {
@@ -260,7 +268,7 @@ export default function ProductoEdit() {
       peso: toNumber(recetaForm.peso),
       unidad_medida: recetaForm.unidad_medida,
       costo_referencial_produccion: toNumber(recetaForm.costo_referencial_produccion),
-      id_pauta_elaboracion: null,
+      id_pauta_elaboracion: selectedPautaId ? Number(selectedPautaId) : null,
     };
   };
 
@@ -284,7 +292,8 @@ export default function ProductoEdit() {
         await refreshRecetaParts(newId);
         toast.success("Receta creada");
       }
-      setTab("receta");
+
+      setTab("costos-secos");
     } catch (e) {
       console.error(e);
       toast.error(`Error guardando receta: ${e?.message || e}`);
@@ -390,44 +399,15 @@ export default function ProductoEdit() {
     }
   };
 
-  const handleRemoveSubproducto = async (mpId) => {
+  const handleRemoveSubproducto = async (idMateriaPrima) => {
     if (!recetaId) return;
     try {
-      await api(`/recetas/${recetaId}/subproductos/${mpId}`, { method: "DELETE" });
+      await api(`/recetas/${recetaId}/subproductos/${idMateriaPrima}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
       toast.success("Subproducto eliminado");
     } catch (e) {
       console.error(e);
       toast.error(`Error eliminando subproducto: ${e?.message || e}`);
-    }
-  };
-
-  const handleAddCostoSeco = async () => {
-    if (!recetaId) return;
-    if (!selectedCostoSecoId) return toast.error("Selecciona un costo seco");
-    try {
-      await api(`/recetas/${recetaId}/costos-secos`, {
-        method: "POST",
-        body: JSON.stringify({ id_materia_prima: Number(selectedCostoSecoId) }),
-      });
-      setSelectedCostoSecoId("");
-      await refreshRecetaParts(recetaId);
-      toast.success("Costo seco agregado");
-    } catch (e) {
-      console.error(e);
-      toast.error(`Error agregando costo seco: ${e?.message || e}`);
-    }
-  };
-
-  const handleRemoveCostoSeco = async (idMateriaPrima) => {
-    if (!recetaId) return;
-    try {
-      await api(`/recetas/${recetaId}/costos-secos/${idMateriaPrima}`, { method: "DELETE" });
-      await refreshRecetaParts(recetaId);
-      toast.success("Costo seco eliminado");
-    } catch (e) {
-      console.error(e);
-      toast.error(`Error eliminando costo seco: ${e?.message || e}`);
     }
   };
 
@@ -529,10 +509,10 @@ export default function ProductoEdit() {
   if (loading) {
     return (
       <div className="p-6 bg-background min-h-screen">
-        <div className="flex justify-center items-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-          <span className="ml-3 text-primary">Cargando datos...</span>
+        <div className="mb-4">
+          <BackButton to="/Productos" />
         </div>
+        <div className="text-sm text-gray-600">Cargando…</div>
       </div>
     );
   }
@@ -540,17 +520,16 @@ export default function ProductoEdit() {
   return (
     <div className="p-6 bg-background min-h-screen">
       <div className="mb-4">
-        <BackButton to={`/Productos/${id}`} />
+        <BackButton to="/Productos" />
       </div>
 
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
         <div>
           <h1 className="text-2xl font-bold text-text">Editar Producto Comercial</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Flujo centralizado: datos del producto → receta → ingredientes/subproductos → pauta → costos indirectos.
-          </p>
+          <div className="text-sm text-gray-600">Edita producto, receta y sus configuraciones.</div>
         </div>
-        <div className="flex gap-2">
+
+        <div className="flex gap-2 flex-wrap items-center">
           {recetaId ? (
             <button
               type="button"
@@ -560,29 +539,23 @@ export default function ProductoEdit() {
               Abrir receta
             </button>
           ) : null}
-        </div>
-      </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>
-          Datos
-        </TabButton>
-        <TabButton active={tab === "receta"} disabled={!canGoReceta} onClick={() => setTab("receta")}>
-          Receta
-        </TabButton>
-        <TabButton
-          active={tab === "costos-secos"}
-          disabled={!canGoRest}
-          onClick={() => setTab("costos-secos")}
-        >
-          Costos Secos
-        </TabButton>
-        <TabButton active={tab === "pauta"} disabled={!canGoRest} onClick={() => setTab("pauta")}>
-          Pauta
-        </TabButton>
-        <TabButton active={tab === "costos"} disabled={!canGoRest} onClick={() => setTab("costos")}>
-          Costos indirectos
-        </TabButton>
+          <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>
+            Datos
+          </TabButton>
+          <TabButton active={tab === "receta"} disabled={!canGoReceta} onClick={() => setTab("receta")}>
+            Receta
+          </TabButton>
+          <TabButton active={tab === "costos-secos"} disabled={!canGoRest} onClick={() => setTab("costos-secos")}>
+            Costos Secos
+          </TabButton>
+          <TabButton active={tab === "pauta"} disabled={!canGoRest} onClick={() => setTab("pauta")}>
+            Pauta
+          </TabButton>
+          <TabButton active={tab === "costos"} disabled={!canGoRest} onClick={() => setTab("costos")}>
+            Costos indirectos
+          </TabButton>
+        </div>
       </div>
 
       {tab === "datos" ? (
@@ -632,16 +605,7 @@ export default function ProductoEdit() {
       ) : null}
 
       {tab === "costos-secos" ? (
-        <CostosSecosTab
-          recetaId={recetaId}
-          opcionesMateriaPrima={opcionesMateriaPrima}
-          costosSecos={costosSecos}
-          selectedCostoSecoId={selectedCostoSecoId}
-          setSelectedCostoSecoId={setSelectedCostoSecoId}
-          onAddCostoSeco={handleAddCostoSeco}
-          onRemoveCostoSeco={handleRemoveCostoSeco}
-          onNext={() => setTab("pauta")}
-        />
+        <CostosSecosTab recetaId={recetaId} opcionesMateriaPrima={opcionesMateriaPrima} onNext={() => setTab("pauta")} />
       ) : null}
 
       {tab === "pauta" ? (
@@ -672,6 +636,16 @@ export default function ProductoEdit() {
           onRemoveCostoReceta={handleRemoveCostoReceta}
         />
       ) : null}
+
+      <div className="mt-8 flex justify-end">
+        <button
+          type="button"
+          className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          onClick={() => navigate("/Productos")}
+        >
+          Volver a Productos
+        </button>
+      </div>
     </div>
   );
 }

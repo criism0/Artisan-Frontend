@@ -47,7 +47,6 @@ export default function CreateProductoWizard() {
 
   const [ingredientes, setIngredientes] = useState([]);
   const [subproductos, setSubproductos] = useState([]);
-  const [costosSecos, setCostosSecos] = useState([]);
 
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [ingredientPeso, setIngredientPeso] = useState("");
@@ -58,8 +57,6 @@ export default function CreateProductoWizard() {
   const [editingIngredienteId, setEditingIngredienteId] = useState(null);
 
   const [selectedSubproductId, setSelectedSubproductId] = useState("");
-
-  const [selectedCostoSecoId, setSelectedCostoSecoId] = useState("");
 
   const [selectedPautaId, setSelectedPautaId] = useState("");
 
@@ -137,16 +134,14 @@ export default function CreateProductoWizard() {
 
   const refreshRecetaParts = async (targetRecetaId) => {
     if (!targetRecetaId) return;
-    const [ings, subs, costos, secos] = await Promise.all([
+    const [ings, subs, costos] = await Promise.all([
       api(`/recetas/${targetRecetaId}/ingredientes`),
       api(`/recetas/${targetRecetaId}/subproductos`),
       api(`/recetas/${targetRecetaId}/costos-indirectos`),
-      api(`/recetas/${targetRecetaId}/costos-secos`),
     ]);
     setIngredientes(Array.isArray(ings) ? ings : []);
     setSubproductos(Array.isArray(subs) ? subs : []);
     setRecetaCostos(Array.isArray(costos) ? costos : []);
-    setCostosSecos(Array.isArray(secos) ? secos : []);
   };
 
   const handleGuardarProducto = async () => {
@@ -346,35 +341,6 @@ export default function CreateProductoWizard() {
     }
   };
 
-  const handleAddCostoSeco = async () => {
-    if (!recetaId) return;
-    if (!selectedCostoSecoId) return toast.error("Selecciona un costo seco");
-    try {
-      await api(`/recetas/${recetaId}/costos-secos`, {
-        method: "POST",
-        body: JSON.stringify({ id_materia_prima: Number(selectedCostoSecoId) }),
-      });
-      setSelectedCostoSecoId("");
-      await refreshRecetaParts(recetaId);
-      toast.success("Costo seco agregado");
-    } catch (e) {
-      console.error(e);
-      toast.error(`Error agregando costo seco: ${e?.message || e}`);
-    }
-  };
-
-  const handleRemoveCostoSeco = async (idMateriaPrima) => {
-    if (!recetaId) return;
-    try {
-      await api(`/recetas/${recetaId}/costos-secos/${idMateriaPrima}`, { method: "DELETE" });
-      await refreshRecetaParts(recetaId);
-      toast.success("Costo seco eliminado");
-    } catch (e) {
-      console.error(e);
-      toast.error(`Error eliminando costo seco: ${e?.message || e}`);
-    }
-  };
-
   const handleGuardarPauta = async () => {
     if (!recetaId) return;
     if (!selectedPautaId) return toast.error("Selecciona una pauta");
@@ -479,7 +445,7 @@ export default function CreateProductoWizard() {
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
         <div>
           <h1 className="text-2xl font-bold text-text">Crear Producto Comercial</h1>
-          <div className="text-sm text-gray-600">Wizard para crear producto + receta (con alternativas y costos secos).</div>
+          <div className="text-sm text-gray-600">Formulario para crear producto + receta.</div>
         </div>
 
         <div className="flex gap-2 flex-wrap">
@@ -556,11 +522,6 @@ export default function CreateProductoWizard() {
         <CostosSecosTab
           recetaId={recetaId}
           opcionesMateriaPrima={opcionesMateriaPrima}
-          costosSecos={costosSecos}
-          selectedCostoSecoId={selectedCostoSecoId}
-          setSelectedCostoSecoId={setSelectedCostoSecoId}
-          onAddCostoSeco={handleAddCostoSeco}
-          onRemoveCostoSeco={handleRemoveCostoSeco}
           onNext={() => setTab("pauta")}
         />
       ) : null}
