@@ -478,7 +478,7 @@ export default function AddAsociacion() {
                   type="text"
                   className="border px-3 py-2 rounded w-full"
                   placeholder="Formato (ej: caja, pallet...)"
-                  value={baseNivel.unidad}
+                  value={baseNivel.formato}
                   disabled={!!baseNivel.isExisting}
                   onChange={(e) => setBaseNivel({ ...baseNivel, formato: e.target.value })}
                 />
@@ -554,7 +554,7 @@ export default function AddAsociacion() {
                 <th className="px-3 py-2 text-left">RESUMEN DE VALOR POR FORMATO DE EMPAQUE</th>
                 <th className="px-3 py-2 text-left">CONTENIDO FORMATO</th>
                 <th className="px-3 py-2 text-left">UNIDAD DE MEDIDA FORMATO</th>
-                <th className="px-3 py-2 text-left">COSTO FORMATO</th>
+                <th className="px-3 py-2 text-left">VALOR NETO FORMATO</th>
               </tr>
             </thead>
 
