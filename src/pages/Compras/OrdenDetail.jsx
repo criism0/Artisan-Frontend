@@ -126,14 +126,16 @@ export default function OrdenDetail() {
     const afterInfoY = doc.lastAutoTable.finalY + 8;
 
     const bodyRows = (orden.materiasPrimas || []).map((mp) => {
-      const nombre =
-      `${mp.proveedorMateriaPrima?.formato} - ${mp.proveedorMateriaPrima?.materiaPrima?.nombre}` ||
-        mp.proveedorMateriaPrima?.materiaPrima?.nombre ||
-        `#${mp.id_proveedor_materia_prima}`;
+      // Usar unidad de medida - nombre insumo (cantidad total) para la descripción del PDF
+      const unidadMedida = mp.proveedorMateriaPrima?.materiaPrima?.unidad_medida || 'Unidad';
+      const nombreInsumo = mp.proveedorMateriaPrima?.materiaPrima?.nombre || 'Insumo desconocido';
+      const cantidadTotal = mp.cantidad || 0;
+       const nombre = `${unidadMedida} - ${nombreInsumo}`;
+      
       const cantidad = mp.cantidad_formato || 0;
       const precio = mp.precio_unitario || 0;
       const sub = cantidad * precio;
-      return [nombre, String(cantidad), fmtCLP(precio), fmtCLP(sub)];
+       return [nombre, String(cantidadTotal), fmtCLP(precio), fmtCLP(sub)];
     });
 
     const neto = orden.total_neto || 0;

@@ -478,7 +478,7 @@ export default function AddAsociacion() {
                   type="text"
                   className="border px-3 py-2 rounded w-full"
                   placeholder="Formato (ej: caja, pallet...)"
-                  value={baseNivel.formato}
+                  value={baseNivel.unidad}
                   disabled={!!baseNivel.isExisting}
                   onChange={(e) => setBaseNivel({ ...baseNivel, formato: e.target.value })}
                 />
