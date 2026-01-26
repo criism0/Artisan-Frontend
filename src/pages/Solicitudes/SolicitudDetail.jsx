@@ -109,11 +109,34 @@ export default function SolicitudDetail() {
 
     doc.setFont(undefined, "bold").setFontSize(14);
     doc.text(`Solicitud N° ${solicitud.id ?? solicitudId}`, x + 24, y);
-    doc.setFont(undefined, "normal").setFontSize(11);
-    doc.text("Detalle de insumos y cantidad solicitada", x + 24, y + 7);
+    doc.setFont(undefined, "normal").setFontSize(10);
+    doc.text("Insumos solicitados", x + 24, y + 6);
 
-    y += 22;
-    doc.setLineWidth(0.4);
+    const bodegaProveedora = solicitud?.bodegaProveedora?.nombre ?? "—";
+    const bodegaSolicitante = solicitud?.bodegaSolicitante?.nombre ?? "—";
+    const fecha = formatDateTime(solicitud?.createdAt);
+
+    autoTable(doc, {
+      startY: y + 15,
+      theme: "grid",
+      styles: { fontSize: 9, lineWidth: 0.2, cellPadding: 1.5 },
+      columnStyles: { 0: { cellWidth: 42 }, 1: { cellWidth: 120 } },
+      body: [
+        ["Bodega proveedora:", bodegaProveedora],
+        ["Bodega solicitante:", bodegaSolicitante],
+        ["Fecha:", fecha],
+      ],
+      didParseCell: (d) => {
+        if (d.section === "body" && d.column.index === 0) {
+          d.cell.styles.fontStyle = "bold";
+          d.cell.styles.textColor = [60, 60, 60];
+        }
+      },
+      margin: { left: x, right: x },
+    });
+
+    y = doc.lastAutoTable.finalY + 6;
+    doc.setLineWidth(0.3);
     doc.line(x - 3, y, pageW - x + 3, y);
 
     const bodyRows = detalles.map((d) => {
@@ -127,16 +150,16 @@ export default function SolicitudDetail() {
     });
 
     autoTable(doc, {
-      startY: y + 8,
-      head: [["Insumo", "Cantidad solicitada", "Unidad"]],
+      startY: y + 6,
+      head: [["Insumo", "Cantidad", "Unidad"]],
       body: bodyRows,
       theme: "grid",
-      styles: { fontSize: 11, lineWidth: 0.4, cellPadding: 3 },
+      styles: { fontSize: 9, lineWidth: 0.2, cellPadding: 1.5 },
       headStyles: { fillColor: [245, 245, 245], textColor: 50, fontStyle: "bold" },
       columnStyles: {
-        0: { cellWidth: 110 },
-        1: { halign: "right", cellWidth: 40 },
-        2: { halign: "left", cellWidth: 25 },
+        0: { cellWidth: 118 },
+        1: { halign: "right", cellWidth: 30 },
+        2: { halign: "left", cellWidth: 27 },
       },
       margin: { left: x, right: x },
     });
