@@ -65,15 +65,15 @@ export function PagarButton({
     </button>
 
       {showModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-lg w-full">
-            <h2 className="text-lg font-bold mb-4">
-              {confirmTitle || "¿Estás segura de que quieres pagar esta orden?"}
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 shadow-xl w-full max-w-md mx-4">
+            <h2 className="text-base sm:text-lg font-semibold mb-4 text-gray-900 break-words whitespace-normal leading-snug">
+              {confirmTitle || "¿Estás seguro de que quieres pagar esta orden?"}
             </h2>
-            <div className="flex justify-end gap-4">
+            <div className="flex justify-end gap-3">
               <button
                 onClick={handleClose}
-                className="bg-gray-300 hover:bg-gray-400 text-black font-medium py-2 px-4 rounded"
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
               >
                 Cancelar
               </button>
@@ -81,7 +81,7 @@ export function PagarButton({
                 onClick={handleConfirm}
                 className={
                   confirmButtonClassName ||
-                  "bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded"
+                  "px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                 }
               >
                 {confirmButtonText || "Confirmar Pago"}
