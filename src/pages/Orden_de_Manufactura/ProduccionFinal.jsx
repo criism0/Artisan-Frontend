@@ -78,25 +78,40 @@ export default function ProduccionFinal() {
     if (esPT) return;
 
     const unidades = Number(form.unidades_obtenidas);
+    const pesoTotal = Number(form.peso_obtenido);
+
     if (!unidades || unidades < 1) {
       setPesosPorUnidad([]);
       setPesosPorUnidadTocados(false);
       return;
     }
 
-    const pesoTotal = Number(form.peso_obtenido);
+    // Caso especial: 1 unidad => el peso de esa unidad debe ser el total.
+    // Si veníamos de "Repartir igual" con N unidades, no se puede dejar el primer valor antiguo
+    // (porque la UI oculta inputs y quedaría inconsistente con peso_obtenido).
+    if (unidades === 1) {
+      setPesosPorUnidad([Number.isFinite(pesoTotal) ? pesoTotal : 0]);
+      setPesosPorUnidadTocados(false);
+      return;
+    }
+
     const pesoPromedio = pesoTotal > 0 ? pesoTotal / unidades : 0;
 
     setPesosPorUnidad((prev) => {
       const prevArr = Array.isArray(prev) ? prev.slice() : [];
       if (prevArr.length !== unidades) {
-        const next = Array(unidades)
+        // Si no han sido tocados (p.ej. venimos de "Repartir igual"), siempre recalcular.
+        if (!pesosPorUnidadTocados) {
+          return Array(unidades).fill(pesoPromedio);
+        }
+
+        // Si fueron tocados manualmente, preservamos lo que exista y completamos con promedio.
+        return Array(unidades)
           .fill(null)
           .map((_, idx) => {
             const v = prevArr[idx];
             return typeof v === "number" && Number.isFinite(v) ? v : pesoPromedio;
           });
-        return next;
       }
 
       if (!pesosPorUnidadTocados) {

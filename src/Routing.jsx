@@ -8,7 +8,6 @@ import ProtectedRouteMessage from "./components/ProtectedRouteMessage";
 import ProduccionFinal from "./pages/Orden_de_Manufactura/ProduccionFinal";
 import SubproductosDecision from "./pages/Orden_de_Manufactura/SubproductosDecision";
 import RegistrarSubproductos from "./pages/Orden_de_Manufactura/RegistrarSubproductos";
-import HistorialPasos from "./pages/Orden_de_Manufactura/HistorialPasos";
 
 // Páginas base
 import LandingPage from "./pages/LandingPage";
@@ -431,10 +430,6 @@ function Routing() {
           <Route
             path="/Orden_de_Manufactura/:id/produccion-final"
             element={<ProduccionFinal />}
-          />
-          <Route
-            path="/Orden_de_Manufactura/:id/historial-pasos"
-            element={<HistorialPasos />}
           />
 
           <Route path="/lotes-producto-en-proceso" element={<LotesList />} />
