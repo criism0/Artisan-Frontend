@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import Table from "../../components/Table";
 import { useApi, API_BASE, getToken } from "../../lib/api";
 import { toast } from "react-toastify";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import logo from "../../assets/logo.png";
 
 function downloadBlob(blob, filename) {
   const url = window.URL.createObjectURL(blob);
@@ -82,6 +85,65 @@ export default function SolicitudDetail() {
   const [solicitud, setSolicitud] = useState(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const handleDownloadSolicitudInsumosPDF = async () => {
+    if (!solicitud) return;
+
+    const detalles = Array.isArray(solicitud?.detalles) ? solicitud.detalles : [];
+    if (detalles.length === 0) {
+      toast.error("No hay insumos en esta solicitud");
+      return;
+    }
+
+    const doc = new jsPDF("p", "mm", "a4");
+    const x = 18;
+    const pageW = 210;
+    let y = 18;
+
+    try {
+      const img = new Image();
+      img.src = logo;
+      await img.decode();
+      doc.addImage(img, "PNG", x, y - 6, 18, 18);
+    } catch {}
+
+    doc.setFont(undefined, "bold").setFontSize(14);
+    doc.text(`Solicitud N° ${solicitud.id ?? solicitudId}`, x + 24, y);
+    doc.setFont(undefined, "normal").setFontSize(11);
+    doc.text("Detalle de insumos y cantidad solicitada", x + 24, y + 7);
+
+    y += 22;
+    doc.setLineWidth(0.4);
+    doc.line(x - 3, y, pageW - x + 3, y);
+
+    const bodyRows = detalles.map((d) => {
+      const nombre = d?.materiaPrima?.nombre ?? "—";
+      const unidad = d?.materiaPrima?.unidad_medida ?? "—";
+      const cantidad = d?.cantidad_solicitada ?? 0;
+      const cantidadFmt = Number.isFinite(Number(cantidad))
+        ? Number(cantidad).toLocaleString("es-CL")
+        : String(cantidad);
+      return [nombre, cantidadFmt, String(unidad).toUpperCase()];
+    });
+
+    autoTable(doc, {
+      startY: y + 8,
+      head: [["Insumo", "Cantidad solicitada", "Unidad"]],
+      body: bodyRows,
+      theme: "grid",
+      styles: { fontSize: 11, lineWidth: 0.4, cellPadding: 3 },
+      headStyles: { fillColor: [245, 245, 245], textColor: 50, fontStyle: "bold" },
+      columnStyles: {
+        0: { cellWidth: 110 },
+        1: { halign: "right", cellWidth: 40 },
+        2: { halign: "left", cellWidth: 25 },
+      },
+      margin: { left: x, right: x },
+    });
+
+    doc.save(`Artisan-Solicitud-#${solicitud.id ?? solicitudId}-insumos.pdf`);
+    toast.success("PDF descargado correctamente");
+  };
 
   const handleDescargarEtiquetasPallets = async () => {
     setLoading(true);
@@ -355,6 +417,13 @@ export default function SolicitudDetail() {
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <BackButton to="/Solicitudes" />
+          <button
+            onClick={handleDownloadSolicitudInsumosPDF}
+            disabled={loading}
+            className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-60"
+          >
+            PDF Detalle Insumos
+          </button>
         </div>
 
         <div className="mb-6">
@@ -468,7 +537,7 @@ export default function SolicitudDetail() {
                       disabled={loading}
                       className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-60"
                     >
-                      Descargar Etiquetas Pallets (PDF)
+                      Descargar Etiquetas Pallets
                     </button>
                   </div>
                 )}
