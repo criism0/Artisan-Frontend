@@ -5,6 +5,9 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import { downloadBlob } from "../../lib/downloadBlob";
 import { FileDown, Pencil } from "lucide-react";
+import HistorialPasosModal from "./modals/HistorialPasosModal";
+import HistorialBultosModal from "./modals/HistorialBultosModal";
+import HistorialCostosModal from "./modals/HistorialCostosModal";
 
 const CATEGORIAS = [
   { value: "I", label: "Insumos (I)" },
@@ -80,6 +83,9 @@ export default function OMDetail() {
   const [loadingPVA, setLoadingPVA] = useState(false);
   const [selectedBultoIds, setSelectedBultoIds] = useState(() => new Set());
   const [showSubproductos, setShowSubproductos] = useState(false);
+  const [showHistorialPasos, setShowHistorialPasos] = useState(false);
+  const [showHistorialBultos, setShowHistorialBultos] = useState(false);
+  const [showHistorialCostos, setShowHistorialCostos] = useState(false);
   const [insumosAsignados, setInsumosAsignados] = useState(false);
   const [tieneRegistrosInsumo, setTieneRegistrosInsumo] = useState(false);
   const navigate = useNavigate();
@@ -280,6 +286,26 @@ export default function OMDetail() {
   const hasPasos = (om?.registrosPasoProduccion?.length ?? 0) > 0;
   const esPostCierre = ["Cerrada", "Esperando PVAs"].includes(estado);
 
+  const pesoObjetivo = Number(om?.peso_objetivo || 0);
+  const pesoObtenido = Number(om?.peso_obtenido || 0);
+  const pesoSubproductos = (Array.isArray(subproductos) ? subproductos : [])
+    .reduce((acc, sp) => acc + Number(sp?.peso || 0), 0);
+  const pesoTotalSalidaRendimiento = pesoObtenido + pesoSubproductos;
+  const pesoMerma = Number.isFinite(Number(om?.peso_merma))
+    ? Number(om?.peso_merma)
+    : (pesoObjetivo ? (pesoObjetivo - pesoTotalSalidaRendimiento) : 0);
+  const rendimientoPeso = Number.isFinite(Number(om?.rendimiento_peso))
+    ? Number(om?.rendimiento_peso)
+    : (pesoObjetivo > 0 ? (pesoTotalSalidaRendimiento / pesoObjetivo) : null);
+  const costoTotal = Number(om?.costo_total || 0);
+  const costoPorKg = pesoObtenido > 0 ? (costoTotal / pesoObtenido) : null;
+
+  const fechaVencimiento = (() => {
+    const fromPT = productosFinales?.[0]?.loteProductoFinal?.fecha_vencimiento;
+    const fromPIP = loteProductoEnProceso?.fecha_vencimiento;
+    return fromPT || fromPIP || null;
+  })();
+
   // Cálculo de progreso
   const totalInsumos = (consumoInsumos || []).length || 0;
   const insumosConsumidos = (consumoInsumos || []).filter((r) => Number(r?.peso_utilizado || 0) > 0).length || 0;
@@ -342,6 +368,71 @@ export default function OMDetail() {
           </div>
         </div>
       </div>
+
+      {esPostCierre ? (
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 className="text-base font-semibold text-text">Resumen de cierre</h2>
+            <div className="text-xs text-gray-500">
+              {fechaVencimiento ? `Vence: ${new Date(fechaVencimiento).toLocaleDateString()}` : "—"}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Peso objetivo</div>
+              <div className="text-lg font-bold text-text">{pesoObjetivo.toFixed(2)} kg</div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Peso obtenido</div>
+              <div className="text-lg font-bold text-text">{pesoObtenido.toFixed(2)} kg</div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Subproductos</div>
+              <div className="text-lg font-bold text-text">{pesoSubproductos.toFixed(2)} kg</div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Salida total (rendimiento)</div>
+              <div className="text-lg font-bold text-text">{pesoTotalSalidaRendimiento.toFixed(2)} kg</div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Merma (no inventariada)</div>
+              <div className={`text-lg font-bold ${pesoMerma > 0.0001 ? "text-orange-700" : "text-text"}`}>
+                {Number.isFinite(pesoMerma) ? `${pesoMerma.toFixed(2)} kg` : "—"}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Rendimiento (peso)</div>
+              <div className="text-lg font-bold text-text">
+                {rendimientoPeso == null ? "—" : `${(Number(rendimientoPeso) * 100).toFixed(2)}%`}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Costo total</div>
+              <div className="text-lg font-bold text-text">${costoTotal.toFixed(2)}</div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Costo por kg (sobre peso obtenido)</div>
+              <div className="text-lg font-bold text-text">
+                {costoPorKg == null ? "—" : `$${costoPorKg.toFixed(4)}`}
+              </div>
+            </div>
+          </div>
+
+          {Array.isArray(bultosAsociados) && bultosAsociados.length > 0 ? (
+            <div className="mt-3 text-xs text-gray-600">
+              Salidas registradas: {bultosAsociados.filter((b) => getClaveCategoria(b) === "PT").length} PT · {bultosAsociados.filter((b) => getClaveCategoria(b) === "PIP").length} PIP · {bultosAsociados.filter((b) => getClaveCategoria(b) === "M").length} Merma
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Bultos / Cajas asociados + etiquetas (estilo Inventario, sin filtros) */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
@@ -664,16 +755,46 @@ export default function OMDetail() {
         {["Cerrada", "Esperando PVAs"].includes(estado) && (
           <button
             className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium shadow"
-            onClick={() =>
-              navigate(
-                `/Orden_de_Manufactura/${id}/historial-pasos`
-              )
-            }
+            onClick={() => setShowHistorialPasos(true)}
           >
             📋 Historial de Pasos
           </button>
         )}
+
+        {tieneRegistrosInsumo && (
+          <button
+            className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-black font-medium shadow"
+            onClick={() => setShowHistorialBultos(true)}
+          >
+            🧾 Historial de Bultos
+          </button>
+        )}
+
+        <button
+          className="px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 font-medium shadow"
+          onClick={() => setShowHistorialCostos(true)}
+        >
+          💰 Historial de Costos
+        </button>
       </div>
+
+      <HistorialPasosModal
+        open={showHistorialPasos}
+        omId={id}
+        onClose={() => setShowHistorialPasos(false)}
+      />
+
+      <HistorialBultosModal
+        open={showHistorialBultos}
+        omId={id}
+        onClose={() => setShowHistorialBultos(false)}
+      />
+
+      <HistorialCostosModal
+        open={showHistorialCostos}
+        omId={id}
+        onClose={() => setShowHistorialCostos(false)}
+      />
 
       {productosFinales && productosFinales.length > 0 && (
         <div className="mt-8 bg-gray-200 p-4 rounded-lg">

@@ -188,42 +188,6 @@ export default function HistorialPasos() {
         </table>
       </div>
 
-      {/* Materials Used */}
-      {ordenData.registrosMateriaPrimaProduccion && ordenData.registrosMateriaPrimaProduccion.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold mb-4">Materias Primas Utilizadas</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-gray-300">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="border border-gray-300 px-4 py-2 text-left">Materia Prima</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Peso Necesario</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Peso Utilizado</th>
-                  <th className="border border-gray-300 px-4 py-2 text-left">Unidad</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ordenData.registrosMateriaPrimaProduccion.map((registro, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="border border-gray-300 px-4 py-2">
-                      {registro.materiaPrima?.nombre || 'N/A'}
-                    </td>
-                    <td className="border border-gray-300 px-4 py-2">
-                      {registro.peso_necesario || 'N/A'}
-                    </td>
-                    <td className="border border-gray-300 px-4 py-2">
-                      {registro.peso_utilizado || 'N/A'}
-                    </td>
-                    <td className="border border-gray-300 px-4 py-2">
-                      {registro.materiaPrima?.unidad_medida || 'N/A'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

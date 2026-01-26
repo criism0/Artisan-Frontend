@@ -304,8 +304,8 @@ export default function Ordenes() {
               tooltipText={row.pagada ? "Revertir pago" : "Pagar orden"}
               confirmTitle={
                 row.pagada
-                  ? "¿Estás segura de que quieres revertir el pago de esta orden?"
-                  : "¿Estás segura de que quieres pagar esta orden?"
+                  ? "¿Estás seguro de que quieres revertir el pago de esta orden?"
+                  : "¿Estás seguro de que quieres pagar esta orden?"
               }
               confirmButtonText={row.pagada ? "Confirmar Reversión" : "Confirmar Pago"}
               confirmButtonClassName={
@@ -315,7 +315,7 @@ export default function Ordenes() {
               }
               buttonClassName={
                 row.pagada
-                  ? "text-gray-400 hover:text-amber-600"
+                  ? "text-green-600 hover:text-green-700"
                   : "text-gray-400 hover:text-blue-500"
               }
             />
@@ -513,8 +513,8 @@ export default function Ordenes() {
                 tooltipText={row.pagada ? "Revertir pago" : "Pagar orden"}
                 confirmTitle={
                   row.pagada
-                    ? "¿Estás segura de que quieres revertir el pago de esta orden?"
-                    : "¿Estás segura de que quieres pagar esta orden?"
+                    ? "¿Estás seguro de que quieres revertir el pago de esta orden?"
+                    : "¿Estás seguro de que quieres pagar esta orden?"
                 }
                 confirmButtonText={row.pagada ? "Confirmar Reversión" : "Confirmar Pago"}
                 confirmButtonClassName={
@@ -524,7 +524,7 @@ export default function Ordenes() {
                 }
                 buttonClassName={
                   row.pagada
-                    ? "text-gray-400 hover:text-amber-600"
+                    ? "text-green-600 hover:text-green-700"
                     : "text-gray-400 hover:text-blue-500"
                 }
               />

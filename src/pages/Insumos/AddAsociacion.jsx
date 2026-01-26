@@ -5,6 +5,43 @@ import { toast } from "../../lib/toast";
 import { useState, useEffect } from "react";
 
 export default function AddAsociacion() {
+  const normalizeFormatoBaseFromUnidad = (unidadMedidaRaw) => {
+    const raw = (unidadMedidaRaw ?? "").toString().trim();
+    if (!raw) return "Unidad";
+
+    const normalized = raw
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // Kilogramo
+    if (
+      normalized === "kg" ||
+      normalized === "kgs" ||
+      normalized.includes("kilogram") ||
+      normalized.includes("kilogr") ||
+      normalized.includes("kilo")
+    ) {
+      return "Kilogramo";
+    }
+
+    // Litro
+    if (
+      normalized === "l" ||
+      normalized === "lt" ||
+      normalized === "lts" ||
+      normalized.includes("litro") ||
+      normalized.includes("litros")
+    ) {
+      return "Litro";
+    }
+
+    // Default
+    return "Unidad";
+  };
+
   const navigate = useNavigate();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -56,7 +93,7 @@ export default function AddAsociacion() {
           const base = insumosActivos.find((i) => i.id === parseInt(id));
           if (base) {
             setBaseNivel({
-              formato: base.nombre, // Nombre por defecto, usuario puede cambiarlo a "Botella"
+              formato: normalizeFormatoBaseFromUnidad(base.unidad_medida) || "Unidad",
               unidad: base.unidad_medida || "Unidad",
               peso_unitario: "",
               precio_unitario: 0,
@@ -78,7 +115,7 @@ export default function AddAsociacion() {
     const selected = insumos.find((i) => i.id === parseInt(formData.id_materia_prima));
     if (selected) {
       setBaseNivel({
-        formato: selected.nombre,
+        formato: normalizeFormatoBaseFromUnidad(selected.unidad_medida) || "Unidad",
         unidad: selected.unidad_medida || "Unidad",
         peso_unitario: "",
         precio_unitario: 0,

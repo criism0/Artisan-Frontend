@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
-import { BackButton } from "../../components/Buttons/ActionButtons";
+import { BackButton, UndoButton } from "../../components/Buttons/ActionButtons";
 
 const formatDecimal = (num) => {
   const numValue = Number(num);
@@ -542,12 +542,11 @@ export default function AsignarInsumos() {
                                 {mostrarNumeroExacto(pesoUtilizado)}{sufijoUnidad}
                               </td>
                               <td className="px-4 py-2 text-right">
-                                <button
-                                  className="px-3 py-1 rounded bg-red-600 text-white hover:bg-red-700 text-xs"
+
+                                <UndoButton
                                   onClick={() => openRevertModal(insumo.id, b)}
-                                >
-                                  Revertir
-                                </button>
+                                  tooltipText="Revertir"
+                                />
                               </td>
                             </tr>
                           );
