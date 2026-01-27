@@ -1,4 +1,4 @@
-import { ViewDetailButton, EditButton, ToggleActiveButton } from "../../components/Buttons/ActionButtons";
+import { ViewDetailButton, EditButton, ToggleActiveButton, BackButton } from "../../components/Buttons/ActionButtons";
 import Table from "../../components/Table";
 import SearchBar from "../../components/SearchBar";
 import RowsPerPageSelector from "../../components/RowsPerPageSelector";
@@ -218,6 +218,7 @@ export default function PIPList() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-text">Productos en Proceso (PIP)</h1>
         <div className="flex gap-4">
+          <BackButton to={`/InsumosPIPProductos`} />
           <button
             className="text-primary border border-primary hover:bg-gray-100 font-medium text-sm flex items-center gap-2 px-4 py-2 rounded-md transition"
             onClick={() => navigate("/Insumos")}

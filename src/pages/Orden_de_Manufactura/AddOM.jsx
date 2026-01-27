@@ -11,22 +11,27 @@ export default function AddOM() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [recetas, setRecetas] = useState([]);
+  const [productosBase, setProductosBase] = useState([]);
+  const [pips, setPips] = useState([]);
   const [bodegas, setBodegas] = useState([]);
 
   const [form, setForm] = useState({
-    id_receta: "",
+    tipo: "", // "producto" o "pip"
+    id_seleccion: "", // id del producto base o materia prima
     id_bodega: "",
     peso_objetivo: "",
   });
 
-  const recetaSeleccionada = useMemo(() => {
-    const idReceta = Number(form.id_receta);
-    if (!idReceta) return null;
-    return recetas.find((r) => Number(r.id) === idReceta) || null;
-  }, [form.id_receta, recetas]);
+  const seleccionActual = useMemo(() => {
+    if (form.tipo === "producto" && form.id_seleccion) {
+      return productosBase.find((p) => String(p.id) === String(form.id_seleccion)) || null;
+    } else if (form.tipo === "pip" && form.id_seleccion) {
+      return pips.find((p) => String(p.id) === String(form.id_seleccion)) || null;
+    }
+    return null;
+  }, [form.tipo, form.id_seleccion, productosBase, pips]);
 
-  const unidadObjetivo = recetaSeleccionada?.unidad_medida || "";
+  const unidadObjetivo = seleccionActual?.unidad_medida || "";
 
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [disponibilidad, setDisponibilidad] = useState(null);
@@ -52,13 +57,18 @@ export default function AddOM() {
   useEffect(() => {
     (async () => {
       try {
-        const [rec, bod] = await Promise.all([
-          apiFetch(`/recetas?incluirPasos=true&incluirIngredientes=true`),
+        const [prodBase, pipsList, bod] = await Promise.all([
+          apiFetch(`/productos-base`),
+          apiFetch(`/materias-primas`),
           apiFetch(`/bodegas`),
         ]);
-        const recetasList = Array.isArray(rec) ? rec : rec?.recetas ?? [];
+        
+        const productosBaseList = Array.isArray(prodBase) ? prodBase : prodBase?.productosBase ?? [];
+        const pipsList2 = Array.isArray(pipsList) ? pipsList : pipsList?.materiasPrimas ?? [];
         const bodegasList = Array.isArray(bod) ? bod : bod?.bodegas ?? [];
-        setRecetas(recetasList);
+        
+        setProductosBase(productosBaseList);
+        setPips(pipsList2);
         setBodegas(bodegasList.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)));
       } catch {
         toast.error("Error cargando datos iniciales.");
@@ -70,18 +80,25 @@ export default function AddOM() {
     setError(null);
     setDisponibilidad(null);
 
-    if (!form.id_receta || !form.id_bodega || !form.peso_objetivo) {
-      toast.error("Selecciona receta, bodega y peso objetivo.");
+    if (!form.tipo || !form.id_seleccion || !form.id_bodega || !form.peso_objetivo) {
+      toast.error("Selecciona tipo, producto/PIP, bodega y peso objetivo.");
       return;
     }
 
     setCheckingAvailability(true);
     try {
-      const qs = new URLSearchParams({
+      const params = {
         id_bodega: String(form.id_bodega),
-        id_receta: String(form.id_receta),
         peso_objetivo: String(Number(form.peso_objetivo)),
-      }).toString();
+      };
+
+      if (form.tipo === "producto") {
+        params.id_producto_base = String(form.id_seleccion);
+      } else if (form.tipo === "pip") {
+        params.id_materia_prima = String(form.id_seleccion);
+      }
+
+      const qs = new URLSearchParams(params).toString();
 
       const res = await apiFetch(`/ordenes_manufactura/disponibilidad?${qs}`, {
         method: "GET",
@@ -111,20 +128,22 @@ export default function AddOM() {
         return;
       }
 
-      const selectedRecipe = recetas.find(
-        (r) => r.id === Number(form.id_receta)
-      );
-      if (!selectedRecipe) {
-        toast.error("Receta no encontrada.");
+      if (!form.tipo || !form.id_seleccion) {
+        toast.error("Debe seleccionar un Producto o PIP.");
         return;
       }
 
       const payload = {
-        id_receta: Number(form.id_receta),
         id_elaborador_encargado: Number(idElaborador),
         id_bodega: Number(form.id_bodega),
         peso_objetivo: Number(form.peso_objetivo),
       };
+
+      if (form.tipo === "producto") {
+        payload.id_producto_base = Number(form.id_seleccion);
+      } else if (form.tipo === "pip") {
+        payload.id_materia_prima = Number(form.id_seleccion);
+      }
 
       const nuevaOM = await apiFetch(`/ordenes_manufactura`, {
         method: "POST",
@@ -163,76 +182,125 @@ export default function AddOM() {
 
       <div className="bg-gray-200 p-4 rounded-lg">
         <form onSubmit={handleSubmit} className="space-y-6 bg-white rounded-lg shadow p-6">
-        <div>
-          <label className="block text-sm font-medium mb-1">Receta</label>
-          <select
-            value={form.id_receta}
-            onChange={(e) => setField("id_receta", e.target.value)}
-            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-          >
-            <option value="">Selecciona una receta</option>
-            {recetas.map((r) => {
-              return (
-                <option
-                  key={r.id}
-                  value={r.id}
-                >
-                  {r.nombre ?? `Receta ${r.id}`}{" "}
+          <div>
+            <label className="block text-sm font-medium mb-1">¿Qué deseas producir?</label>
+            <div className="flex gap-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="tipo"
+                  value="producto"
+                  checked={form.tipo === "producto"}
+                  onChange={(e) => {
+                    setField("tipo", e.target.value);
+                    setField("id_seleccion", "");
+                  }}
+                  className="mr-2"
+                />
+                <span className="text-sm">Producto Comercial</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="tipo"
+                  value="pip"
+                  checked={form.tipo === "pip"}
+                  onChange={(e) => {
+                    setField("tipo", e.target.value);
+                    setField("id_seleccion", "");
+                  }}
+                  className="mr-2"
+                />
+                <span className="text-sm">PIP (Producto en Proceso)</span>
+              </label>
+            </div>
+          </div>
+
+          {form.tipo === "producto" && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Producto Comercial</label>
+              <select
+                value={form.id_seleccion}
+                onChange={(e) => setField("id_seleccion", e.target.value)}
+                className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+              >
+                <option value="">Selecciona un producto comercial</option>
+                {productosBase.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre ?? `Producto ${p.id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {form.tipo === "pip" && (
+            <div>
+              <label className="block text-sm font-medium mb-1">PIP (Producto en Proceso)</label>
+              <select
+                value={form.id_seleccion}
+                onChange={(e) => setField("id_seleccion", e.target.value)}
+                className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+              >
+                <option value="">Selecciona un PIP</option>
+                {pips.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre ?? `PIP ${p.id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Bodega</label>
+            <select
+              value={form.id_bodega}
+              onChange={(e) => setField("id_bodega", e.target.value)}
+              className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+            >
+              <option value="">Selecciona una bodega</option>
+              {bodegas.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.nombre ?? `Bodega ${b.id}`}
                 </option>
-              );
-            })}
-          </select>
-        </div>
+              ))}
+            </select>
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Bodega</label>
-          <select
-            value={form.id_bodega}
-            onChange={(e) => setField("id_bodega", e.target.value)}
-            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-          >
-            <option value="">Selecciona una bodega</option>
-            {bodegas.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.nombre ?? `Bodega ${b.id}`}
-              </option>
-            ))}
-          </select>
-        </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">
+              Cantidad Objetivo{unidadObjetivo ? ` (${unidadObjetivo})` : ""}
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={form.peso_objetivo}
+              onChange={(e) => setField("peso_objetivo", e.target.value)}
+              className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+              placeholder={unidadObjetivo === "unidades" ? "Ej: 100" : "Ej: 1000"}
+            />
+          </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Cantidad Objetivo{unidadObjetivo ? ` (${unidadObjetivo})` : ""}
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={form.peso_objetivo}
-            onChange={(e) => setField("peso_objetivo", e.target.value)}
-            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-            placeholder={unidadObjetivo === "unidades" ? "Ej: 100" : "Ej: 1000"}
-          />
-        </div>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={checkAvailability}
+              disabled={checkingAvailability}
+              className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-hover disabled:opacity-60"
+            >
+              {checkingAvailability ? "Consultando…" : "Ver Disponibilidad"}
+            </button>
 
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={checkAvailability}
-            disabled={checkingAvailability}
-            className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-hover disabled:opacity-60"
-          >
-            {checkingAvailability ? "Consultando…" : "Ver Disponibilidad"}
-          </button>
-
-          <button
-            type="submit"
-            disabled={loading || !idElaborador}
-            className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-hover disabled:opacity-60"
-          >
-            {loading ? "Creando…" : "Crear Orden de Manufactura"}
-          </button>
-        </div>
+            <button
+              type="submit"
+              disabled={loading || !idElaborador}
+              className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-hover disabled:opacity-60"
+            >
+              {loading ? "Creando…" : "Crear Orden de Manufactura"}
+            </button>
+          </div>
         </form>
       </div>
 

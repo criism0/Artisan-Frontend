@@ -198,9 +198,13 @@ export default function OMList() {
 
   const columns = [
     {
-      header: "Receta",
+      header: "Producto / PIP",
       accessor: "receta",
-      Cell: ({ row }) => row.receta?.nombre || row.id_receta,
+      Cell: ({ row }) => 
+        row.productoBase?.nombre || 
+        row.materiaPrima?.nombre || 
+        row.receta?.nombre || 
+        "—",
     },
     {
       header: "Bodega",
@@ -271,6 +275,8 @@ export default function OMList() {
 
     const filtered = ordenes.filter((om) => {
       const receta = om.receta?.nombre || "";
+      const productoBase = om.productoBase?.nombre || "";
+      const materiaPrima = om.materiaPrima?.nombre || "";
       const bodega = om.bodega?.nombre ||
         bodegas.find((b) => b.id === om.id_bodega)?.nombre ||
         "";
@@ -279,6 +285,8 @@ export default function OMList() {
       return (
         idStr.toLowerCase().includes(q) ||
         String(receta).toLowerCase().includes(q) ||
+        String(productoBase).toLowerCase().includes(q) ||
+        String(materiaPrima).toLowerCase().includes(q) ||
         String(bodega).toLowerCase().includes(q) ||
         String(estado).toLowerCase().includes(q)
       );

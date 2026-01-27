@@ -4,11 +4,7 @@ import Table from "../../components/Table";
 import SearchBar from "../../components/SearchBar";
 import RowsPerPageSelector from "../../components/RowsPerPageSelector";
 import Pagination from "../../components/Pagination";
-import {
-  ViewDetailButton,
-  EditButton,
-  TrashButton,
-} from "../../components/Buttons/ActionButtons";
+import {ViewDetailButton, EditButton, TrashButton, BackButton} from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 
 export default function Productos() {
@@ -189,7 +185,11 @@ export default function Productos() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-text">Productos</h1>
+        <div className="flex gap-4">
+          <BackButton to={`/InsumosPIPProductos`} />
+        </div>
       </div>
+
 
       <div className="flex justify-between items-center mb-6">
         <RowsPerPageSelector onRowsChange={handleRowsChange} />

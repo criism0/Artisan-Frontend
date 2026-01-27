@@ -701,8 +701,10 @@ export default function OMDetail() {
           </thead>
           <tbody>
             <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Receta</td>
-              <td className="px-6 py-4 text-sm text-text">{om.receta?.nombre || om.id_receta || "—"}</td>
+              <td className="px-6 py-4 text-sm font-medium text-text">Producto / PIP</td>
+              <td className="px-6 py-4 text-sm text-text">
+                {om.productoBase?.nombre || om.materiaPrima?.nombre || om.receta?.nombre || "—"}
+              </td>
             </tr>
             <tr className="border-b border-border">
               <td className="px-6 py-4 text-sm font-medium text-text">Encargado</td>

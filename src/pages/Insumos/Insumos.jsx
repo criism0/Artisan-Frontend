@@ -1,4 +1,4 @@
-import { ViewDetailButton, EditButton, ToggleActiveButton } from "../../components/Buttons/ActionButtons";
+import { ViewDetailButton, EditButton, ToggleActiveButton, BackButton } from "../../components/Buttons/ActionButtons";
 import Table from "../../components/Table";
 import SearchBar from "../../components/SearchBar";
 import RowsPerPageSelector from "../../components/RowsPerPageSelector";
@@ -225,6 +225,7 @@ export default function InsumosPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-text">Insumos</h1>
         <div className="flex gap-4">
+          <BackButton to={`/InsumosPIPProductos`} />
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
             onClick={() => navigate("/Insumos/add")}
