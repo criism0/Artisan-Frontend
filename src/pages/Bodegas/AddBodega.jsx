@@ -1,11 +1,19 @@
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import { useState } from "react";
-import { useApi } from "../../lib/api";
+import { useRef, useState } from "react";
+import { ApiError, useApi } from "../../lib/api";
+import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
 
 export default function AddBodega() {
   const navigate = useNavigate();
   const apiFetch = useApi();
+
+  const pendingSimilarActionRef = useRef(null);
+  const [similarModal, setSimilarModal] = useState({
+    open: false,
+    inputName: "",
+    matches: [],
+  });
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -46,7 +54,7 @@ export default function AddBodega() {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e, confirmSimilarName = false) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -63,6 +71,7 @@ export default function AddBodega() {
           comuna: formData.comuna.trim(),
           direccion: formData.direccion.trim(),
           admite_produccion: formData.admite_produccion,
+          confirmSimilarName,
         }),
       });
 
@@ -74,6 +83,15 @@ export default function AddBodega() {
 
       navigate(`/Bodegas/${bodegaId}/encargados`);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && err.data?.code === "SIMILAR_NAME") {
+        pendingSimilarActionRef.current = () => handleSubmit(e, true);
+        setSimilarModal({
+          open: true,
+          inputName: err.data?.input || formData.nombre,
+          matches: err.data?.matches || [],
+        });
+        return;
+      }
       console.error("Error al crear bodega:", err);
       setError(err.message || "No se pudo crear la bodega. Revisa los datos e intenta nuevamente.");
     } finally {
@@ -96,7 +114,7 @@ export default function AddBodega() {
       )}
 
       <form
-        onSubmit={handleSubmit}
+        onSubmit={(e) => handleSubmit(e, false)}
         className="bg-white p-6 rounded-lg shadow space-y-4 max-w-lg"
       >
         <div>
@@ -209,6 +227,24 @@ export default function AddBodega() {
           </button>
         </div>
       </form>
+
+      <SimilarNameConfirmModal
+        open={similarModal.open}
+        entityLabel="bodega"
+        inputName={similarModal.inputName}
+        matches={similarModal.matches}
+        onCancel={() => {
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          pendingSimilarActionRef.current = null;
+        }}
+        onConfirm={async () => {
+          const fn = pendingSimilarActionRef.current;
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          pendingSimilarActionRef.current = null;
+          if (typeof fn === "function") await fn();
+        }}
+        confirmText="Crear bodega igualmente"
+      />
     </div>
   );
 }

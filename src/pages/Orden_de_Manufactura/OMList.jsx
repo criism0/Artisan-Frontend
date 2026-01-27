@@ -6,7 +6,7 @@ import Pagination from "../../components/Pagination";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
-import { FiChevronDown, FiChevronRight, FiClipboard, FiPlay, FiPackage, FiLayers } from "react-icons/fi";
+import { FiClipboard, FiPlay, FiPackage, FiLayers } from "react-icons/fi";
 import { toast } from "../../lib/toast";
 import ConfirmDeletePreviewModal from "../../components/Modals/ConfirmDeletePreviewModal";
 
@@ -29,7 +29,6 @@ export default function OMList() {
   const [bodegas, setBodegas] = useState([]);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
-  const [expandedRows, setExpandedRows] = useState(new Set());
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
   // Detalles bajo demanda (reduce ruido + llamadas por fila)
@@ -90,17 +89,6 @@ export default function OMList() {
     }
 
     return <span className={`${base} bg-amber-100 text-amber-800`}>PVAs pendientes</span>;
-  };
-
-  const toggleRow = (id) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-      void ensureOmExtrasLoaded(id);
-    }
-    setExpandedRows(newExpanded);
   };
 
   const ensureOmExtrasLoaded = async (id) => {
@@ -210,18 +198,6 @@ export default function OMList() {
 
   const columns = [
     {
-      header: "",
-      accessor: "expand",
-      Cell: ({ row }) => (
-        <button
-          onClick={() => toggleRow(row.id)}
-          className="text-gray-500 hover:text-gray-700"
-        >
-          {expandedRows.has(row.id) ? <FiChevronDown /> : <FiChevronRight />}
-        </button>
-      ),
-    },
-    {
       header: "Receta",
       accessor: "receta",
       Cell: ({ row }) => row.receta?.nombre || row.id_receta,
@@ -255,8 +231,6 @@ export default function OMList() {
       Cell: ({ value }) => (value ? `${value} kg` : ""),
     },
   ];
-
-  const totalColumns = columns.length + 1; // + OPCIONES (actions)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -314,121 +288,6 @@ export default function OMList() {
     setCurrentPage(1);
   };
 
-  const renderExpandedRow = (row) => {
-    const extra = omExtrasById[row.id];
-    const isLoading = omExtrasLoading.has(row.id);
-    const lote = extra?.lote || null;
-    const pautas = Array.isArray(extra?.pautas) ? extra.pautas : [];
-
-    const lotLabel = isLoading
-      ? "Cargando…"
-      : lote?.id
-        ? `#${lote.id} (${lote.id_producto_base ? "Final" : "Proceso"})`
-        : "Sin lote";
-
-    const pautasOrdenadas = [...pautas].sort(
-      (a, b) => Number(a?.pvaPorProducto?.orden || 0) - Number(b?.pvaPorProducto?.orden || 0)
-    );
-
-    return (
-      <tr className="bg-gray-50" key={`expanded-${row.id}`}>
-        <td colSpan={totalColumns} className="px-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg border border-gray-200 p-3">
-              <div className="text-xs text-gray-500 font-medium">LOTE</div>
-              <div className="text-text font-semibold mt-1">{lotLabel}</div>
-              <div className="mt-3">
-                <button
-                  className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm"
-                  onClick={() => navigate(`/Orden_de_Manufactura/${row.id}`)}
-                >
-                  Ver OM
-                </button>
-              </div>
-            </div>
-
-            <div className="md:col-span-2 bg-white rounded-lg border border-gray-200 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-xs text-gray-500 font-medium">PVA</div>
-                  <div className="text-sm text-gray-700">
-                    {isLoading ? "Cargando…" : pautas.length === 0 ? "Sin PVA" : `${pautas.length} pauta(s)`}
-                  </div>
-                </div>
-
-                {pautas.length > 0 ? (
-                  <button
-                    className="px-3 py-2 bg-white border border-border rounded-lg hover:bg-gray-100 text-sm"
-                    onClick={() => navigate(`/Orden_de_Manufactura/${row.id}`)}
-                    title="Ir al detalle para ver bultos/etiquetas"
-                  >
-                    Detalle
-                  </button>
-                ) : null}
-              </div>
-
-              {isLoading ? (
-                <div className="text-sm text-gray-600 mt-3">Cargando…</div>
-              ) : pautasOrdenadas.length === 0 ? (
-                <div className="text-sm text-gray-500 italic mt-3">Sin pautas de valor agregado</div>
-              ) : (
-                <div className="overflow-x-auto mt-3">
-                  <table className="w-full text-sm border border-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="p-2 border">Orden</th>
-                        <th className="p-2 border">Proceso</th>
-                        <th className="p-2 border text-center">Estado</th>
-                        <th className="p-2 border w-56 text-center">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pautasOrdenadas.map((p) => {
-                        const orden = Number(p?.pvaPorProducto?.orden || 0) || "—";
-                        const proceso =
-                          p?.pvaPorProducto?.procesoValorAgregado?.nombre ||
-                          `Proceso #${p?.id_proceso || "—"}`;
-
-                        return (
-                          <tr key={p.id} className="hover:bg-gray-50">
-                            <td className="p-2 border">{orden}</td>
-                            <td className="p-2 border">
-                              <div className="font-medium text-text">{proceso}</div>
-                              <div className="text-xs text-gray-500">Pauta #{p.id}</div>
-                            </td>
-                            <td className="p-2 border text-center">
-                              <BadgeEstadoPVA value={p?.estado} />
-                            </td>
-                            <td className="p-2 border">
-                              <div className="flex items-center justify-center gap-2">
-                                <button
-                                  className="px-3 py-2 bg-white border border-border rounded hover:bg-gray-100 text-sm"
-                                  onClick={() => navigate(`/PautasValorAgregado/asignar-insumos/${p.id}`)}
-                                >
-                                  Insumos
-                                </button>
-                                <button
-                                  className="px-3 py-2 bg-primary text-white rounded hover:bg-hover text-sm"
-                                  onClick={() => navigate(`/PautasValorAgregado/ejecutar/${p.id}`)}
-                                >
-                                  Ejecutar
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </td>
-      </tr>
-    );
-  };
-
   const openDeleteModal = async (id) => {
     setDeleteTargetId(id);
     setDeleteModalOpen(true);
@@ -472,7 +331,17 @@ export default function OMList() {
       return;
     }
 
-    navigate(`/PautasValorAgregado/ejecutar/${siguiente.id}`);
+    try {
+      const estadoLower = String(siguiente?.estado || "").toLowerCase();
+      const estaPendiente = estadoLower.includes("pend");
+      if (estaPendiente) {
+        await api(`/pautas-valor-agregado/${siguiente.id}/comenzar`, { method: "PUT" });
+      }
+      navigate(`/PautasValorAgregado/ejecutar/${siguiente.id}`);
+    } catch (err) {
+      const msg = err?.error || err?.message;
+      toast.error(msg || "No se pudo comenzar la pauta");
+    }
   };
 
   const actions = (row) => {
@@ -615,7 +484,6 @@ export default function OMList() {
         columns={columns}
         data={pageData}
         actions={actions}
-        renderExpandedRow={(row) => (expandedRows.has(row.id) ? renderExpandedRow(row) : null)}
       />
 
       <div className="mt-6 flex justify-end">

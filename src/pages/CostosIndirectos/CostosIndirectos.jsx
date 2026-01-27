@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { useApi } from "../../lib/api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ApiError, useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import Table from "../../components/Table";
 import SearchBar from "../../components/SearchBar";
 import Selector from "../../components/Selector";
 import { BackButton } from "../../components/Buttons/ActionButtons";
+import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
 
 function normalize(text) {
   return String(text ?? "").trim();
@@ -34,6 +35,14 @@ function Modal({ open, title, children, onClose }) {
 
 export default function CostosIndirectos() {
   const api = useApi();
+
+  const pendingSimilarActionRef = useRef(null);
+  const [similarModal, setSimilarModal] = useState({
+    open: false,
+    inputName: "",
+    matches: [],
+    confirmText: "Crear igualmente",
+  });
 
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
@@ -99,7 +108,8 @@ export default function CostosIndirectos() {
     setEditOpen(true);
   };
 
-  const handleCreate = async () => {
+  const handleCreate = async (confirmSimilarNameOrEvent = false) => {
+    const confirmSimilarName = typeof confirmSimilarNameOrEvent === "boolean" ? confirmSimilarNameOrEvent : false;
     const nombre = normalize(createForm.nombre);
     const descripcion = normalize(createForm.descripcion);
 
@@ -112,12 +122,23 @@ export default function CostosIndirectos() {
       setIsCreating(true);
       await api("/costos-indirectos", {
         method: "POST",
-        body: JSON.stringify({ nombre, descripcion }),
+        body: JSON.stringify({ nombre, descripcion, confirmSimilarName }),
       });
       setCreateForm({ nombre: "", descripcion: "" });
       toast.success("Costo indirecto creado");
       await fetchAll();
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && e.data?.code === "SIMILAR_NAME") {
+        pendingSimilarActionRef.current = () => handleCreate(true);
+        setSimilarModal({
+          open: true,
+          inputName: e.data?.input || nombre,
+          matches: e.data?.matches || [],
+          confirmText: "Crear costo igualmente",
+        });
+        return;
+      }
+
       console.error(e);
       const msg = String(e?.message || e);
       if (msg.includes("409")) toast.error("Ya existe un costo indirecto con ese nombre");
@@ -127,7 +148,8 @@ export default function CostosIndirectos() {
     }
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = async (confirmSimilarNameOrEvent = false) => {
+    const confirmSimilarName = typeof confirmSimilarNameOrEvent === "boolean" ? confirmSimilarNameOrEvent : false;
     if (!editId) return;
     const nombre = normalize(editForm.nombre);
     const descripcion = normalize(editForm.descripcion);
@@ -145,12 +167,24 @@ export default function CostosIndirectos() {
           nombre,
           descripcion,
           is_active: !!editForm.is_active,
+          confirmSimilarName,
         }),
       });
       toast.success("Costo indirecto actualizado");
       setEditOpen(false);
       await fetchAll();
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && e.data?.code === "SIMILAR_NAME") {
+        pendingSimilarActionRef.current = () => handleSaveEdit(true);
+        setSimilarModal({
+          open: true,
+          inputName: e.data?.input || nombre,
+          matches: e.data?.matches || [],
+          confirmText: "Guardar igualmente",
+        });
+        return;
+      }
+
       console.error(e);
       toast.error("No se pudo actualizar el costo indirecto");
     } finally {
@@ -242,6 +276,23 @@ export default function CostosIndirectos() {
 
   return (
     <div className="p-6 bg-background min-h-screen">
+      <SimilarNameConfirmModal
+        open={similarModal.open}
+        entityLabel="costo indirecto"
+        inputName={similarModal.inputName}
+        matches={similarModal.matches}
+        confirmText={similarModal.confirmText}
+        onCancel={() => {
+          setSimilarModal({ open: false, inputName: "", matches: [], confirmText: "Crear igualmente" });
+          pendingSimilarActionRef.current = null;
+        }}
+        onConfirm={async () => {
+          const fn = pendingSimilarActionRef.current;
+          setSimilarModal({ open: false, inputName: "", matches: [], confirmText: "Crear igualmente" });
+          pendingSimilarActionRef.current = null;
+          if (typeof fn === "function") await fn();
+        }}
+      />
       <div className="mb-4">
         <BackButton to="/InsumosPIPProductos" />
       </div>
@@ -309,7 +360,7 @@ export default function CostosIndirectos() {
           <button
             type="button"
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
-            onClick={handleCreate}
+            onClick={() => handleCreate(false)}
             disabled={isCreating}
           >
             {isCreating ? "Creando..." : "Crear"}
@@ -374,7 +425,7 @@ export default function CostosIndirectos() {
             <button
               type="button"
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
-              onClick={handleSaveEdit}
+              onClick={() => handleSaveEdit(false)}
               disabled={isSavingEdit}
             >
               {isSavingEdit ? "Guardando..." : "Guardar"}

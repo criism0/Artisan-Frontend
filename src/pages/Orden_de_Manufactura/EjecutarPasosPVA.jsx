@@ -11,6 +11,32 @@ export default function EjecutarPasosPVA() {
   const [pauta, setPauta] = useState(null);
   const [lote, setLote] = useState(null);
   const [pasos, setPasos] = useState([]);
+  const [pautasLote, setPautasLote] = useState([]);
+  const [insumosConfig, setInsumosConfig] = useState([]);
+  const [bultosPorInsumo, setBultosPorInsumo] = useState({});
+  const [seleccionBultos, setSeleccionBultos] = useState({});
+  const [nombreInsumoByKey, setNombreInsumoByKey] = useState({});
+
+  const formatDisponible = (b) => {
+    const rawQty =
+      b?.unidades_disponibles ??
+      b?.peso_disponible ??
+      b?.peso ??
+      b?.cantidad_disponible;
+
+    const qty = Number(rawQty);
+    const hasQty = Number.isFinite(qty);
+
+    const um =
+      b?.unidad_medida ||
+      b?.materiaPrima?.unidad_medida ||
+      b?.productoBase?.unidad_medida ||
+      b?.ProductoBase?.unidad_medida ||
+      "";
+
+    if (!hasQty) return "Disponible: —";
+    return `Disponible: ${qty.toFixed(2)}${um ? ` ${um}` : ""}`;
+  };
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showCompletarModal, setShowCompletarModal] = useState(false);
@@ -34,27 +60,79 @@ export default function EjecutarPasosPVA() {
 
   const loadPauta = async () => {
     try {
+      const pautaDetalle = await api(`/pautas-valor-agregado/${id}`, { method: "GET" });
+      setPauta(pautaDetalle);
+
       const data = await api(`/registros-pasos-valor-agregado/pauta/${id}`, { method: "GET" });
-      setPauta(data.pauta);
-      const ordered = data.registroPasos.sort(
-        (a, b) => a.pasoValorAgregado?.orden - b.pasoValorAgregado?.orden
+      const ordered = (data.registroPasos || []).sort(
+        (a, b) => (a.pasoValorAgregado?.orden ?? 0) - (b.pasoValorAgregado?.orden ?? 0)
       );
       setPasos(ordered);
 
-      const estado = data.pauta?.estado;
-      if (estado && estado !== "En Proceso" && estado !== "Finalizado" && estado !== "Completado") {
-        const utilizaInsumos = data.pauta?.procesoValorAgregado?.utiliza_insumos || false;
-        if (!utilizaInsumos) {
-          toast.warning("La pauta no está en proceso. Intenta comenzar la pauta desde el detalle primero.");
-        }
+      const insumos = pautaDetalle?.pvaPorProducto?.insumosPVAProductos || [];
+      setInsumosConfig(insumos);
+
+      // precargar nombres para mostrar UI humana
+      if (Array.isArray(insumos) && insumos.length > 0) {
+        const nombres = {};
+        await Promise.all(
+          insumos.map(async (ins) => {
+            const idMateriaPrima = ins?.id_materia_prima || null;
+            const idProductoBase = ins?.id_producto_base || null;
+            const key = idMateriaPrima || idProductoBase;
+            if (!key) return;
+
+            try {
+              if (idMateriaPrima) {
+                const mp = await api(`/materias-primas/${idMateriaPrima}`);
+                nombres[key] = mp?.nombre || mp?.materia_prima?.nombre || `Materia prima #${idMateriaPrima}`;
+              } else if (idProductoBase) {
+                const pb = await api(`/productos-base/${idProductoBase}`);
+                nombres[key] = pb?.nombre || pb?.producto_base?.nombre || `Producto #${idProductoBase}`;
+              }
+            } catch {
+              if (idMateriaPrima) nombres[key] = `Materia prima #${idMateriaPrima}`;
+              if (idProductoBase) nombres[key] = `Producto #${idProductoBase}`;
+            }
+          })
+        );
+        setNombreInsumoByKey(nombres);
+      } else {
+        setNombreInsumoByKey({});
       }
 
-      const pautaDetalle = await api(`/pautas-valor-agregado/${id}`, { method: "GET" });
-      if (pautaDetalle?.procesoValorAgregado) {
-        setPauta(prev => ({
-          ...prev,
-          procesoValorAgregado: pautaDetalle.procesoValorAgregado
-        }));
+      // precargar bultos disponibles por insumo si aplica
+      if (Array.isArray(insumos) && insumos.length > 0) {
+        const disponibilidad = {};
+        for (const ins of insumos) {
+          const idInsumo = ins?.id_materia_prima || ins?.id_producto_base;
+          if (!idInsumo) continue;
+          try {
+            disponibilidad[idInsumo] = await api(`/bultos-disponibles-insumo/${idInsumo}`);
+          } catch {
+            disponibilidad[idInsumo] = [];
+          }
+        }
+        setBultosPorInsumo(disponibilidad);
+      } else {
+        setBultosPorInsumo({});
+      }
+
+      // cargar pauta(s) del lote para bloqueo secuencial
+      try {
+        let query = "";
+        const lotePip = pautaDetalle?.id_lote_producto_en_proceso;
+        const loteFinal = pautaDetalle?.id_lote_producto_final;
+        if (lotePip) query = `/pautas-valor-agregado/lote?id_lote_producto_en_proceso=${lotePip}`;
+        if (loteFinal) query = `/pautas-valor-agregado/lote?id_lote_producto_final=${loteFinal}`;
+        if (query) {
+          const res = await api(query);
+          setPautasLote(Array.isArray(res) ? res : []);
+        } else {
+          setPautasLote([]);
+        }
+      } catch {
+        setPautasLote([]);
       }
     } catch {
       toast.error("Error al cargar los pasos del PVA.");
@@ -84,6 +162,87 @@ export default function EjecutarPasosPVA() {
   useEffect(() => {
     if (pauta) loadLote(pauta);
   }, [pauta]);
+
+  const proceso = pauta?.procesoValorAgregado || pauta?.ProcesoDeValorAgregado;
+  const tienePasos = Boolean(proceso?.tiene_pasos) || pasos.length > 0;
+  const requiereInsumos = (proceso?.utiliza_insumos !== false) && (insumosConfig?.length ?? 0) > 0;
+
+  const ordenActual = Number(pauta?.pvaPorProducto?.orden || 0);
+  const hayPreviasIncompletas = useMemo(() => {
+    if (!Array.isArray(pautasLote) || !ordenActual) return false;
+    return pautasLote.some((p) => {
+      const ord = Number(p?.pvaPorProducto?.orden || 0);
+      if (!ord || ord >= ordenActual) return false;
+      const st = String(p?.estado || "").toLowerCase();
+      return !st.includes("complet");
+    });
+  }, [pautasLote, ordenActual]);
+
+  const puedeComenzarPauta = !hayPreviasIncompletas;
+  const estadoLower = String(pauta?.estado || "").toLowerCase();
+  const pautaPendiente = estadoLower.includes("pend");
+  const pautaEnProceso = estadoLower.includes("proceso") || estadoLower.includes("ejec") || estadoLower.includes("inici");
+  const pautaCompletada = estadoLower.includes("complet");
+
+  const inicioAprox = pautaEnProceso ? (pauta?.updatedAt || pauta?.updated_at) : null;
+  const elapsedText = useMemo(() => {
+    if (!inicioAprox) return null;
+    const start = new Date(inicioAprox);
+    if (Number.isNaN(start.getTime())) return null;
+    const diffMs = Date.now() - start.getTime();
+    if (diffMs < 0) return null;
+    const totalMin = Math.floor(diffMs / 60000);
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }, [inicioAprox]);
+
+  const handleComenzarPauta = async () => {
+    if (!id) return;
+    if (!puedeComenzarPauta) {
+      toast.error("Debes completar los PVAs anteriores antes de comenzar este.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const body = {};
+
+      if (requiereInsumos) {
+        const bultos = [];
+        for (const ins of insumosConfig) {
+          const idMateriaPrima = ins?.id_materia_prima || null;
+          const idProductoBase = ins?.id_producto_base || null;
+          const key = idMateriaPrima || idProductoBase;
+          const idBulto = Number(seleccionBultos?.[key] || 0);
+          if (!key || !idBulto) {
+            toast.error("Selecciona un bulto para cada insumo antes de comenzar.");
+            setSaving(false);
+            return;
+          }
+          bultos.push({
+            id_materia_prima: idMateriaPrima,
+            id_producto_base: idProductoBase,
+            id_bulto: idBulto,
+          });
+        }
+        body.bultos = bultos;
+      }
+
+      await api(`/pautas-valor-agregado/${id}/comenzar`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
+
+      toast.success("Pauta comenzada correctamente.");
+      await loadPauta();
+    } catch (err) {
+      const msg = err?.error || err?.message;
+      toast.error(msg || "No se pudo comenzar la pauta.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleComenzarPaso = async (idRegistro) => {
     try {
@@ -130,8 +289,8 @@ export default function EjecutarPasosPVA() {
   };
 
   
-  const generaBultos = pauta?.procesoValorAgregado?.genera_bultos_nuevos === true;
-  const descripcion = pauta?.procesoValorAgregado?.descripcion?.toLowerCase() || "";
+    const generaBultos = proceso?.genera_bultos_nuevos === true;
+    const descripcion = proceso?.descripcion?.toLowerCase() || "";
   const esEmpaque = /(empaqu|empac)/i.test(descripcion);
   const esPIP = Boolean(pauta?.id_lote_producto_en_proceso);
   const mostrarCantNuevasUnidades = generaBultos && (!esEmpaque || esPIP);
@@ -176,7 +335,8 @@ export default function EjecutarPasosPVA() {
     };
   }
 
-  const todosCompletos = pasos.length > 0 && pasos.every((p) => p.estado === "Completado");
+  const todosCompletos = tienePasos && pasos.length > 0 && pasos.every((p) => p.estado === "Completado");
+  const puedeCompletar = pautaEnProceso && (todosCompletos || !tienePasos);
 
   if (loading)
     return <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow">Cargando pasos...</div>;
@@ -184,7 +344,7 @@ export default function EjecutarPasosPVA() {
   return (
     <div className="max-w-5xl mx-auto p-6 bg-white rounded shadow">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Ejecución de Pasos del PVA</h1>
+        <h1 className="text-2xl font-bold">Ejecución de PVA</h1>
         <button
           onClick={() => navigate("/Orden_de_Manufactura")}
           className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
@@ -194,11 +354,100 @@ export default function EjecutarPasosPVA() {
       </div>
 
       <div className="mb-4 text-sm text-gray-700">
-        <p><strong>Proceso:</strong> {pauta?.procesoValorAgregado?.descripcion || pauta?.ProcesoDeValorAgregado?.descripcion || "Sin descripción"}</p>
+        <p><strong>Proceso:</strong> {proceso?.descripcion || "Sin descripción"}</p>
         <p><strong>Estado actual:</strong> {pauta?.estado}</p>
+        {proceso?.tiempo_estimado != null ? (
+          <p><strong>Tiempo estimado:</strong> {proceso.tiempo_estimado} {proceso?.unidad_tiempo || ""}</p>
+        ) : null}
+        {elapsedText ? (
+          <p><strong>Tiempo transcurrido (aprox):</strong> {elapsedText}</p>
+        ) : null}
       </div>
 
-      <table className="w-full border border-gray-200 rounded-lg text-sm mb-6">
+      {pautaPendiente ? (
+        <div className="border border-gray-200 rounded-lg p-4 mb-6 bg-gray-50">
+          <div className="font-semibold text-text">1) Comenzar PVA</div>
+
+          {hayPreviasIncompletas ? (
+            <div className="text-sm text-amber-700 mt-2">
+              Debes completar los PVAs anteriores antes de comenzar este.
+            </div>
+          ) : null}
+
+          {requiereInsumos ? (
+            <div className="mt-3">
+              <div className="text-sm text-gray-700">
+                Este PVA requiere consumir insumos antes de comenzar.
+              </div>
+              <div className="mt-3 space-y-3">
+                {(insumosConfig || []).map((ins) => {
+                  const key = ins?.id_materia_prima || ins?.id_producto_base;
+                  const insumoNombre = nombreInsumoByKey?.[key] || `Insumo #${key}`;
+                  const bultos = bultosPorInsumo?.[key] || [];
+                  return (
+                    <div key={key} className="bg-white border border-border rounded p-3">
+                      <div className="text-sm font-medium text-text">
+                        {insumoNombre}
+                      </div>
+                      <div className="mt-2">
+                        <select
+                          className="w-full border border-border rounded px-3 py-2"
+                          value={seleccionBultos?.[key] || ""}
+                          onChange={(e) =>
+                            setSeleccionBultos((prev) => ({
+                              ...prev,
+                              [key]: e.target.value,
+                            }))
+                          }
+                        >
+                          <option value="">Selecciona un bulto…</option>
+                          {Array.isArray(bultos) && bultos.length > 0 ? (
+                            bultos.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {(b.identificador || b.codigo || "")
+                                  ? `${b.identificador || b.codigo} · `
+                                  : ""}
+                                Bulto #{b.id} · {formatDisponible(b)}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="" disabled>
+                              Sin bultos disponibles
+                            </option>
+                          )}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-600 mt-2">Este PVA no requiere insumos.</div>
+          )}
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => void handleComenzarPauta()}
+              disabled={saving || !puedeComenzarPauta}
+              className="px-5 py-2 bg-primary text-white rounded hover:bg-hover disabled:opacity-60"
+            >
+              {saving ? "Comenzando…" : "Comenzar"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {pautaCompletada ? (
+        <div className="text-sm text-green-700 font-medium mb-6">Esta pauta ya está completada.</div>
+      ) : null}
+
+      {pautaEnProceso && tienePasos ? (
+        <div className="border border-gray-200 rounded-lg p-4 mb-6">
+          <div className="font-semibold text-text mb-3">2) Ejecutar pasos</div>
+
+      <table className="w-full border border-gray-200 rounded-lg text-sm">
         <thead className="bg-gray-100">
           <tr>
             <th className="p-2 text-left">Orden</th>
@@ -266,17 +515,36 @@ export default function EjecutarPasosPVA() {
         </tbody>
       </table>
 
-      {todosCompletos && (
-        <div className="flex justify-end mt-6">
-          <button
-            onClick={handleAbrirCompletar}
-            disabled={saving}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded"
-          >
-            Completar Pauta
-          </button>
         </div>
-      )}
+      ) : null}
+
+      {pautaEnProceso && !tienePasos ? (
+        <div className="border border-gray-200 rounded-lg p-4 mb-6 bg-gray-50">
+          <div className="font-semibold text-text">2) Sin pasos</div>
+          <div className="text-sm text-gray-600 mt-2">
+            Este PVA no tiene pasos. Continúa directamente a registrar salidas.
+          </div>
+        </div>
+      ) : null}
+
+      {puedeCompletar ? (
+        <div className="border border-gray-200 rounded-lg p-4">
+          <div className="font-semibold text-text">3) Registrar salidas</div>
+          <div className="flex justify-end mt-4">
+            <button
+              onClick={handleAbrirCompletar}
+              disabled={saving}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded"
+            >
+              Registrar salidas
+            </button>
+          </div>
+        </div>
+      ) : pautaEnProceso ? (
+        <div className="text-sm text-gray-500 italic">
+          Completa los pasos para registrar salidas.
+        </div>
+      ) : null}
 
       <Dialog
         open={showCompletarModal}

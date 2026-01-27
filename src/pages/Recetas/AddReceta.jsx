@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
-import { useApi } from "../../lib/api";
+import { useState, useEffect, useRef } from "react";
+import { ApiError, useApi } from "../../lib/api";
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
+import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
 
 // ────────────────────────────────────────────────
 // CONSTANTS
@@ -15,6 +16,9 @@ const RECIPE_TYPES = {
 export default function AddReceta() {
   const navigate = useNavigate();
   const api = useApi();
+
+  const pendingSimilarActionRef = useRef(null);
+  const [similarModal, setSimilarModal] = useState({ open: false, inputName: "", matches: [] });
 
   // ────────────────────────────────────────────────
   // MAIN STATES
@@ -216,7 +220,8 @@ export default function AddReceta() {
   // ────────────────────────────────────────────────
   // FINAL SUBMIT
   // ────────────────────────────────────────────────
-  const handleSubmit = async () => {
+  const handleSubmit = async (confirmSimilarNameOrEvent = false) => {
+    const confirmSimilarName = typeof confirmSimilarNameOrEvent === "boolean" ? confirmSimilarNameOrEvent : false;
     if (!validate()) return;
 
     try {
@@ -239,7 +244,7 @@ export default function AddReceta() {
       }
 
       const recetaRes = await api(`/recetas`,
-        { method: "POST", body: JSON.stringify(recetaBody) }
+        { method: "POST", body: JSON.stringify({ ...recetaBody, confirmSimilarName }) }
       );
 
       const idReceta = recetaRes.id;
@@ -292,6 +297,15 @@ export default function AddReceta() {
       
       navigate(`/Recetas/${idReceta}`);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && err.data?.code === "SIMILAR_NAME") {
+        pendingSimilarActionRef.current = () => handleSubmit(true);
+        setSimilarModal({
+          open: true,
+          inputName: err.data?.input || formData.nombre,
+          matches: err.data?.matches || [],
+        });
+        return;
+      }
       console.error("Error al crear receta:", err);
       toast.error(err.message|| "Error al crear la receta. Verifica los campos e intenta nuevamente.");
     }
@@ -302,6 +316,23 @@ export default function AddReceta() {
   // ────────────────────────────────────────────────
   return (
     <div className="p-6 bg-background min-h-screen">
+      <SimilarNameConfirmModal
+        open={similarModal.open}
+        entityLabel="receta"
+        inputName={similarModal.inputName}
+        matches={similarModal.matches}
+        onCancel={() => {
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          pendingSimilarActionRef.current = null;
+        }}
+        onConfirm={async () => {
+          const fn = pendingSimilarActionRef.current;
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          pendingSimilarActionRef.current = null;
+          if (typeof fn === "function") await fn();
+        }}
+        confirmText="Crear receta igualmente"
+      />
       <div className="mb-4">
         <BackButton to="/Recetas" />
       </div>
@@ -497,13 +528,14 @@ export default function AddReceta() {
         {/* Add Ingredient Form */}
         {!showAddIngredient ? (
           <button
+            type="button"
             onClick={() => setShowAddIngredient(true)}
             className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
           >
             Agregar Nuevo Ingrediente
           </button>
         ) : (
-          <div className="bg-gray-50 p-4 rounded-lg">
+          <div>
             <h3 className="text-md font-medium text-gray-800 mb-4">
               Agregar Nuevo Ingrediente
             </h3>
@@ -519,7 +551,7 @@ export default function AddReceta() {
                     setSelectedIngredientMateriaPrima(selectedId);
                     // Auto-set unit from selected materia prima
                     if (selectedId) {
-                      const selectedMateriaPrima = materiasPrimas.find(mp => mp.id === parseInt(selectedId));
+                      const selectedMateriaPrima = materiasPrimas.find((mp) => mp.id === parseInt(selectedId));
                       if (selectedMateriaPrima) {
                         setIngredientUnidad(selectedMateriaPrima.unidad_medida);
                       }
@@ -566,12 +598,14 @@ export default function AddReceta() {
             </div>
             <div className="flex gap-2 mt-4">
               <button
+                type="button"
                 onClick={handleAddIngrediente}
                 className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
               >
                 Agregar
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setShowAddIngredient(false);
                   setSelectedIngredientMateriaPrima("");
@@ -728,7 +762,7 @@ export default function AddReceta() {
       {/* BOTÓN FINAL */}
       <div className="flex justify-end mt-8">
         <button
-          onClick={handleSubmit}
+          onClick={() => handleSubmit(false)}
           className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
         >
           Crear Receta

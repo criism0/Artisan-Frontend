@@ -3,6 +3,12 @@ import { toast } from "react-toastify";
 import { api } from "../../lib/api";
 import Selector from "../Selector";
 
+function parseMaybeNumber(v) {
+  if (v === "" || v == null) return null;
+  const n = typeof v === "string" ? Number(v.trim().replace(",", ".")) : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function normalizeInsumosFromFormato(formato) {
   const insumos = Array.isArray(formato?.insumos) ? formato.insumos : [];
   return insumos.map((mp) => {
@@ -125,10 +131,7 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
           insumos: (nuevoInsumos || []).map((x) => ({
             id_materia_prima: Number(x.id_materia_prima),
             opcional: Boolean(x.opcional),
-            cantidad_sugerida_por_unidad:
-              x.cantidad_sugerida_por_unidad === "" || x.cantidad_sugerida_por_unidad == null
-                ? null
-                : Number(x.cantidad_sugerida_por_unidad),
+            cantidad_sugerida_por_unidad: parseMaybeNumber(x.cantidad_sugerida_por_unidad),
           })),
         },
       });
@@ -216,10 +219,7 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
           insumos: editDraft.insumos.map((x) => ({
             id_materia_prima: Number(x.id_materia_prima),
             opcional: Boolean(x.opcional),
-            cantidad_sugerida_por_unidad:
-              x.cantidad_sugerida_por_unidad === "" || x.cantidad_sugerida_por_unidad == null
-                ? null
-                : Number(x.cantidad_sugerida_por_unidad),
+            cantidad_sugerida_por_unidad: parseMaybeNumber(x.cantidad_sugerida_por_unidad),
           })),
         },
       });
