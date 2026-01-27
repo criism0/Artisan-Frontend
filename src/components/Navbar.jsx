@@ -124,8 +124,8 @@ export default function Navbar() {
             onClose={handleClose}
           >
             <MenuGroup label="Producción" icon={<FiBox />}>
-              <MenuLink to="/Orden_de_Manufactura" label="Lista de Elaboración" />
-              <MenuLink to="/lotes-producto-en-proceso" label="Lista Lotes" />
+              <MenuLink to="/Orden_de_Manufactura" label="Elaboraciones" />
+              <MenuLink to="/lotes-producto-en-proceso" label="Lotes" />
               <MenuLink to="/Estimaciones" label="Estimaciones de demanda" />
             </MenuGroup>
           </Dropdown>

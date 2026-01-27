@@ -1,12 +1,16 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import { useApi } from "../../lib/api";
+import { ApiError, useApi } from "../../lib/api";
+import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
 
 export default function BodegaEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const apiFetch = useApi();
+
+  const pendingSimilarActionRef = useRef(null);
+  const [similarModal, setSimilarModal] = useState({ open: false, inputName: "", matches: [] });
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -42,7 +46,7 @@ export default function BodegaEdit() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e, confirmSimilarName = false) => {
     e.preventDefault();
     try {
       setSaving(true);
@@ -50,10 +54,19 @@ export default function BodegaEdit() {
       await apiFetch(`/bodegas/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, confirmSimilarName }),
       });
       navigate(`/Bodegas/${id}`);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && err.data?.code === "SIMILAR_NAME") {
+        pendingSimilarActionRef.current = () => handleSubmit(e, true);
+        setSimilarModal({
+          open: true,
+          inputName: err.data?.input || formData.nombre,
+          matches: err.data?.matches || [],
+        });
+        return;
+      }
       console.error("Error actualizando bodega:", err);
       setError(err.message || "No se pudo actualizar la bodega.");
     } finally {
@@ -79,7 +92,7 @@ export default function BodegaEdit() {
       {error && <div className="p-3 bg-red-100 text-red-700 rounded mb-4">{error}</div>}
 
       <form
-        onSubmit={handleSubmit}
+        onSubmit={(e) => handleSubmit(e, false)}
         className="bg-white p-6 rounded-lg shadow space-y-4 max-w-xl"
       >
         <div>
@@ -134,6 +147,24 @@ export default function BodegaEdit() {
           {saving ? "Guardando..." : "Actualizar Bodega"}
         </button>
       </form>
+
+      <SimilarNameConfirmModal
+        open={similarModal.open}
+        entityLabel="bodega"
+        inputName={similarModal.inputName}
+        matches={similarModal.matches}
+        onCancel={() => {
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          pendingSimilarActionRef.current = null;
+        }}
+        onConfirm={async () => {
+          const fn = pendingSimilarActionRef.current;
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          pendingSimilarActionRef.current = null;
+          if (typeof fn === "function") await fn();
+        }}
+        confirmText="Guardar igualmente"
+      />
     </div>
   );
 }

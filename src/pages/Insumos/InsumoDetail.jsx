@@ -6,6 +6,8 @@ import { toast } from "../../lib/toast";
 import Table from "../../components/Table";
 import TabButton from "../../components/Wizard/TabButton";
 
+const sum = (arr) => (Array.isArray(arr) ? arr.reduce((acc, v) => acc + Number(v || 0), 0) : 0);
+
 export default function InsumoDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -20,6 +22,8 @@ export default function InsumoDetail() {
   const [subproductos, setSubproductos] = useState([]);
   const [recetaCostos, setRecetaCostos] = useState([]);
   const [pautas, setPautas] = useState([]);
+  const [formatosEmpaque, setFormatosEmpaque] = useState([]);
+  const [pvas, setPvas] = useState([]);
 
   useEffect(() => {
     const fetchInsumo = async () => {
@@ -75,16 +79,20 @@ export default function InsumoDetail() {
 
         const rid = recetaBase.id;
         setRecetaId(rid);
-        const [recetaFull, ings, subs, costos] = await Promise.all([
+        const [recetaFull, ings, subs, costos, formatos, pvasRes] = await Promise.all([
           api(`/recetas/${rid}`),
           api(`/recetas/${rid}/ingredientes`),
           api(`/recetas/${rid}/subproductos`),
           api(`/recetas/${rid}/costos-indirectos`),
+          api(`/recetas/${rid}/formatos-empaque`).catch(() => []),
+          api(`/pva-por-producto/producto?id_materia_prima=${id}`).catch(() => []),
         ]);
         setReceta(recetaFull);
         setIngredientes(Array.isArray(ings) ? ings : []);
         setSubproductos(Array.isArray(subs) ? subs : []);
         setRecetaCostos(Array.isArray(costos) ? costos : []);
+        setFormatosEmpaque(Array.isArray(formatos) ? formatos : []);
+        setPvas(Array.isArray(pvasRes) ? pvasRes : []);
       } catch (e) {
         console.error(e);
         toast.error("No se pudo cargar la receta asociada al PIP");
@@ -164,6 +172,8 @@ export default function InsumoDetail() {
   if (isPip) {
     const pautaSeleccionada = pautas.find((p) => String(p?.id) === String(receta?.id_pauta_elaboracion || ""));
 
+    const canGoReceta = Boolean(recetaId);
+
     return (
       <div className="p-6 bg-background min-h-screen">
         <div className="mb-4">
@@ -189,12 +199,13 @@ export default function InsumoDetail() {
         </div>
 
         <div className="flex flex-wrap gap-2 mb-6">
-          <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>Datos</TabButton>
-          <TabButton active={tab === "receta"} onClick={() => setTab("receta")}>Receta</TabButton>
-          <TabButton active={tab === "ingredientes"} onClick={() => setTab("ingredientes")}>Ingredientes</TabButton>
-          <TabButton active={tab === "pauta"} onClick={() => setTab("pauta")}>Pauta</TabButton>
-          <TabButton active={tab === "costos"} onClick={() => setTab("costos")}>Costos</TabButton>
-          <TabButton active={tab === "proveedores"} onClick={() => setTab("proveedores")}>Proveedores</TabButton>
+          <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>1) Datos</TabButton>
+          <TabButton active={tab === "receta"} disabled={!canGoReceta} onClick={() => setTab("receta")}>2) Receta</TabButton>
+          <TabButton active={tab === "ingredientes"} disabled={!canGoReceta} onClick={() => setTab("ingredientes")}>3) Ingredientes</TabButton>
+          <TabButton active={tab === "costos_secos"} disabled={!canGoReceta} onClick={() => setTab("costos_secos")}>4) Costos secos</TabButton>
+          <TabButton active={tab === "pauta"} disabled={!canGoReceta} onClick={() => setTab("pauta")}>5) Pauta</TabButton>
+          <TabButton active={tab === "pvas"} onClick={() => setTab("pvas")}>6) PVAs</TabButton>
+          <TabButton active={tab === "costos_indirectos"} disabled={!canGoReceta} onClick={() => setTab("costos_indirectos")}>7) Costos indirectos</TabButton>
         </div>
 
         {tab === "datos" ? (
@@ -313,7 +324,103 @@ export default function InsumoDetail() {
           </div>
         ) : null}
 
-        {tab === "costos" ? (
+        {tab === "costos_secos" ? (
+          <div className="bg-white p-6 rounded-lg shadow space-y-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-xl font-semibold text-text">Costos secos (formatos de empaque)</h2>
+              {recetaId ? (
+                <button
+                  type="button"
+                  className="px-3 py-2 border rounded-lg hover:bg-gray-50"
+                  onClick={() => navigate(`/Recetas/${recetaId}`)}
+                >
+                  Administrar en receta
+                </button>
+              ) : null}
+            </div>
+
+            {formatosEmpaque.length === 0 ? (
+              <div className="text-sm text-gray-600">Sin formatos de empaque configurados.</div>
+            ) : (
+              <div className="space-y-3">
+                {formatosEmpaque.map((f) => (
+                  <div key={f.id} className="border border-border rounded-lg p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-text">{f?.nombre || `Formato #${f.id}`}</div>
+                        <div className="text-xs text-gray-500">{f?.opcional ? "Opcional" : "Requerido"}</div>
+                      </div>
+                    </div>
+
+                    {Array.isArray(f?.insumos) && f.insumos.length > 0 ? (
+                      <div className="mt-3 overflow-x-auto border border-border rounded">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-gray-100">
+                            <tr>
+                              <th className="text-left p-2">Insumo</th>
+                              <th className="text-left p-2">UM</th>
+                              <th className="text-left p-2">Opcional</th>
+                              <th className="text-left p-2">Sug/unidad</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {f.insumos.map((mp) => (
+                              <tr key={mp.id} className="border-t border-border">
+                                <td className="p-2">{mp?.nombre || "—"}</td>
+                                <td className="p-2">{mp?.unidad_medida || "—"}</td>
+                                <td className="p-2">{mp?.FormatoEmpaqueInsumo?.opcional ? "Sí" : "No"}</td>
+                                <td className="p-2">{mp?.FormatoEmpaqueInsumo?.cantidad_sugerida_por_unidad ?? "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-sm text-gray-600">Este formato no tiene insumos.</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {tab === "pvas" ? (
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h2 className="text-xl font-semibold text-text mb-2">Procesos de Valor Agregado (PVAs)</h2>
+            {pvas.length === 0 ? (
+              <div className="text-sm text-gray-600">Sin PVAs asociados.</div>
+            ) : (
+              <div className="overflow-x-auto border border-border rounded">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="text-left p-2">Orden</th>
+                      <th className="text-left p-2">Proceso</th>
+                      <th className="text-left p-2">Usa insumos</th>
+                      <th className="text-left p-2">Genera bultos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pvas
+                      .slice()
+                      .sort((a, b) => Number(a?.orden || 0) - Number(b?.orden || 0))
+                      .map((pva) => (
+                        <tr key={pva.id} className="border-t border-border">
+                          <td className="p-2">{Number(pva?.orden || 0) || "—"}</td>
+                          <td className="p-2">{pva?.procesoValorAgregado?.descripcion || pva?.ProcesoDeValorAgregado?.descripcion || "—"}</td>
+                          <td className="p-2">{pva?.procesoValorAgregado?.utiliza_insumos ? "Sí" : "No"}</td>
+                          <td className="p-2">{pva?.procesoValorAgregado?.genera_bultos_nuevos ? "Sí" : "No"}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {tab === "costos_indirectos" ? (
           <div className="bg-white p-6 rounded-lg shadow">
             <h2 className="text-xl font-semibold text-text mb-2">Costos indirectos</h2>
             {recetaCostos.length === 0 ? (
@@ -336,23 +443,6 @@ export default function InsumoDetail() {
                 </tbody>
               </table>
             )}
-          </div>
-        ) : null}
-
-        {tab === "proveedores" ? (
-          <div className="bg-gray-200 p-4 rounded-lg">
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold text-text mb-2">Proveedores Asociados</h2>
-              <Table data={proveedoresData} columns={columns} actions={actions} />
-              <div className="mt-4">
-                <button
-                  onClick={() => navigate(`/Insumos/asociar/${id}`)}
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                >
-                  + Asociar Nuevo Proveedor
-                </button>
-              </div>
-            </div>
           </div>
         ) : null}
       </div>

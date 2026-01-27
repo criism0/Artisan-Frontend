@@ -1,13 +1,16 @@
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import { useState } from "react";
-import { useApi } from "../../lib/api";
+import { useRef, useState } from "react";
+import { ApiError, useApi } from "../../lib/api";
 import ProductosBaseManager from "../../components/ProductosBaseManager";
+import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
 
 export default function AddListaPrecio() {
   const navigate = useNavigate();
   const api = useApi();
   const [error, setError] = useState(null);
+  const pendingSimilarActionRef = useRef(null);
+  const [similarModal, setSimilarModal] = useState({ open: false, inputName: "", matches: [] });
   const [formData, setFormData] = useState({
     nombre: "",
     description: ""
@@ -34,7 +37,7 @@ export default function AddListaPrecio() {
     });
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e, confirmSimilarName = false) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -45,13 +48,18 @@ export default function AddListaPrecio() {
         description: formData.description
       };
 
-      if (productosBase.length > 0) {
+      const createLista = async () => {
         const listaResponse = await api("/lista-precio", {
           method: "POST",
-          body: JSON.stringify(formattedData)
+          body: JSON.stringify({ ...formattedData, confirmSimilarName }),
         });
+        const nuevaListaId = listaResponse?.id;
+        if (!nuevaListaId) throw new Error("No se recibió el ID de la lista creada");
+        return nuevaListaId;
+      };
 
-        const nuevaListaId = listaResponse.id;
+      if (productosBase.length > 0) {
+        const nuevaListaId = await createLista();
 
         try {
           for (const producto of productosBase) {
@@ -71,14 +79,20 @@ export default function AddListaPrecio() {
           alert("Lista de precio creada pero hubo un error al guardar algunos productos. Puedes editarlos después.");
         }
       } else {
-        await api("/lista-precio", {
-          method: "POST",
-          body: JSON.stringify(formattedData)
-        });
+        await createLista();
       }
 
       navigate("/lista-precio");
     } catch (error) {
+      if (error instanceof ApiError && error.status === 409 && error.data?.code === "SIMILAR_NAME") {
+        pendingSimilarActionRef.current = () => handleSubmit(e, true);
+        setSimilarModal({
+          open: true,
+          inputName: error.data?.input || formData.nombre,
+          matches: error.data?.matches || [],
+        });
+        return;
+      }
       setError(
         "No se pudo crear la lista de precio. Verifica los datos e intenta nuevamente."
       );
@@ -101,7 +115,7 @@ export default function AddListaPrecio() {
       )}
 
       <form
-        onSubmit={handleSubmit}
+        onSubmit={(e) => handleSubmit(e, false)}
         className="bg-white p-6 rounded-lg shadow space-y-4"
       >
         {/* NOMBRE */}
@@ -163,6 +177,24 @@ export default function AddListaPrecio() {
           </button>
         </div>
       </form>
+
+      <SimilarNameConfirmModal
+        open={similarModal.open}
+        entityLabel="lista de precio"
+        inputName={similarModal.inputName}
+        matches={similarModal.matches}
+        onCancel={() => {
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          pendingSimilarActionRef.current = null;
+        }}
+        onConfirm={async () => {
+          const fn = pendingSimilarActionRef.current;
+          setSimilarModal({ open: false, inputName: "", matches: [] });
+          pendingSimilarActionRef.current = null;
+          if (typeof fn === "function") await fn();
+        }}
+        confirmText="Crear lista igualmente"
+      />
     </div>
   );
 }

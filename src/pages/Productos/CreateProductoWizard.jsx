@@ -1,9 +1,11 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import { useApi } from "../../lib/api";
+import { ApiError, useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { insumoToSearchText } from "../../services/fuzzyMatch";
+
+import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
 
 import TabButton from "../../components/Wizard/TabButton";
 import { toNumber } from "../../utils/toNumber";
@@ -17,6 +19,15 @@ import CostosIndirectosTab from "../../components/WizardTabs/CostosIndirectosTab
 export default function CreateProductoWizard() {
   const api = useApi();
   const navigate = useNavigate();
+
+  const pendingSimilarActionRef = useRef(null);
+  const [similarModal, setSimilarModal] = useState({
+    open: false,
+    entityLabel: "",
+    inputName: "",
+    matches: [],
+    confirmText: "Crear igualmente",
+  });
 
   const [tab, setTab] = useState("datos");
 
@@ -144,7 +155,8 @@ export default function CreateProductoWizard() {
     setRecetaCostos(Array.isArray(costos) ? costos : []);
   };
 
-  const handleGuardarProducto = async () => {
+  const handleGuardarProducto = async (confirmSimilarNameOrEvent = false) => {
+    const confirmSimilarName = typeof confirmSimilarNameOrEvent === "boolean" ? confirmSimilarNameOrEvent : false;
     if (!productoForm.nombre.trim()) return toast.error("Nombre es obligatorio");
     if (!productoForm.descripcion.trim()) return toast.error("Descripción es obligatoria");
     if (!productoForm.codigo_ean.trim()) return toast.error("Código EAN es obligatorio");
@@ -168,10 +180,16 @@ export default function CreateProductoWizard() {
       };
 
       if (productoId) {
-        await api(`/productos-base/${productoId}`, { method: "PUT", body: JSON.stringify(payload) });
+        await api(`/productos-base/${productoId}`, {
+          method: "PUT",
+          body: JSON.stringify({ ...payload, confirmSimilarName }),
+        });
         toast.success("Producto Comercial actualizado");
       } else {
-        const created = await api(`/productos-base`, { method: "POST", body: JSON.stringify(payload) });
+        const created = await api(`/productos-base`, {
+          method: "POST",
+          body: JSON.stringify({ ...payload, confirmSimilarName }),
+        });
         const newId = created?.id ?? null;
         setProductoId(newId);
         toast.success("Producto Comercial creado");
@@ -187,6 +205,18 @@ export default function CreateProductoWizard() {
 
       setTab("receta");
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && e.data?.code === "SIMILAR_NAME") {
+        pendingSimilarActionRef.current = () => handleGuardarProducto(true);
+        setSimilarModal({
+          open: true,
+          entityLabel: "producto",
+          inputName: e.data?.input || productoForm.nombre,
+          matches: e.data?.matches || [],
+          confirmText: productoId ? "Guardar igualmente" : "Crear producto igualmente",
+        });
+        return;
+      }
+
       console.error(e);
       toast.error(`Error guardando producto: ${e?.message || e}`);
     }
@@ -204,7 +234,8 @@ export default function CreateProductoWizard() {
     };
   };
 
-  const handleGuardarReceta = async () => {
+  const handleGuardarReceta = async (confirmSimilarNameOrEvent = false) => {
+    const confirmSimilarName = typeof confirmSimilarNameOrEvent === "boolean" ? confirmSimilarNameOrEvent : false;
     if (!productoId) return toast.error("Primero debes guardar el Producto Comercial");
     const pesoNum = toNumber(recetaForm.peso);
     if (pesoNum <= 0) return toast.error("El peso debe ser mayor a 0");
@@ -214,17 +245,35 @@ export default function CreateProductoWizard() {
     try {
       const payload = buildRecetaPayload();
       if (recetaId) {
-        await api(`/recetas/${recetaId}`, { method: "PUT", body: JSON.stringify(payload) });
+        await api(`/recetas/${recetaId}`, {
+          method: "PUT",
+          body: JSON.stringify({ ...payload, confirmSimilarName }),
+        });
         await refreshRecetaParts(recetaId);
         toast.success("Receta actualizada");
       } else {
-        const created = await api("/recetas", { method: "POST", body: JSON.stringify(payload) });
+        const created = await api("/recetas", {
+          method: "POST",
+          body: JSON.stringify({ ...payload, confirmSimilarName }),
+        });
         const newId = created?.id ?? null;
         setRecetaId(newId);
         await refreshRecetaParts(newId);
         toast.success("Receta creada");
       }
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && e.data?.code === "SIMILAR_NAME") {
+        pendingSimilarActionRef.current = () => handleGuardarReceta(true);
+        setSimilarModal({
+          open: true,
+          entityLabel: "receta",
+          inputName: e.data?.input || recetaForm.nombre,
+          matches: e.data?.matches || [],
+          confirmText: recetaId ? "Guardar igualmente" : "Crear receta igualmente",
+        });
+        return;
+      }
+
       console.error(e);
       toast.error(`Error guardando receta: ${e?.message || e}`);
     }
@@ -442,6 +491,24 @@ export default function CreateProductoWizard() {
         <BackButton to="/Productos" />
       </div>
 
+      <SimilarNameConfirmModal
+        open={similarModal.open}
+        entityLabel={similarModal.entityLabel}
+        inputName={similarModal.inputName}
+        matches={similarModal.matches}
+        confirmText={similarModal.confirmText}
+        onCancel={() => {
+          setSimilarModal({ open: false, entityLabel: "", inputName: "", matches: [], confirmText: "Crear igualmente" });
+          pendingSimilarActionRef.current = null;
+        }}
+        onConfirm={async () => {
+          const fn = pendingSimilarActionRef.current;
+          setSimilarModal({ open: false, entityLabel: "", inputName: "", matches: [], confirmText: "Crear igualmente" });
+          pendingSimilarActionRef.current = null;
+          if (typeof fn === "function") await fn();
+        }}
+      />
+
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
         <div>
           <h1 className="text-2xl font-bold text-text">Crear Producto Comercial</h1>
@@ -478,7 +545,7 @@ export default function CreateProductoWizard() {
           productoId={productoId}
           productoForm={productoForm}
           setProductoForm={setProductoForm}
-          onGuardarProducto={handleGuardarProducto}
+          onGuardarProducto={() => handleGuardarProducto(false)}
         />
       ) : null}
 
@@ -488,7 +555,7 @@ export default function CreateProductoWizard() {
           recetaId={recetaId}
           recetaForm={recetaForm}
           setRecetaForm={setRecetaForm}
-          onGuardarReceta={handleGuardarReceta}
+          onGuardarReceta={() => handleGuardarReceta(false)}
           mpById={mpById}
           opcionesIngredientes={opcionesIngredientes}
           opcionesMateriaPrima={opcionesMateriaPrima}

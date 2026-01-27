@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import { useApi } from "../../lib/api";
+import { ApiError, useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { insumoToSearchText } from "../../services/fuzzyMatch";
+
+import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
 
 import TabButton from "../../components/Wizard/TabButton";
 import { toNumber } from "../../utils/toNumber";
@@ -18,6 +20,15 @@ import CostosIndirectosTab from "../../components/WizardTabs/CostosIndirectosTab
 export default function CreatePipWizard() {
   const api = useApi();
   const navigate = useNavigate();
+
+  const pendingSimilarActionRef = useRef(null);
+  const [similarModal, setSimilarModal] = useState({
+    open: false,
+    entityLabel: "",
+    inputName: "",
+    matches: [],
+    confirmText: "Crear igualmente",
+  });
 
   const [tab, setTab] = useState("datos");
 
@@ -156,7 +167,8 @@ export default function CreatePipWizard() {
     setRecetaCostos(Array.isArray(costos) ? costos : []);
   };
 
-  const handleGuardarPip = async () => {
+  const handleGuardarPip = async (confirmSimilarNameOrEvent = false) => {
+    const confirmSimilarName = typeof confirmSimilarNameOrEvent === "boolean" ? confirmSimilarNameOrEvent : false;
     if (!pipCategoriaId) return toast.error("No existe la categoría 'PIP' en el sistema");
     if (!pipForm.nombre.trim()) return toast.error("Nombre es obligatorio");
     if (!pipForm.unidad_medida) return toast.error("Unidad de medida es obligatoria");
@@ -173,10 +185,16 @@ export default function CreatePipWizard() {
       };
 
       if (pipId) {
-        await api(`/materias-primas/${pipId}`, { method: "PUT", body: JSON.stringify(payload) });
+        await api(`/materias-primas/${pipId}`, {
+          method: "PUT",
+          body: JSON.stringify({ ...payload, confirmSimilarName }),
+        });
         toast.success("PIP actualizado");
       } else {
-        const created = await api(`/materias-primas`, { method: "POST", body: JSON.stringify(payload) });
+        const created = await api(`/materias-primas`, {
+          method: "POST",
+          body: JSON.stringify({ ...payload, confirmSimilarName }),
+        });
         const newId = created?.id ?? null;
         setPipId(newId);
         toast.success("PIP creado");
@@ -191,6 +209,18 @@ export default function CreatePipWizard() {
 
       setTab("receta");
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && e.data?.code === "SIMILAR_NAME") {
+        pendingSimilarActionRef.current = () => handleGuardarPip(true);
+        setSimilarModal({
+          open: true,
+          entityLabel: "pip",
+          inputName: e.data?.input || pipForm.nombre,
+          matches: e.data?.matches || [],
+          confirmText: pipId ? "Guardar igualmente" : "Crear PIP igualmente",
+        });
+        return;
+      }
+
       console.error(e);
       toast.error(`Error guardando PIP: ${e?.message || e}`);
     }
@@ -208,7 +238,8 @@ export default function CreatePipWizard() {
     };
   };
 
-  const handleGuardarReceta = async () => {
+  const handleGuardarReceta = async (confirmSimilarNameOrEvent = false) => {
+    const confirmSimilarName = typeof confirmSimilarNameOrEvent === "boolean" ? confirmSimilarNameOrEvent : false;
     if (!pipId) return toast.error("Primero debes guardar el PIP");
     const pesoNum = toNumber(recetaForm.peso);
     if (pesoNum <= 0) return toast.error("El peso debe ser mayor a 0");
@@ -218,17 +249,35 @@ export default function CreatePipWizard() {
     try {
       const payload = buildRecetaPayload();
       if (recetaId) {
-        await api(`/recetas/${recetaId}`, { method: "PUT", body: JSON.stringify(payload) });
+        await api(`/recetas/${recetaId}`, {
+          method: "PUT",
+          body: JSON.stringify({ ...payload, confirmSimilarName }),
+        });
         await refreshRecetaParts(recetaId);
         toast.success("Receta actualizada");
       } else {
-        const created = await api("/recetas", { method: "POST", body: JSON.stringify(payload) });
+        const created = await api("/recetas", {
+          method: "POST",
+          body: JSON.stringify({ ...payload, confirmSimilarName }),
+        });
         const newId = created?.id ?? null;
         setRecetaId(newId);
         await refreshRecetaParts(newId);
         toast.success("Receta creada");
       }
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && e.data?.code === "SIMILAR_NAME") {
+        pendingSimilarActionRef.current = () => handleGuardarReceta(true);
+        setSimilarModal({
+          open: true,
+          entityLabel: "receta",
+          inputName: e.data?.input || recetaForm.nombre,
+          matches: e.data?.matches || [],
+          confirmText: recetaId ? "Guardar igualmente" : "Crear receta igualmente",
+        });
+        return;
+      }
+
       console.error(e);
       toast.error(`Error guardando receta: ${e?.message || e}`);
     }
@@ -447,6 +496,24 @@ export default function CreatePipWizard() {
         <BackButton to="/PIP" />
       </div>
 
+      <SimilarNameConfirmModal
+        open={similarModal.open}
+        entityLabel={similarModal.entityLabel}
+        inputName={similarModal.inputName}
+        matches={similarModal.matches}
+        confirmText={similarModal.confirmText}
+        onCancel={() => {
+          setSimilarModal({ open: false, entityLabel: "", inputName: "", matches: [], confirmText: "Crear igualmente" });
+          pendingSimilarActionRef.current = null;
+        }}
+        onConfirm={async () => {
+          const fn = pendingSimilarActionRef.current;
+          setSimilarModal({ open: false, entityLabel: "", inputName: "", matches: [], confirmText: "Crear igualmente" });
+          pendingSimilarActionRef.current = null;
+          if (typeof fn === "function") await fn();
+        }}
+      />
+
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
         <div>
           <h1 className="text-2xl font-bold text-text">Crear PIP</h1>
@@ -482,7 +549,12 @@ export default function CreatePipWizard() {
       </div>
 
       {tab === "datos" ? (
-        <DatosPipTab pipId={pipId} pipForm={pipForm} setPipForm={setPipForm} onGuardarPip={handleGuardarPip} />
+        <DatosPipTab
+          pipId={pipId}
+          pipForm={pipForm}
+          setPipForm={setPipForm}
+          onGuardarPip={() => handleGuardarPip(false)}
+        />
       ) : null}
 
       {tab === "receta" ? (
@@ -491,7 +563,7 @@ export default function CreatePipWizard() {
           recetaId={recetaId}
           recetaForm={recetaForm}
           setRecetaForm={setRecetaForm}
-          onGuardarReceta={handleGuardarReceta}
+          onGuardarReceta={() => handleGuardarReceta(false)}
           mpById={mpById}
           opcionesIngredientes={opcionesIngredientes}
           opcionesMateriaPrima={opcionesMateriaPrima}

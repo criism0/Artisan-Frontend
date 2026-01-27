@@ -17,6 +17,7 @@ export default function ProductDetail() {
   const [subproductos, setSubproductos] = useState([]);
   const [recetaCostos, setRecetaCostos] = useState([]);
   const [pautas, setPautas] = useState([]);
+  const [formatosEmpaque, setFormatosEmpaque] = useState([]);
 
   useEffect(() => {
     const load = async () => {
@@ -41,17 +42,19 @@ export default function ProductDetail() {
         }
 
         const recetaId = recetaBase.id;
-        const [recetaFull, ings, subs, costos] = await Promise.all([
+        const [recetaFull, ings, subs, costos, formatos] = await Promise.all([
           api(`/recetas/${recetaId}`),
           api(`/recetas/${recetaId}/ingredientes`),
           api(`/recetas/${recetaId}/subproductos`),
           api(`/recetas/${recetaId}/costos-indirectos`),
+          api(`/recetas/${recetaId}/formatos-empaque`).catch(() => []),
         ]);
 
         setReceta(recetaFull || recetaBase);
         setIngredientes(Array.isArray(ings) ? ings : []);
         setSubproductos(Array.isArray(subs) ? subs : []);
         setRecetaCostos(Array.isArray(costos) ? costos : []);
+        setFormatosEmpaque(Array.isArray(formatos) ? formatos : []);
       } catch (error) {
         console.error("Error fetching producto:", error);
         toast.error("No se pudo cargar el detalle del producto");
@@ -91,7 +94,7 @@ export default function ProductDetail() {
         <div>
           <h1 className="text-2xl font-bold text-text">Detalle del Producto</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Vista completa: datos → receta → ingredientes/subproductos → pauta → costos indirectos.
+            Vista completa: datos → receta → ingredientes/subproductos → costos secos → pauta → costos indirectos.
           </p>
         </div>
         <div className="flex gap-2">
@@ -119,8 +122,9 @@ export default function ProductDetail() {
         <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>1) Datos</TabButton>
         <TabButton active={tab === "receta"} disabled={!canGoReceta} onClick={() => setTab("receta")}>2) Receta</TabButton>
         <TabButton active={tab === "ingredientes"} disabled={!canGoReceta} onClick={() => setTab("ingredientes")}>3) Ingredientes</TabButton>
-        <TabButton active={tab === "pauta"} disabled={!canGoReceta} onClick={() => setTab("pauta")}>4) Pauta</TabButton>
-        <TabButton active={tab === "costos"} disabled={!canGoReceta} onClick={() => setTab("costos")}>5) Costos indirectos</TabButton>
+        <TabButton active={tab === "costos_secos"} disabled={!canGoReceta} onClick={() => setTab("costos_secos")}>4) Costos secos</TabButton>
+        <TabButton active={tab === "pauta"} disabled={!canGoReceta} onClick={() => setTab("pauta")}>5) Pauta</TabButton>
+        <TabButton active={tab === "costos"} disabled={!canGoReceta} onClick={() => setTab("costos")}>6) Costos indirectos</TabButton>
       </div>
 
       {tab === "datos" ? (
@@ -254,6 +258,67 @@ export default function ProductDetail() {
               )}
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {tab === "costos_secos" ? (
+        <div className="bg-white p-6 rounded-lg shadow space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="text-xl font-semibold text-text">Costos secos (formatos de empaque)</h2>
+            {receta?.id ? (
+              <button
+                type="button"
+                className="px-3 py-2 border rounded-lg hover:bg-gray-50"
+                onClick={() => navigate(`/Recetas/${receta.id}`)}
+              >
+                Administrar en receta
+              </button>
+            ) : null}
+          </div>
+
+          {formatosEmpaque.length === 0 ? (
+            <div className="text-sm text-gray-600">Sin formatos de empaque configurados.</div>
+          ) : (
+            <div className="space-y-3">
+              {formatosEmpaque.map((f) => (
+                <div key={f.id} className="border border-border rounded-lg p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-text">{f?.nombre || `Formato #${f.id}`}</div>
+                      <div className="text-xs text-gray-500">{f?.opcional ? "Opcional" : "Requerido"}</div>
+                    </div>
+                  </div>
+
+                  {Array.isArray(f?.insumos) && f.insumos.length > 0 ? (
+                    <div className="mt-3 overflow-x-auto border border-border rounded">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-gray-100">
+                          <tr>
+                            <th className="text-left p-2">Insumo</th>
+                            <th className="text-left p-2">UM</th>
+                            <th className="text-left p-2">Opcional</th>
+                            <th className="text-left p-2">Sug/unidad</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {f.insumos.map((mp) => (
+                            <tr key={mp.id} className="border-t border-border">
+                              <td className="p-2">{mp?.nombre || "—"}</td>
+                              <td className="p-2">{mp?.unidad_medida || "—"}</td>
+                              <td className="p-2">{mp?.FormatoEmpaqueInsumo?.opcional ? "Sí" : "No"}</td>
+                              <td className="p-2">{mp?.FormatoEmpaqueInsumo?.cantidad_sugerida_por_unidad ?? "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-sm text-gray-600">Este formato no tiene insumos.</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : null}
 

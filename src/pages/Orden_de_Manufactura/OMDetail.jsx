@@ -596,33 +596,88 @@ export default function OMDetail() {
                     .sort((a, b) => Number(a?.pvaPorProducto?.orden || 0) - Number(b?.pvaPorProducto?.orden || 0))
                     .map((p) => {
                       const orden = Number(p?.pvaPorProducto?.orden || 0) || "—";
+                      const procesoObj = p?.pvaPorProducto?.procesoValorAgregado;
                       const nombreProceso =
-                        p?.pvaPorProducto?.procesoValorAgregado?.nombre ||
+                        procesoObj?.nombre ||
+                        procesoObj?.descripcion ||
                         `Proceso #${p?.id_proceso || "—"}`;
+
+                      const utilizaInsumos =
+                        Boolean(procesoObj?.utiliza_insumos) ||
+                        (p?.pvaPorProducto?.insumosPVAProductos?.length ?? 0) > 0;
+
+                      const estadoLower = String(p?.estado || "").toLowerCase();
+                      const estaPendiente = estadoLower.includes("pend");
+                      const estaCompletada = estadoLower.includes("complet");
+
+                      const hayPreviasIncompletas = [...pautasPVA].some((prev) => {
+                        const prevOrden = Number(prev?.pvaPorProducto?.orden || 0);
+                        if (!prevOrden) return false;
+                        if (prevOrden >= Number(p?.pvaPorProducto?.orden || 0)) return false;
+                        const st = String(prev?.estado || "").toLowerCase();
+                        return !st.includes("complet");
+                      });
+
+                      const comenzarYejecutar = async () => {
+                        if (!p?.id) {
+                          toast.error("Pauta inválida");
+                          return;
+                        }
+
+                        if (hayPreviasIncompletas) {
+                          toast.error("Debes completar los PVAs anteriores antes de ejecutar este.");
+                          return;
+                        }
+
+                        try {
+                          if (estaPendiente) {
+                            await api(`/pautas-valor-agregado/${p.id}/comenzar`, { method: "PUT" });
+                          }
+                          navigate(`/PautasValorAgregado/ejecutar/${p.id}`);
+                        } catch (err) {
+                          const msg = err?.error || err?.message;
+                          toast.error(msg || "No se pudo comenzar la pauta");
+                        }
+                      };
 
                       return (
                         <tr key={p.id} className="hover:bg-gray-50">
                           <td className="p-2 border">{orden}</td>
                           <td className="p-2 border">
-                            <div className="font-medium text-text">{nombreProceso}</div>
-                            <div className="text-xs text-gray-500">Pauta #{p.id}</div>
+                            <div className="flex items-baseline justify-between gap-3">
+                              <div className="font-medium text-text">PVA: {nombreProceso}</div>
+                              <div className="text-xs text-gray-400">#{p.id}</div>
+                            </div>
                           </td>
                           <td className="p-2 border text-center">
                             <BadgeEstadoPVA value={p?.estado} />
                           </td>
                           <td className="p-2 border">
                             <div className="flex items-center justify-center gap-2">
+                              {utilizaInsumos ? (
+                                <button
+                                  className="px-3 py-2 bg-white border border-border rounded hover:bg-gray-100 text-sm"
+                                  onClick={() => navigate(`/PautasValorAgregado/asignar-insumos/${p.id}`)}
+                                >
+                                  Insumos
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="px-3 py-2 bg-gray-100 text-gray-500 border border-border rounded text-sm cursor-not-allowed"
+                                  disabled
+                                  title="Este proceso no utiliza insumos"
+                                >
+                                  Sin insumos
+                                </button>
+                              )}
                               <button
-                                className="px-3 py-2 bg-white border border-border rounded hover:bg-gray-100 text-sm"
-                                onClick={() => navigate(`/PautasValorAgregado/asignar-insumos/${p.id}`)}
+                                className="px-3 py-2 bg-primary text-white rounded hover:bg-hover text-sm shadow disabled:opacity-60"
+                                disabled={estaCompletada || hayPreviasIncompletas}
+                                title={hayPreviasIncompletas ? "Debes completar los PVAs anteriores" : undefined}
+                                onClick={() => void comenzarYejecutar()}
                               >
-                                Insumos
-                              </button>
-                              <button
-                                className="px-3 py-2 bg-primary text-white rounded hover:bg-hover text-sm shadow"
-                                onClick={() => navigate(`/PautasValorAgregado/ejecutar/${p.id}`)}
-                              >
-                                Ejecutar
+                                {estaPendiente ? "Comenzar" : "Ejecutar"}
                               </button>
                             </div>
                           </td>
@@ -646,8 +701,10 @@ export default function OMDetail() {
           </thead>
           <tbody>
             <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Receta</td>
-              <td className="px-6 py-4 text-sm text-text">{om.receta?.nombre || om.id_receta || "—"}</td>
+              <td className="px-6 py-4 text-sm font-medium text-text">Producto / PIP</td>
+              <td className="px-6 py-4 text-sm text-text">
+                {om.productoBase?.nombre || om.materiaPrima?.nombre || om.receta?.nombre || "—"}
+              </td>
             </tr>
             <tr className="border-b border-border">
               <td className="px-6 py-4 text-sm font-medium text-text">Encargado</td>

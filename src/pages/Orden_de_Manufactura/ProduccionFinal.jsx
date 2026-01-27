@@ -10,11 +10,15 @@ export default function ProduccionFinal() {
   const { id } = useParams();
   const navigate = useNavigate();
 
+  const NO_EMPACAR_VALUE = "__NO_EMPACAR__";
+
   const [om, setOm] = useState(null);
   const [loadingOm, setLoadingOm] = useState(true);
   const [disponiblesByMp, setDisponiblesByMp] = useState({});
   const [empaqueByMp, setEmpaqueByMp] = useState({});
   const [formatoEmpaqueId, setFormatoEmpaqueId] = useState("");
+  const [empaqueOpenByMp, setEmpaqueOpenByMp] = useState({});
+  const [bultoInfoById, setBultoInfoById] = useState({});
 
   const [form, setForm] = useState({
     peso_obtenido: "",
@@ -129,10 +133,15 @@ export default function ProduccionFinal() {
       .sort((a, b) => (a?.nombre || "").localeCompare(b?.nombre || ""));
   }, [om, esPT]);
 
-  const requiereSeleccionFormato = formatosEmpaqueAplicables.length > 0;
+  const hayCostosSecos = formatosEmpaqueAplicables.length > 0;
+
+  const permiteNoEmpacar = useMemo(() => {
+    if (esPT) return false;
+    return formatosEmpaqueAplicables.some((f) => Boolean(f?.opcional));
+  }, [esPT, formatosEmpaqueAplicables]);
 
   useEffect(() => {
-    if (!requiereSeleccionFormato) {
+    if (!hayCostosSecos) {
       setFormatoEmpaqueId("");
       return;
     }
@@ -141,7 +150,7 @@ export default function ProduccionFinal() {
     if (formatosEmpaqueAplicables.length === 1) {
       setFormatoEmpaqueId(String(formatosEmpaqueAplicables[0].id));
     }
-  }, [requiereSeleccionFormato, formatosEmpaqueAplicables, formatoEmpaqueId]);
+  }, [hayCostosSecos, formatosEmpaqueAplicables, formatoEmpaqueId]);
 
   const formatoEmpaqueSeleccionado = useMemo(() => {
     if (!formatoEmpaqueId) return null;
@@ -169,6 +178,14 @@ export default function ProduccionFinal() {
     return (idMp) => map.get(Number(idMp)) || `MP #${idMp}`;
   }, [empaquesAplicables]);
 
+  const unidadMp = useMemo(() => {
+    const map = new Map();
+    for (const mp of empaquesAplicables) {
+      map.set(Number(mp.id), mp.unidad_medida || "");
+    }
+    return (idMp) => map.get(Number(idMp)) || "";
+  }, [empaquesAplicables]);
+
   const bodegaId = om?.bodega?.id;
 
   const cargarDisponibles = async (mpId) => {
@@ -178,8 +195,18 @@ export default function ProduccionFinal() {
         `/bultos/disponibles?id_bodega=${encodeURIComponent(bodegaId)}&id_materia_prima=${encodeURIComponent(mpId)}`
       );
       setDisponiblesByMp((s) => ({ ...s, [mpId]: bultos }));
+      setBultoInfoById((prev) => {
+        const next = { ...prev };
+        for (const b of Array.isArray(bultos) ? bultos : []) {
+          const bid = Number(b?.id);
+          if (Number.isFinite(bid) && bid > 0) next[bid] = b;
+        }
+        return next;
+      });
+      return Array.isArray(bultos) ? bultos : [];
     } catch (err) {
       toast.error(err.message || "No se pudieron cargar bultos disponibles.");
+      return [];
     }
   };
 
@@ -200,9 +227,52 @@ export default function ProduccionFinal() {
     });
   };
 
+  const parseNumber = (v) => {
+    if (v == null) return NaN;
+    if (typeof v === "number") return v;
+    if (typeof v === "string") {
+      const s = v.trim();
+      if (!s) return NaN;
+      return Number(s.replace(",", "."));
+    }
+    return Number(v);
+  };
+
+  const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
+  const autoDistribuirSugerido = ({ disponibles, totalSugerido }) => {
+    const list = Array.isArray(disponibles) ? disponibles : [];
+    let remaining = Number(totalSugerido);
+    if (!Number.isFinite(remaining) || remaining <= 0) return { allocation: {}, remaining: 0 };
+
+    const allocation = {};
+
+    for (const b of list) {
+      const bId = Number(b?.id);
+      if (!Number.isFinite(bId) || bId <= 0) continue;
+
+      const max =
+        Number(b?.unidades_disponibles || 0) * Number(b?.peso_unitario || 0);
+
+      if (!Number.isFinite(max) || max <= 0) continue;
+
+      const take = Math.min(remaining, max);
+      if (take > 0) {
+        allocation[bId] = round2(take);
+        remaining -= take;
+      }
+
+      if (remaining <= 0) break;
+    }
+
+    return { allocation, remaining };
+  };
+
   const buildPayload = () => {
     const pesoTotal = Number(form.peso_obtenido);
     const unidades = Number(form.unidades_obtenidas);
+
+    const noEmpacar = String(formatoEmpaqueId) === NO_EMPACAR_VALUE;
 
     const pesoPromedio = unidades > 0 ? pesoTotal / unidades : 0;
     const pesosCalculados = unidades > 0 ? Array(unidades).fill(pesoPromedio) : [];
@@ -215,12 +285,14 @@ export default function ProduccionFinal() {
     const allowedMpIds = new Set((empaquesAplicables || []).map((mp) => Number(mp?.id)).filter((x) => Number.isFinite(x)));
 
     return {
-      id_formato_empaque: formatoEmpaqueId ? Number(formatoEmpaqueId) : null,
+      id_formato_empaque: noEmpacar ? null : formatoEmpaqueId ? Number(formatoEmpaqueId) : null,
       peso_obtenido: pesoTotal,
       unidades_obtenidas: unidades,
       fecha_vencimiento: form.fecha_vencimiento,
       pesos: pesosFinal,
-      empaques: Object.entries(empaqueByMp)
+      empaques: noEmpacar
+        ? []
+        : Object.entries(empaqueByMp)
         .filter(([mpId]) => {
           if (allowedMpIds.size === 0) return true;
           return allowedMpIds.has(Number(mpId));
@@ -268,19 +340,31 @@ export default function ProduccionFinal() {
 
     const payload = buildPayload();
 
+    const noEmpacar = String(formatoEmpaqueId) === NO_EMPACAR_VALUE;
+
     if (esPT) {
-      if (!requiereSeleccionFormato) {
+      if (!hayCostosSecos) {
         return toast.error("La receta no tiene Costos Secos configurados (Formatos de Empaque).");
       }
-      if (!formatoEmpaqueId) return toast.error("Selecciona un Formato de Empaque.");
+      if (!formatoEmpaqueId || noEmpacar) return toast.error("Selecciona un Formato de Empaque.");
       if (!Array.isArray(payload.empaques) || payload.empaques.length === 0) {
         return toast.error("Debes declarar al menos un empaque consumido.");
       }
     } else {
-      if ((!Array.isArray(payload.empaques) || payload.empaques.length === 0) && !formatoEmpaqueId) {
-        // PIP sin empaques: permitido.
-      } else if (!formatoEmpaqueId) {
-        return toast.error("Selecciona un Formato de Empaque para declarar empaques.");
+      if (!hayCostosSecos) {
+        // PIP sin costos secos configurados: permitido.
+      } else {
+        if (!formatoEmpaqueId) {
+          return toast.error(permiteNoEmpacar ? "Selecciona un Formato de Empaque o 'No empacar'." : "Selecciona un Formato de Empaque.");
+        }
+        if (noEmpacar) {
+          // No empacar: permitido (solo cuando existe al menos un formato opcional).
+          if (!permiteNoEmpacar) return toast.error("No empacar no está habilitado para esta receta.");
+        } else {
+          if (empaquesAplicables.length > 0 && (!Array.isArray(payload.empaques) || payload.empaques.length === 0)) {
+            return toast.error("Debes declarar al menos un empaque consumido.");
+          }
+        }
       }
     }
 
@@ -329,19 +413,30 @@ export default function ProduccionFinal() {
 
     const payload = buildPayload();
 
+    const noEmpacar = String(formatoEmpaqueId) === NO_EMPACAR_VALUE;
+
     if (esPT) {
-      if (!requiereSeleccionFormato) {
+      if (!hayCostosSecos) {
         return toast.error("La receta no tiene Costos Secos configurados (Formatos de Empaque).");
       }
-      if (!formatoEmpaqueId) return toast.error("Selecciona un Formato de Empaque.");
+      if (!formatoEmpaqueId || noEmpacar) return toast.error("Selecciona un Formato de Empaque.");
       if (!Array.isArray(payload.empaques) || payload.empaques.length === 0) {
         return toast.error("Debes declarar al menos un empaque consumido.");
       }
     } else {
-      if ((!Array.isArray(payload.empaques) || payload.empaques.length === 0) && !formatoEmpaqueId) {
-        // PIP sin empaques: permitido.
-      } else if (!formatoEmpaqueId) {
-        return toast.error("Selecciona un Formato de Empaque para declarar empaques.");
+      if (!hayCostosSecos) {
+        // PIP sin costos secos configurados: permitido.
+      } else {
+        if (!formatoEmpaqueId) {
+          return toast.error(permiteNoEmpacar ? "Selecciona un Formato de Empaque o 'No empacar'." : "Selecciona un Formato de Empaque.");
+        }
+        if (noEmpacar) {
+          if (!permiteNoEmpacar) return toast.error("No empacar no está habilitado para esta receta.");
+        } else {
+          if (empaquesAplicables.length > 0 && (!Array.isArray(payload.empaques) || payload.empaques.length === 0)) {
+            return toast.error("Debes declarar al menos un empaque consumido.");
+          }
+        }
       }
     }
 
@@ -469,146 +564,144 @@ export default function ProduccionFinal() {
       ) : null}
 
       <div className="bg-gray-200 p-4 rounded-lg">
-        <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="bg-white rounded-lg shadow p-6 w-full">
+          <form onSubmit={handleSubmit} className="space-y-6">
         {loadingOm ? (
           <div className="text-sm text-gray-600">Cargando datos de la OM…</div>
         ) : null}
 
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Peso obtenido (kg)
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-            value={form.peso_obtenido}
-            onChange={(e) => setField("peso_obtenido", e.target.value)}
-            placeholder="500"
-            required
-          />
-        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Peso obtenido (kg)
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                value={form.peso_obtenido}
+                onChange={(e) => setField("peso_obtenido", e.target.value)}
+                placeholder="500"
+                required
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Unidades obtenidas
-          </label>
-          <input
-            type="number"
-            min="1"
-            step="1"
-            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-            value={form.unidades_obtenidas}
-            onChange={(e) => setField("unidades_obtenidas", e.target.value)}
-            placeholder="5"
-            required
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            {esPT
-              ? "Se asignará automáticamente el peso promedio a cada unidad."
-              : "En PIP puedes ajustar el peso de cada bulto si obtuviste unidades desiguales."}
-          </p>
-        </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Unidades obtenidas
+              </label>
+              <input
+                type="number"
+                min="1"
+                step="1"
+                className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                value={form.unidades_obtenidas}
+                onChange={(e) => setField("unidades_obtenidas", e.target.value)}
+                placeholder="5"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {esPT
+                  ? "Se asignará automáticamente el peso promedio a cada unidad."
+                  : "En PIP puedes ajustar el peso de cada bulto si obtuviste unidades desiguales."}
+              </p>
+            </div>
 
-        {!esPT && unidadesNumber > 1 ? (
-          <div className="border border-border rounded-lg p-3 bg-gray-50">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-text">Pesos por bulto (PIP)</div>
-                <div className="text-xs text-gray-600">
-                  La suma debe coincidir con el peso obtenido.
+            {!esPT && unidadesNumber > 1 ? (
+              <div className="border border-border rounded-lg p-3 bg-gray-50">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-semibold text-text">Pesos por bulto (PIP)</div>
+                    <div className="text-xs text-gray-600">La suma debe coincidir con el peso obtenido.</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="px-3 py-2 bg-white border border-border rounded hover:bg-gray-100"
+                    onClick={resetPesosPorUnidad}
+                    disabled={!pesoTotalNumber || !unidadesNumber}
+                  >
+                    Repartir igual
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+                  {Array.from({ length: unidadesNumber }).map((_, idx) => {
+                    const val = pesosPorUnidad?.[idx] ?? "";
+                    return (
+                      <div key={idx} className="flex items-center gap-3 bg-white border border-border rounded p-2">
+                        <div className="w-10 text-sm font-semibold text-gray-700">#{idx + 1}</div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="flex-1 border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                          value={val}
+                          onChange={(e) => {
+                            const nextVal = e.target.value === "" ? "" : Number(e.target.value);
+                            if (nextVal !== "" && (Number.isNaN(nextVal) || nextVal < 0)) return;
+                            setPreview(null);
+                            setPesosPorUnidadTocados(true);
+                            setPesosPorUnidad((prev) => {
+                              const arr = Array.isArray(prev) ? prev.slice() : Array(unidadesNumber).fill(0);
+                              arr[idx] = nextVal === "" ? "" : nextVal;
+                              return arr;
+                            });
+                          }}
+                          placeholder="kg"
+                        />
+                        <div className="w-10 text-xs text-gray-500 text-right">kg</div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-2 text-xs text-gray-700">
+                  {(() => {
+                    const pesos = Array.isArray(pesosPorUnidad) ? pesosPorUnidad.map((v) => Number(v)) : [];
+                    const suma = pesos.every((v) => Number.isFinite(v)) ? pesos.reduce((a, b) => a + b, 0) : NaN;
+                    if (!Number.isFinite(pesoTotalNumber) || !Number.isFinite(suma)) return null;
+                    const diff = suma - pesoTotalNumber;
+                    const ok = Math.abs(diff) <= 0.02;
+                    return (
+                      <div className={ok ? "text-green-700" : "text-red-700"}>
+                        Suma: <span className="font-semibold">{suma.toFixed(2)} kg</span> · Objetivo:{" "}
+                        <span className="font-semibold">{pesoTotalNumber.toFixed(2)} kg</span>
+                        {!ok ? <span className="font-semibold"> · Diferencia: {diff.toFixed(2)} kg</span> : null}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
-              <button
-                type="button"
-                className="px-3 py-2 bg-white border border-border rounded hover:bg-gray-100"
-                onClick={resetPesosPorUnidad}
-                disabled={!pesoTotalNumber || !unidadesNumber}
-              >
-                Repartir igual
-              </button>
-            </div>
+            ) : null}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
-              {Array.from({ length: unidadesNumber }).map((_, idx) => {
-                const val = pesosPorUnidad?.[idx] ?? "";
-                return (
-                  <div key={idx} className="flex items-center gap-3 bg-white border border-border rounded p-2">
-                    <div className="w-10 text-sm font-semibold text-gray-700">#{idx + 1}</div>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="flex-1 border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                      value={val}
-                      onChange={(e) => {
-                        const nextVal = e.target.value === "" ? "" : Number(e.target.value);
-                        if (nextVal !== "" && (Number.isNaN(nextVal) || nextVal < 0)) return;
-                        setPreview(null);
-                        setPesosPorUnidadTocados(true);
-                        setPesosPorUnidad((prev) => {
-                          const arr = Array.isArray(prev) ? prev.slice() : Array(unidadesNumber).fill(0);
-                          arr[idx] = nextVal === "" ? "" : nextVal;
-                          return arr;
-                        });
-                      }}
-                      placeholder="kg"
-                    />
-                    <div className="w-10 text-xs text-gray-500 text-right">kg</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-2 text-xs text-gray-700">
-              {(() => {
-                const pesos = Array.isArray(pesosPorUnidad) ? pesosPorUnidad.map((v) => Number(v)) : [];
-                const suma = pesos.every((v) => Number.isFinite(v)) ? pesos.reduce((a, b) => a + b, 0) : NaN;
-                if (!Number.isFinite(pesoTotalNumber) || !Number.isFinite(suma)) return null;
-                const diff = suma - pesoTotalNumber;
-                const ok = Math.abs(diff) <= 0.02;
-                return (
-                  <div className={ok ? "text-green-700" : "text-red-700"}>
-                    Suma: <span className="font-semibold">{suma.toFixed(2)} kg</span> · Objetivo: <span className="font-semibold">{pesoTotalNumber.toFixed(2)} kg</span>
-                    {!ok ? (
-                      <span className="font-semibold"> · Diferencia: {diff.toFixed(2)} kg</span>
-                    ) : null}
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-        ) : null}
-
-        <div>
-          <label className="block text-sm font-medium mb-1">
-            Fecha de vencimiento
-          </label>
-          <input
-            type="date"
-            className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-            value={form.fecha_vencimiento}
-            onChange={(e) => setField("fecha_vencimiento", e.target.value)}
-            required
-          />
-        </div>
-
-        <div className="border-t border-border pt-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-text">
-              Costos Secos
-            </h2>
-            <div className="text-xs text-gray-500">
-              {esPT ? "PT: se consume al empacar" : "PIP: se consume al almacenar"}
+            <div>
+              <label className="block text-sm font-medium mb-1">
+                Fecha de vencimiento
+              </label>
+              <input
+                type="date"
+                className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                value={form.fecha_vencimiento}
+                onChange={(e) => setField("fecha_vencimiento", e.target.value)}
+                required
+              />
             </div>
           </div>
 
-          {formatosEmpaqueAplicables.length > 0 ? (
-            <div className="mt-3 bg-white border border-border rounded-lg p-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
-                <div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-text">Costos secos</h2>
+              <div className="text-xs text-gray-500">
+                {esPT ? "PT: se consume al empacar" : "PIP: se consume al almacenar"}
+              </div>
+            </div>
+
+            {formatosEmpaqueAplicables.length > 0 ? (
+              <div className="bg-white border border-border rounded-lg p-3">
+                <div className="grid grid-cols-1 gap-3 items-end">
+                  <div>
                   <label className="block text-xs text-gray-600 mb-1">Formato de Empaque</label>
                   <select
                     className="w-full border rounded-lg px-3 py-2 bg-white"
@@ -619,116 +712,221 @@ export default function ProduccionFinal() {
                       setFormatoEmpaqueId(next);
                       setDisponiblesByMp({});
                       setEmpaqueByMp({});
+                      setEmpaqueOpenByMp({});
                     }}
                   >
                     <option value="">Seleccionar</option>
+                    {!esPT && permiteNoEmpacar ? (
+                      <option value={NO_EMPACAR_VALUE}>No empacar (generar bulto igual)</option>
+                    ) : null}
                     {formatosEmpaqueAplicables.map((f) => (
                       <option key={f.id} value={String(f.id)}>
                         {f.nombre}
                       </option>
                     ))}
                   </select>
-                </div>
-                <div className="text-xs text-gray-600">
-                  {formatoEmpaqueSeleccionado?.descripcion ? (
+                  </div>
+
+                  <div className="text-xs text-gray-600">
+                  {String(formatoEmpaqueId) === NO_EMPACAR_VALUE ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
+                      <div className="font-semibold text-yellow-800">No empacar</div>
+                      <div className="text-yellow-800">
+                        Se registrará la salida y se generará el bulto/QR del PIP, pero no se consumirán costos secos.
+                        Podrás usar este bulto en una nueva producción.
+                      </div>
+                    </div>
+                  ) : formatoEmpaqueSeleccionado?.descripcion ? (
                     <div>
                       <span className="font-semibold">Descripción:</span> {formatoEmpaqueSeleccionado.descripcion}
                     </div>
                   ) : (
                     <div>Selecciona un formato para ver sus insumos.</div>
                   )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-600 mt-2">
-              {esPT
-                ? "Esta receta no tiene Costos Secos configurados (Formatos de Empaque). Configúralos antes de cerrar."
-                : "Esta receta no tiene Costos Secos configurados (Formatos de Empaque)."}
-            </p>
-          )}
+            ) : (
+              <p className="text-sm text-gray-600">
+                {esPT
+                  ? "Esta receta no tiene Costos Secos configurados (Formatos de Empaque). Configúralos antes de cerrar."
+                  : "Esta receta no tiene Costos Secos configurados (Formatos de Empaque)."}
+              </p>
+            )}
 
-          {formatosEmpaqueAplicables.length > 0 && !formatoEmpaqueSeleccionado ? (
-            <p className="text-sm text-gray-600 mt-2">Selecciona un formato para habilitar el consumo de empaques.</p>
-          ) : null}
+            {formatosEmpaqueAplicables.length > 0 && !formatoEmpaqueSeleccionado && String(formatoEmpaqueId) !== NO_EMPACAR_VALUE ? (
+              <p className="text-sm text-gray-600">Selecciona un formato para habilitar el consumo de empaques.</p>
+            ) : null}
 
-          {formatosEmpaqueAplicables.length > 0 && formatoEmpaqueSeleccionado && empaquesAplicables.length === 0 ? (
-            <p className="text-sm text-gray-600 mt-2">
-              Este formato no tiene insumos. {esPT ? "No podrás cerrar PT sin declarar consumos." : "Puedes cerrar PIP sin consumos."}
-            </p>
-          ) : null}
+            {formatosEmpaqueAplicables.length > 0 && formatoEmpaqueSeleccionado && empaquesAplicables.length === 0 ? (
+              <p className="text-sm text-gray-600">
+                Este formato no tiene insumos. {esPT ? "No podrás cerrar PT sin declarar consumos." : "Puedes cerrar PIP sin consumos."}
+              </p>
+            ) : null}
 
-          <div className="space-y-3 mt-3">
-            {empaquesAplicables.map((mp) => {
-              const mpId = mp.id;
-              const disponibles = disponiblesByMp[mpId];
-              const throughFormato = mp?.FormatoEmpaqueInsumo;
-              const requeridoFormato = !Boolean(throughFormato?.opcional);
-              return (
-                <div key={mpId} className="border border-border rounded-lg p-3 bg-gray-50">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-medium text-text">{mp.nombre}</div>
-                      <div className="text-xs text-gray-500">
-                        UM: {mp.unidad_medida || "N/A"}
-                        {requeridoFormato ? " · Requerido" : " · Opcional"}
-                        {throughFormato?.cantidad_sugerida_por_unidad != null
-                          ? ` · Sug: ${throughFormato.cantidad_sugerida_por_unidad}/u`
-                          : ""}
+            {String(formatoEmpaqueId) !== NO_EMPACAR_VALUE ? (
+              <div className="space-y-3">
+                {empaquesAplicables.map((mp) => {
+                  const mpId = mp.id;
+                  const disponibles = disponiblesByMp[mpId];
+                  const throughFormatoRaw =
+                    mp?.FormatoEmpaqueInsumo ??
+                    mp?.FormatoEmpaqueInsumos ??
+                    mp?.formatoEmpaqueInsumo ??
+                    mp?.formatoEmpaqueInsumos ??
+                    null;
+
+                  const throughFormato = Array.isArray(throughFormatoRaw)
+                    ? (throughFormatoRaw[0] ?? null)
+                    : throughFormatoRaw;
+                  const requeridoFormato = !Boolean(throughFormato?.opcional);
+                  const sugeridoPorUnidad = parseNumber(
+                    throughFormato?.cantidad_sugerida_por_unidad ?? mp?.cantidad_sugerida_por_unidad
+                  );
+                  const totalSugerido =
+                    Number.isFinite(sugeridoPorUnidad) && unidadesNumber > 0
+                      ? Number(sugeridoPorUnidad) * Number(unidadesNumber)
+                      : null;
+
+                  const assignedEntries = Object.entries(empaqueByMp?.[mpId] || {})
+                    .map(([bultoId, peso]) => ({ id_bulto: Number(bultoId), peso_utilizado: Number(peso) }))
+                    .filter(
+                      (x) =>
+                        Number.isFinite(x.id_bulto) &&
+                        x.id_bulto > 0 &&
+                        Number.isFinite(x.peso_utilizado) &&
+                        x.peso_utilizado > 0
+                    );
+
+                  const totalAsignado = assignedEntries.reduce((acc, a) => acc + Number(a.peso_utilizado || 0), 0);
+
+                  const isOpen = Boolean(empaqueOpenByMp?.[mpId]);
+
+                  return (
+                    <div key={mpId} className="border border-border rounded-lg p-3 bg-gray-50">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="font-medium text-text">{mp.nombre}</div>
+                          <div className="text-xs text-gray-500">
+                            {Number.isFinite(sugeridoPorUnidad)
+                              ? unidadesNumber > 0
+                                ? `Cantidad sugerida: ${Number(totalSugerido)} ${mp.unidad_medida || ""}`
+                                : `Sugerido/unidad: ${Number(sugeridoPorUnidad)} ${mp.unidad_medida || ""} (ingresa Unidades obtenidas para ver total)`
+                              : `Sugerido/unidad: —`}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {isOpen ? (
+                            <button
+                              type="button"
+                              className="px-3 py-2 bg-white border border-border rounded hover:bg-gray-100"
+                              onClick={() => setEmpaqueOpenByMp((s) => ({ ...s, [mpId]: false }))}
+                            >
+                              Listo
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="px-3 py-2 bg-white border border-border rounded hover:bg-gray-100"
+                              onClick={async () => {
+                                setEmpaqueOpenByMp((s) => ({ ...s, [mpId]: true }));
+                                if (!Array.isArray(disponiblesByMp?.[mpId])) await cargarDisponibles(mpId);
+                              }}
+                              disabled={!bodegaId}
+                            >
+                              {assignedEntries.length > 0 ? "Editar" : "Asignar"}
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="px-3 py-2 bg-white border border-border rounded hover:bg-gray-100"
-                      onClick={() => cargarDisponibles(mpId)}
-                      disabled={!bodegaId}
-                    >
-                      Ver bultos
-                    </button>
-                  </div>
 
-                  {Array.isArray(disponibles) ? (
-                    <div className="mt-3 space-y-2">
-                      {disponibles.length === 0 ? (
-                        <div className="text-sm text-gray-600">Sin bultos disponibles para este empaque.</div>
-                      ) : (
-                        disponibles.map((b) => {
-                          const maxPeso = (Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0)).toFixed(2);
-                          const current = empaqueByMp?.[mpId]?.[b.id] ?? "";
-                          return (
-                            <div key={b.id} className="flex items-center gap-3 bg-white border border-border rounded p-2">
-                              <div className="flex-1">
-                                <div className="text-sm font-medium">{b.identificador || `#${b.id}`}</div>
-                                <div className="text-xs text-gray-500">
-                                  Disp: {maxPeso} · PU: {Number(b.peso_unitario || 0).toFixed(2)} · CU: {Number(b.costo_unitario || 0).toFixed(2)}
+                      {assignedEntries.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          <div className="text-xs text-gray-600">
+                            Asignado · Total: {Number(totalAsignado || 0).toFixed(2)} {mp.unidad_medida || ""}
+                          </div>
+                          {assignedEntries.map((a) => {
+                            const info = bultoInfoById?.[a.id_bulto];
+                            return (
+                              <div
+                                key={a.id_bulto}
+                                className="flex items-center justify-between gap-3 bg-white border border-border rounded p-2"
+                              >
+                                <div>
+                                  <div className="text-sm font-medium">{info?.identificador || `#${a.id_bulto}`}</div>
+                                  <div className="text-xs text-gray-500">
+                                    Consumir: {Number(a.peso_utilizado || 0).toFixed(2)} {mp.unidad_medida || ""}
+                                  </div>
                                 </div>
+                                <button
+                                  type="button"
+                                  className="px-3 py-2 bg-white border border-border rounded hover:bg-gray-100"
+                                  onClick={() => {
+                                    setPreview(null);
+                                    setEmpaqueByMp((prev) => {
+                                      const current = { ...(prev?.[mpId] || {}) };
+                                      delete current[a.id_bulto];
+                                      return { ...prev, [mpId]: current };
+                                    });
+                                  }}
+                                >
+                                  Quitar
+                                </button>
                               </div>
-                              <div className="w-36">
-                                <label className="block text-xs text-gray-600 mb-1">Consumir</label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                                  value={current}
-                                  onChange={(e) => setEmpaquePeso(mpId, b.id, e.target.value)}
-                                  placeholder="0"
-                                />
-                              </div>
-                            </div>
-                          );
-                        })
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="mt-2 text-sm text-gray-600">Sin asignación.</div>
                       )}
+
+                      {isOpen ? (
+                        <div className="mt-3 space-y-2">
+                          {!Array.isArray(disponibles) ? (
+                            <div className="text-sm text-gray-600">Cargando bultos…</div>
+                          ) : disponibles.length === 0 ? (
+                            <div className="text-sm text-gray-600">Sin bultos disponibles para este empaque.</div>
+                          ) : (
+                            disponibles.map((b) => {
+                              const maxPeso = (
+                                Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0)
+                              ).toFixed(2);
+                              const current = empaqueByMp?.[mpId]?.[b.id] ?? "";
+                              return (
+                                <div key={b.id} className="flex items-center gap-3 bg-white border border-border rounded p-2">
+                                  <div className="flex-1">
+                                    <div className="text-sm font-medium">{b.identificador || `#${b.id}`}</div>
+                                    <div className="text-xs text-gray-500">
+                                      Disponible: {maxPeso} {mp.unidad_medida || ""}
+                                    </div>
+                                  </div>
+                                  <div className="w-36">
+                                    <label className="block text-xs text-gray-600 mb-1">Consumir</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.01"
+                                      className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                                      value={current}
+                                      onChange={(e) => setEmpaquePeso(mpId, b.id, e.target.value)}
+                                      placeholder="0"
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : (
-                    <div className="mt-2 text-sm text-gray-600">
-                      Presiona “Ver bultos” para seleccionar consumo.
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            ) : null}
+
           </div>
+        </div>
 
           {preview ? (
             <div className="border-t border-border pt-4 mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -756,14 +954,66 @@ export default function ProduccionFinal() {
                   <div className="text-lg font-bold text-text">${Number(preview.costo_empaques_estimado || 0).toFixed(2)}</div>
                 </div>
                 <div className="bg-white border border-blue-200 rounded p-3">
+                  <div className="text-xs text-gray-500 font-medium">Indirectos</div>
+                  <div className="text-lg font-bold text-text">${Number(preview?.costos_indirectos_estimado?.costo_indirecto_total || 0).toFixed(2)}</div>
+                  <div className="text-[11px] text-gray-600 mt-1">
+                    ${Number(preview?.costos_indirectos_estimado?.costo_indirecto_por_kg || 0).toFixed(4)}/kg · Base: {Number(preview?.costos_indirectos_estimado?.peso_aplicado || 0).toFixed(2)} kg
+                  </div>
+                </div>
+                <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Costo Total</div>
                   <div className="text-lg font-bold text-green-600">${Number(preview.costo_total_estimado || 0).toFixed(2)}</div>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Costo/kg</div>
                   <div className="text-lg font-bold text-text">${Number(preview.costo_por_kg_estimado || 0).toFixed(4)}</div>
                 </div>
+                <div className="bg-white border border-blue-200 rounded p-3">
+                  <div className="text-xs text-gray-500 font-medium">Peso objetivo</div>
+                  <div className="text-lg font-bold text-text">{Number(preview.peso_objetivo || 0).toFixed(2)} kg</div>
+                </div>
+                <div className="bg-white border border-blue-200 rounded p-3">
+                  <div className="text-xs text-gray-500 font-medium">Salida para rendimiento</div>
+                  <div className="text-lg font-bold text-text">{Number(preview.peso_total_salida_rendimiento || 0).toFixed(2)} kg</div>
+                </div>
               </div>
+
+              {Array.isArray(preview?.costos_indirectos_estimado?.detalle) && preview.costos_indirectos_estimado.detalle.length > 0 ? (
+                <div className="mb-4 bg-white border border-blue-200 rounded p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-text">Detalle de costos indirectos</div>
+                    <div className="text-xs text-gray-700">
+                      Total: <span className="font-semibold">${Number(preview.costos_indirectos_estimado.costo_indirecto_total || 0).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 overflow-x-auto border border-border rounded">
+                    <table className="min-w-full text-sm">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="text-left p-2">Costo</th>
+                          <th className="text-left p-2">$/kg</th>
+                          <th className="text-left p-2">Kg aplicado</th>
+                          <th className="text-left p-2">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {preview.costos_indirectos_estimado.detalle.map((ci, idx) => (
+                          <tr key={ci?.id ?? idx} className="border-t border-border">
+                            <td className="p-2">{ci?.nombre || "Costo indirecto"}</td>
+                            <td className="p-2">{Number(ci?.costo_por_kg || 0).toFixed(4)}</td>
+                            <td className="p-2">{Number(ci?.peso_aplicado || 0).toFixed(2)}</td>
+                            <td className="p-2">{Number(ci?.costo_total || 0).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
 
               {/* Rendimiento y Merma */}
               <div className="grid grid-cols-2 gap-3 mb-4">
@@ -787,18 +1037,10 @@ export default function ProduccionFinal() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-3 mb-4">
                 <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Peso objetivo</div>
-                  <div className="text-lg font-bold text-text">{Number(preview.peso_objetivo || 0).toFixed(2)} kg</div>
-                </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Subproductos (kg)</div>
+                  <div className="text-xs text-gray-500 font-medium">Subproductos</div>
                   <div className="text-lg font-bold text-text">{Number(preview.peso_subproductos || 0).toFixed(2)} kg</div>
-                </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Salida para rendimiento</div>
-                  <div className="text-lg font-bold text-text">{Number(preview.peso_total_salida_rendimiento || 0).toFixed(2)} kg</div>
                 </div>
               </div>
 
@@ -869,23 +1111,29 @@ export default function ProduccionFinal() {
                   <div className="space-y-3">
                     {preview.detalle_empaques.map((emp) => (
                       <div key={emp.id_materia_prima} className="border border-border rounded p-3">
+                        {(() => {
+                          const unidad = unidadMp(emp.id_materia_prima);
+                          return (
                         <div className="flex items-center justify-between gap-3">
                           <div className="font-semibold">{nombreMp(emp.id_materia_prima)}</div>
                           <div className="text-xs text-gray-700">
-                            Peso: <span className="font-semibold">{Number(emp.peso_total_utilizado || 0).toFixed(3)} kg</span> · Costo: <span className="font-semibold">${Number(emp.costo_total_estimado || 0).toFixed(2)}</span>
+                            Utilizado: <span className="font-semibold">{Number(emp.peso_total_utilizado || 0).toFixed(3)} {unidad}</span> · Costo Total: <span className="font-semibold">${Number(emp.costo_total_estimado || 0).toFixed(2)}</span>
                           </div>
                         </div>
+
+                          );
+                        })()}
 
                         <div className="mt-2 overflow-x-auto border border-border rounded">
                           <table className="min-w-full text-sm">
                             <thead className="bg-gray-100">
                               <tr>
                                 <th className="text-left p-2">Bulto</th>
-                                <th className="text-left p-2">Solicitado (kg)</th>
-                                <th className="text-left p-2">Disponible (kg)</th>
-                                <th className="text-left p-2">PU (kg/un)</th>
-                                <th className="text-left p-2">CU</th>
-                                <th className="text-left p-2">Costo</th>
+                                <th className="text-left p-2">Utilizado</th>
+                                <th className="text-left p-2">Disponible</th>
+                                <th className="text-left p-2">Unidad de Medida</th>
+                                <th className="text-left p-2">Costo unitario</th>
+                                <th className="text-left p-2">Costo Total</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -894,7 +1142,7 @@ export default function ProduccionFinal() {
                                   <td className="p-2">{b.identificador || `#${b.id_bulto}`}</td>
                                   <td className="p-2">{Number(b.peso_utilizado || 0).toFixed(3)}</td>
                                   <td className="p-2">{Number(b.peso_disponible || 0).toFixed(3)}</td>
-                                  <td className="p-2">{Number(b.peso_unitario || 0).toFixed(3)}</td>
+                                  <td className="p-2">{unidadMp(emp.id_materia_prima)}</td>
                                   <td className="p-2">{Number(b.costo_unitario || 0).toFixed(2)}</td>
                                   <td className="p-2">{Number(b.costo_estimado || 0).toFixed(2)}</td>
                                 </tr>
@@ -913,7 +1161,6 @@ export default function ProduccionFinal() {
               </div>
             </div>
           ) : null}
-        </div>
 
         <div className="flex justify-end gap-3 mt-6">
           <button
