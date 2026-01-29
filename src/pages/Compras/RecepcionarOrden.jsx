@@ -10,6 +10,10 @@ import { buildOcEmailItemsFromOrden, notifyOrderChange } from "../../services/em
 import { useAuth } from "../../auth/AuthContext";
 import axiosInstance from "../../axiosInstance";
 
+// Evita que el scroll cambie el valor del input type="number"
+const handleNumberInputWheel = (e) => {
+  e.preventDefault();
+};
 
 export default function RecepcionarOrden() {
   const { user } = useAuth();
@@ -622,6 +626,7 @@ export default function RecepcionarOrden() {
           onChange={(e) =>
             handleBultosChange(row.id_proveedor_materia_prima, e.target.value)
           }
+          onWheel={handleNumberInputWheel}
           className="w-24 px-2 py-1 border border-gray-300 rounded-md"
         />
       ),
@@ -672,6 +677,7 @@ export default function RecepcionarOrden() {
               step="0.01"
               value={row.total_neto_factura ?? ""}
               onChange={(e) => handleCostoFacturaChange(row.id_proveedor_materia_prima, e.target.value)}
+              onWheel={handleNumberInputWheel}
               className="w-32 px-2 py-1 border border-gray-300 rounded-md"
               placeholder="0"
             />
@@ -873,6 +879,7 @@ export default function RecepcionarOrden() {
                               step="0.01"
                               value={b.cantidad_unidades}
                               onChange={(e) => handleBultoUnitsChange(insumo.id_proveedor_materia_prima, idx, e.target.value)}
+                              onWheel={handleNumberInputWheel}
                               className="w-32 px-2 py-1 border rounded"
                               placeholder="0"
                             />
