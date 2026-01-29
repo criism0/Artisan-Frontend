@@ -46,6 +46,7 @@ export default function CreateProductoWizard() {
     unidades_por_caja: "",
     codigo_ean: "",
     codigo_sap: "",
+    codigo_dun14: "",
   });
 
   const [recetaForm, setRecetaForm] = useState({
@@ -160,7 +161,6 @@ export default function CreateProductoWizard() {
     if (!productoForm.nombre.trim()) return toast.error("Nombre es obligatorio");
     if (!productoForm.descripcion.trim()) return toast.error("Descripción es obligatoria");
     if (!productoForm.codigo_ean.trim()) return toast.error("Código EAN es obligatorio");
-    if (!productoForm.codigo_sap.trim()) return toast.error("Código SAP es obligatorio");
 
     const peso = toNumber(productoForm.peso_unitario);
     const upc = Number(productoForm.unidades_por_caja);
@@ -176,7 +176,8 @@ export default function CreateProductoWizard() {
         unidad_medida: productoForm.unidad_medida,
         unidades_por_caja: upc,
         codigo_ean: productoForm.codigo_ean.trim(),
-        codigo_sap: productoForm.codigo_sap.trim(),
+        codigo_sap: productoForm.codigo_sap.trim() || null,
+        codigo_dun14: productoForm.codigo_dun14.trim() || null,
       };
 
       if (productoId) {

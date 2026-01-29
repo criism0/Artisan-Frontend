@@ -19,17 +19,14 @@ export default function CrearOrden() {
   tresMesesAntes.setMonth(hoy.getMonth() - 3);
   const minFecha = tresMesesAntes.toISOString().split('T')[0];
   const [proveedores, setProveedores] = useState([]);
-  const [bodegas, setBodegas] = useState([]);
   const [materiasPrimas, setMateriasPrimas] = useState([]);
   const [insumosSeleccionados, setInsumosSeleccionados] = useState([]);
   const [form, setForm] = useState({
     id_proveedor: "",
-    id_bodega: "",
     fecha: fechaActual,
     condiciones: "",
     requiere_prepago: false,
     archivosAdjuntos: [],
-
   });
   const [formErrors, setFormErrors] = useState({});
   const [showInsumoError, setShowInsumoError] = useState(false);
@@ -45,10 +42,7 @@ export default function CrearOrden() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [provRes, bodRes] = await Promise.all([
-          api(`/proveedores`),
-          api(`/bodegas`),
-        ]);
+        const provRes = await api(`/proveedores`);
        
         const proveedoresData = Array.isArray(provRes?.data)
           ? provRes.data
@@ -56,20 +50,7 @@ export default function CrearOrden() {
 
         const proveedoresActivos = proveedoresData.filter((p) => p.activo === true);
 
-        const bodegasData = Array.isArray(bodRes?.data?.bodegas)
-          ? bodRes.data.bodegas
-          : Array.isArray(bodRes?.bodegas)
-          ? bodRes.bodegas
-          : [];
-
-        const bodegasUtiles = bodegasData.filter(
-          (b) =>
-            typeof b?.nombre === "string" &&
-            b.nombre !== "En tránsito"
-        );
-
         setProveedores(proveedoresActivos);
-        setBodegas(bodegasUtiles);
 
       } catch (error) {
         toast.error("Error al cargar datos iniciales:", error);
@@ -128,7 +109,6 @@ export default function CrearOrden() {
   const validateForm = () => {
     const errors = {};
     if (!form.id_proveedor) errors.id_proveedor = "Debe seleccionar un proveedor.";
-    if (!form.id_bodega) errors.id_bodega = "Debe seleccionar una bodega.";
     if (!form.fecha) {
       errors.fecha = "Debe ingresar una fecha.";
     } else {
@@ -209,8 +189,6 @@ export default function CrearOrden() {
     
     const dataToSend = {
       id_proveedor: parseInt(form.id_proveedor),
-      id_bodega_solicitante: parseInt(form.id_bodega),
-      id_bodega_destino: parseInt(form.id_bodega),
       condiciones: form.condiciones,
       requiere_prepago: form.requiere_prepago,
       materias_primas: insumosSeleccionados,
@@ -336,22 +314,6 @@ export default function CrearOrden() {
             ))}
           </select>
           {formErrors.id_proveedor && <p className="text-red-600 text-sm mt-1">{formErrors.id_proveedor}</p>}
-        </div>
-
-        <div>
-          <label className="block font-semibold mb-1">Bodega (solicitante y destino):</label>
-          <select
-            name="id_bodega"
-            value={form.id_bodega}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">Seleccione bodega</option>
-            {Array.isArray(bodegas) && bodegas.map((bod) => (
-              <option key={bod.id} value={bod.id}>{bod.nombre}</option>
-            ))}
-          </select>
-          {formErrors.id_bodega && <p className="text-red-600 text-sm mt-1">{formErrors.id_bodega}</p>}
         </div>
 
         <div>
