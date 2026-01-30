@@ -20,7 +20,7 @@ export default function AddSolicitud() {
   const [showErrors, setShowErrors] = useState(false);
   const [loading, setLoading] = useState(false);
   const [addSignal, setAddSignal] = useState(0);
-  const [hasStock, setHasStock] = useState(false);
+  const [canAddMoreInsumos, setCanAddMoreInsumos] = useState(false);
   const navigate = useNavigate();
   const api = useApi();
 
@@ -221,8 +221,26 @@ export default function AddSolicitud() {
 
           {/* Insumos */}
           <div>
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold">Insumos a Solicitar</h3>
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold">Insumos a Solicitar</h3>
+                {(!selectedOrigen || !selectedDestino) && (
+                  <p className="mt-1 text-sm text-gray-500">Selecciona ambas bodegas para agregar insumos.</p>
+                )}
+                {(selectedOrigen && selectedDestino && !canAddMoreInsumos) && (
+                  <p className="mt-1 text-sm text-gray-500">No quedan insumos por agregar.</p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setAddSignal((n) => n + 1)}
+                disabled={!selectedOrigen || !selectedDestino || !canAddMoreInsumos}
+                title={!selectedOrigen || !selectedDestino ? 'Selecciona ambas bodegas para agregar insumos' : (!canAddMoreInsumos ? 'No quedan insumos por agregar' : undefined)}
+                className={`px-4 py-2 rounded-lg transition-colors ${(!selectedOrigen || !selectedDestino || !canAddMoreInsumos) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-hover'}`}
+              >
+                Añadir Insumo
+              </button>
             </div>
             <InsumosTable
               onInsumosChange={setInsumosSeleccionados}
@@ -230,7 +248,7 @@ export default function AddSolicitud() {
               bodegaId={selectedOrigen}
               bodegaSolicitanteId={selectedDestino}
               addSignal={addSignal}
-              onAvailabilityChange={setHasStock}
+              onAvailabilityChange={setCanAddMoreInsumos}
             />
             {selectedOrigen && selectedDestino && showErrors && errors.insumos && (
               <p className="mt-2 text-sm text-red-500">{errors.insumos}</p>
@@ -238,35 +256,15 @@ export default function AddSolicitud() {
           </div>
 
           {/* Botón */}
-          <div className="mt-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setAddSignal((n) => n + 1)}
-                disabled={!selectedOrigen || !selectedDestino || !hasStock}
-                title={!selectedOrigen || !selectedDestino ? 'Selecciona ambas bodegas para agregar insumos' : (!hasStock ? 'No hay insumos disponibles en la bodega seleccionada' : undefined)}
-                className={`px-4 py-2 rounded-lg transition-colors ${(!selectedOrigen || !selectedDestino || !hasStock) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-hover'}`}
-              >
-                Añadir Insumo
-              </button>
-              {(!selectedOrigen || !selectedDestino) && (
-                <span className="text-sm text-gray-500">Selecciona ambas bodegas para agregar insumos.</span>
-              )}
-              {(selectedOrigen && selectedDestino && !hasStock) && (
-                <span className="text-sm text-gray-500">No hay insumos disponibles en la bodega seleccionada.</span>
-              )}
-            </div>
-
-            <div>
-              <button
-                onClick={handleSubmit}
-                disabled={loading || !isFormReady}
-                title={!isFormReady ? 'Completa todos los campos requeridos para solicitar' : undefined}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400"
-              >
-                {loading ? 'Creando...' : 'Solicitar'}
-              </button>
-            </div>
+          <div className="mt-6 flex items-center justify-end">
+            <button
+              onClick={handleSubmit}
+              disabled={loading || !isFormReady}
+              title={!isFormReady ? 'Completa todos los campos requeridos para solicitar' : undefined}
+              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+            >
+              {loading ? 'Creando...' : 'Solicitar'}
+            </button>
           </div>
         </div>
       </div>

@@ -8,7 +8,10 @@ export default function Table({ columns, data, actions, renderActions, renderExp
         <thead className="bg-gray-50">
           <tr>
             {columns.map((column, index) => (
-              <th key={index} className="px-6 py-3 text-left text-xs font-medium text-text uppercase tracking-wider">
+              <th
+                key={index}
+                className={`px-6 py-3 text-left text-xs font-medium text-text uppercase tracking-wider ${column?.headerClassName || ""}`}
+              >
                 {column.header}
               </th>
             ))}
@@ -25,7 +28,10 @@ export default function Table({ columns, data, actions, renderActions, renderExp
               <React.Fragment key={key}>
                 <tr key={key}>
                   {columns.map((column, colIndex) => (
-                    <td key={colIndex} className="px-6 py-4 whitespace-nowrap text-sm text-text">
+                    <td
+                      key={colIndex}
+                      className={`px-6 py-4 whitespace-nowrap text-sm text-text ${column?.cellClassName || ""}`}
+                    >
                       {column.Cell ? column.Cell({ row, value: row[column.accessor] }) : row[column.accessor]}
                     </td>
                   ))}

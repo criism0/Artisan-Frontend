@@ -1,11 +1,20 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { FiTrash } from 'react-icons/fi';
+import { FiChevronDown, FiChevronUp, FiTrash } from 'react-icons/fi';
 import Selector from './Selector';
 import { useApi } from '../lib/api';
 import { insumoToSearchText } from '../services/fuzzyMatch';
 
-export default function InsumosTable({ onInsumosChange, disabled = false, bodegaId, addSignal = 0, onAvailabilityChange, bodegaSolicitanteId }) {
+export default function InsumosTable({
+  onInsumosChange,
+  disabled = false,
+  bodegaId,
+  addSignal = 0,
+  onAvailabilityChange,
+  bodegaSolicitanteId,
+  initialVisibleRows = 5,
+}) {
   const [articulos, setArticulos] = useState([]);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [opcionesInsumos, setOpcionesInsumos] = useState([]);
   const [materiasPrimas, setMateriasPrimas] = useState([]);
   const [formatosByMateriaPrimaId, setFormatosByMateriaPrimaId] = useState({});
@@ -39,6 +48,29 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
     return unidadLower;
   };
 
+  const makeRowId = () => {
+    try {
+      return globalThis?.crypto?.randomUUID?.() || `row_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    } catch {
+      return `row_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    }
+  };
+
+  const BASE_FORMAT_VALUE = '__BASE_UNIT__';
+
+  const buildBaseFormatOption = (unidadLower) => {
+    const unidadLabel = getUnidadLabel(unidadLower);
+    const labelUnidad = unidadLower === 'unidades' ? 'unidad' : (unidadLabel || 'unidad');
+    return {
+      value: BASE_FORMAT_VALUE,
+      label: `Unidad base (1 ${labelUnidad})`,
+      formatoNombre: labelUnidad,
+      multiplier: 1,
+      es_unidad_consumo: true,
+      es_unidad_base: true,
+    };
+  };
+
   const coerceNumber = (value) => {
     if (value === '' || value == null) return null;
     const num = Number(String(value).replace(',', '.'));
@@ -58,7 +90,7 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
       const unidadLower = optionById.get(idStr)?.unidad;
       const unidadLabel = getUnidadLabel(unidadLower);
 
-      const options = rows
+      const mapped = rows
         .map((r) => {
           const cantidadPorFormato =
             coerceNumber(r?.cantidad_por_formato) ?? coerceNumber(r?.peso_unitario) ?? null;
@@ -84,17 +116,18 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
           return (a.multiplier ?? 0) - (b.multiplier ?? 0);
         });
 
+      // Si NO existen formatos configurados, permitir solicitar usando la unidad base (factor 1)
+      const options = mapped.length > 0 ? mapped : [buildBaseFormatOption(unidadLower)];
+
       setFormatosByMateriaPrimaId((prev) => ({ ...prev, [idStr]: options }));
 
-      if (options.length > 0) {
-        setArticulos((prev) =>
-          prev.map((a) => {
-            if (a?.id_articulo !== idStr) return a;
-            if (a?.id_formato) return a;
-            return { ...a, id_formato: options[0].value };
-          })
-        );
-      }
+      setArticulos((prev) =>
+        prev.map((a) => {
+          if (a?.id_articulo !== idStr) return a;
+          if (a?.id_formato) return a;
+          return { ...a, id_formato: options[0].value };
+        })
+      );
     } catch (e) {
       console.error('Error fetching formatos por materia prima:', e);
       setFormatosByMateriaPrimaId((prev) => ({ ...prev, [idStr]: [] }));
@@ -205,6 +238,7 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
   useEffect(() => {
     setArticulos([]);
     setFormatosByMateriaPrimaId({});
+    setIsExpanded(false);
   }, [bodegaId]);
 
   const validateArticulo = (articulo) => {
@@ -213,17 +247,16 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
       errors.push('Debe seleccionar un insumo');
     }
 
-    // Bloqueante: no permitir solicitar insumos sin disponibilidad en la bodega proveedora.
-    const stock = optionById.get(articulo.id_articulo)?.stock;
-    if (articulo.id_articulo && (stock == null || Number(stock) <= 0)) {
-      errors.push('No hay disponibilidad en la bodega proveedora');
-    }
-
     const cantidadFormato = Number(articulo.cantidad_formato);
     if (!cantidadFormato || cantidadFormato <= 0) {
       errors.push('La cantidad debe ser mayor a 0');
     }
     return errors;
+  };
+
+  const hasNoAvailabilityInProveedora = (articulo) => {
+    const stock = optionById.get(articulo?.id_articulo)?.stock;
+    return Boolean(articulo?.id_articulo) && (stock == null || Number(stock) <= 0);
   };
 
   const getArticulosValidos = () => {
@@ -253,11 +286,15 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
 
   const handleAddArticulo = () => {
     if (isAddDisabled) return;
-    setArticulos([...articulos, { id_articulo: '', id_formato: '', cantidad_formato: '', comentario: '' }]);
+    // Insertar arriba: los primeros agregados se van desplazando hacia abajo
+    setArticulos((prev) => ([{ _rowId: makeRowId(), id_articulo: '', id_formato: '', cantidad_formato: '', comentario: '' }, ...prev]));
   };
 
-  const handleRemoveArticulo = (index) => {
-    setArticulos(articulos.filter((_, i) => i !== index));
+  const handleRemoveArticulo = ({ rowId, index }) => {
+    setArticulos((prev) => {
+      if (rowId) return prev.filter((row) => row?._rowId !== rowId);
+      return prev.filter((_, i) => i !== index);
+    });
   };
 
   const handleInputChange = (index, field, value) => {
@@ -342,7 +379,7 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
                   Cantidad
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
-                  Formatow
+                  Formato
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
                   Comentario
@@ -356,10 +393,12 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
           <tbody className="bg-white divide-y divide-border">
             {(() => {
               const selectedIds = new Set(articulos.map(a => a.id_articulo).filter(Boolean));
-              return articulos.map((articulo, index) => {
+              const visibleRows = isExpanded ? articulos : articulos.slice(0, Math.max(1, Number(initialVisibleRows) || 5));
+              return visibleRows.map((articulo, index) => {
               const errores = getErroresArticulo(index);
               const optSel = optionById.get(articulo.id_articulo);
               const availableStock = optSel?.stock ?? null;
+              const showNoAvailabilityWarning = hasNoAvailabilityInProveedora(articulo);
               const unidadLower = optSel?.unidad;
               const unidadLabel = getUnidadLabel(unidadLower);
               const formatos = formatosByMateriaPrimaId[articulo.id_articulo] || [];
@@ -373,7 +412,7 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
                   : String(Math.round(cantidadBase * 100) / 100);
               const optionsForRow = opcionesInsumos.filter(opt => opt.value === articulo.id_articulo || !selectedIds.has(opt.value));
               return (
-                <tr key={index}>
+                <tr key={articulo?._rowId || index}>
                   <td className="px-6 py-2 whitespace-nowrap align-top">
                     <div>
                       <Selector
@@ -411,9 +450,9 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
                         placeholder={`Cantidad de ${fmt ? fmt.formatoNombre : 'formato'}`}
                       />
 
-                      {errores.includes('No hay disponibilidad en la bodega proveedora') && (
-                        <p className="mt-0.5 text-xs text-red-600 leading-tight">
-                          No hay disponibilidad en la bodega proveedora. Quita este insumo para continuar.
+                      {showNoAvailabilityWarning && (
+                        <p className="mt-0.5 text-xs text-amber-700 leading-tight">
+                          No hay disponibilidad en la bodega proveedora.
                         </p>
                       )}
 
@@ -445,11 +484,11 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
                           disabled={disabled || !articulo.id_articulo}
                           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         />
-                        {articulo.id_articulo && formatos.length === 0 && (
-                          <p className="mt-1 text-xs text-gray-500 leading-tight">
-                            No hay formatos configurados para este insumo.
-                          </p>
-                        )}
+                          {articulo.id_articulo && Array.isArray(formatos) && formatos.length === 1 && formatos[0]?.value === BASE_FORMAT_VALUE && (
+                            <p className="mt-1 text-xs text-gray-500 leading-tight">
+                              No hay formatos configurados; se usará la unidad base.
+                            </p>
+                          )}
                       </div>
                   </td>
                   <td className="px-6 py-2 whitespace-nowrap align-top">
@@ -466,7 +505,7 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
                   <td className="pb-5 pr-3 whitespace-nowrap text-sm font-medium align-middle">
                     <div className="flex items-center justify-center">
                       <button
-                        onClick={() => handleRemoveArticulo(index)}
+                        onClick={() => handleRemoveArticulo({ rowId: articulo?._rowId, index })}
                         disabled={disabled}
                         className="text-gray-400 hover:text-red-500 transition-colors"
                         title="Eliminar artículo"
@@ -480,6 +519,33 @@ export default function InsumosTable({ onInsumosChange, disabled = false, bodega
             });})()}
           </tbody>
         </table>
+
+        {articulos.length > (Number(initialVisibleRows) || 5) && (
+          <div className="px-6 py-3 border-t border-border bg-gray-50">
+            <button
+              type="button"
+              onClick={() => setIsExpanded((v) => !v)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-text hover:bg-gray-100 transition-colors"
+            >
+              {isExpanded ? (
+                <>
+                  <FiChevronUp className="w-4 h-4" />
+                  Mostrar menos
+                </>
+              ) : (
+                <>
+                  <FiChevronDown className="w-4 h-4" />
+                  Ver todos ({articulos.length})
+                </>
+              )}
+            </button>
+            {!isExpanded && (
+              <p className="mt-2 text-center text-xs text-gray-500">
+                Mostrando {Math.min(Number(initialVisibleRows) || 5, articulos.length)} de {articulos.length} insumos
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
