@@ -36,6 +36,7 @@ export default function ProductoEdit() {
     unidades_por_caja: "",
     codigo_ean: "",
     codigo_sap: "",
+    codigo_dun14: "",
   });
 
   const [recetaForm, setRecetaForm] = useState({
@@ -99,6 +100,7 @@ export default function ProductoEdit() {
           unidades_por_caja: productoRes?.unidades_por_caja != null ? String(productoRes.unidades_por_caja) : "",
           codigo_ean: productoRes?.codigo_ean || "",
           codigo_sap: productoRes?.codigo_sap || "",
+          codigo_dun14: productoRes?.codigo_dun14 || "",
         });
 
         const recetasList = Array.isArray(recetasRes) ? recetasRes : [];
@@ -232,7 +234,6 @@ export default function ProductoEdit() {
     if (!productoForm.nombre.trim()) return toast.error("Nombre es obligatorio");
     if (!productoForm.descripcion.trim()) return toast.error("Descripción es obligatoria");
     if (!productoForm.codigo_ean.trim()) return toast.error("Código EAN es obligatorio");
-    if (!productoForm.codigo_sap.trim()) return toast.error("Código SAP es obligatorio");
 
     const peso = toNumber(productoForm.peso_unitario);
     const upc = Number(productoForm.unidades_por_caja);
@@ -248,7 +249,8 @@ export default function ProductoEdit() {
         unidad_medida: productoForm.unidad_medida,
         unidades_por_caja: upc,
         codigo_ean: productoForm.codigo_ean.trim(),
-        codigo_sap: productoForm.codigo_sap.trim(),
+        codigo_sap: productoForm.codigo_sap.trim() || null,
+        codigo_dun14: productoForm.codigo_dun14.trim() || null,
       };
 
       await api(`/productos-base/${productoId}`, { method: "PUT", body: JSON.stringify(payload) });

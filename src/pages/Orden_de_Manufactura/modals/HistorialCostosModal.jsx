@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../../lib/api";
 import { toast } from "../../../lib/toast";
+import { formatCLP } from "../../../services/formatHelpers";
 
 function n(val) {
   const num = Number(val);
@@ -87,27 +88,27 @@ export default function HistorialCostosModal({ open, omId, onClose }) {
               <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
                 <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
                   <div className="text-xs text-gray-500 font-medium">Costo total OM</div>
-                  <div className="text-lg font-bold text-text">${n(resumen?.costo_total_om).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costo_total_om, 0)}</div>
                 </div>
 
                 <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
                   <div className="text-xs text-gray-500 font-medium">Absorción insumos</div>
-                  <div className="text-lg font-bold text-text">${n(resumen?.costo_bultos_ingredientes).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costo_bultos_ingredientes, 0)}</div>
                 </div>
 
                 <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
                   <div className="text-xs text-gray-500 font-medium">Absorción empaques</div>
-                  <div className="text-lg font-bold text-text">${n(resumen?.costo_bultos_empaques).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costo_bultos_empaques, 0)}</div>
                 </div>
 
                 <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
                   <div className="text-xs text-gray-500 font-medium">Costo directo</div>
-                  <div className="text-lg font-bold text-text">${n(resumen?.costos_receta?.costo_directo_total).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costos_receta?.costo_directo_total, 0)}</div>
                 </div>
 
                 <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
                   <div className="text-xs text-gray-500 font-medium">Costo indirecto</div>
-                  <div className="text-lg font-bold text-text">${n(resumen?.costos_receta?.costo_indirecto_total).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costos_receta?.costo_indirecto_total, 0)}</div>
                 </div>
               </div>
 
@@ -132,9 +133,9 @@ export default function HistorialCostosModal({ open, omId, onClose }) {
                         {costosIndirectosDetalle.map((c, idx) => (
                           <tr key={`${c?.id || "ci"}-${idx}`} className="hover:bg-gray-50">
                             <td className="border border-gray-300 px-4 py-2">{c?.nombre || "—"}</td>
-                            <td className="border border-gray-300 px-4 py-2 text-right">${n(c?.costo_por_kg).toFixed(4)}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-right">{formatCLP(c?.costo_por_kg, 2)}</td>
                             <td className="border border-gray-300 px-4 py-2 text-right">{n(c?.peso_aplicado).toFixed(2)} kg</td>
-                            <td className="border border-gray-300 px-4 py-2 text-right">${n(c?.costo_total).toFixed(2)}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-right">{formatCLP(c?.costo_total, 0)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -179,7 +180,7 @@ export default function HistorialCostosModal({ open, omId, onClose }) {
                                 {n(row?.peso_utilizado).toFixed(3)}
                               </td>
                               <td className="border border-gray-300 px-4 py-2 text-right">
-                                ${n(row?.costo_absorbido).toFixed(2)}
+                                {formatCLP(row?.costo_absorbido, 0)}
                               </td>
                             </tr>
                           );

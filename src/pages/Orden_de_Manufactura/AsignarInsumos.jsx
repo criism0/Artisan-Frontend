@@ -5,6 +5,11 @@ import { toast } from "../../lib/toast";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import { BackButton, UndoButton } from "../../components/Buttons/ActionButtons";
 
+// Evita que el scroll cambie el valor del input type="number"
+const handleNumberInputWheel = (e) => {
+  e.preventDefault();
+};
+
 const formatDecimal = (num) => {
   const numValue = Number(num);
   if (isNaN(numValue)) return num;
@@ -639,6 +644,7 @@ export default function AsignarInsumos() {
                                         parseFloat(e.target.value)
                                       )
                                     }
+                                    onWheel={handleNumberInputWheel}
                                     className="px-3 py-2 border border-border rounded-lg w-44"
                                     placeholder={`0${sufijoUnidad}`}
                                   />

@@ -66,11 +66,22 @@ export default function DatosProductoComercialTab({ productoId, productoForm, se
           />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Código SAP *</label>
+          <label className="block text-sm font-medium mb-1">Código SAP</label>
           <input
             className="w-full border rounded-lg px-3 py-2"
             value={productoForm.codigo_sap}
             onChange={(e) => setProductoForm((p) => ({ ...p, codigo_sap: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-sm font-medium mb-1">Código DUN14</label>
+          <input
+            className="w-full border rounded-lg px-3 py-2"
+            value={productoForm.codigo_dun14}
+            onChange={(e) => setProductoForm((p) => ({ ...p, codigo_dun14: e.target.value }))}
           />
         </div>
       </div>

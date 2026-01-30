@@ -8,6 +8,21 @@ export function formatRutDisplay(value) {
   return `${cuerpoFmt}-${dv}`;
 }
 
+/**
+ * Formatea un número como moneda CLP con separadores de miles y coma decimal.
+ */
+export function formatCLP(value, decimals = 2) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "—";
+  
+  return new Intl.NumberFormat("es-CL", {
+    style: "currency",
+    currency: "CLP",
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(num);
+}
+
 export function toTitle(str) {
   if (!str) return "—";
   return String(str)

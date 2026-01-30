@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api, apiBlob } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { BackButton } from "../../components/Buttons/ActionButtons";
+import { formatCLP } from "../../services/formatHelpers";
 import ResumenOMOperario from "../../components/OM/ResumenOMOperario";
 import { downloadBlob } from "../../lib/downloadBlob";
 
@@ -491,7 +492,7 @@ export default function ProduccionFinal() {
             <div className="text-xs text-gray-500 font-medium">Receta</div>
             <div className="text-lg font-bold text-text">{om.receta?.nombre || "—"}</div>
             <div className="text-xs text-gray-600 mt-1">
-              Costo ref: ${Number(om.receta?.costo_referencial_produccion || 0).toFixed(2)}
+              Costo ref: {formatCLP(om.receta?.costo_referencial_produccion, 2)}
             </div>
           </div>
 
@@ -499,7 +500,7 @@ export default function ProduccionFinal() {
             <div className="text-xs text-gray-500 font-medium">Peso Objetivo</div>
             <div className="text-lg font-bold text-text">{om.peso_objetivo || 0} kg</div>
             <div className="text-xs text-gray-600 mt-1">
-              Costo OM: ${Number(om.costo_total || 0).toFixed(2)}
+              Costo OM: {formatCLP(om.costo_total, 0)}
             </div>
           </div>
 
@@ -947,29 +948,29 @@ export default function ProduccionFinal() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Costo OM</div>
-                  <div className="text-lg font-bold text-text">${Number(preview.costo_total_om_actual || 0).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(preview.costo_total_om_actual, 0)}</div>
                 </div>
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Empaques</div>
-                  <div className="text-lg font-bold text-text">${Number(preview.costo_empaques_estimado || 0).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(preview.costo_empaques_estimado, 0)}</div>
                 </div>
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Indirectos</div>
-                  <div className="text-lg font-bold text-text">${Number(preview?.costos_indirectos_estimado?.costo_indirecto_total || 0).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(preview?.costos_indirectos_estimado?.costo_indirecto_total, 0)}</div>
                   <div className="text-[11px] text-gray-600 mt-1">
-                    ${Number(preview?.costos_indirectos_estimado?.costo_indirecto_por_kg || 0).toFixed(4)}/kg · Base: {Number(preview?.costos_indirectos_estimado?.peso_aplicado || 0).toFixed(2)} kg
+                    {formatCLP(preview?.costos_indirectos_estimado?.costo_indirecto_por_kg, 4)}/kg · Base: {Number(preview?.costos_indirectos_estimado?.peso_aplicado || 0).toFixed(2)} kg
                   </div>
                 </div>
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Costo Total</div>
-                  <div className="text-lg font-bold text-green-600">${Number(preview.costo_total_estimado || 0).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-green-600">{formatCLP(preview.costo_total_estimado, 0)}</div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Costo/kg</div>
-                  <div className="text-lg font-bold text-text">${Number(preview.costo_por_kg_estimado || 0).toFixed(4)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(preview.costo_por_kg_estimado, 2)}</div>
                 </div>
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Peso objetivo</div>
@@ -986,7 +987,7 @@ export default function ProduccionFinal() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold text-text">Detalle de costos indirectos</div>
                     <div className="text-xs text-gray-700">
-                      Total: <span className="font-semibold">${Number(preview.costos_indirectos_estimado.costo_indirecto_total || 0).toFixed(2)}</span>
+                      Total: <span className="font-semibold">{formatCLP(preview.costos_indirectos_estimado.costo_indirecto_total, 0)}</span>
                     </div>
                   </div>
 
@@ -1004,9 +1005,9 @@ export default function ProduccionFinal() {
                         {preview.costos_indirectos_estimado.detalle.map((ci, idx) => (
                           <tr key={ci?.id ?? idx} className="border-t border-border">
                             <td className="p-2">{ci?.nombre || "Costo indirecto"}</td>
-                            <td className="p-2">{Number(ci?.costo_por_kg || 0).toFixed(4)}</td>
+                            <td className="p-2">{formatCLP(ci?.costo_por_kg, 2)}</td>
                             <td className="p-2">{Number(ci?.peso_aplicado || 0).toFixed(2)}</td>
-                            <td className="p-2">{Number(ci?.costo_total || 0).toFixed(2)}</td>
+                            <td className="p-2">{formatCLP(ci?.costo_total, 0)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1093,7 +1094,7 @@ export default function ProduccionFinal() {
                             </td>
                             <td className="p-2">{Number(it.cantidad_unidades || 0)}</td>
                             <td className="p-2">{Number(it.peso_unitario || 0).toFixed(3)}</td>
-                            <td className="p-2">{Number(it.costo_unitario || 0).toFixed(2)}</td>
+                            <td className="p-2">{formatCLP(it.costo_unitario, 2)}</td>
                             <td className="p-2">
                               {it.tipo === "CAJA_PT" ? `${it.rango?.nro_inicio ?? "?"}-${it.rango?.nro_fin ?? "?"}` : "-"}
                             </td>
@@ -1117,7 +1118,7 @@ export default function ProduccionFinal() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="font-semibold">{nombreMp(emp.id_materia_prima)}</div>
                           <div className="text-xs text-gray-700">
-                            Utilizado: <span className="font-semibold">{Number(emp.peso_total_utilizado || 0).toFixed(3)} {unidad}</span> · Costo Total: <span className="font-semibold">${Number(emp.costo_total_estimado || 0).toFixed(2)}</span>
+                            Utilizado: <span className="font-semibold">{Number(emp.peso_total_utilizado || 0).toFixed(3)} {unidad}</span> · Costo Total: <span className="font-semibold">{formatCLP(emp.costo_total_estimado, 0)}</span>
                           </div>
                         </div>
 
@@ -1143,8 +1144,8 @@ export default function ProduccionFinal() {
                                   <td className="p-2">{Number(b.peso_utilizado || 0).toFixed(3)}</td>
                                   <td className="p-2">{Number(b.peso_disponible || 0).toFixed(3)}</td>
                                   <td className="p-2">{unidadMp(emp.id_materia_prima)}</td>
-                                  <td className="p-2">{Number(b.costo_unitario || 0).toFixed(2)}</td>
-                                  <td className="p-2">{Number(b.costo_estimado || 0).toFixed(2)}</td>
+                                  <td className="p-2">{formatCLP(b.costo_unitario, 2)}</td>
+                                  <td className="p-2">{formatCLP(b.costo_estimado, 0)}</td>
                                 </tr>
                               ))}
                             </tbody>

@@ -5,6 +5,7 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import { downloadBlob } from "../../lib/downloadBlob";
 import { FileDown, Pencil } from "lucide-react";
+import { formatCLP } from "../../services/formatHelpers";
 import HistorialPasosModal from "./modals/HistorialPasosModal";
 import HistorialBultosModal from "./modals/HistorialBultosModal";
 import HistorialCostosModal from "./modals/HistorialCostosModal";
@@ -329,7 +330,7 @@ export default function OMDetail() {
           <div className="text-xs text-gray-500 font-medium">RECETA</div>
           <div className="font-bold text-text mt-1">{om.receta?.nombre || "—"}</div>
           <div className="text-xs text-gray-600 mt-2">
-            Costo ref: ${Number(om.receta?.costo_referencial_produccion || 0).toFixed(2)}
+            Costo ref: {formatCLP(om.receta?.costo_referencial_produccion, 2)}
           </div>
         </div>
 
@@ -353,7 +354,7 @@ export default function OMDetail() {
         {/* Costos */}
         <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
           <div className="text-xs text-gray-500 font-medium">COSTO TOTAL</div>
-          <div className="text-lg font-bold text-text mt-1">${Number(om.costo_total || 0).toFixed(2)}</div>
+          <div className="text-lg font-bold text-text mt-1">{formatCLP(om.costo_total, 0)}</div>
           <div className="text-xs text-gray-600 mt-2">
             Objetivo: {om.peso_objetivo || 0} kg
           </div>
@@ -415,13 +416,13 @@ export default function OMDetail() {
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
               <div className="text-xs text-gray-500 font-medium">Costo total</div>
-              <div className="text-lg font-bold text-text">${costoTotal.toFixed(2)}</div>
+              <div className="text-lg font-bold text-text">{formatCLP(costoTotal, 0)}</div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
               <div className="text-xs text-gray-500 font-medium">Costo por kg (sobre peso obtenido)</div>
               <div className="text-lg font-bold text-text">
-                {costoPorKg == null ? "—" : `$${costoPorKg.toFixed(4)}`}
+                {costoPorKg == null ? "—" : formatCLP(costoPorKg, 2)}
               </div>
             </div>
           </div>
@@ -738,7 +739,7 @@ export default function OMDetail() {
             </tr>
             <tr className="border-b border-border">
               <td className="px-6 py-4 text-sm font-medium text-text">Costo total</td>
-              <td className="px-6 py-4 text-sm text-text">{om.costo_total != null ? `$${om.costo_total}` : "—"}</td>
+              <td className="px-6 py-4 text-sm text-text">{om.costo_total != null ? formatCLP(om.costo_total, 0) : "—"}</td>
             </tr>
             {esPostCierre && om.peso_objetivo && om.peso_obtenido && (
               <tr className="border-b border-border">
@@ -896,7 +897,7 @@ export default function OMDetail() {
                       : ""}
                   </td>
                   <td className="px-4 py-3 text-sm text-text">
-                    {(prod.costo_unitario).toFixed(2)}
+                    {formatCLP(prod.costo_unitario, 2)}
                   </td>
                 </tr>
               ))}
