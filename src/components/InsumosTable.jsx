@@ -77,6 +77,73 @@ export default function InsumosTable({
     return Number.isFinite(num) ? num : null;
   };
 
+  const coerceTime = (value) => {
+    if (!value) return 0;
+    const t = Date.parse(String(value));
+    return Number.isFinite(t) ? t : 0;
+  };
+
+  // Regla de negocio:
+  // - Por defecto elegir el "nivel siguiente" a la unidad de consumo (formato secundario) si existe.
+  // - Si hay más de un proveedor, elegir la asociación secundaria más reciente.
+  // - Si no existe secundario, caer a unidad de consumo (idealmente la más reciente).
+  // - Si no hay unidad de consumo marcada, caer al formato de menor multiplier.
+  const pickDefaultFormatoValue = (options) => {
+    const list = Array.isArray(options) ? options : [];
+    if (list.length === 0) return '';
+
+    const providerOptions = list.filter((o) => o?.value !== BASE_FORMAT_VALUE);
+    if (providerOptions.length === 0) return list[0]?.value || '';
+
+    const byProveedor = new Map();
+    for (const o of providerOptions) {
+      const pid = o?.id_proveedor != null ? String(o.id_proveedor) : '__NO_PROV__';
+      const prev = byProveedor.get(pid);
+      if (prev) prev.push(o);
+      else byProveedor.set(pid, [o]);
+    }
+
+    const secondaryCandidates = [];
+    for (const [, provList] of byProveedor) {
+      const base = provList
+        .filter((x) => Boolean(x?.es_unidad_consumo))
+        .sort((a, b) => (a?.multiplier ?? 0) - (b?.multiplier ?? 0))[0];
+
+      if (!base) continue;
+
+      const baseMult = Number(base.multiplier) || 0;
+      const secondary = provList
+        .filter((x) => (Number(x?.multiplier) || 0) > baseMult)
+        .sort((a, b) => (a?.multiplier ?? 0) - (b?.multiplier ?? 0))[0];
+
+      if (secondary) secondaryCandidates.push(secondary);
+    }
+
+    if (secondaryCandidates.length > 0) {
+      secondaryCandidates.sort((a, b) => {
+        const ta = coerceTime(a?.updatedAt) || coerceTime(a?.createdAt);
+        const tb = coerceTime(b?.updatedAt) || coerceTime(b?.createdAt);
+        return tb - ta;
+      });
+      return String(secondaryCandidates[0].value);
+    }
+
+    const bases = providerOptions.filter((x) => Boolean(x?.es_unidad_consumo));
+    if (bases.length > 0) {
+      bases.sort((a, b) => {
+        const ta = coerceTime(a?.updatedAt) || coerceTime(a?.createdAt);
+        const tb = coerceTime(b?.updatedAt) || coerceTime(b?.createdAt);
+        return tb - ta;
+      });
+      return String(bases[0].value);
+    }
+
+    const byMultiplier = [...providerOptions].sort(
+      (a, b) => (a?.multiplier ?? 0) - (b?.multiplier ?? 0)
+    );
+    return String(byMultiplier[0]?.value ?? list[0]?.value ?? '');
+  };
+
   const fetchFormatosIfNeeded = async (idMateriaPrima) => {
     const idStr = String(idMateriaPrima);
     if (!idStr) return;
@@ -106,6 +173,9 @@ export default function InsumosTable({
             formatoNombre,
             multiplier: cantidadPorFormato,
             es_unidad_consumo: !!r?.es_unidad_consumo,
+            id_proveedor: r?.id_proveedor ?? r?.proveedor?.id ?? null,
+            createdAt: r?.createdAt ?? null,
+            updatedAt: r?.updatedAt ?? null,
           };
         })
         .filter(Boolean)
@@ -119,13 +189,15 @@ export default function InsumosTable({
       // Si NO existen formatos configurados, permitir solicitar usando la unidad base (factor 1)
       const options = mapped.length > 0 ? mapped : [buildBaseFormatOption(unidadLower)];
 
+      const defaultFormatoValue = pickDefaultFormatoValue(options);
+
       setFormatosByMateriaPrimaId((prev) => ({ ...prev, [idStr]: options }));
 
       setArticulos((prev) =>
         prev.map((a) => {
           if (a?.id_articulo !== idStr) return a;
           if (a?.id_formato) return a;
-          return { ...a, id_formato: options[0].value };
+          return { ...a, id_formato: defaultFormatoValue || options[0].value };
         })
       );
     } catch (e) {

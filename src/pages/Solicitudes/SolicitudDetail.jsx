@@ -353,7 +353,6 @@ export default function SolicitudDetail() {
       doc.text(`Estado: ${estado} · Creada: ${creada}`, marginX, 28);
 
       try {
-        // Logo cuadrado
         doc.addImage(logo, "PNG", pageWidth - marginX - 18, 9, 18, 18);
       } catch {
         // ignore
@@ -373,7 +372,6 @@ export default function SolicitudDetail() {
           String(row.comentario ?? ""),
         ]),
         theme: "grid",
-        // Importante para que quepan >= 20 items por hoja: font pequeña + padding bajo + comentario truncado
         styles: {
           fontSize: 8,
           cellPadding: 1.4,
