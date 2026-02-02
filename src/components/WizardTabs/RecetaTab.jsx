@@ -1,3 +1,4 @@
+import FormField from "../FormField";
 import Selector from "../Selector";
 import SubproductoAdder from "../Recetas/SubproductoAdder";
 
@@ -49,67 +50,71 @@ export default function RecetaTab({
           Define los datos de la receta y selecciona los ingredientes/subproductos permitidos.
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Nombre receta *</label>
-          <input
-            className="w-full border rounded-lg px-3 py-2"
-            value={recetaForm.nombre}
-            onChange={(e) => setRecetaForm((r) => ({ ...r, nombre: e.target.value }))}
+        <FormField
+          label="Nombre receta"
+          type="text"
+          placeholder="Ej: Receta Yogurt Natural"
+          value={recetaForm.nombre}
+          onChange={(e) => setRecetaForm((r) => ({ ...r, nombre: e.target.value }))}
+          required
+        />
+
+        <FormField
+          label="Descripción"
+          type="textarea"
+          placeholder="Describe la receta..."
+          value={recetaForm.descripcion}
+          onChange={(e) => setRecetaForm((r) => ({ ...r, descripcion: e.target.value }))}
+        />
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <FormField
+            label="Peso"
+            type="number"
+            placeholder="1"
+            value={recetaForm.peso}
+            onChange={(e) => setRecetaForm((r) => ({ ...r, peso: e.target.value }))}
+            required
+          />
+
+          <FormField
+            label="Unidad de medida"
+            type="text"
+            value={recetaForm.unidad_medida}
+            onChange={(e) =>
+              unidadMedidaReadOnly
+                ? undefined
+                : setRecetaForm((r) => ({ ...r, unidad_medida: e.target.value }))
+            }
+            disabled={unidadMedidaReadOnly}
+            readOnly={unidadMedidaReadOnly}
+            required
+          />
+
+          <FormField
+            label="Costo Directo Producción Referencial"
+            type="number"
+            placeholder="0"
+            value={recetaForm.costo_referencial_produccion}
+            onChange={(e) =>
+              setRecetaForm((r) => ({ ...r, costo_referencial_produccion: e.target.value }))
+            }
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium mb-1">Descripción</label>
-          <textarea
-            className="w-full border rounded-lg px-3 py-2"
-            value={recetaForm.descripcion}
-            onChange={(e) => setRecetaForm((r) => ({ ...r, descripcion: e.target.value }))}
-          />
-        </div>
+        <FormField
+          label="Días de vida útil (opcional)"
+          type="number"
+          placeholder="Ej: 30"
+          value={recetaForm.dias_vida_util || ""}
+          onChange={(e) => setRecetaForm((r) => ({ ...r, dias_vida_util: e.target.value }))}
+          helperText="Se utilizará para calcular automáticamente la fecha de vencimiento al cerrar la orden"
+        />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-sm font-medium mb-1">Peso *</label>
-            <input
-              type="number"
-              className="w-full border rounded-lg px-3 py-2"
-              value={recetaForm.peso}
-              onChange={(e) => setRecetaForm((r) => ({ ...r, peso: e.target.value }))}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Unidad de medida *</label>
-            <input
-              className={`w-full border rounded-lg px-3 py-2 ${unidadMedidaReadOnly ? "bg-gray-50" : ""}`}
-              value={recetaForm.unidad_medida}
-              onChange={(e) =>
-                unidadMedidaReadOnly
-                  ? undefined
-                  : setRecetaForm((r) => ({ ...r, unidad_medida: e.target.value }))
-              }
-              disabled={unidadMedidaReadOnly}
-              title={unidadMedidaReadOnly ? "Campo inmutable" : undefined}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Costo Directo Produccion Referencial</label>
-            <input
-              type="number"
-              className="w-full border rounded-lg px-3 py-2"
-              value={recetaForm.costo_referencial_produccion}
-              onChange={(e) =>
-                setRecetaForm((r) => ({ ...r, costo_referencial_produccion: e.target.value }))
-              }
-            />
-          </div>
-        </div>
-
-        <div className="flex justify-end">
+        <div className="flex justify-end pt-2">
           <button
             type="button"
-            className="bg-primary hover:bg-hover text-white px-6 py-2 rounded"
+            className="bg-primary hover:bg-hover text-white px-6 py-2 rounded font-medium"
             onClick={onGuardarReceta}
           >
             {recetaId ? "Actualizar receta y continuar" : "Crear receta y continuar"}
@@ -132,7 +137,7 @@ export default function RecetaTab({
               combinación) según disponibilidad.
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="border rounded-lg p-4">
                 <div className="text-sm font-semibold text-gray-800 mb-3">Seleccionar y agregar</div>
 
@@ -243,7 +248,7 @@ export default function RecetaTab({
 
                   <button
                     type="button"
-                    className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+                    className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium"
                     onClick={onSubmitIngrediente}
                   >
                     {editingIngredienteId ? "Guardar cambios" : "Agregar ingrediente"}
@@ -318,7 +323,7 @@ export default function RecetaTab({
               Define qué subproductos podrían generarse en esta receta.
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="border rounded-lg p-4">
                 <div className="text-sm font-semibold text-gray-800 mb-3">Seleccionar y agregar</div>
                 <SubproductoAdder
@@ -368,7 +373,7 @@ export default function RecetaTab({
             <div className="flex justify-end mt-4">
               <button
                 type="button"
-                className="bg-primary hover:bg-hover text-white px-6 py-2 rounded"
+                className="bg-primary hover:bg-hover text-white px-6 py-2 rounded font-medium"
                 onClick={onNext}
               >
                 Continuar a Costos Secos

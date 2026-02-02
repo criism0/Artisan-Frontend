@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Edit, X } from "lucide-react";
+import PautaEditor from "../../components/Pautas/PautaEditor";
 
 // ────────────────────────────────────────────────
 // CONSTANTS
@@ -25,6 +26,13 @@ export default function RecetaEdit() {
   const [pautasElaboracion, setPautasElaboracion] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Estado para editar pauta inline
+  const [editandoPauta, setEditandoPauta] = useState(false);
+  const [pautaEditData, setPautaEditData] = useState(null);
+  const [pautaPasos, setPautaPasos] = useState([]);
+  const [camposAnalisisSensorial, setCamposAnalisisSensorial] = useState([]);
+  const [pautaErrors, setPautaErrors] = useState({});
 
   // ────────────────────────────────────────────────
   // FETCH DATOS
@@ -117,6 +125,129 @@ export default function RecetaEdit() {
 
       return newData;
     });
+  };
+
+  // ────────────────────────────────────────────────
+  // EDITAR PAUTA INLINE
+  // ────────────────────────────────────────────────
+  const handleEditarPautaClick = async () => {
+    if (!receta.id_pauta_elaboracion) return;
+    
+    try {
+      // Cargar datos de la pauta
+      const [pautaRes, pasosRes] = await Promise.all([
+        api(`/pautas-elaboracion/${receta.id_pauta_elaboracion}`),
+        api(`/pasos-pauta-elaboracion/pauta/${receta.id_pauta_elaboracion}`)
+      ]);
+
+      setPautaEditData({
+        name: pautaRes.name,
+        description: pautaRes.description,
+        is_active: pautaRes.is_active
+      });
+      
+      setPautaPasos(pasosRes);
+
+      // Cargar análisis sensorial si existe
+      try {
+        const analisisRes = await api(`/analisis-sensorial/definicion/${receta.id_pauta_elaboracion}`);
+        if (analisisRes?.campos_definicion) {
+          setCamposAnalisisSensorial(analisisRes.campos_definicion);
+        }
+      } catch (err) {
+        // No hay análisis sensorial definido
+        setCamposAnalisisSensorial([]);
+      }
+
+      setEditandoPauta(true);
+    } catch (err) {
+      console.error("Error cargando pauta:", err);
+      toast.error("No se pudo cargar la pauta para editar");
+    }
+  };
+
+  const handleGuardarPauta = async () => {
+    try {
+      // Validar datos básicos
+      if (!pautaEditData?.name || !pautaEditData?.description) {
+        setPautaErrors({ name: "Nombre y descripción son requeridos" });
+        return;
+      }
+
+      // Actualizar datos de la pauta
+      await api(`/pautas-elaboracion/${receta.id_pauta_elaboracion}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: pautaEditData.name,
+          description: pautaEditData.description,
+          is_active: pautaEditData.is_active
+        })
+      });
+
+      // Eliminar pasos existentes y crear nuevos (estrategia más simple)
+      const pasosActuales = await api(`/pasos-pauta-elaboracion/pauta/${receta.id_pauta_elaboracion}`);
+      for (const paso of pasosActuales) {
+        await api(`/pasos-pauta-elaboracion/${paso.id}`, { method: "DELETE" });
+      }
+
+      // Crear pasos nuevos
+      for (let i = 0; i < pautaPasos.length; i++) {
+        const paso = pautaPasos[i];
+        if (paso.descripcion?.trim()) {
+          await api("/pasos-pauta-elaboracion", {
+            method: "POST",
+            body: JSON.stringify({
+              id_pauta_elaboracion: receta.id_pauta_elaboracion,
+              orden: i + 1,
+              descripcion: paso.descripcion,
+              requires_ph: !!paso.requires_ph,
+              requires_temperature: !!paso.requires_temperature,
+              requires_obtained_quantity: !!paso.requires_obtained_quantity,
+              extra_input_data: paso.extra_input_data || null
+            })
+          });
+        }
+      }
+
+      // Actualizar análisis sensorial
+      if (camposAnalisisSensorial.length > 0) {
+        await api("/analisis-sensorial/definicion", {
+          method: "POST",
+          body: JSON.stringify({
+            id_pauta_elaboracion: receta.id_pauta_elaboracion,
+            campos_definicion: camposAnalisisSensorial
+          })
+        });
+      }
+
+      toast.success("Pauta actualizada correctamente");
+      setEditandoPauta(false);
+      setPautaEditData(null);
+      setPautaPasos([]);
+      setCamposAnalisisSensorial([]);
+      setPautaErrors({});
+
+      // Recargar las pautas
+      const pautasRes = await api(`/pautas-elaboracion`);
+      const uniquePautas = pautasRes.filter((p, index, self) => 
+        index === self.findIndex(pa => pa.id === p.id)
+      );
+      setPautasElaboracion(
+        uniquePautas.map((p) => ({ value: p.id, label: p.name }))
+      );
+
+    } catch (err) {
+      console.error("Error guardando pauta:", err);
+      toast.error("No se pudo guardar la pauta");
+    }
+  };
+
+  const handleCancelarEdicionPauta = () => {
+    setEditandoPauta(false);
+    setPautaEditData(null);
+    setPautaPasos([]);
+    setCamposAnalisisSensorial([]);
+    setPautaErrors({});
   };
 
   // ────────────────────────────────────────────────
@@ -329,19 +460,31 @@ export default function RecetaEdit() {
 
           <div>
             <label className="block text-sm font-medium mb-1">Pauta de Elaboración:</label>
-            <select
-              name="id_pauta_elaboracion"
-              value={receta.id_pauta_elaboracion || ""}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded px-3 py-2"
-            >
-              <option value="">Sin pauta asignada</option>
-              {pautasElaboracion.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
+            <div className="flex gap-2">
+              <select
+                name="id_pauta_elaboracion"
+                value={receta.id_pauta_elaboracion || ""}
+                onChange={handleChange}
+                className="flex-1 border border-gray-300 rounded px-3 py-2"
+              >
+                <option value="">Sin pauta asignada</option>
+                {pautasElaboracion.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              {receta.id_pauta_elaboracion && (
+                <button
+                  type="button"
+                  onClick={handleEditarPautaClick}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-2"
+                >
+                  <Edit className="w-4 h-4" />
+                  Editar Pauta
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -365,6 +508,71 @@ export default function RecetaEdit() {
           Guardar Cambios
         </button>
       </div>
+
+      {/* MODAL EDITAR PAUTA */}
+      {editandoPauta && pautaEditData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-800">Editar Pauta de Elaboración</h2>
+              <button
+                onClick={handleCancelarEdicionPauta}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <PautaEditor
+                pautaData={pautaEditData}
+                onPautaDataChange={setPautaEditData}
+                pasos={pautaPasos}
+                setPasos={setPautaPasos}
+                camposAnalisisSensorial={camposAnalisisSensorial}
+                setCamposAnalisisSensorial={setCamposAnalisisSensorial}
+                errors={pautaErrors}
+                showTitle={false}
+              />
+
+              <div className="flex justify-between items-center mt-6 pt-6 border-t">
+                <button
+                  onClick={() => setPautaPasos(prev => [
+                    ...prev,
+                    {
+                      descripcion: "",
+                      orden: prev.length + 1,
+                      requires_ph: false,
+                      requires_temperature: false,
+                      requires_obtained_quantity: false,
+                      extra_input_data: []
+                    }
+                  ])}
+                  className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100"
+                  type="button"
+                >
+                  + Agregar Paso
+                </button>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleCancelarEdicionPauta}
+                    className="px-6 py-2 border border-gray-300 rounded hover:bg-gray-100"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleGuardarPauta}
+                    className="px-6 py-2 bg-primary hover:bg-primary-dark text-white rounded"
+                  >
+                    Guardar Pauta
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

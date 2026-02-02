@@ -57,6 +57,7 @@ export default function CreatePipWizard() {
     peso: "1",
     unidad_medida: "",
     costo_referencial_produccion: "0",
+    dias_vida_util: "",
   });
 
   const [ingredientes, setIngredientes] = useState([]);
@@ -227,6 +228,7 @@ export default function CreatePipWizard() {
   };
 
   const buildRecetaPayload = () => {
+    const diasVidaUtil = recetaForm.dias_vida_util ? Number(recetaForm.dias_vida_util) : null;
     return {
       id_materia_prima: Number(pipId),
       nombre: recetaForm.nombre.trim(),
@@ -234,6 +236,7 @@ export default function CreatePipWizard() {
       peso: toNumber(recetaForm.peso),
       unidad_medida: recetaForm.unidad_medida,
       costo_referencial_produccion: toNumber(recetaForm.costo_referencial_produccion),
+      dias_vida_util: diasVidaUtil,
       id_pauta_elaboracion: null,
     };
   };

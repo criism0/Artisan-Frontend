@@ -341,11 +341,7 @@ export function ToggleActiveButton({
         }
         title={tooltipText || (isActive ? "Deshabilitar" : "Habilitar")}
       >
-        {isActive ? (
-          <TrashButton className="w-5 h-5" />
-        ) : (
-          <Unlock className="w-5 h-5" />
-        )}
+        {isActive ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
       </button>
 
       {isModalOpen && (

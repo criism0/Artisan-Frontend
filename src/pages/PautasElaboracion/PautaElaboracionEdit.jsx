@@ -3,6 +3,7 @@ import { useApi } from "../../lib/api";
 import { useNavigate, useParams } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import StepsEditor from "../../components/Pautas/StepsEditor";
+import AnalisisSensorialDefinicionForm from "../../components/AnalisisSensorial/DefinicionForm";
 import { toast } from "../../lib/toast";
 
 export default function PautaElaboracionEdit() {
@@ -18,6 +19,7 @@ export default function PautaElaboracionEdit() {
   });
 
   const [pasos, setPasos] = useState([]);
+  const [camposAnalisisSensorial, setCamposAnalisisSensorial] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
 
@@ -41,6 +43,19 @@ export default function PautaElaboracionEdit() {
             .map((p) => ({ ...p, extra_input_data: p.extra_input_data || [] }))
             .sort((a, b) => a.orden - b.orden)
         );
+
+        // Cargar definición de análisis sensorial si existe
+        try {
+          const analisisRes = await api(`/analisis-sensorial/definicion/pauta/${id}`);
+          if (analisisRes && analisisRes.campos_definicion) {
+            setCamposAnalisisSensorial(analisisRes.campos_definicion);
+          }
+        } catch (err) {
+          // Si no existe definición, no hay problema (404 esperado)
+          if (err.status !== 404) {
+            console.error("Error cargando análisis sensorial:", err);
+          }
+        }
       } catch (err) {
         console.error("Error cargando pauta:", err);
         toast.error("No se pudo cargar la pauta de elaboración.");
@@ -147,6 +162,17 @@ export default function PautaElaboracionEdit() {
         }
       }
 
+      // Guardar análisis sensorial (crear o actualizar)
+      if (camposAnalisisSensorial.length > 0) {
+        await api(`/analisis-sensorial/definicion`, {
+          method: "POST",
+          body: JSON.stringify({
+            id_pauta_elaboracion: id,
+            campos_definicion: camposAnalisisSensorial
+          })
+        });
+      }
+
       toast.success("Pauta de elaboración actualizada correctamente.");
       navigate(`/PautasElaboracion/${id}`);
     } catch (err) {
@@ -230,6 +256,14 @@ export default function PautaElaboracionEdit() {
           <StepsEditor pasos={pasos} setPasos={setPasos} errors={errors} onRemovePaso={handleRemovePaso} />
 
           {errors.pasos && <p className="text-red-500 text-sm">{errors.pasos}</p>}
+        </div>
+
+        {/* ─────────────── SECCIÓN 3: ANÁLISIS SENSORIAL ─────────────── */}
+        <div className="bg-white p-6 rounded-lg shadow space-y-6 mb-8">
+          <AnalisisSensorialDefinicionForm 
+            campos={camposAnalisisSensorial}
+            setCampos={setCamposAnalisisSensorial}
+          />
         </div>
 
         {/* BOTONES */}

@@ -25,6 +25,11 @@ export default function InsumoDetail() {
   const [formatosEmpaque, setFormatosEmpaque] = useState([]);
   const [pvas, setPvas] = useState([]);
 
+  const [pautaDetalle, setPautaDetalle] = useState(null);
+  const [pautaPasosDetalle, setPautaPasosDetalle] = useState([]);
+  const [pautaAnalisisDetalle, setPautaAnalisisDetalle] = useState(null);
+  const [pautaDetalleLoading, setPautaDetalleLoading] = useState(false);
+
   useEffect(() => {
     const fetchInsumo = async () => {
       try {
@@ -101,6 +106,41 @@ export default function InsumoDetail() {
 
     void loadRecetaPip();
   }, [api, id, insumo]);
+
+  useEffect(() => {
+    const loadPautaDetalle = async () => {
+      if (tab !== "pauta") return;
+      const idPauta = receta?.id_pauta_elaboracion;
+      if (!idPauta) {
+        setPautaDetalle(null);
+        setPautaPasosDetalle([]);
+        setPautaAnalisisDetalle(null);
+        return;
+      }
+
+      setPautaDetalleLoading(true);
+      try {
+        const [pautaRes, pasosRes, analisisRes] = await Promise.all([
+          api(`/pautas-elaboracion/${idPauta}`),
+          api(`/pasos-pauta-elaboracion/pauta/${idPauta}`).catch(() => []),
+          api(`/analisis-sensorial/definicion/${idPauta}`).catch(() => null),
+        ]);
+
+        setPautaDetalle(pautaRes || null);
+        setPautaPasosDetalle(
+          (Array.isArray(pasosRes) ? pasosRes : []).slice().sort((a, b) => Number(a?.orden || 0) - Number(b?.orden || 0))
+        );
+        setPautaAnalisisDetalle(analisisRes);
+      } catch (e) {
+        console.error(e);
+        toast.error("No se pudo cargar el detalle de la pauta");
+      } finally {
+        setPautaDetalleLoading(false);
+      }
+    };
+
+    void loadPautaDetalle();
+  }, [api, receta?.id_pauta_elaboracion, tab]);
 
   const handleToggleActiveInsumo = async (insumoId) => {
     try {
@@ -198,21 +238,21 @@ export default function InsumoDetail() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 mb-6">
-          <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>1) Datos</TabButton>
-          <TabButton active={tab === "receta"} disabled={!canGoReceta} onClick={() => setTab("receta")}>2) Receta</TabButton>
-          <TabButton active={tab === "ingredientes"} disabled={!canGoReceta} onClick={() => setTab("ingredientes")}>3) Ingredientes</TabButton>
-          <TabButton active={tab === "costos_secos"} disabled={!canGoReceta} onClick={() => setTab("costos_secos")}>4) Costos secos</TabButton>
-          <TabButton active={tab === "pauta"} disabled={!canGoReceta} onClick={() => setTab("pauta")}>5) Pauta</TabButton>
-          <TabButton active={tab === "pvas"} onClick={() => setTab("pvas")}>6) PVAs</TabButton>
-          <TabButton active={tab === "costos_indirectos"} disabled={!canGoReceta} onClick={() => setTab("costos_indirectos")}>7) Costos indirectos</TabButton>
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-2 flex flex-wrap gap-2 mb-6">
+          <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>Datos</TabButton>
+          <TabButton active={tab === "receta"} disabled={!canGoReceta} onClick={() => setTab("receta")}>Receta</TabButton>
+          <TabButton active={tab === "ingredientes"} disabled={!canGoReceta} onClick={() => setTab("ingredientes")}>Ingredientes</TabButton>
+          <TabButton active={tab === "costos_secos"} disabled={!canGoReceta} onClick={() => setTab("costos_secos")}>Costos secos</TabButton>
+          <TabButton active={tab === "pauta"} disabled={!canGoReceta} onClick={() => setTab("pauta")}>Pauta</TabButton>
+          <TabButton active={tab === "pvas"} onClick={() => setTab("pvas")}>PVAs</TabButton>
+          <TabButton active={tab === "costos_indirectos"} disabled={!canGoReceta} onClick={() => setTab("costos_indirectos")}>Costos indirectos</TabButton>
         </div>
 
         {tab === "datos" ? (
-          <div className="bg-gray-200 p-4 rounded-lg">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-text mb-2">Información Principal</h2>
-              <table className="w-full bg-white rounded-lg shadow overflow-hidden">
+              <table className="w-full bg-white rounded-lg overflow-hidden border border-gray-200">
                 <tbody>
                   {Object.entries(insumoInfo).map(([key, value]) => (
                     <tr key={key} className="border-b border-border">
@@ -227,7 +267,7 @@ export default function InsumoDetail() {
         ) : null}
 
         {tab === "receta" ? (
-          <div className="bg-white p-6 rounded-lg shadow space-y-3">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <h2 className="text-xl font-semibold text-text">Receta asociada</h2>
               {recetaId ? (
@@ -256,7 +296,7 @@ export default function InsumoDetail() {
 
         {tab === "ingredientes" ? (
           <div className="space-y-4">
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <h2 className="text-xl font-semibold text-text mb-2">Ingredientes</h2>
               {ingredientes.length === 0 ? (
                 <div className="text-sm text-gray-600">Sin ingredientes.</div>
@@ -282,7 +322,7 @@ export default function InsumoDetail() {
               )}
             </div>
 
-            <div className="bg-white p-6 rounded-lg shadow">
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
               <h2 className="text-xl font-semibold text-text mb-2">Subproductos</h2>
               {subproductos.length === 0 ? (
                 <div className="text-sm text-gray-600">Sin subproductos.</div>
@@ -309,14 +349,101 @@ export default function InsumoDetail() {
         ) : null}
 
         {tab === "pauta" ? (
-          <div className="bg-white p-6 rounded-lg shadow space-y-2">
-            <h2 className="text-xl font-semibold text-text">Pauta de elaboración</h2>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-2">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <h2 className="text-xl font-semibold text-text">Pauta de elaboración</h2>
+              {receta?.id_pauta_elaboracion ? (
+                <button
+                  type="button"
+                  className="px-3 py-2 border rounded-lg hover:bg-gray-50 text-sm"
+                  onClick={() => navigate(`/PautasElaboracion/${receta.id_pauta_elaboracion}/edit`)}
+                >
+                  Editar pauta
+                </button>
+              ) : null}
+            </div>
             {!recetaId ? (
               <div className="text-sm text-gray-600">No hay receta para asignar pauta.</div>
             ) : receta?.id_pauta_elaboracion ? (
-              <div className="text-sm">
-                <div><span className="font-semibold">ID:</span> {receta.id_pauta_elaboracion}</div>
-                <div><span className="font-semibold">Nombre:</span> {pautaSeleccionada?.name || "—"}</div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                  <div className="md:col-span-2">
+                    <div className="text-xs text-gray-500">Nombre</div>
+                    <div className="font-semibold text-gray-900">{pautaDetalle?.name || pautaSeleccionada?.name || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">ID</div>
+                    <div className="font-mono text-gray-800">{receta.id_pauta_elaboracion}</div>
+                  </div>
+                  <div className="md:col-span-3">
+                    <div className="text-xs text-gray-500">Descripción</div>
+                    <div className="text-gray-800">{pautaDetalle?.description || "—"}</div>
+                  </div>
+                </div>
+
+                {pautaDetalleLoading ? (
+                  <div className="text-sm text-gray-600">Cargando detalle de la pauta...</div>
+                ) : (
+                  <>
+                    <div className="border rounded-lg p-4">
+                      <div className="font-semibold text-gray-900 mb-2">Pasos</div>
+                      {pautaPasosDetalle.length === 0 ? (
+                        <div className="text-sm text-gray-600">Sin pasos configurados.</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {pautaPasosDetalle.map((p) => (
+                            <div key={p.id} className="flex gap-3">
+                              <div className="w-8 h-8 rounded-full bg-gray-100 border flex items-center justify-center text-sm font-semibold text-gray-700 flex-shrink-0">
+                                {p.orden}
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-sm text-gray-900">{p.descripcion || "—"}</div>
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {p.requires_ph ? "• pH" : ""}
+                                  {p.requires_temperature ? " • Temp" : ""}
+                                  {p.requires_obtained_quantity ? " • Cant. obtenida" : ""}
+                                  {!p.requires_ph && !p.requires_temperature && !p.requires_obtained_quantity ? "Sin controles" : ""}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border rounded-lg p-4">
+                      <div className="font-semibold text-gray-900 mb-2">Análisis Sensorial</div>
+                      {Array.isArray(pautaAnalisisDetalle?.campos_definicion) && pautaAnalisisDetalle.campos_definicion.length > 0 ? (
+                        <div className="overflow-x-auto border border-gray-200 rounded">
+                          <table className="min-w-full text-sm">
+                            <thead className="bg-gray-50 text-gray-700">
+                              <tr>
+                                <th className="text-left p-2">Etiqueta</th>
+                                <th className="text-left p-2">Tipo</th>
+                                <th className="text-left p-2">Obligatorio</th>
+                                <th className="text-left p-2">Opciones</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {pautaAnalisisDetalle.campos_definicion.map((c) => (
+                                <tr key={c.nombre} className="border-t">
+                                  <td className="p-2 font-medium text-gray-900">{c.etiqueta || c.nombre}</td>
+                                  <td className="p-2 text-gray-700">{c.tipo}</td>
+                                  <td className="p-2 text-gray-700">{c.obligatorio ? "Sí" : "No"}</td>
+                                  <td className="p-2 text-gray-700">
+                                    {c.tipo === "select" ? (c.opciones || []).join(", ") : "—"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="text-sm text-gray-600">Sin análisis sensorial configurado.</div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div className="text-sm text-gray-600">La receta no tiene pauta asignada.</div>
@@ -325,7 +452,7 @@ export default function InsumoDetail() {
         ) : null}
 
         {tab === "costos_secos" ? (
-          <div className="bg-white p-6 rounded-lg shadow space-y-3">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <h2 className="text-xl font-semibold text-text">Costos secos (formatos de empaque)</h2>
               {recetaId ? (
@@ -386,7 +513,7 @@ export default function InsumoDetail() {
         ) : null}
 
         {tab === "pvas" ? (
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h2 className="text-xl font-semibold text-text mb-2">Procesos de Valor Agregado (PVAs)</h2>
             {pvas.length === 0 ? (
               <div className="text-sm text-gray-600">Sin PVAs asociados.</div>
@@ -421,7 +548,7 @@ export default function InsumoDetail() {
         ) : null}
 
         {tab === "costos_indirectos" ? (
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
             <h2 className="text-xl font-semibold text-text mb-2">Costos indirectos</h2>
             {recetaCostos.length === 0 ? (
               <div className="text-sm text-gray-600">Sin costos indirectos.</div>

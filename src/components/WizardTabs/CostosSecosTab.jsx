@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import { api } from "../../lib/api";
+import FormField from "../FormField";
 import Selector from "../Selector";
 
 function parseMaybeNumber(v) {
@@ -127,7 +128,6 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
         body: {
           nombre: nuevoNombre.trim(),
           opcional: Boolean(nuevoOpcional),
-          // Nota: se permite crear formato sin insumos.
           insumos: (nuevoInsumos || []).map((x) => ({
             id_materia_prima: Number(x.id_materia_prima),
             opcional: Boolean(x.opcional),
@@ -206,29 +206,33 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
   };
 
   const handleSaveEdit = async () => {
-    if (!recetaId || !editDraft) return;
-    if (!editDraft.nombre?.trim()) return toast.error("El nombre del formato es requerido");
+    if (!recetaId) return;
+    if (!editDraft || !editId) return;
+
+    const nombre = String(editDraft?.nombre || "").trim();
+    if (!nombre) return toast.error("Debes ingresar un nombre para el formato");
 
     setLoading(true);
     try {
-      await api(`/recetas/${recetaId}/formatos-empaque/${editDraft.id}`, {
+      await api(`/recetas/${recetaId}/formatos-empaque/${editId}`, {
         method: "PUT",
         body: {
-          nombre: editDraft.nombre.trim(),
-          opcional: Boolean(editDraft.opcional),
-          insumos: editDraft.insumos.map((x) => ({
+          nombre,
+          opcional: Boolean(editDraft?.opcional),
+          insumos: (editDraft?.insumos || []).map((x) => ({
             id_materia_prima: Number(x.id_materia_prima),
             opcional: Boolean(x.opcional),
             cantidad_sugerida_por_unidad: parseMaybeNumber(x.cantidad_sugerida_por_unidad),
           })),
         },
       });
+
       toast.success("Formato actualizado");
       await loadFormatos();
       cancelEdit();
     } catch (e) {
       console.error(e);
-      toast.error("No se pudo actualizar el formato");
+      toast.error("No se pudo guardar el formato");
     } finally {
       setLoading(false);
     }
@@ -247,304 +251,249 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
           <div className="text-sm text-gray-600">Primero crea la receta para poder definir Costos Secos.</div>
         ) : (
           <>
-            <div className="border rounded-lg p-4">
-              <div className="text-sm font-semibold text-gray-800 mb-3">Crear formato</div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <input
-                  className="border rounded-lg px-3 py-2"
-                  placeholder="Nombre"
-                  value={nuevoNombre}
-                  onChange={(e) => setNuevoNombre(e.target.value)}
-                />
-                <div className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2">
-                  <label className="text-sm text-gray-700">Opcional</label>
-                  <input type="checkbox" checked={nuevoOpcional} onChange={(e) => setNuevoOpcional(e.target.checked)} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Columna izquierda: Crear/Editar formato */}
+              <div className="border rounded-lg p-4">
+                <div className="text-sm font-semibold text-gray-800 mb-3">
+                  {editId ? "Editar formato" : "Crear formato"}
                 </div>
-              </div>
 
-              <div className="mt-3 border rounded-lg p-3">
-                <div className="text-sm font-semibold text-gray-800 mb-2">Insumos del formato</div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                  <div className="md:col-span-2">
-                    <Selector
-                      options={mpOptions.filter((opt) => {
-                        const already = new Set((nuevoInsumos || []).map((x) => String(x.id_materia_prima)));
-                        return String(opt.value) === String(nuevoSelectedMpId || "") || !already.has(String(opt.value));
-                      })}
-                      selectedValue={nuevoSelectedMpId}
-                      onSelect={(value) => setNuevoSelectedMpId(value)}
-                      useFuzzy
-                      groupBy="category"
-                      className="w-full border rounded-lg px-3 py-2"
-                    />
-                  </div>
-
-                  <input
-                    className="border rounded-lg px-3 py-2"
-                    placeholder="Cantidad sugerida por unidad (opcional)"
-                    value={nuevoSelectedMpCantidad}
-                    onChange={(e) => setNuevoSelectedMpCantidad(e.target.value)}
+                <div className="space-y-3">
+                  <FormField
+                    label="Nombre del formato"
+                    type="text"
+                    placeholder="Ej: Empaque Estándar"
+                    value={editId ? editDraft?.nombre || "" : nuevoNombre}
+                    onChange={(e) =>
+                      editId
+                        ? setEditDraft({ ...editDraft, nombre: e.target.value })
+                        : setNuevoNombre(e.target.value)
+                    }
+                    required
                   />
 
-                  <div className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2">
-                    <label className="text-sm text-gray-700">Opcional</label>
+                  <div className="flex items-center gap-3 border rounded-lg px-3 py-2">
                     <input
                       type="checkbox"
-                      checked={Boolean(nuevoSelectedMpOpcional)}
-                      onChange={(e) => setNuevoSelectedMpOpcional(e.target.checked)}
+                      id="formatoOpcional"
+                      checked={editId ? Boolean(editDraft?.opcional) : nuevoOpcional}
+                      onChange={(e) =>
+                        editId
+                          ? setEditDraft({ ...editDraft, opcional: e.target.checked })
+                          : setNuevoOpcional(e.target.checked)
+                      }
+                      className="w-4 h-4"
                     />
+                    <label htmlFor="formatoOpcional" className="text-sm font-medium text-gray-700 cursor-pointer">
+                      Formato opcional
+                    </label>
                   </div>
 
-                  <div className="md:col-span-4 flex justify-end">
-                    <button
-                      type="button"
-                      className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                      onClick={handleAddInsumoToNuevo}
-                      disabled={loading}
-                    >
-                      Agregar insumo
-                    </button>
-                  </div>
-                </div>
+                  <div className="border-t pt-3">
+                    <label className="block text-sm font-medium mb-2">Insumos del formato</label>
+                    
+                    <div className="space-y-2 mb-3">
+                      <Selector
+                        options={mpOptions.filter((opt) => {
+                          const already = new Set(
+                            (editId ? editDraft?.insumos || [] : nuevoInsumos || []).map((x) =>
+                              String(x.id_materia_prima)
+                            )
+                          );
+                          const selectedId = editId ? selectedMpId : nuevoSelectedMpId;
+                          return String(opt.value) === String(selectedId || "") || !already.has(String(opt.value));
+                        })}
+                        selectedValue={editId ? selectedMpId : nuevoSelectedMpId}
+                        onSelect={(value) => (editId ? setSelectedMpId(value) : setNuevoSelectedMpId(value))}
+                        useFuzzy
+                        groupBy="category"
+                        className="w-full border rounded-lg px-3 py-2"
+                      />
 
-                {nuevoInsumos.length === 0 ? (
-                  <div className="text-sm text-gray-600 mt-3">Sin insumos por ahora (puedes crear el formato igual).</div>
-                ) : (
-                  <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden mt-3">
-                    <thead className="bg-gray-50 text-gray-700">
-                      <tr>
-                        <th className="px-3 py-2 text-left">Insumo</th>
-                        <th className="px-3 py-2 text-left">Opcional</th>
-                        <th className="px-3 py-2 text-left">Sugerido/unidad</th>
-                        <th className="px-3 py-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {nuevoInsumos.map((mp) => (
-                        <tr key={mp.id_materia_prima} className="border-t">
-                          <td className="px-3 py-2">{mp.nombre}</td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(mp.opcional)}
-                              onChange={(e) => {
-                                mp.opcional = e.target.checked;
-                                setNuevoInsumos([...(nuevoInsumos || [])]);
-                              }}
-                            />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              className="border rounded px-2 py-1 w-40"
-                              value={mp.cantidad_sugerida_por_unidad}
-                              onChange={(e) => {
-                                mp.cantidad_sugerida_por_unidad = e.target.value;
-                                setNuevoInsumos([...(nuevoInsumos || [])]);
-                              }}
-                            />
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <button
-                              type="button"
-                              className="text-red-600 hover:underline"
-                              onClick={() => handleRemoveInsumoFromNuevo(mp.id_materia_prima)}
-                            >
-                              Quitar
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-              <div className="mt-3 flex justify-end">
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                  onClick={handleCreateFormato}
-                  disabled={loading}
-                >
-                  Crear formato
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 border rounded-lg p-4">
-              <div className="text-sm font-semibold text-gray-800 mb-3">Formatos definidos</div>
-              {loading && <div className="text-sm text-gray-500">Cargando...</div>}
-              {!loading && formatos.length === 0 ? (
-                <div className="text-sm text-gray-600">Sin formatos por ahora.</div>
-              ) : (
-                <div className="space-y-3">
-                  {formatos.map((f) => (
-                    <div key={f.id} className="border rounded-lg p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="font-semibold text-gray-900">
-                            {f.nombre}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {f.opcional ? "Opcional" : "Requerido"}
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-                            onClick={() => (Number(editId) === Number(f.id) ? cancelEdit() : startEdit(f))}
-                          >
-                            {Number(editId) === Number(f.id) ? "Cerrar" : "Editar"}
-                          </button>
-                          <button
-                            type="button"
-                            className="px-3 py-2 border rounded-lg hover:bg-gray-50 text-red-600"
-                            onClick={() => handleDeleteFormato(f.id)}
-                          >
-                            Eliminar
-                          </button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="number"
+                          className="border rounded-lg px-3 py-2"
+                          placeholder="Cantidad/unidad"
+                          value={editId ? selectedMpCantidad : nuevoSelectedMpCantidad}
+                          onChange={(e) =>
+                            editId
+                              ? setSelectedMpCantidad(e.target.value)
+                              : setNuevoSelectedMpCantidad(e.target.value)
+                          }
+                        />
+                        <div className="flex items-center gap-2 border rounded-lg px-3 py-2">
+                          <input
+                            type="checkbox"
+                            id="insumoOpcional"
+                            checked={editId ? Boolean(selectedMpOpcional) : Boolean(nuevoSelectedMpOpcional)}
+                            onChange={(e) =>
+                              editId
+                                ? setSelectedMpOpcional(e.target.checked)
+                                : setNuevoSelectedMpOpcional(e.target.checked)
+                            }
+                            className="w-4 h-4"
+                          />
+                          <label htmlFor="insumoOpcional" className="text-sm text-gray-700 cursor-pointer">
+                            Opcional
+                          </label>
                         </div>
                       </div>
 
-                      {Number(editId) === Number(f.id) && editDraft ? (
-                        <div className="mt-4 space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <input
-                              className="border rounded-lg px-3 py-2"
-                              value={editDraft.nombre}
-                              onChange={(e) => setEditDraft({ ...editDraft, nombre: e.target.value })}
-                              placeholder="Nombre"
-                            />
-                            <div className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2">
-                              <label className="text-sm text-gray-700">Opcional</label>
-                              <input
-                                type="checkbox"
-                                checked={Boolean(editDraft.opcional)}
-                                onChange={(e) => setEditDraft({ ...editDraft, opcional: e.target.checked })}
-                              />
-                            </div>
-                          </div>
+                      <button
+                        type="button"
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+                        onClick={editId ? handleAddInsumoToDraft : handleAddInsumoToNuevo}
+                        disabled={loading}
+                      >
+                        Agregar insumo
+                      </button>
+                    </div>
 
-                          <div className="border rounded-lg p-3">
-                            <div className="text-sm font-semibold text-gray-800 mb-2">Insumos del formato</div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                              <div className="md:col-span-2">
-                                <Selector
-                                  options={mpOptions.filter((opt) => {
-                                    const already = new Set(
-                                      (editDraft.insumos || []).map((x) => String(x.id_materia_prima))
-                                    );
-                                    return (
-                                      String(opt.value) === String(selectedMpId || "") || !already.has(String(opt.value))
-                                    );
-                                  })}
-                                  selectedValue={selectedMpId}
-                                  onSelect={(value) => setSelectedMpId(value)}
-                                  useFuzzy
-                                  groupBy="category"
-                                  className="w-full border rounded-lg px-3 py-2"
-                                />
+                    {((editId ? editDraft?.insumos : nuevoInsumos) || []).length === 0 ? (
+                      <div className="text-sm text-gray-600 italic">Sin insumos agregados</div>
+                    ) : (
+                      <div className="space-y-1">
+                        {((editId ? editDraft?.insumos : nuevoInsumos) || []).map((mp) => (
+                          <div
+                            key={mp.id_materia_prima}
+                            className="flex items-center justify-between p-2 bg-gray-50 rounded border"
+                          >
+                            <div className="flex-1">
+                              <div className="text-sm font-medium">{mp.nombre}</div>
+                              <div className="text-xs text-gray-600">
+                                {mp.cantidad_sugerida_por_unidad
+                                  ? `${mp.cantidad_sugerida_por_unidad}/unidad`
+                                  : "Sin cantidad"}
+                                {mp.opcional ? " • Opcional" : ""}
                               </div>
-                              <input
-                                className="border rounded-lg px-3 py-2"
-                                placeholder="Cantidad sugerida por unidad (opcional)"
-                                value={selectedMpCantidad}
-                                onChange={(e) => setSelectedMpCantidad(e.target.value)}
-                              />
-                              <div className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2">
-                                <label className="text-sm text-gray-700">Opcional</label>
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(selectedMpOpcional)}
-                                  onChange={(e) => setSelectedMpOpcional(e.target.checked)}
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                                onClick={handleAddInsumoToDraft}
-                              >
-                                Agregar
-                              </button>
                             </div>
-
-                            {editDraft.insumos.length === 0 ? (
-                              <div className="text-sm text-gray-600 mt-3">Sin insumos en este formato.</div>
-                            ) : (
-                              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden mt-3">
-                                <thead className="bg-gray-50 text-gray-700">
-                                  <tr>
-                                    <th className="px-3 py-2 text-left">Insumo</th>
-                                    <th className="px-3 py-2 text-left">Opcional</th>
-                                    <th className="px-3 py-2 text-left">Sugerido/unidad</th>
-                                    <th className="px-3 py-2"></th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {editDraft.insumos.map((mp) => (
-                                    <tr key={mp.id_materia_prima} className="border-t">
-                                      <td className="px-3 py-2">{mp.nombre}</td>
-                                      <td className="px-3 py-2">
-                                        <input
-                                          type="checkbox"
-                                          checked={Boolean(mp.opcional)}
-                                          onChange={(e) => {
-                                            mp.opcional = e.target.checked;
-                                            setEditDraft({ ...editDraft, insumos: [...editDraft.insumos] });
-                                          }}
-                                        />
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        <input
-                                          className="border rounded px-2 py-1 w-40"
-                                          value={mp.cantidad_sugerida_por_unidad}
-                                          onChange={(e) => {
-                                            mp.cantidad_sugerida_por_unidad = e.target.value;
-                                            setEditDraft({ ...editDraft, insumos: [...editDraft.insumos] });
-                                          }}
-                                        />
-                                      </td>
-                                      <td className="px-3 py-2 text-right">
-                                        <button
-                                          type="button"
-                                          className="text-red-600 hover:underline"
-                                          onClick={() => handleRemoveInsumoFromDraft(mp.id_materia_prima)}
-                                        >
-                                          Quitar
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            )}
-                          </div>
-
-                          <div className="flex justify-end gap-2">
                             <button
                               type="button"
-                              className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                              onClick={cancelEdit}
+                              className="text-red-600 hover:text-red-700 text-sm font-medium"
+                              onClick={() =>
+                                editId
+                                  ? handleRemoveInsumoFromDraft(mp.id_materia_prima)
+                                  : handleRemoveInsumoFromNuevo(mp.id_materia_prima)
+                              }
                             >
-                              Cancelar
+                              Quitar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-3">
+                    {editId ? (
+                      <>
+                        <button
+                          type="button"
+                          className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50 font-medium"
+                          onClick={cancelEdit}
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium"
+                          onClick={handleSaveEdit}
+                          disabled={loading}
+                        >
+                          Guardar cambios
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium"
+                        onClick={handleCreateFormato}
+                        disabled={loading}
+                      >
+                        Crear formato
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Columna derecha: Formatos definidos */}
+              <div className="border rounded-lg p-4">
+                <div className="text-sm font-semibold text-gray-800 mb-3">Formatos definidos</div>
+                {loading && <div className="text-sm text-gray-500">Cargando...</div>}
+                {!loading && formatos.length === 0 ? (
+                  <div className="text-sm text-gray-600 italic">Sin formatos creados aún</div>
+                ) : (
+                  <div className="space-y-2">
+                    {formatos.map((f) => (
+                      <div
+                        key={f.id}
+                        className={`border rounded-lg p-3 transition-all ${
+                          Number(editId) === Number(f.id)
+                            ? "border-primary bg-blue-50"
+                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-gray-900 truncate">{f.nombre}</div>
+                            <div className="text-xs text-gray-600 mt-1">
+                              {(f.insumos || []).length} insumo{(f.insumos || []).length !== 1 ? "s" : ""}
+                              {f.opcional && " • Opcional"}
+                            </div>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              type="button"
+                              className={`px-3 py-1 text-sm rounded border font-medium transition-colors ${
+                                Number(editId) === Number(f.id)
+                                  ? "bg-primary text-white border-primary"
+                                  : "border-gray-300 hover:bg-gray-100"
+                              }`}
+                              onClick={() => (Number(editId) === Number(f.id) ? cancelEdit() : startEdit(f))}
+                            >
+                              {Number(editId) === Number(f.id) ? "✓" : "Editar"}
                             </button>
                             <button
                               type="button"
-                              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                              onClick={handleSaveEdit}
-                              disabled={loading}
+                              className="px-2 py-1 text-sm rounded border border-red-200 text-red-600 hover:bg-red-50 font-medium"
+                              onClick={() => handleDeleteFormato(f.id)}
+                              title="Eliminar formato"
                             >
-                              Guardar
+                              ×
                             </button>
                           </div>
                         </div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              )}
+
+                        {/* Mostrar lista de insumos solo si NO está en modo edición */}
+                        {Number(editId) !== Number(f.id) && (f.insumos || []).length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-gray-200">
+                            <div className="text-xs text-gray-600 space-y-1">
+                              {(f.insumos || []).slice(0, 3).map((ins) => (
+                                <div key={ins.id} className="flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-gray-400"></span>
+                                  <span className="truncate">{ins.nombre}</span>
+                                  {ins.FormatoEmpaqueInsumo?.cantidad_sugerida_por_unidad && (
+                                    <span className="text-gray-500">
+                                      ({ins.FormatoEmpaqueInsumo.cantidad_sugerida_por_unidad})
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                              {(f.insumos || []).length > 3 && (
+                                <div className="text-gray-500 italic">
+                                  +{(f.insumos || []).length - 3} más...
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}
@@ -552,7 +501,7 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
         <div className="flex justify-end mt-4">
           <button
             type="button"
-            className="bg-primary hover:bg-hover text-white px-6 py-2 rounded"
+            className="bg-primary hover:bg-hover text-white px-6 py-2 rounded font-medium"
             onClick={onNext}
             disabled={!recetaId}
           >
