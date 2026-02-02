@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "../../lib/toast";
-import StepsEditor from "./StepsEditor";
+import PautaEditor from "./PautaEditor";
+import { Edit, X } from "lucide-react";
 
 export default function PautaSelectorConCreacion({
   api,
@@ -21,7 +22,128 @@ export default function PautaSelectorConCreacion({
       extra_input_data: [],
     },
   ]);
+  const [camposAnalisisSensorial, setCamposAnalisisSensorial] = useState([]);
   const [pautaErrors, setPautaErrors] = useState({});
+
+  const [editandoPauta, setEditandoPauta] = useState(false);
+  const [pautaEditData, setPautaEditData] = useState(null);
+  const [pautaEditPasos, setPautaEditPasos] = useState([]);
+  const [pautaEditCamposAnalisis, setPautaEditCamposAnalisis] = useState([]);
+  const [pautaEditErrors, setPautaEditErrors] = useState({});
+  const [analisisDefinicionExiste, setAnalisisDefinicionExiste] = useState(false);
+
+  const handleAbrirEdicionPauta = async () => {
+    if (!selectedPautaId) return;
+
+    try {
+      const idPauta = selectedPautaId;
+      const [pautaRes, pasosRes] = await Promise.all([
+        api(`/pautas-elaboracion/${idPauta}`),
+        api(`/pasos-pauta-elaboracion/pauta/${idPauta}`),
+      ]);
+
+      setPautaEditData({
+        name: pautaRes.name,
+        description: pautaRes.description,
+        is_active: pautaRes.is_active,
+      });
+      setPautaEditPasos(Array.isArray(pasosRes) ? pasosRes : []);
+
+      try {
+        const analisisRes = await api(`/analisis-sensorial/definicion/${idPauta}`);
+        setPautaEditCamposAnalisis(Array.isArray(analisisRes?.campos_definicion) ? analisisRes.campos_definicion : []);
+        setAnalisisDefinicionExiste(true);
+      } catch (err) {
+        setPautaEditCamposAnalisis([]);
+        setAnalisisDefinicionExiste(false);
+      }
+
+      setPautaEditErrors({});
+      setEditandoPauta(true);
+    } catch (err) {
+      console.error("Error cargando pauta:", err);
+      toast.error("No se pudo cargar la pauta para editar");
+    }
+  };
+
+  const handleCancelarEdicionPauta = () => {
+    setEditandoPauta(false);
+    setPautaEditData(null);
+    setPautaEditPasos([]);
+    setPautaEditCamposAnalisis([]);
+    setPautaEditErrors({});
+    setAnalisisDefinicionExiste(false);
+  };
+
+  const handleGuardarEdicionPauta = async () => {
+    if (!selectedPautaId) return;
+
+    const name = String(pautaEditData?.name || "").trim();
+    const description = String(pautaEditData?.description || "").trim();
+
+    const nextErrors = {};
+    if (!name) nextErrors.name = "Nombre es obligatorio";
+    if (!description) nextErrors.description = "Descripción es obligatoria";
+    setPautaEditErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    try {
+      const idPauta = selectedPautaId;
+
+      await api(`/pautas-elaboracion/${idPauta}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name,
+          description,
+          is_active: !!pautaEditData?.is_active,
+        }),
+      });
+
+      // Reemplazo simple de pasos (borra y recrea)
+      const pasosActuales = await api(`/pasos-pauta-elaboracion/pauta/${idPauta}`);
+      for (const paso of Array.isArray(pasosActuales) ? pasosActuales : []) {
+        await api(`/pasos-pauta-elaboracion/${paso.id}`, { method: "DELETE" });
+      }
+
+      for (let i = 0; i < (pautaEditPasos || []).length; i++) {
+        const paso = pautaEditPasos[i];
+        const descripcion = String(paso?.descripcion || "").trim();
+        if (!descripcion) continue;
+        await api("/pasos-pauta-elaboracion", {
+          method: "POST",
+          body: JSON.stringify({
+            id_pauta_elaboracion: idPauta,
+            orden: i + 1,
+            descripcion,
+            requires_ph: !!paso?.requires_ph,
+            requires_temperature: !!paso?.requires_temperature,
+            requires_obtained_quantity: !!paso?.requires_obtained_quantity,
+            extra_input_data: paso?.extra_input_data || null,
+          }),
+        });
+      }
+
+      // Guardar/actualizar definición de análisis sensorial solo si existe o el usuario configuró campos.
+      if (analisisDefinicionExiste || (pautaEditCamposAnalisis || []).length > 0) {
+        await api("/analisis-sensorial/definicion", {
+          method: "POST",
+          body: JSON.stringify({
+            id_pauta_elaboracion: idPauta,
+            campos_definicion: Array.isArray(pautaEditCamposAnalisis) ? pautaEditCamposAnalisis : [],
+          }),
+        });
+      }
+
+      const pautasRes = await api("/pautas-elaboracion");
+      setPautas(Array.isArray(pautasRes) ? pautasRes : []);
+
+      toast.success("Pauta actualizada");
+      handleCancelarEdicionPauta();
+    } catch (err) {
+      console.error("Error guardando pauta:", err);
+      toast.error("No se pudo guardar la pauta");
+    }
+  };
 
   const handleCrearPautaInline = async () => {
     const name = String(nuevaPauta.name || "").trim();
@@ -69,11 +191,23 @@ export default function PautaSelectorConCreacion({
         });
       }
 
+      // Guardar análisis sensorial si hay campos definidos
+      if (camposAnalisisSensorial.length > 0) {
+        await api("/analisis-sensorial/definicion", {
+          method: "POST",
+          body: JSON.stringify({
+            id_pauta_elaboracion: idPauta,
+            campos_definicion: camposAnalisisSensorial
+          })
+        });
+      }
+
       const pautasRes = await api("/pautas-elaboracion");
       setPautas(Array.isArray(pautasRes) ? pautasRes : []);
       setSelectedPautaId(String(idPauta));
 
       setCrearPautaOpen(false);
+      setCamposAnalisisSensorial([]);
       setNuevaPauta({ name: "", description: "", is_active: true });
       setPautaPasos([
         {
@@ -96,7 +230,19 @@ export default function PautaSelectorConCreacion({
   return (
     <>
       <div>
-        <label className="block text-sm font-medium mb-1">Pauta</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-sm font-medium">Pauta</label>
+          {selectedPautaId ? (
+            <button
+              type="button"
+              onClick={handleAbrirEdicionPauta}
+              className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+            >
+              <Edit className="w-4 h-4" />
+              Editar pauta
+            </button>
+          ) : null}
+        </div>
         <select
           className="w-full border rounded-lg px-3 py-2"
           value={selectedPautaId}
@@ -122,34 +268,22 @@ export default function PautaSelectorConCreacion({
       </div>
 
       {crearPautaOpen ? (
-        <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
-          <div className="text-sm font-semibold text-gray-800">Nueva pauta</div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Nombre *</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2"
-              value={nuevaPauta.name}
-              onChange={(e) => setNuevaPauta((p) => ({ ...p, name: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Descripción *</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2"
-              value={nuevaPauta.description}
-              onChange={(e) => setNuevaPauta((p) => ({ ...p, description: e.target.value }))}
-            />
-          </div>
+        <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
+          <div className="text-sm font-semibold text-gray-800 mb-3">Nueva Pauta de Elaboración</div>
 
-          <div className="pt-2">
-            <div className="text-sm font-semibold text-gray-800 mb-2">Pasos de elaboración</div>
-            <StepsEditor pasos={pautaPasos} setPasos={setPautaPasos} errors={pautaErrors} />
-            {pautaErrors?.pasos ? (
-              <p className="text-red-500 text-sm mt-2">{pautaErrors.pasos}</p>
-            ) : null}
-          </div>
+          <PautaEditor
+            pautaData={nuevaPauta}
+            onPautaDataChange={setNuevaPauta}
+            pasos={pautaPasos}
+            setPasos={setPautaPasos}
+            camposAnalisisSensorial={camposAnalisisSensorial}
+            setCamposAnalisisSensorial={setCamposAnalisisSensorial}
+            errors={pautaErrors}
+            showTitle={false}
+            compactMode={true}
+          />
 
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center pt-4 border-t">
             <button
               onClick={() =>
                 setPautaPasos((prev) => [
@@ -167,7 +301,7 @@ export default function PautaSelectorConCreacion({
               className="px-4 py-2 rounded border border-gray-300 text-text hover:bg-gray-100"
               type="button"
             >
-              Agregar Paso
+              + Agregar Paso
             </button>
 
             <button
@@ -175,8 +309,77 @@ export default function PautaSelectorConCreacion({
               className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
               onClick={handleCrearPautaInline}
             >
-              Crear y seleccionar
+              Crear y Seleccionar
             </button>
+          </div>
+        </div>
+      ) : null}
+
+      {editandoPauta && pautaEditData ? (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-gray-900">Editar pauta y Análisis Sensorial</h2>
+              <button
+                type="button"
+                onClick={handleCancelarEdicionPauta}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <PautaEditor
+                pautaData={pautaEditData}
+                onPautaDataChange={setPautaEditData}
+                pasos={pautaEditPasos}
+                setPasos={setPautaEditPasos}
+                camposAnalisisSensorial={pautaEditCamposAnalisis}
+                setCamposAnalisisSensorial={setPautaEditCamposAnalisis}
+                errors={pautaEditErrors}
+                showTitle={false}
+              />
+
+              <div className="flex justify-between items-center pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setPautaEditPasos((prev) => [
+                      ...(Array.isArray(prev) ? prev : []),
+                      {
+                        descripcion: "",
+                        orden: (Array.isArray(prev) ? prev.length : 0) + 1,
+                        requires_ph: false,
+                        requires_temperature: false,
+                        requires_obtained_quantity: false,
+                        extra_input_data: [],
+                      },
+                    ])
+                  }
+                  className="px-4 py-2 rounded border border-gray-300 text-text hover:bg-gray-100"
+                >
+                  + Agregar Paso
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCancelarEdicionPauta}
+                    className="px-4 py-2 rounded border border-gray-300 text-text hover:bg-gray-100"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGuardarEdicionPauta}
+                    className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}

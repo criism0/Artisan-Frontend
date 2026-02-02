@@ -9,6 +9,8 @@ import { formatCLP } from "../../services/formatHelpers";
 import HistorialPasosModal from "./modals/HistorialPasosModal";
 import HistorialBultosModal from "./modals/HistorialBultosModal";
 import HistorialCostosModal from "./modals/HistorialCostosModal";
+import ModalAnalisisSensorial from "../../components/AnalisisSensorial/ModalRegistro";
+import { useApi } from "../../lib/api";
 
 const CATEGORIAS = [
   { value: "I", label: "Insumos (I)" },
@@ -71,6 +73,7 @@ function BadgeEstadoPVA({ value }) {
 
 export default function OMDetail() {
   const { id } = useParams();
+  const apiHook = useApi();
   const [om, setOM] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -87,6 +90,8 @@ export default function OMDetail() {
   const [showHistorialPasos, setShowHistorialPasos] = useState(false);
   const [showHistorialBultos, setShowHistorialBultos] = useState(false);
   const [showHistorialCostos, setShowHistorialCostos] = useState(false);
+  const [showModalAnalisisSensorial, setShowModalAnalisisSensorial] = useState(false);
+  const [analisisSensorialStatus, setAnalisisSensorialStatus] = useState(null);
   const [insumosAsignados, setInsumosAsignados] = useState(false);
   const [tieneRegistrosInsumo, setTieneRegistrosInsumo] = useState(false);
   const navigate = useNavigate();
@@ -175,10 +180,21 @@ export default function OMDetail() {
       }
     };
 
+    const fetchAnalisisSensorial = async () => {
+      try {
+        const status = await api(`/analisis-sensorial/check-pendiente/${id}`);
+        setAnalisisSensorialStatus(status);
+      } catch (error) {
+        console.error('Error checking análisis sensorial:', error);
+        setAnalisisSensorialStatus(null);
+      }
+    };
+
     fetchOM();
     fetchProductosFinales();
     fetchInsumos();
     fetchBultosAsociados();
+    fetchAnalisisSensorial();
   }, [id]);
 
   const descargarEtiquetas = async (ids, filename) => {
@@ -320,7 +336,26 @@ export default function OMDetail() {
 
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-text">Orden de Manufactura: {om.id}</h1>
-        <div>{getEstadoBadge(om.estado)}</div>
+        <div className="flex items-center gap-3">
+          {analisisSensorialStatus?.requiere_analisis && (
+            <button
+              onClick={() => setShowModalAnalisisSensorial(true)}
+              className={`px-4 py-2 rounded-lg font-medium shadow transition-colors ${
+                analisisSensorialStatus.analisis_completado
+                  ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300'
+                  : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border border-yellow-300'
+              }`}
+            >
+              📝 Análisis Sensorial
+              {!analisisSensorialStatus.analisis_completado && (
+                <span className="ml-2 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  Pendiente
+                </span>
+              )}
+            </button>
+          )}
+          {getEstadoBadge(om.estado)}
+        </div>
       </div>
 
       {/* Panel de estado rápido: 4 tarjetas informativas */}
@@ -1023,6 +1058,22 @@ export default function OMDetail() {
           </div>
         </div>
       )}
+
+      {/* Modal de Análisis Sensorial */}
+      <ModalAnalisisSensorial
+        isOpen={showModalAnalisisSensorial}
+        onClose={(reload) => {
+          setShowModalAnalisisSensorial(false);
+          if (reload) {
+            // Recargar estado del análisis
+            api(`/analisis-sensorial/check-pendiente/${id}`)
+              .then(status => setAnalisisSensorialStatus(status))
+              .catch(err => console.error('Error recargando análisis:', err));
+          }
+        }}
+        idOrdenManufactura={id}
+        api={apiHook}
+      />
     </div>
   );
 }
