@@ -135,7 +135,7 @@ export default function OrdenDetail() {
       const cantidad = mp.cantidad_formato || 0;
       const precio = mp.precio_unitario || 0;
       const sub = cantidad * precio;
-       return [nombre, String(cantidadTotal), fmtCLP(precio), fmtCLP(sub)];
+       return [nombre, String(cantidadTotal), fmtCLP(cantidadTotal ? (sub / cantidadTotal) : precio), fmtCLP(sub)];
     });
 
     const neto = orden.total_neto || 0;
