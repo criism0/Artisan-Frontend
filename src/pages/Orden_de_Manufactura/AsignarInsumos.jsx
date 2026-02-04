@@ -4,6 +4,7 @@ import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import { BackButton, UndoButton } from "../../components/Buttons/ActionButtons";
+import { formatNumberCL } from "../../services/formatHelpers";
 
 // Evita que el scroll cambie el valor del input type="number"
 const handleNumberInputWheel = (e) => {
@@ -469,7 +470,7 @@ export default function AsignarInsumos() {
           revertTarget
             ? `Se devolverá stock al inventario.\n\n` +
               `Bulto: ${revertTarget.bulto?.identificador || revertTarget.bulto?.id}\n` +
-              `Devolver: ${Number(revertTarget.unidades || 0).toFixed(6)} unidades de inventario\n` +
+              `Devolver: ${formatNumberCL(Number(revertTarget.unidades || 0), 2)} unidades de inventario\n` +
               `Equivalente: ${mostrarNumeroExacto(revertTarget.pesoUtilizado)}${
                 revertTarget.unidadMedida ? ` ${revertTarget.unidadMedida}` : ""
               }`

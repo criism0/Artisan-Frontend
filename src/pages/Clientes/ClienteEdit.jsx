@@ -55,7 +55,7 @@ function DynamicCombobox({ value, onChange, options, onSelect, placeholder }) {
           updatePosition();
           setOpen(true);
         }}
-        className="border px-3 py-2 w-full rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"
+        className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
       />
       {open && filtered.length > 0 && (
         createPortal(
@@ -75,7 +75,7 @@ function DynamicCombobox({ value, onChange, options, onSelect, placeholder }) {
                 return (
                   <li
                     key={id || idx}
-                    className="px-3 py-2 hover:bg-green-100 cursor-pointer"
+                    className="px-3 py-2 hover:bg-primary/10 cursor-pointer"
                     onMouseDown={(e) => {
                       e.preventDefault();
                       onSelect(opt);
@@ -334,17 +334,26 @@ export default function EditClientes() {
     }
   };
 
-  if (loading) return <div className="p-6">Cargando...</div>;
+  if (loading) {
+    return (
+      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-text">Cargando cliente...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 bg-background min-h-screen">
       <BackButton to="/clientes" />
-      <h1 className="text-2xl font-bold mb-6">Editar Cliente</h1>
+      <h1 className="text-2xl font-bold text-text mb-6">Editar Cliente</h1>
 
       <form onSubmit={handleSubmit} className="space-y-8">
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-            <span className="bg-blue-100 text-blue-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">1</span>
+        <div className="bg-white p-6 rounded-xl shadow border border-border">
+          <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
+            <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">1</span>
             Clasificación Comercial
           </h2>
 
@@ -393,9 +402,9 @@ export default function EditClientes() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-            <span className="bg-green-100 text-green-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">2</span>
+        <div className="bg-white p-6 rounded-xl shadow border border-border">
+          <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
+            <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">2</span>
             Información Fiscal y de Facturación
           </h2>
 
@@ -530,9 +539,9 @@ export default function EditClientes() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-            <span className="bg-yellow-100 text-yellow-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">3</span>
+        <div className="bg-white p-6 rounded-xl shadow border border-border">
+          <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
+            <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">3</span>
             Gestión de Direcciones
           </h2>
         <DireccionesManager 
@@ -543,15 +552,15 @@ export default function EditClientes() {
         />
       </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
-            <span className="bg-purple-100 text-purple-800 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">4</span>
+        <div className="bg-white p-6 rounded-xl shadow border border-border">
+          <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
+            <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">4</span>
             Puntos de Contacto
           </h2>
 
           <div className="space-y-6">
-            <div className="border-l-4 border-blue-500 pl-4">
-              <h3 className="text-lg font-medium text-gray-800 mb-3">Contacto Comercial</h3>
+            <div className="border-l-4 border-primary/60 pl-4">
+              <h3 className="text-base font-semibold text-text mb-3">Contacto Comercial</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-gray-700 font-medium mb-2">
@@ -612,9 +621,9 @@ export default function EditClientes() {
               </div>
             </div>
 
-            <div className="border-l-4 border-green-500 pl-4">
-              <h3 className="text-lg font-medium text-gray-800 mb-3">Contacto Finanzas (Opcional)</h3>
-              <div className="grid grid-cols-1 md-grid-cols-3 md:grid-cols-3 gap-4">
+            <div className="border-l-4 border-primary/30 pl-4">
+              <h3 className="text-base font-semibold text-text mb-3">Contacto Finanzas (Opcional)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-gray-700 font-medium mb-2">Nombre</label>
                   <input

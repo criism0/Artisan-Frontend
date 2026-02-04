@@ -6,6 +6,7 @@ import { toast } from "../../lib/toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import logo from "../../assets/logo.png";
+import { formatCLP } from "../../services/formatHelpers";
 
 const COMPANY = {
   nombre: "ELABORADORA DE ALIMENTOS GOURMET LTDA.",
@@ -108,8 +109,6 @@ export default function OrdenVentaDetail() {
   const iva = Math.round(totalNeto * 0.19);
   const total = totalNeto + iva;
 
-  const fmtCLP = (n) => `$${Math.round(Number(n || 0)).toLocaleString("es-CL")}`;
-
   if (!orden) return <div>Loading...</div>;
 
   return (
@@ -169,8 +168,8 @@ export default function OrdenVentaDetail() {
                 return [
                   producto ? producto.label : it.id_producto,
                   it.cantidad,
-                  fmtCLP(it.precio_venta),
-                  fmtCLP(subtotal),
+                  formatCLP(it.precio_venta, 0),
+                  formatCLP(subtotal, 0),
                 ];
               });
 
@@ -186,9 +185,9 @@ export default function OrdenVentaDetail() {
               // Totales finales
               let finalY = doc.lastAutoTable.finalY + 5;
               const totales = [
-                ["Neto", fmtCLP(totalNeto)],
-                ["IVA", fmtCLP(iva)],
-                ["Total", fmtCLP(total)],
+                ["Neto", formatCLP(totalNeto, 0)],
+                ["IVA", formatCLP(iva, 0)],
+                ["Total", formatCLP(total, 0)],
               ];
               autoTable(doc, {
                 startY: finalY,
@@ -235,7 +234,7 @@ export default function OrdenVentaDetail() {
         <table className="w-full bg-white rounded shadow">
           <tbody>
             <tr><td className="px-6 py-2 font-medium">Número OC</td><td className="px-6 py-2">{orden.numero_oc}</td></tr>
-            <tr><td className="px-6 py-2 font-medium">Costo de Envío</td><td className="px-6 py-2">{fmtCLP(orden.costo_envio || 0)}</td></tr>
+            <tr><td className="px-6 py-2 font-medium">Costo de Envío</td><td className="px-6 py-2">{formatCLP(orden.costo_envio || 0, 0)}</td></tr>
             <tr><td className="px-6 py-2 font-medium">Fecha Emisión OC</td><td className="px-6 py-2">{orden.fecha_orden ? new Date(orden.fecha_orden).toLocaleDateString("es-CL") : ""}</td></tr>
             <tr><td className="px-6 py-2 font-medium">Fecha de Entrega</td><td className="px-6 py-2">{orden.fecha_envio ? new Date(orden.fecha_envio).toLocaleDateString("es-CL") : "-"}</td></tr>
             <tr><td className="px-6 py-2 font-medium">Fecha Facturación</td><td className="px-6 py-2">{orden.fecha_facturacion ? new Date(orden.fecha_facturacion).toLocaleDateString("es-CL") : "-"}</td></tr>
@@ -247,7 +246,7 @@ export default function OrdenVentaDetail() {
               </td>
             </tr>
             <tr><td className="px-6 py-2 font-medium">Cliente</td><td className="px-6 py-2">{cliente.nombre_empresa}</td></tr>
-            <tr><td className="px-6 py-2 font-medium">Total Neto</td><td className="px-6 py-2">{fmtCLP(totalNeto)}</td></tr>
+            <tr><td className="px-6 py-2 font-medium">Total Neto</td><td className="px-6 py-2">{formatCLP(totalNeto, 0)}</td></tr>
             <tr><td className="px-6 py-2 font-medium">Condiciones</td><td className="px-6 py-2">{orden.condiciones}</td></tr>
           </tbody>
         </table>
@@ -273,9 +272,9 @@ export default function OrdenVentaDetail() {
                 <tr key={item.id} className="border-t">
                   <td className="px-4 py-2">{producto ? producto.label : `Producto #${item.id_producto}`}</td>
                   <td className="px-4 py-2">{item.cantidad}</td>
-                  <td className="px-4 py-2">{fmtCLP(item.precio_venta)}</td>
+                  <td className="px-4 py-2">{formatCLP(item.precio_venta, 0)}</td>
                   <td className="px-4 py-2">{item.porcentaje_descuento || 0}%</td>
-                  <td className="px-4 py-2">{fmtCLP(subtotal)}</td>
+                  <td className="px-4 py-2">{formatCLP(subtotal, 0)}</td>
                 </tr>
               );
             })}
@@ -285,8 +284,8 @@ export default function OrdenVentaDetail() {
 
       <div className="mt-6 flex justify-between items-center">
         <div className="text-lg font-semibold">
-          Costo Envío: {fmtCLP(costoEnvio)} &nbsp;|&nbsp; Neto: {fmtCLP(totalNeto)} &nbsp;|&nbsp; IVA: {fmtCLP(iva)} &nbsp;|&nbsp;
-          <span className="text-primary">Total: {fmtCLP(total)}</span>
+          Costo Envío: {formatCLP(costoEnvio, 0)} &nbsp;|&nbsp; Neto: {formatCLP(totalNeto, 0)} &nbsp;|&nbsp; IVA: {formatCLP(iva, 0)} &nbsp;|&nbsp;
+          <span className="text-primary">Total: {formatCLP(total, 0)}</span>
         </div>
       </div>
     </div>

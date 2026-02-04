@@ -6,6 +6,7 @@ import RowsPerPageSelector from "../../components/RowsPerPageSelector";
 import Pagination from "../../components/Pagination";
 import {ViewDetailButton, EditButton, TrashButton, BackButton} from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
+import { formatNumberCL } from "../../services/formatHelpers";
 
 export default function Productos() {
   const navigate = useNavigate();
@@ -83,13 +84,13 @@ export default function Productos() {
             Litros: "L",
             Unidades: "unid.",
           }[unidad] || "";
-        return `${row.peso_unitario?.toLocaleString("es-CL")} ${unidadLabel}`;
+        return `${formatNumberCL(row.peso_unitario, 2)} ${unidadLabel}`;
       },
     },
     {
       header: renderHeader("Unidades por Caja", "unidades_por_caja"),
       accessor: "unidades_por_caja",
-      Cell: ({ value }) => `${value?.toLocaleString("es-CL") || "0"}`,
+      Cell: ({ value }) => `${formatNumberCL(value ?? 0, 0)}`,
     },
   ];
 

@@ -118,14 +118,14 @@ export default function ListaPrecioDetail() {
         </div>
       </div>
 
-      <div className="bg-gray-200 p-4 rounded-lg">
-        <table className="w-full bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white shadow rounded-xl border border-border overflow-hidden">
+        <table className="w-full">
           <tbody>
             <tr className="border-b border-border">
               <td className="px-6 py-4 text-sm font-medium text-text">Nombre</td>
               <td className="px-6 py-4 text-sm text-text">{listaPrecio.nombre}</td>
             </tr>
-            <tr className="border-b border-border">
+            <tr>
               <td className="px-6 py-4 text-sm font-medium text-text">Descripción</td>
               <td className="px-6 py-4 text-sm text-text">{listaPrecio.description}</td>
             </tr>

@@ -2,6 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
+import { formatNumberCL } from "../../services/formatHelpers";
 
 export default function AsignarInsumosPVA() {
   const { idPauta } = useParams();
@@ -31,7 +32,7 @@ export default function AsignarInsumosPVA() {
       "";
 
     if (!hasQty) return "Disponible: —";
-    return `Disponible: ${qty.toFixed(2)}${um ? ` ${um}` : ""}`;
+    return `Disponible: ${formatNumberCL(qty, 2)}${um ? ` ${um}` : ""}`;
   };
 
   const loadData = async () => {

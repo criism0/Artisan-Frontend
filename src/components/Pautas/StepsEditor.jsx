@@ -91,7 +91,7 @@ export default function StepsEditor({ pasos, setPasos, errors, onRemovePaso, sho
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-center">
               <input
                 type="checkbox"
@@ -109,15 +109,6 @@ export default function StepsEditor({ pasos, setPasos, errors, onRemovePaso, sho
                 className="mr-2"
               />
               <label className="text-sm">Requiere medición de temperatura</label>
-            </div>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                checked={!!paso.requires_obtained_quantity}
-                onChange={(e) => handlePasoChange(index, 'requires_obtained_quantity', e.target.checked)}
-                className="mr-2"
-              />
-              <label className="text-sm">Requiere cantidad obtenida</label>
             </div>
           </div>
 

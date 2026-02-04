@@ -5,7 +5,7 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import { downloadBlob } from "../../lib/downloadBlob";
 import { FileDown, Pencil } from "lucide-react";
-import { formatCLP } from "../../services/formatHelpers";
+import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import HistorialPasosModal from "./modals/HistorialPasosModal";
 import HistorialBultosModal from "./modals/HistorialBultosModal";
 import HistorialCostosModal from "./modals/HistorialCostosModal";
@@ -302,6 +302,10 @@ export default function OMDetail() {
   const estado = om.estado;
   const hasPasos = (om?.registrosPasoProduccion?.length ?? 0) > 0;
   const esPostCierre = ["Cerrada", "Esperando PVAs"].includes(estado);
+  const puedeMostrarAnalisisSensorialPorEstado = (() => {
+    const normalized = String(estado || "").toLowerCase();
+    return ["esperando salidas", "esperando pvas", "cerrada"].includes(normalized);
+  })();
 
   const pesoObjetivo = Number(om?.peso_objetivo || 0);
   const pesoObtenido = Number(om?.peso_obtenido || 0);
@@ -337,23 +341,6 @@ export default function OMDetail() {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-text">Orden de Manufactura: {om.id}</h1>
         <div className="flex items-center gap-3">
-          {analisisSensorialStatus?.requiere_analisis && (
-            <button
-              onClick={() => setShowModalAnalisisSensorial(true)}
-              className={`px-4 py-2 rounded-lg font-medium shadow transition-colors ${
-                analisisSensorialStatus.analisis_completado
-                  ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300'
-                  : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border border-yellow-300'
-              }`}
-            >
-              📝 Análisis Sensorial
-              {!analisisSensorialStatus.analisis_completado && (
-                <span className="ml-2 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
-                  Pendiente
-                </span>
-              )}
-            </button>
-          )}
           {getEstadoBadge(om.estado)}
         </div>
       </div>
@@ -391,7 +378,7 @@ export default function OMDetail() {
           <div className="text-xs text-gray-500 font-medium">COSTO TOTAL</div>
           <div className="text-lg font-bold text-text mt-1">{formatCLP(om.costo_total, 0)}</div>
           <div className="text-xs text-gray-600 mt-2">
-            Objetivo: {om.peso_objetivo || 0} kg
+            Objetivo: {formatNumberCL(om.peso_objetivo || 0, 2)} kg
           </div>
         </div>
 
@@ -417,35 +404,35 @@ export default function OMDetail() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="bg-gray-50 rounded-lg border border-border p-3">
               <div className="text-xs text-gray-500 font-medium">Peso objetivo</div>
-              <div className="text-lg font-bold text-text">{pesoObjetivo.toFixed(2)} kg</div>
+              <div className="text-lg font-bold text-text">{formatNumberCL(pesoObjetivo, 2)} kg</div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
               <div className="text-xs text-gray-500 font-medium">Peso obtenido</div>
-              <div className="text-lg font-bold text-text">{pesoObtenido.toFixed(2)} kg</div>
+              <div className="text-lg font-bold text-text">{formatNumberCL(pesoObtenido, 2)} kg</div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
               <div className="text-xs text-gray-500 font-medium">Subproductos</div>
-              <div className="text-lg font-bold text-text">{pesoSubproductos.toFixed(2)} kg</div>
+              <div className="text-lg font-bold text-text">{formatNumberCL(pesoSubproductos, 2)} kg</div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
               <div className="text-xs text-gray-500 font-medium">Salida total (rendimiento)</div>
-              <div className="text-lg font-bold text-text">{pesoTotalSalidaRendimiento.toFixed(2)} kg</div>
+              <div className="text-lg font-bold text-text">{formatNumberCL(pesoTotalSalidaRendimiento, 2)} kg</div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
               <div className="text-xs text-gray-500 font-medium">Merma (no inventariada)</div>
               <div className={`text-lg font-bold ${pesoMerma > 0.0001 ? "text-orange-700" : "text-text"}`}>
-                {Number.isFinite(pesoMerma) ? `${pesoMerma.toFixed(2)} kg` : "—"}
+                {Number.isFinite(pesoMerma) ? `${formatNumberCL(pesoMerma, 2)} kg` : "—"}
               </div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
               <div className="text-xs text-gray-500 font-medium">Rendimiento (peso)</div>
               <div className="text-lg font-bold text-text">
-                {rendimientoPeso == null ? "—" : `${(Number(rendimientoPeso) * 100).toFixed(2)}%`}
+                {rendimientoPeso == null ? "—" : `${formatNumberCL(Number(rendimientoPeso) * 100, 2)}%`}
               </div>
             </div>
 
@@ -565,7 +552,7 @@ export default function OMDetail() {
                       <td className="p-2 border">{nombre}</td>
                       <td className="p-2 border">{bodegaNombre}</td>
                       <td className="p-2 border">
-                        {Number.isFinite(peso) ? peso.toFixed(2) : "0.00"} {unidad || "kg"}
+                        {Number.isFinite(peso) ? formatNumberCL(peso, 2) : "0"} {unidad || "kg"}
                       </td>
                       <td className="p-2 border">
                         <div className="font-medium">{Number.isFinite(disp) ? disp : 0} un.</div>
@@ -779,7 +766,8 @@ export default function OMDetail() {
             {esPostCierre && om.peso_objetivo && om.peso_obtenido && (
               <tr className="border-b border-border">
                 <td className="px-6 py-4 text-sm font-medium text-text">Rendimiento</td>
-                <td className="px-6 py-4 text-sm text-text">{((om.peso_obtenido / om.peso_objetivo) * 100).toFixed(2)}%</td>
+                <td className="px-6 py-4 text-sm text-text">{formatNumberCL((om.peso_obtenido / om.peso_objetivo) * 100, 2)}%</td>
+                
               </tr>
             )}
           </tbody>
@@ -833,6 +821,24 @@ export default function OMDetail() {
             }
           >
             ✓ Producción Final
+          </button>
+        )}
+
+        {analisisSensorialStatus?.requiere_analisis && puedeMostrarAnalisisSensorialPorEstado && (
+          <button
+            onClick={() => setShowModalAnalisisSensorial(true)}
+            className={`px-4 py-2 rounded-lg font-medium shadow transition-colors ${
+              analisisSensorialStatus.analisis_completado
+                ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300'
+                : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border border-yellow-300'
+            }`}
+          >
+            📝 Análisis Sensorial
+            {!analisisSensorialStatus.analisis_completado && (
+              <span className="ml-2 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
+                Pendiente
+              </span>
+            )}
           </button>
         )}
 

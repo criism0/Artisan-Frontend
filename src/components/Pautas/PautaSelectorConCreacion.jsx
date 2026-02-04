@@ -50,7 +50,7 @@ export default function PautaSelectorConCreacion({
       setPautaEditPasos(Array.isArray(pasosRes) ? pasosRes : []);
 
       try {
-        const analisisRes = await api(`/analisis-sensorial/definicion/${idPauta}`);
+        const analisisRes = await api(`/analisis-sensorial/definicion/pauta/${idPauta}`);
         setPautaEditCamposAnalisis(Array.isArray(analisisRes?.campos_definicion) ? analisisRes.campos_definicion : []);
         setAnalisisDefinicionExiste(true);
       } catch (err) {
@@ -117,7 +117,7 @@ export default function PautaSelectorConCreacion({
             descripcion,
             requires_ph: !!paso?.requires_ph,
             requires_temperature: !!paso?.requires_temperature,
-            requires_obtained_quantity: !!paso?.requires_obtained_quantity,
+            requires_obtained_quantity: false,
             extra_input_data: paso?.extra_input_data || null,
           }),
         });
@@ -185,7 +185,7 @@ export default function PautaSelectorConCreacion({
             descripcion,
             requires_ph: !!paso?.requires_ph,
             requires_temperature: !!paso?.requires_temperature,
-            requires_obtained_quantity: !!paso?.requires_obtained_quantity,
+            requires_obtained_quantity: false,
             extra_input_data: paso?.extra_input_data || null,
           }),
         });

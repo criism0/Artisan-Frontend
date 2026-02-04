@@ -139,7 +139,7 @@ export default function PautaElaboracionEdit() {
             descripcion: paso.descripcion,
             requires_ph: paso.requires_ph,
             requires_temperature: paso.requires_temperature,
-            requires_obtained_quantity: paso.requires_obtained_quantity,
+            requires_obtained_quantity: false,
             extra_input_data: paso.extra_input_data || null,
           };
 

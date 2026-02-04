@@ -103,12 +103,13 @@ export default function RecetaTab({
         </div>
 
         <FormField
-          label="Días de vida útil (opcional)"
+          label="Días de vida útil"
           type="number"
           placeholder="Ej: 30"
           value={recetaForm.dias_vida_util || ""}
           onChange={(e) => setRecetaForm((r) => ({ ...r, dias_vida_util: e.target.value }))}
           helperText="Se utilizará para calcular automáticamente la fecha de vencimiento al cerrar la orden"
+          required
         />
 
         <div className="flex justify-end pt-2">

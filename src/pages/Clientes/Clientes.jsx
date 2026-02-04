@@ -184,13 +184,13 @@ export default function ClientesPage() {
         <h1 className="text-2xl font-bold text-text">Clientes</h1>
         <div className="flex gap-2">
           <button
-            className="px-5 py-2.5 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
             onClick={() => navigate("/clientes/add")}
           >
             Añadir Cliente
           </button>
           <button
-            className="px-3 py-2 bg-green-300 text-green-900 rounded-md hover:bg-green-400"
+            className="px-3 py-2 border border-border bg-white text-text rounded-lg hover:bg-gray-50"
             onClick={() => setShowCanalesModal(true)}
           >
             Ver Canales

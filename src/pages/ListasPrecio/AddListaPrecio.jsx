@@ -116,7 +116,7 @@ export default function AddListaPrecio() {
 
       <form
         onSubmit={(e) => handleSubmit(e, false)}
-        className="bg-white p-6 rounded-lg shadow space-y-4"
+        className="bg-white p-6 rounded-xl shadow border border-border space-y-4"
       >
         {/* NOMBRE */}
         <div>
@@ -128,8 +128,8 @@ export default function AddListaPrecio() {
             value={formData.nombre}
             onChange={handleChange}
             placeholder="Ej: Lista Precios 2024"
-            className={`w-full border rounded-lg px-3 py-2 placeholder-gray-400 ${
-              errors.nombre ? "border-red-500" : "border-gray-300"
+            className={`w-full border rounded-lg px-3 py-2 placeholder-gray-400 bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+              errors.nombre ? "border-red-500" : "border-border"
             }`}
           />
           {errors.nombre && (
@@ -147,8 +147,8 @@ export default function AddListaPrecio() {
             value={formData.description}
             onChange={handleChange}
             placeholder="Ej: Lista de precios vigente para el año 2024, incluye todos los productos con descuentos especiales."
-            className={`w-full border rounded-lg px-3 py-2 placeholder-gray-400 ${
-              errors.description ? "border-red-500" : "border-gray-300"
+            className={`w-full border rounded-lg px-3 py-2 placeholder-gray-400 bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+              errors.description ? "border-red-500" : "border-border"
             }`}
             rows={4}
           />
@@ -171,7 +171,7 @@ export default function AddListaPrecio() {
         <div className="flex justify-end">
           <button
             type="submit"
-            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
           >
             Crear Lista de Precio
           </button>

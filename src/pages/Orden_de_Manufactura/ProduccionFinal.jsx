@@ -5,6 +5,7 @@ import { toast } from "../../lib/toast";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import ResumenOMOperario from "../../components/OM/ResumenOMOperario";
 import { downloadBlob } from "../../lib/downloadBlob";
+import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 
 export default function ProduccionFinal() {
   const { id } = useParams();
@@ -355,7 +356,7 @@ export default function ProduccionFinal() {
       const suma = pesos.reduce((acc, v) => acc + v, 0);
       if (Math.abs(suma - pesoTotal) > 0.02) {
         return toast.error(
-          `La suma de pesos por bulto (${suma.toFixed(2)} kg) debe coincidir con el peso obtenido (${pesoTotal.toFixed(2)} kg).`
+          `La suma de pesos por bulto (${formatNumberCL(suma, 2)} kg) debe coincidir con el peso obtenido (${formatNumberCL(pesoTotal, 2)} kg).`
         );
       }
     }
@@ -428,7 +429,7 @@ export default function ProduccionFinal() {
       const suma = pesos.reduce((acc, v) => acc + v, 0);
       if (Math.abs(suma - pesoTotal) > 0.02) {
         return toast.error(
-          `La suma de pesos por bulto (${suma.toFixed(2)} kg) debe coincidir con el peso obtenido (${pesoTotal.toFixed(2)} kg).`
+          `La suma de pesos por bulto (${formatNumberCL(suma, 2)} kg) debe coincidir con el peso obtenido (${formatNumberCL(pesoTotal, 2)} kg).`
         );
       }
     }
@@ -513,15 +514,15 @@ export default function ProduccionFinal() {
             <div className="text-xs text-gray-500 font-medium">Receta</div>
             <div className="text-lg font-bold text-text">{om.receta?.nombre || "—"}</div>
             <div className="text-xs text-gray-600 mt-1">
-              Costo ref: ${Number(om.receta?.costo_referencial_produccion || 0).toFixed(2)}
+              Costo ref: {formatCLP(Number(om.receta?.costo_referencial_produccion || 0), 2)}
             </div>
           </div>
 
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
             <div className="text-xs text-gray-500 font-medium">Peso Objetivo</div>
-            <div className="text-lg font-bold text-text">{om.peso_objetivo || 0} kg</div>
+            <div className="text-lg font-bold text-text">{formatNumberCL(om.peso_objetivo || 0, 2)} kg</div>
             <div className="text-xs text-gray-600 mt-1">
-              Costo OM: ${Number(om.costo_total || 0).toFixed(2)}
+              Costo OM: {formatCLP(Number(om.costo_total || 0), 2)}
             </div>
           </div>
 
@@ -572,7 +573,7 @@ export default function ProduccionFinal() {
                     <div className={`${colorBarrra} h-2 rounded-full`} style={{ width: `${Math.min(porcentaje, 100)}%` }}></div>
                   </div>
                   <div className="text-xs text-gray-600 flex justify-between">
-                    <span>{pesoUtilizado.toFixed(2)} / {pesoNecesario.toFixed(2)} kg</span>
+                    <span>{formatNumberCL(pesoUtilizado, 2)} / {formatNumberCL(pesoNecesario, 2)} kg</span>
                     <span>{porcentaje}%</span>
                   </div>
                 </div>
@@ -688,9 +689,9 @@ export default function ProduccionFinal() {
                     const ok = Math.abs(diff) <= 0.02;
                     return (
                       <div className={ok ? "text-green-700" : "text-red-700"}>
-                        Suma: <span className="font-semibold">{suma.toFixed(2)} kg</span> · Objetivo:{" "}
-                        <span className="font-semibold">{pesoTotalNumber.toFixed(2)} kg</span>
-                        {!ok ? <span className="font-semibold"> · Diferencia: {diff.toFixed(2)} kg</span> : null}
+                        Suma: <span className="font-semibold">{formatNumberCL(suma, 2)} kg</span> · Objetivo:{" "}
+                        <span className="font-semibold">{formatNumberCL(pesoTotalNumber, 2)} kg</span>
+                        {!ok ? <span className="font-semibold"> · Diferencia: {formatNumberCL(diff, 2)} kg</span> : null}
                       </div>
                     );
                   })()}
@@ -876,7 +877,7 @@ export default function ProduccionFinal() {
                       {assignedEntries.length > 0 ? (
                         <div className="mt-3 space-y-2">
                           <div className="text-xs text-gray-600">
-                            Asignado · Total: {Number(totalAsignado || 0).toFixed(2)} {mp.unidad_medida || ""}
+                            Asignado · Total: {formatNumberCL(Number(totalAsignado || 0), 2)} {mp.unidad_medida || ""}
                           </div>
                           {assignedEntries.map((a) => {
                             const info = bultoInfoById?.[a.id_bulto];
@@ -888,7 +889,7 @@ export default function ProduccionFinal() {
                                 <div>
                                   <div className="text-sm font-medium">{info?.identificador || `#${a.id_bulto}`}</div>
                                   <div className="text-xs text-gray-500">
-                                    Consumir: {Number(a.peso_utilizado || 0).toFixed(2)} {mp.unidad_medida || ""}
+                                    Consumir: {formatNumberCL(Number(a.peso_utilizado || 0), 2)} {mp.unidad_medida || ""}
                                   </div>
                                 </div>
                                 <button
@@ -921,16 +922,14 @@ export default function ProduccionFinal() {
                             <div className="text-sm text-gray-600">Sin bultos disponibles para este empaque.</div>
                           ) : (
                             disponibles.map((b) => {
-                              const maxPeso = (
-                                Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0)
-                              ).toFixed(2);
+                              const maxPeso = Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0);
                               const current = empaqueByMp?.[mpId]?.[b.id] ?? "";
                               return (
                                 <div key={b.id} className="flex items-center gap-3 bg-white border border-border rounded p-2">
                                   <div className="flex-1">
                                     <div className="text-sm font-medium">{b.identificador || `#${b.id}`}</div>
                                     <div className="text-xs text-gray-500">
-                                      Disponible: {maxPeso} {mp.unidad_medida || ""}
+                                      Disponible: {formatNumberCL(maxPeso, 2)} {mp.unidad_medida || ""}
                                     </div>
                                   </div>
                                   <div className="w-36">
@@ -979,37 +978,37 @@ export default function ProduccionFinal() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Costo OM</div>
-                  <div className="text-lg font-bold text-text">${Number(preview.costo_total_om_actual || 0).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview.costo_total_om_actual || 0), 2)}</div>
                 </div>
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Empaques</div>
-                  <div className="text-lg font-bold text-text">${Number(preview.costo_empaques_estimado || 0).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview.costo_empaques_estimado || 0), 2)}</div>
                 </div>
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Indirectos</div>
-                  <div className="text-lg font-bold text-text">${Number(preview?.costos_indirectos_estimado?.costo_indirecto_total || 0).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview?.costos_indirectos_estimado?.costo_indirecto_total || 0), 2)}</div>
                   <div className="text-[11px] text-gray-600 mt-1">
-                    ${Number(preview?.costos_indirectos_estimado?.costo_indirecto_por_kg || 0).toFixed(4)}/kg · Base: {Number(preview?.costos_indirectos_estimado?.peso_aplicado || 0).toFixed(2)} kg
+                    {formatCLP(Number(preview?.costos_indirectos_estimado?.costo_indirecto_por_kg || 0), 2)}/kg · Base: {formatNumberCL(Number(preview?.costos_indirectos_estimado?.peso_aplicado || 0), 2)} kg
                   </div>
                 </div>
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Costo Total</div>
-                  <div className="text-lg font-bold text-green-600">${Number(preview.costo_total_estimado || 0).toFixed(2)}</div>
+                  <div className="text-lg font-bold text-green-600">{formatCLP(Number(preview.costo_total_estimado || 0), 2)}</div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Costo/kg</div>
-                  <div className="text-lg font-bold text-text">${Number(preview.costo_por_kg_estimado || 0).toFixed(4)}</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview.costo_por_kg_estimado || 0), 2)}</div>
                 </div>
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Peso objetivo</div>
-                  <div className="text-lg font-bold text-text">{Number(preview.peso_objetivo || 0).toFixed(2)} kg</div>
+                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_objetivo || 0), 2)} kg</div>
                 </div>
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Salida para rendimiento</div>
-                  <div className="text-lg font-bold text-text">{Number(preview.peso_total_salida_rendimiento || 0).toFixed(2)} kg</div>
+                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_total_salida_rendimiento || 0), 2)} kg</div>
                 </div>
               </div>
 
@@ -1018,7 +1017,7 @@ export default function ProduccionFinal() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold text-text">Detalle de costos indirectos</div>
                     <div className="text-xs text-gray-700">
-                      Total: <span className="font-semibold">${Number(preview.costos_indirectos_estimado.costo_indirecto_total || 0).toFixed(2)}</span>
+                      Total: <span className="font-semibold">{formatCLP(Number(preview.costos_indirectos_estimado.costo_indirecto_total || 0), 2)}</span>
                     </div>
                   </div>
 
@@ -1036,9 +1035,9 @@ export default function ProduccionFinal() {
                         {preview.costos_indirectos_estimado.detalle.map((ci, idx) => (
                           <tr key={ci?.id ?? idx} className="border-t border-border">
                             <td className="p-2">{ci?.nombre || "Costo indirecto"}</td>
-                            <td className="p-2">{Number(ci?.costo_por_kg || 0).toFixed(4)}</td>
-                            <td className="p-2">{Number(ci?.peso_aplicado || 0).toFixed(2)}</td>
-                            <td className="p-2">{Number(ci?.costo_total || 0).toFixed(2)}</td>
+                            <td className="p-2">{formatCLP(Number(ci?.costo_por_kg || 0), 2)}</td>
+                            <td className="p-2">{formatNumberCL(Number(ci?.peso_aplicado || 0), 2)}</td>
+                            <td className="p-2">{formatCLP(Number(ci?.costo_total || 0), 2)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1051,17 +1050,17 @@ export default function ProduccionFinal() {
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="bg-white border border-orange-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Merma estimada</div>
-                  <div className="text-lg font-bold text-text">{Number(preview.peso_merma_estimado || 0).toFixed(2)} kg</div>
+                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_merma_estimado || 0), 2)} kg</div>
                   <div className="text-xs text-gray-600 mt-1">
                     {Number(preview.peso_objetivo || 0) > 0 
-                      ? `${((Number(preview.peso_merma_estimado || 0) / Number(preview.peso_objetivo || 1)) * 100).toFixed(1)}% del objetivo`
+                      ? `${formatNumberCL((Number(preview.peso_merma_estimado || 0) / Number(preview.peso_objetivo || 1)) * 100, 1)}% del objetivo`
                       : "N/A"}
                   </div>
                 </div>
                 <div className="bg-white border border-green-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Rendimiento</div>
                   <div className="text-lg font-bold text-text">
-                    {preview.rendimiento_peso_estimado == null ? "N/A" : `${(Number(preview.rendimiento_peso_estimado) * 100).toFixed(2)}%`}
+                    {preview.rendimiento_peso_estimado == null ? "N/A" : `${formatNumberCL(Number(preview.rendimiento_peso_estimado) * 100, 2)}%`}
                   </div>
                   <div className="text-xs text-gray-600 mt-1">
                     Buen rango: 90-110%
@@ -1072,7 +1071,7 @@ export default function ProduccionFinal() {
               <div className="grid grid-cols-1 md:grid-cols-1 gap-3 mb-4">
                 <div className="bg-white border border-blue-200 rounded p-3">
                   <div className="text-xs text-gray-500 font-medium">Subproductos</div>
-                  <div className="text-lg font-bold text-text">{Number(preview.peso_subproductos || 0).toFixed(2)} kg</div>
+                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_subproductos || 0), 2)} kg</div>
                 </div>
               </div>
 
@@ -1124,8 +1123,8 @@ export default function ProduccionFinal() {
                               )}
                             </td>
                             <td className="p-2">{Number(it.cantidad_unidades || 0)}</td>
-                            <td className="p-2">{Number(it.peso_unitario || 0).toFixed(3)}</td>
-                            <td className="p-2">{Number(it.costo_unitario || 0).toFixed(2)}</td>
+                            <td className="p-2">{formatNumberCL(Number(it.peso_unitario || 0), 2)}</td>
+                            <td className="p-2">{formatCLP(Number(it.costo_unitario || 0), 2)}</td>
                             <td className="p-2">
                               {it.tipo === "CAJA_PT" ? `${it.rango?.nro_inicio ?? "?"}-${it.rango?.nro_fin ?? "?"}` : "-"}
                             </td>
@@ -1149,7 +1148,7 @@ export default function ProduccionFinal() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="font-semibold">{nombreMp(emp.id_materia_prima)}</div>
                           <div className="text-xs text-gray-700">
-                            Utilizado: <span className="font-semibold">{Number(emp.peso_total_utilizado || 0).toFixed(3)} {unidad}</span> · Costo Total: <span className="font-semibold">${Number(emp.costo_total_estimado || 0).toFixed(2)}</span>
+                            Utilizado: <span className="font-semibold">{formatNumberCL(Number(emp.peso_total_utilizado || 0), 2)} {unidad}</span> · Costo Total: <span className="font-semibold">{formatCLP(Number(emp.costo_total_estimado || 0), 2)}</span>
                           </div>
                         </div>
 
@@ -1172,11 +1171,11 @@ export default function ProduccionFinal() {
                               {(emp.bultos || []).map((b) => (
                                 <tr key={b.id_bulto} className="border-t border-border">
                                   <td className="p-2">{b.identificador || `#${b.id_bulto}`}</td>
-                                  <td className="p-2">{Number(b.peso_utilizado || 0).toFixed(3)}</td>
-                                  <td className="p-2">{Number(b.peso_disponible || 0).toFixed(3)}</td>
+                                  <td className="p-2">{formatNumberCL(Number(b.peso_utilizado || 0), 2)}</td>
+                                  <td className="p-2">{formatNumberCL(Number(b.peso_disponible || 0), 2)}</td>
                                   <td className="p-2">{unidadMp(emp.id_materia_prima)}</td>
-                                  <td className="p-2">{Number(b.costo_unitario || 0).toFixed(2)}</td>
-                                  <td className="p-2">{Number(b.costo_estimado || 0).toFixed(2)}</td>
+                                  <td className="p-2">{formatCLP(Number(b.costo_unitario || 0), 2)}</td>
+                                  <td className="p-2">{formatCLP(Number(b.costo_estimado || 0), 2)}</td>
                                 </tr>
                               ))}
                             </tbody>

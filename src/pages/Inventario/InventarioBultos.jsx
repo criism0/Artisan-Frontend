@@ -5,6 +5,7 @@ import { api, apiBlob } from "../../lib/api";
 import DividirBultoModal from "../../components/DividirBultoModal";
 import { toast } from "../../lib/toast";
 import { Download, FileDown, FileSpreadsheet, Pencil, Scissors, X } from "lucide-react";
+import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import {
   checkScope,
   isAdminOrSuperAdmin,
@@ -633,10 +634,12 @@ export default function InventarioBultos() {
                 const bodegaNombre = getBodegaNombre(b);
                 const palletIdent = getPalletIdentificador(b);
 
-                const cantidadDisponible = (
-                  Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0)
-                ).toFixed(2);
-                const costoTotal = Number(b.costo_unitario || 0) * Number(b.unidades_disponibles || 0);
+                const cantidadDisponibleNum =
+                  Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0);
+                const cantidadDisponible = formatNumberCL(cantidadDisponibleNum, 2);
+
+                const costoTotal =
+                  Number(b.costo_unitario || 0) * Number(b.unidades_disponibles || 0);
                 const checked = selectedIds.has(b.id);
                 
                 return (
@@ -659,14 +662,14 @@ export default function InventarioBultos() {
                   <td className="p-2 border">{palletIdent || <span className="text-gray-400">—</span>}</td>
 
                   <td className="p-2 border">
-                    {b.peso_unitario} {unidad}
+                    {formatNumberCL(b.peso_unitario, 2)} {unidad}
                   </td>
                   <td className="p-2 border">
                     <div className="font-medium">{cantidadDisponible} {unidad}</div>
                     <div className="text-xs text-gray-500">({b.unidades_disponibles}/{b.cantidad_unidades} un.)</div>
                   </td>
                   <td className="p-2 border">
-                    <div className="font-medium">{costoTotal ? `$${Math.round(costoTotal * 100) / 100}` : '-'}</div>
+                    <div className="font-medium">{formatCLP(costoTotal, 0)}</div>
                   </td>
                   <td className="p-2 border text-center">
                     <div className="flex items-center justify-center gap-3">

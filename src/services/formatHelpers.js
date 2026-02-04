@@ -9,6 +9,20 @@ export function formatRutDisplay(value) {
 }
 
 /**
+ * Formatea un número en estilo es-CL (miles con punto, decimales con coma).
+ * Por defecto muestra hasta 2 decimales (sin forzar ceros a la derecha).
+ */
+export function formatNumberCL(value, maxDecimals = 2, minDecimals = 0) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "—";
+
+  return new Intl.NumberFormat("es-CL", {
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals,
+  }).format(num);
+}
+
+/**
  * Formatea un número como moneda CLP con separadores de miles y coma decimal.
  */
 export function formatCLP(value, decimals = 2) {

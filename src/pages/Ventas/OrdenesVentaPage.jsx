@@ -16,6 +16,7 @@ import {
 import SearchBar from "../../components/SearchBar";
 import RowsPerPageSelector from "../../components/RowsPerPageSelector";
 import Pagination from "../../components/Pagination";
+import { formatCLP } from "../../services/formatHelpers";
 
 export default function OrdenesVentaPage() {
   const navigate = useNavigate();
@@ -27,14 +28,7 @@ export default function OrdenesVentaPage() {
   const [page, setPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
-  const fmtMoney = (n) =>
-    typeof n === "number"
-      ? n.toLocaleString("es-CL", {
-          style: "currency",
-          currency: "CLP",
-          maximumFractionDigits: 0,
-        })
-      : "—";
+  const fmtMoney = (n) => formatCLP(n, 0);
 
   const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
 

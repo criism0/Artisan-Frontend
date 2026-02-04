@@ -85,7 +85,7 @@ export default function ProductDetail() {
         const [pautaRes, pasosRes, analisisRes] = await Promise.all([
           api(`/pautas-elaboracion/${idPauta}`),
           api(`/pasos-pauta-elaboracion/pauta/${idPauta}`).catch(() => []),
-          api(`/analisis-sensorial/definicion/${idPauta}`).catch(() => null),
+          api(`/analisis-sensorial/definicion/pauta/${idPauta}`).catch(() => null),
         ]);
 
         setPautaDetalle(pautaRes || null);

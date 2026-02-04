@@ -29,17 +29,26 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
         return;
       }
 
-      setDefinicion(checkRes.definicion);
-      setRegistro(checkRes.registro);
+      setDefinicion(checkRes?.definicion ?? null);
+      setRegistro(checkRes?.registro ?? null);
+
+      const camposDefinicion = Array.isArray(checkRes?.definicion?.campos_definicion)
+        ? checkRes.definicion.campos_definicion
+        : [];
 
       // Si ya existe registro, prellenar valores
-      if (checkRes.registro) {
+      if (checkRes?.registro) {
         setValores(checkRes.registro.valores_evaluacion || {});
       } else {
-        // Inicializar valores vacíos
+        if (camposDefinicion.length === 0) {
+          toast.info('No hay campos definidos para el análisis sensorial');
+          onClose();
+          return;
+        }
+
         const valoresIniciales = {};
-        checkRes.definicion.campos_definicion.forEach(campo => {
-          valoresIniciales[campo.nombre] = '';
+        camposDefinicion.forEach((campo) => {
+          if (campo?.nombre) valoresIniciales[campo.nombre] = '';
         });
         setValores(valoresIniciales);
       }
@@ -61,6 +70,11 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!definicion || !Array.isArray(definicion?.campos_definicion)) {
+      toast.error('No hay definición válida de análisis sensorial para esta orden');
+      return;
+    }
 
     // Validar campos obligatorios
     const camposObligatorios = definicion.campos_definicion.filter(c => c.obligatorio);
@@ -119,6 +133,7 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
         );
 
       case 'select':
+        const opciones = Array.isArray(campo.opciones) ? campo.opciones : [];
         return (
           <select
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
@@ -126,7 +141,7 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
             onChange={(e) => handleChange(campo.nombre, e.target.value)}
           >
             <option value="">Seleccione...</option>
-            {campo.opciones.map((opcion, idx) => (
+            {opciones.map((opcion, idx) => (
               <option key={idx} value={opcion}>
                 {opcion}
               </option>
