@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../../lib/api";
 import { toast } from "../../../lib/toast";
-import { formatCLP } from "../../../services/formatHelpers";
+import { formatCLP, formatNumberCL } from "../../../services/formatHelpers";
 
 function n(val) {
   const num = Number(val);
@@ -134,7 +134,7 @@ export default function HistorialCostosModal({ open, omId, onClose }) {
                           <tr key={`${c?.id || "ci"}-${idx}`} className="hover:bg-gray-50">
                             <td className="border border-gray-300 px-4 py-2">{c?.nombre || "—"}</td>
                             <td className="border border-gray-300 px-4 py-2 text-right">{formatCLP(c?.costo_por_kg, 2)}</td>
-                            <td className="border border-gray-300 px-4 py-2 text-right">{n(c?.peso_aplicado).toFixed(2)} kg</td>
+                            <td className="border border-gray-300 px-4 py-2 text-right">{formatNumberCL(n(c?.peso_aplicado), 2)} kg</td>
                             <td className="border border-gray-300 px-4 py-2 text-right">{formatCLP(c?.costo_total, 0)}</td>
                           </tr>
                         ))}
@@ -177,7 +177,7 @@ export default function HistorialCostosModal({ open, omId, onClose }) {
                                 {proveedor?.nombre_empresa || "—"}
                               </td>
                               <td className="border border-gray-300 px-4 py-2 text-right">
-                                {n(row?.peso_utilizado).toFixed(3)}
+                                {formatNumberCL(n(row?.peso_utilizado), 2)}
                               </td>
                               <td className="border border-gray-300 px-4 py-2 text-right">
                                 {formatCLP(row?.costo_absorbido, 0)}

@@ -8,6 +8,7 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import Selector from "../../components/Selector";
 import { insumoToSearchText } from "../../services/fuzzyMatch";
+import { formatNumberCL } from "../../services/formatHelpers";
 
 export default function AddOM() {
   const apiFetch = useApi();
@@ -572,11 +573,11 @@ export default function AddOM() {
                         <tr key={index} className={disponible ? "bg-green-50" : "bg-red-50"}>
                           <td className="border border-gray-300 px-4 py-2 text-sm">{nombreInsumo}</td>
                           <td className="border border-gray-300 px-4 py-2 text-sm">
-                            {Number(cantidadNecesaria || 0).toFixed(2)}
+                            {formatNumberCL(Number(cantidadNecesaria || 0), 2)}
                             {unidadItem ? ` ${unidadItem}` : ""}
                           </td>
                           <td className="border border-gray-300 px-4 py-2 text-sm">
-                            {Number(cantidadDisponible || 0).toFixed(2)}
+                            {formatNumberCL(Number(cantidadDisponible || 0), 2)}
                             {unidadItem ? ` ${unidadItem}` : ""}
                           </td>
                           <td className="border border-gray-300 px-4 py-2 text-sm">
@@ -651,10 +652,10 @@ export default function AddOM() {
                                       {mp?.nombre || "Insumo"}
                                     </td>
                                     <td className="border border-gray-300 px-4 py-2 text-sm">
-                                      {necesario.toFixed(2)}{unidad}
+                                      {formatNumberCL(necesario, 2)}{unidad}
                                     </td>
                                     <td className="border border-gray-300 px-4 py-2 text-sm">
-                                      {disponible.toFixed(2)}{unidad}
+                                      {formatNumberCL(disponible, 2)}{unidad}
                                     </td>
                                     <td className="border border-gray-300 px-4 py-2 text-sm">
                                       <span

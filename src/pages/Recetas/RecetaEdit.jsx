@@ -150,7 +150,7 @@ export default function RecetaEdit() {
 
       // Cargar análisis sensorial si existe
       try {
-        const analisisRes = await api(`/analisis-sensorial/definicion/${receta.id_pauta_elaboracion}`);
+        const analisisRes = await api(`/analisis-sensorial/definicion/pauta/${receta.id_pauta_elaboracion}`);
         if (analisisRes?.campos_definicion) {
           setCamposAnalisisSensorial(analisisRes.campos_definicion);
         }
@@ -202,7 +202,7 @@ export default function RecetaEdit() {
               descripcion: paso.descripcion,
               requires_ph: !!paso.requires_ph,
               requires_temperature: !!paso.requires_temperature,
-              requires_obtained_quantity: !!paso.requires_obtained_quantity,
+              requires_obtained_quantity: false,
               extra_input_data: paso.extra_input_data || null
             })
           });

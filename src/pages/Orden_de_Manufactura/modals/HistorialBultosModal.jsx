@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../../lib/api";
 import { toast } from "../../../lib/toast";
-import { formatCLP } from "../../../services/formatHelpers";
+import { formatCLP, formatNumberCL } from "../../../services/formatHelpers";
 
 function n(val) {
   const num = Number(val);
@@ -163,8 +163,8 @@ export default function HistorialBultosModal({ open, omId, onClose }) {
                         {resumenMP.map((r) => (
                           <tr key={r.id} className="hover:bg-gray-50">
                             <td className="border border-gray-300 px-4 py-2">{r.materia_prima}</td>
-                            <td className="border border-gray-300 px-4 py-2 text-right">{r.peso_necesario.toFixed(3)}</td>
-                            <td className="border border-gray-300 px-4 py-2 text-right">{r.peso_utilizado.toFixed(3)}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-right">{formatNumberCL(r.peso_necesario, 2)}</td>
+                            <td className="border border-gray-300 px-4 py-2 text-right">{formatNumberCL(r.peso_utilizado, 2)}</td>
                             <td className="border border-gray-300 px-4 py-2 text-center">{r.unidad || "—"}</td>
                           </tr>
                         ))}
@@ -199,7 +199,7 @@ export default function HistorialBultosModal({ open, omId, onClose }) {
                             <tr key={row.key} className="hover:bg-gray-50">
                               <td className="border border-gray-300 px-4 py-2">{row.materia_prima}</td>
                               <td className="border border-gray-300 px-4 py-2">{row.bulto_identificador}</td>
-                              <td className="border border-gray-300 px-4 py-2 text-right">{n(row.peso_usado_bulto).toFixed(3)}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-right">{formatNumberCL(n(row.peso_usado_bulto), 2)}</td>
                               <td className="border border-gray-300 px-4 py-2">{row.proveedor}</td>
                               <td className="border border-gray-300 px-4 py-2">{row.lote_proveedor}</td>
                               <td className="border border-gray-300 px-4 py-2 text-center">{fi ? fi.toLocaleDateString() : "—"}</td>

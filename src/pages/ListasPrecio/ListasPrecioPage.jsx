@@ -187,6 +187,12 @@ export default function ListasPrecio() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-text">Listas de Precio</h1>
+        <button
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+          onClick={() => navigate("/lista-precio/add")}
+        >
+          Añadir Lista de Precio
+        </button>
       </div>
 
       <div className="flex justify-between items-center mb-6">
@@ -198,14 +204,7 @@ export default function ListasPrecio() {
       <Table columns={columns} data={paginatedListasPrecio} actions={actions} />
 
       {/* Paginación */}
-      <div className="mt-6 flex justify-between items-center">
-        <button
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-          onClick={() => navigate("/lista-precio/add")}
-        >
-          Añadir Lista de Precio
-        </button>
-
+      <div className="mt-6 flex justify-end">
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}

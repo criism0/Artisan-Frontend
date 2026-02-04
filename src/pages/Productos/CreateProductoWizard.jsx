@@ -225,7 +225,7 @@ export default function CreateProductoWizard() {
   };
 
   const buildRecetaPayload = () => {
-    const diasVidaUtil = recetaForm.dias_vida_util ? Number(recetaForm.dias_vida_util) : null;
+    const diasVidaUtil = Number(recetaForm.dias_vida_util);
     return {
       id_producto_base: Number(productoId),
       nombre: recetaForm.nombre.trim(),
@@ -234,7 +234,7 @@ export default function CreateProductoWizard() {
       unidad_medida: recetaForm.unidad_medida,
       costo_referencial_produccion: toNumber(recetaForm.costo_referencial_produccion),
       id_pauta_elaboracion: null,
-      dias_vida_util: diasVidaUtil,
+      dias_vida_util: Number.isFinite(diasVidaUtil) ? Math.trunc(diasVidaUtil) : null,
     };
   };
 
@@ -245,9 +245,16 @@ export default function CreateProductoWizard() {
     if (pesoNum <= 0) return toast.error("El peso debe ser mayor a 0");
     if (!recetaForm.unidad_medida) return toast.error("Unidad de medida es obligatoria");
     if (!recetaForm.nombre.trim()) return toast.error("Nombre de receta es obligatorio");
+    const diasVidaUtil = Number(recetaForm.dias_vida_util);
+    if (!Number.isInteger(diasVidaUtil) || diasVidaUtil <= 0) {
+      return toast.error("Días de vida útil debe ser un entero positivo");
+    }
 
     try {
       const payload = buildRecetaPayload();
+      if (payload.dias_vida_util == null) {
+        return toast.error("Días de vida útil es obligatorio");
+      }
       if (recetaId) {
         await api(`/recetas/${recetaId}`, {
           method: "PUT",

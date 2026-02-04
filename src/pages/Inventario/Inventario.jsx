@@ -4,6 +4,7 @@ import Table from "../../components/Table";
 import SearchBar from "../../components/SearchBar";
 import RowsPerPageSelector from "../../components/RowsPerPageSelector";
 import Pagination from "../../components/Pagination";
+import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 
 export default function Inventario() {
   const [inventario, setInventario] = useState([]);
@@ -41,6 +42,22 @@ export default function Inventario() {
     );
   };
 
+  const formatCantidadStock = (r) => {
+    if (r?.unidades_disponibles !== undefined && r?.unidades_disponibles !== null)
+      return formatNumberCL(r.unidades_disponibles, 0);
+    if (r?.unidades_producidas !== undefined && r?.unidades_producidas !== null)
+      return `${formatNumberCL(r.unidades_producidas, 0)} unidades`;
+
+    if (r?.peso_total !== undefined && r?.peso_total !== null) {
+      const n = Number(r.peso_total);
+      return Number.isFinite(n) ? `${formatNumberCL(n, 2)} kg` : r.peso_total;
+    }
+
+    if (r?.stock_disponible !== undefined && r?.stock_disponible !== null)
+      return `${formatNumberCL(r.stock_disponible, 2)} kg`;
+    return "-";
+  };
+
   const columns = useMemo(
     () => [
       {
@@ -64,16 +81,7 @@ export default function Inventario() {
       {
         header: renderHeader("Cantidad / Stock", "unidades_disponibles"),
         accessor: "unidades_disponibles",
-        Cell: ({ row }) => {
-          const r = row;
-          if (r.unidades_disponibles) return r.unidades_disponibles;
-          if (r.unidades_producidas !== undefined)
-            return `${r.unidades_producidas} unidades`;
-          if (r.peso_total) return r.peso_total;
-          if (r.stock_disponible !== undefined)
-            return `${Math.round(r.stock_disponible * 100) / 100} kg`;
-          return "-";
-        },
+        Cell: ({ row }) => formatCantidadStock(row),
       },
       {
         header: renderHeader("Precio / Costo total", "precio_total"),
@@ -86,15 +94,7 @@ export default function Inventario() {
             r.precio_venta_unitario ??
             null;
           if (value === null || value === undefined) return "-";
-          try {
-            return Number(value).toLocaleString("es-CL", {
-              style: "currency",
-              currency: "CLP",
-              maximumFractionDigits: 0,
-            });
-          } catch {
-            return `${value}`;
-          }
+          return formatCLP(value, 0);
         },
       },
       {
@@ -326,12 +326,7 @@ export default function Inventario() {
               </div>
               <div className="text-sm text-right">
                 <div className="font-medium">
-                  {item.unidades_disponibles ||
-                    item.unidades_producidas ||
-                    item.peso_total ||
-                    (item.stock_disponible !== undefined
-                      ? `${Math.round(item.stock_disponible * 100) / 100} kg`
-                      : "-")}
+                  {formatCantidadStock(item)}
                 </div>
                 <div className="text-xs text-gray-500">
                   {item.estado_stock || ""}
@@ -342,17 +337,9 @@ export default function Inventario() {
               <div>
                 Precio/Costo:{" "}
                 {item.precio_total
-                  ? Number(item.precio_total).toLocaleString("es-CL", {
-                      style: "currency",
-                      currency: "CLP",
-                      maximumFractionDigits: 0,
-                    })
+                  ? formatCLP(item.precio_total, 0)
                   : item.costo_total
-                  ? Number(item.costo_total).toLocaleString("es-CL", {
-                      style: "currency",
-                      currency: "CLP",
-                      maximumFractionDigits: 0,
-                    })
+                  ? formatCLP(item.costo_total, 0)
                   : "-"}
               </div>
               <div className="text-xs text-gray-500">

@@ -4,6 +4,7 @@ import { Dialog } from "@headlessui/react";
 import { jwtDecode } from "jwt-decode";
 import { toast } from "../../lib/toast";
 import { api } from "../../lib/api";
+import { formatNumberCL } from "../../services/formatHelpers";
 
 export default function EjecutarPasosPVA() {
   const { id } = useParams();
@@ -35,7 +36,7 @@ export default function EjecutarPasosPVA() {
       "";
 
     if (!hasQty) return "Disponible: —";
-    return `Disponible: ${qty.toFixed(2)}${um ? ` ${um}` : ""}`;
+    return `Disponible: ${formatNumberCL(qty, 2)}${um ? ` ${um}` : ""}`;
   };
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
