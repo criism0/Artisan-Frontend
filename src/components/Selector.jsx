@@ -141,14 +141,15 @@ const Selector = ({
   const isDisabled = Boolean(disabled);
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative min-w-0" ref={containerRef}>
       <button
         type="button"
         disabled={isDisabled}
         onClick={() => !isDisabled && setIsOpen((v) => !v)}
-        className={`w-full text-left ${className} ${isDisabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'} flex items-center justify-between`}
+        title={selectedOption ? selectedOption.label : ''}
+        className={`w-full min-w-0 text-left ${className} ${isDisabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'} flex items-center justify-between gap-2`}
       >
-        <span className={`${selectedOption ? 'text-gray-900' : 'text-gray-500'}`}>{displayText}</span>
+        <span className={`truncate ${selectedOption ? 'text-gray-900' : 'text-gray-500'}`}>{displayText}</span>
         <FiChevronDown className="ml-2 text-gray-500" size={16} />
       </button>
 

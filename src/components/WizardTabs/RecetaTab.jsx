@@ -184,32 +184,28 @@ export default function RecetaTab({
 
                   <div>
                     <label className="block text-sm font-medium mb-1">Alternativas (opcionales)</label>
-                    <div className="flex gap-2">
-                      <select
-                        className="flex-1 border rounded-lg px-3 py-2 bg-white"
-                        value={selectedEquivalenteId}
-                        onChange={(e) => setSelectedEquivalenteId(e.target.value)}
-                        disabled={!selectedIngredientId}
-                      >
-                        <option value="">Seleccionar</option>
-                        {(opcionesMateriaPrima || [])
-                          .filter((opt) => {
+                    <div className="flex gap-2 min-w-0">
+                      <div className="flex-1 min-w-0">
+                        <Selector
+                          options={(opcionesMateriaPrima || []).filter((opt) => {
                             if (!selectedIngredientId) return false;
                             if (opt.value === String(selectedIngredientId)) return false;
                             if ((equivalentesIds || []).includes(opt.value)) return false;
                             const unidadBase = String(ingredientUnidad || "").trim();
                             const unidadOpt = String(opt.unidad || "").trim();
                             return !unidadBase || !unidadOpt ? true : unidadBase === unidadOpt;
-                          })
-                          .map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                      </select>
+                          })}
+                          selectedValue={selectedEquivalenteId}
+                          onSelect={(value) => setSelectedEquivalenteId(value)}
+                          useFuzzy
+                          groupBy="category"
+                          disabled={!selectedIngredientId}
+                          className="w-full border rounded-lg px-3 py-2"
+                        />
+                      </div>
                       <button
                         type="button"
-                        className="px-3 py-2 border rounded-lg hover:bg-gray-50"
+                        className="px-3 py-2 border rounded-lg hover:bg-gray-50 shrink-0"
                         onClick={() => {
                           if (!selectedEquivalenteId) return;
                           setEquivalentesIds((prev) =>
