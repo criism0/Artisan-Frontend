@@ -493,6 +493,16 @@ export default function SolicitudDetail() {
           <div className="flex flex-wrap items-center justify-start md:justify-end gap-2">
             {solicitud.estado === "Creada" && (
               <button
+                onClick={() => navigate(`/Solicitudes/${solicitudId}/edit`)}
+                disabled={loading}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-60"
+              >
+                Editar
+              </button>
+            )}
+
+            {solicitud.estado === "Creada" && (
+              <button
                 onClick={handleValidarSolicitud}
                 disabled={loading}
                 className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-violet-700 disabled:opacity-60"
