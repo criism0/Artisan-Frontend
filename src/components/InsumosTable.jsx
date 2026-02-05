@@ -12,6 +12,7 @@ export default function InsumosTable({
   onAvailabilityChange,
   bodegaSolicitanteId,
   initialVisibleRows = 5,
+  initialInsumos = null,
 }) {
   const [articulos, setArticulos] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -23,6 +24,7 @@ export default function InsumosTable({
   const [proveedoraStockMap, setProveedoraStockMap] = useState(new Map());
   const isAddDisabled = disabled || opcionesInsumos.length === 0;
   const lastAddSignal = useRef(addSignal);
+  const didInitFromPropsRef = useRef(false);
   const api = useApi();
 
   const normalizeInventario = (response) => {
@@ -81,6 +83,71 @@ export default function InsumosTable({
     if (!value) return 0;
     const t = Date.parse(String(value));
     return Number.isFinite(t) ? t : 0;
+  };
+
+  const closeToInteger = (value, eps = 1e-9) => {
+    if (!Number.isFinite(value)) return false;
+    return Math.abs(value - Math.round(value)) <= eps;
+  };
+
+  const inferFormatoFromCantidadBase = ({ cantidadBase, formatos }) => {
+    const base = Number(cantidadBase);
+    if (!Number.isFinite(base) || base <= 0) return null;
+    const opts = Array.isArray(formatos) ? formatos : [];
+    if (opts.length === 0) return null;
+
+    const baseOpt = opts.find((o) => o?.value === BASE_FORMAT_VALUE);
+    const providerOpts = opts.filter((o) => o?.value !== BASE_FORMAT_VALUE);
+
+    const consumoOpt = providerOpts
+      .filter((o) => Boolean(o?.es_unidad_consumo))
+      .sort((a, b) => (a?.multiplier ?? 0) - (b?.multiplier ?? 0))[0];
+
+    const secondaryPool = (() => {
+      if (consumoOpt) {
+        const baseMult = Number(consumoOpt.multiplier) || 0;
+        return providerOpts
+          .filter((o) => (Number(o?.multiplier) || 0) > baseMult)
+          .sort((a, b) => (a?.multiplier ?? 0) - (b?.multiplier ?? 0));
+      }
+      return providerOpts
+        .filter((o) => (Number(o?.multiplier) || 0) > 1)
+        .sort((a, b) => (a?.multiplier ?? 0) - (b?.multiplier ?? 0));
+    })();
+
+    const poolsToTry = [secondaryPool, providerOpts, baseOpt ? [baseOpt] : []].filter((p) => p.length > 0);
+
+    for (const pool of poolsToTry) {
+      const candidates = (pool || [])
+        .map((o) => {
+          const mult = Number(o?.multiplier) || 0;
+          if (!mult || mult <= 0) return null;
+          const ratio = base / mult;
+          if (ratio < 1) return null;
+          if (!closeToInteger(ratio)) return null;
+          return { opt: o, ratio, mult };
+        })
+        .filter(Boolean);
+
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => a.mult - b.mult);
+        const best = candidates[0];
+        return {
+          id_formato: String(best.opt.value),
+          cantidad_formato: String(Math.max(1, Math.round(best.ratio))),
+        };
+      }
+    }
+
+    // Fallback: usar el formato por defecto y aproximar la cantidad
+    const defaultValue = pickDefaultFormatoValue(opts);
+    const fallbackOpt = opts.find((o) => String(o.value) === String(defaultValue)) || baseOpt || opts[0];
+    const mult = Number(fallbackOpt?.multiplier) || 1;
+    const approx = base / mult;
+    return {
+      id_formato: String(fallbackOpt?.value ?? ''),
+      cantidad_formato: String(Math.max(1, Math.round(approx))),
+    };
   };
 
   // Regla de negocio:
@@ -186,8 +253,9 @@ export default function InsumosTable({
           return (a.multiplier ?? 0) - (b.multiplier ?? 0);
         });
 
-      // Si NO existen formatos configurados, permitir solicitar usando la unidad base (factor 1)
-      const options = mapped.length > 0 ? mapped : [buildBaseFormatOption(unidadLower)];
+      // Siempre ofrecer unidad base (factor 1) para poder representar cantidades no exactas en un formato.
+      const baseOption = buildBaseFormatOption(unidadLower);
+      const options = mapped.length > 0 ? [...mapped, baseOption] : [baseOption];
 
       const defaultFormatoValue = pickDefaultFormatoValue(options);
 
@@ -311,7 +379,33 @@ export default function InsumosTable({
     setArticulos([]);
     setFormatosByMateriaPrimaId({});
     setIsExpanded(false);
+    didInitFromPropsRef.current = false;
   }, [bodegaId]);
+
+  // Precarga para modo edición
+  useEffect(() => {
+    if (didInitFromPropsRef.current) return;
+    if (!initialInsumos || !Array.isArray(initialInsumos) || initialInsumos.length === 0) return;
+
+    const rows = initialInsumos
+      .map((x) => {
+        const idMateriaPrima = x?.id_materia_prima ?? x?.id_articulo ?? x?.id;
+        if (!idMateriaPrima) return null;
+        return {
+          _rowId: makeRowId(),
+          id_articulo: String(idMateriaPrima),
+          id_formato: '',
+          cantidad_formato: '',
+          comentario: x?.comentario ?? '',
+          _initialCantidadBase: x?.cantidad_solicitada != null ? Number(x.cantidad_solicitada) : null,
+        };
+      })
+      .filter(Boolean);
+
+    if (rows.length === 0) return;
+    setArticulos(rows);
+    didInitFromPropsRef.current = true;
+  }, [initialInsumos]);
 
   const validateArticulo = (articulo) => {
     const errors = [];
@@ -429,6 +523,35 @@ export default function InsumosTable({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [articulos, opcionesInsumos]);
+
+  // Inferir formato/cantidad desde cantidad base precargada una vez que existan formatos
+  useEffect(() => {
+    const needsInference = articulos.some(
+      (a) => a?._initialCantidadBase != null && (!a?.id_formato || !a?.cantidad_formato)
+    );
+    if (!needsInference) return;
+
+    setArticulos((prev) =>
+      prev.map((a) => {
+        if (a?._initialCantidadBase == null) return a;
+        if (a?.id_formato && a?.cantidad_formato) return a;
+        const formatos = formatosByMateriaPrimaId?.[String(a.id_articulo)] || [];
+        if (!Array.isArray(formatos) || formatos.length === 0) return a;
+
+        const inferred = inferFormatoFromCantidadBase({
+          cantidadBase: a._initialCantidadBase,
+          formatos,
+        });
+        if (!inferred?.id_formato || !inferred?.cantidad_formato) return a;
+        return {
+          ...a,
+          id_formato: inferred.id_formato,
+          cantidad_formato: inferred.cantidad_formato,
+        };
+      })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formatosByMateriaPrimaId]);
 
   // Informar disponibilidad considerando los ya seleccionados (para deshabilitar el botón externo si no quedan opciones únicas)
   useEffect(() => {

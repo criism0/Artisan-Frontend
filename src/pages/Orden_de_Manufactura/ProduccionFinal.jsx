@@ -64,25 +64,22 @@ export default function ProduccionFinal() {
 
   // Calcular fecha de vencimiento sugerida si la receta tiene dias_vida_util
   useEffect(() => {
-    if (!om?.receta?.dias_vida_util || form.fecha_vencimiento) {
-      return; // No calcular si ya tiene valor o sin dias_vida_util
-    }
+    if (form.fecha_vencimiento) return; // No recalcular si ya tiene valor
+
+    const diasVidaUtil = Number(om?.receta?.dias_vida_util);
+    if (!Number.isFinite(diasVidaUtil) || diasVidaUtil <= 0) return;
 
     const hoy = new Date();
-    const diasVidaUtil = Number(om.receta.dias_vida_util);
+    const fechaVencimiento = new Date(hoy);
+    fechaVencimiento.setDate(fechaVencimiento.getDate() + diasVidaUtil);
 
-    if (Number.isFinite(diasVidaUtil) && diasVidaUtil > 0) {
-      const fechaVencimiento = new Date(hoy);
-      fechaVencimiento.setDate(fechaVencimiento.getDate() + diasVidaUtil);
+    // Convertir a formato ISO (YYYY-MM-DD) para input type="date"
+    const ano = fechaVencimiento.getFullYear();
+    const mes = String(fechaVencimiento.getMonth() + 1).padStart(2, "0");
+    const dia = String(fechaVencimiento.getDate()).padStart(2, "0");
 
-      // Convertir a formato ISO (YYYY-MM-DD) para input type="date"
-      const ano = fechaVencimiento.getFullYear();
-      const mes = String(fechaVencimiento.getMonth() + 1).padStart(2, "0");
-      const dia = String(fechaVencimiento.getDate()).padStart(2, "0");
-
-      setField("fecha_vencimiento", `${ano}-${mes}-${dia}`);
-    }
-  }, [om?.receta?.dias_vida_util]);
+    setField("fecha_vencimiento", `${ano}-${mes}-${dia}`);
+  }, [om?.receta?.dias_vida_util, form.fecha_vencimiento]);
 
   const esPT = Boolean(om?.receta?.id_producto_base);
 
@@ -702,11 +699,11 @@ export default function ProduccionFinal() {
             <div>
               <label className="block text-sm font-medium mb-1">
                 Fecha de vencimiento
-                {om?.receta?.dias_vida_util && (
+                {Number.isFinite(Number(om?.receta?.dias_vida_util)) && Number(om?.receta?.dias_vida_util) > 0 ? (
                   <span className="text-xs font-normal text-gray-500 ml-2">
                     (calculada automáticamente)
                   </span>
-                )}
+                ) : null}
               </label>
               <input
                 type="date"
@@ -715,11 +712,11 @@ export default function ProduccionFinal() {
                 onChange={(e) => setField("fecha_vencimiento", e.target.value)}
                 required
               />
-              {om?.receta?.dias_vida_util && (
+              {Number.isFinite(Number(om?.receta?.dias_vida_util)) && Number(om?.receta?.dias_vida_util) > 0 ? (
                 <p className="text-xs text-gray-500 mt-1">
-                  Receta: {om.receta.dias_vida_util} días de vida útil
+                  Receta: {Math.trunc(Number(om.receta.dias_vida_util))} días de vida útil
                 </p>
-              )}
+              ) : null}
             </div>
           </div>
 

@@ -86,6 +86,7 @@ import BultosPorBodega from "./pages/Inventario/BultosPorBodega";
 // ====== Solicitudes ======
 import Solicitudes from "./pages/Solicitudes/Solicitudes";
 import AddSolicitud from "./pages/Solicitudes/AddSolicitud";
+import EditSolicitud from "./pages/Solicitudes/EditSolicitud";
 import CargarPallets from "./pages/Solicitudes/CargarPallet.jsx";
 import SolicitudDetail from "./pages/Solicitudes/SolicitudDetail";
 import PrepararPedido from "./pages/Solicitudes/PrepararPedido";
@@ -230,6 +231,7 @@ function Routing() {
           {/* Solicitudes */}
           <Route path="/Solicitudes" element={<Solicitudes />} />
           <Route path="/Solicitudes/add" element={<AddSolicitud />} />
+          <Route path="/Solicitudes/:solicitudId/edit" element={<EditSolicitud />} />
           <Route path="/Solicitudes/cargar-pallets" element={<CargarPallets />} />
           <Route
             path="/Solicitudes/:solicitudId/preparar-pedido"

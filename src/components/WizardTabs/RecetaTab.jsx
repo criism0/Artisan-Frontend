@@ -72,7 +72,7 @@ export default function RecetaTab({
             label="Peso"
             type="number"
             placeholder="1"
-            value={recetaForm.peso}
+            value={recetaForm.peso ?? ""}
             onChange={(e) => setRecetaForm((r) => ({ ...r, peso: e.target.value }))}
             required
           />
@@ -95,7 +95,7 @@ export default function RecetaTab({
             label="Costo Directo Producción Referencial"
             type="number"
             placeholder="0"
-            value={recetaForm.costo_referencial_produccion}
+            value={recetaForm.costo_referencial_produccion ?? ""}
             onChange={(e) =>
               setRecetaForm((r) => ({ ...r, costo_referencial_produccion: e.target.value }))
             }
@@ -106,7 +106,7 @@ export default function RecetaTab({
           label="Días de vida útil"
           type="number"
           placeholder="Ej: 30"
-          value={recetaForm.dias_vida_util || ""}
+          value={recetaForm.dias_vida_util ?? ""}
           onChange={(e) => setRecetaForm((r) => ({ ...r, dias_vida_util: e.target.value }))}
           helperText="Se utilizará para calcular automáticamente la fecha de vencimiento al cerrar la orden"
           required
