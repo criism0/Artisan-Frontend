@@ -279,12 +279,26 @@ export default function RecetaEdit() {
       return;
     }
 
+    if (String(receta.dias_vida_util ?? "").trim() !== "") {
+      const diasVidaUtil = Number(receta.dias_vida_util);
+      if (!Number.isInteger(diasVidaUtil) || diasVidaUtil <= 0) {
+        toast.error("Días de vida útil debe ser un entero positivo.");
+        return;
+      }
+    }
+
     try {
+      const diasVidaUtilParsed =
+        String(receta.dias_vida_util ?? "").trim() === ""
+          ? null
+          : parseInt(receta.dias_vida_util, 10);
+
       // Actualiza los datos principales
       const body = {
         nombre: receta.nombre,
         descripcion: receta.descripcion || `Receta para ${receta.tipo}`,
         peso: parseFloat(receta.peso),  
+        dias_vida_util: diasVidaUtilParsed,
         unidad_medida: receta.unidad_medida,
         costo_referencial_produccion: parseFloat(receta.costo_referencial_produccion),
         id_pauta_elaboracion: receta.id_pauta_elaboracion ? parseInt(receta.id_pauta_elaboracion) : null,
@@ -442,6 +456,20 @@ export default function RecetaEdit() {
               value={receta.peso || ""}
               onChange={handleChange}
               placeholder="Ej: 100"
+              className="w-full border border-gray-300 rounded px-3 py-2 placeholder-gray-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Días de vida útil:</label>
+            <input
+              type="number"
+              name="dias_vida_util"
+              value={receta.dias_vida_util ?? ""}
+              onChange={handleChange}
+              placeholder="Ej: 30"
+              min="1"
+              step="1"
               className="w-full border border-gray-300 rounded px-3 py-2 placeholder-gray-400"
             />
           </div>

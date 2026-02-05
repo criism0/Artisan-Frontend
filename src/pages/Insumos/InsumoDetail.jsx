@@ -288,6 +288,7 @@ export default function InsumoDetail() {
                 <div><span className="font-semibold">Unidad:</span> {receta?.unidad_medida || insumo?.unidad_medida || "—"}</div>
                 <div><span className="font-semibold">Peso:</span> {receta?.peso ?? "—"}</div>
                 <div><span className="font-semibold">Costo referencial:</span> {receta?.costo_referencial_produccion ?? "—"}</div>
+                <div><span className="font-semibold">Vida útil (días):</span> {receta?.dias_vida_util == null ? "—" : receta.dias_vida_util}</div>
                 <div className="md:col-span-2"><span className="font-semibold">Descripción:</span> {receta?.descripcion || "—"}</div>
               </div>
             )}

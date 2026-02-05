@@ -237,6 +237,12 @@ export default function ProductDetail() {
                   <td className="px-6 py-4 text-sm font-medium text-text">Costo referencial</td>
                   <td className="px-6 py-4 text-sm text-text">{receta.costo_referencial_produccion ?? 0}</td>
                 </tr>
+                <tr className="border-b border-border">
+                  <td className="px-6 py-4 text-sm font-medium text-text">Vida útil (días)</td>
+                  <td className="px-6 py-4 text-sm text-text">
+                    {receta?.dias_vida_util == null ? "—" : receta.dias_vida_util}
+                  </td>
+                </tr>
               </tbody>
             </table>
           )}

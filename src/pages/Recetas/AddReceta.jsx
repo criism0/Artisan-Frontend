@@ -31,6 +31,7 @@ export default function AddReceta() {
     nombre: "",
     tipo: "",
     rendimiento: "",
+    dias_vida_util: "",
     id_materia_prima: "",
     id_producto_base: "",
     unidad_medida: "",
@@ -96,6 +97,14 @@ export default function AddReceta() {
     if (!formData.unidad_medida) newErrors.unidad_medida = "Debe seleccionar una unidad.";
     if (!formData.costo_referencial_produccion) newErrors.costo_referencial_produccion = "Debe ingresar un costo.";
     if (!formData.rendimiento) newErrors.rendimiento = "Debe indicar el rendimiento.";
+
+    if (String(formData.dias_vida_util).trim() !== "") {
+      const diasVidaUtil = Number(formData.dias_vida_util);
+      if (!Number.isInteger(diasVidaUtil) || diasVidaUtil <= 0) {
+        newErrors.dias_vida_util = "Días de vida útil debe ser un entero positivo.";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -225,11 +234,17 @@ export default function AddReceta() {
     if (!validate()) return;
 
     try {
+      const diasVidaUtilParsed =
+        String(formData.dias_vida_util).trim() === ""
+          ? null
+          : parseInt(formData.dias_vida_util, 10);
+
       // Create the recipe
       const recetaBody = {
         nombre: formData.nombre,
         descripcion: `Receta para ${formData.tipo}`,
         peso: parseFloat(formData.rendimiento),
+        dias_vida_util: diasVidaUtilParsed,
         unidad_medida: formData.unidad_medida,
         costo_referencial_produccion: parseFloat(formData.costo_referencial_produccion),
         id_pauta_elaboracion: formData.id_pauta_elaboracion ? parseInt(formData.id_pauta_elaboracion) : null,
@@ -472,6 +487,28 @@ export default function AddReceta() {
           />
           {errors.rendimiento && (
             <p className="text-red-500 text-sm mt-1">{errors.rendimiento}</p>
+          )}
+        </div>
+
+        {/* Vida útil */}
+        <div>
+          <label className="block text-sm font-medium mb-1">
+            Días de vida útil: <span className="text-red-500">*</span>
+          </label>
+          <input
+            name="dias_vida_util"
+            value={formData.dias_vida_util}
+            onChange={handleChange}
+            placeholder="Ej: 30"
+            type="number"
+            min="1"
+            step="1"
+            className={`w-full border rounded-lg px-3 py-2 placeholder-gray-400 ${
+              errors.dias_vida_util ? "border-red-500" : "border-gray-300"
+            }`}
+          />
+          {errors.dias_vida_util && (
+            <p className="text-red-500 text-sm mt-1">{errors.dias_vida_util}</p>
           )}
         </div>
 

@@ -569,6 +569,13 @@ export default function RecetaDetail() {
                 </div>
 
                 <div className="flex items-start justify-between gap-4">
+                  <span className="text-gray-500">Vida útil (días)</span>
+                  <span className="text-text font-medium text-right">
+                    {receta?.dias_vida_util == null ? "—" : receta.dias_vida_util}
+                  </span>
+                </div>
+
+                <div className="flex items-start justify-between gap-4">
                   <span className="text-gray-500">Creación</span>
                   <span className="text-text font-medium text-right">
                     {new Date(receta.createdAt).toLocaleString()}

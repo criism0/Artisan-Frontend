@@ -48,6 +48,24 @@ export default function EjecutarPasosPVA() {
     cant_nuevas_unidades: "",
   });
 
+  const [bultosSalida, setBultosSalida] = useState([]);
+  const [bultosCollapsed, setBultosCollapsed] = useState(true);
+
+  const toInputDate = (d) => {
+    if (!d) return "";
+    // Si viene como string ISO/fecha, tomar YYYY-MM-DD directo para evitar shifts por timezone.
+    if (typeof d === "string") {
+      const m = d.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (m?.[1]) return m[1];
+    }
+    const date = new Date(d);
+    if (Number.isNaN(date.getTime())) return "";
+    const ano = date.getFullYear();
+    const mes = String(date.getMonth() + 1).padStart(2, "0");
+    const dia = String(date.getDate()).padStart(2, "0");
+    return `${ano}-${mes}-${dia}`;
+  };
+
   const elaboradorId = useMemo(() => {
     try {
       const token = localStorage.getItem("access_token") || localStorage.getItem("token");
@@ -279,9 +297,34 @@ export default function EjecutarPasosPVA() {
   const handleAbrirCompletar = () => {
     const cantBultosActuales = lote?.cant_bultos ?? 0;
 
+    const fechaVencimientoActual =
+      formCompletar?.fecha_vencimiento || toInputDate(lote?.fecha_vencimiento);
+
+    const bultosLote =
+      lote?.LoteProductoEnProcesoBultos ||
+      lote?.LoteProductoFinalBultos ||
+      [];
+
+    // Inicializar salida por bulto (modo confirmación)
+    setBultosSalida(
+      (bultosLote || []).map((b) => ({
+        id_bulto: b?.id,
+        identificador:
+          b?.identificador ??
+          b?.codigo ??
+          b?.codigo_interno ??
+          b?.numero ??
+          b?.folio ??
+          b?.id,
+        peso_unitario: Number(b?.peso_unitario ?? 0),
+        eliminar: false,
+      }))
+    );
+    setBultosCollapsed(true);
+
     setFormCompletar({
       peso_retirado: "",
-      fecha_vencimiento: "",
+      fecha_vencimiento: fechaVencimientoActual,
       unidades_de_salida: cantBultosActuales,
       cant_nuevas_unidades: "",
     });
@@ -301,10 +344,44 @@ export default function EjecutarPasosPVA() {
       setSaving(true);
 
       const body = {
-        peso_retirado: Number(formCompletar.peso_retirado),
         fecha_vencimiento: formCompletar.fecha_vencimiento,
-        unidades_de_salida: Number(formCompletar.unidades_de_salida),
       };
+
+      // Si el proceso NO genera bultos nuevos, se cierra por bulto.
+      if (proceso?.genera_bultos_nuevos === false) {
+        const rows = Array.isArray(bultosSalida) ? bultosSalida : [];
+        if (rows.length === 0) {
+          toast.error("No hay bultos para declarar salida.");
+          setSaving(false);
+          return;
+        }
+
+        const salida = rows.filter((r) => !r.eliminar);
+        if (salida.length === 0) {
+          toast.error("Debes dejar al menos 1 bulto de salida.");
+          setSaving(false);
+          return;
+        }
+
+        for (const r of rows) {
+          const p = Number(r?.peso_unitario);
+          if (!Number.isFinite(p) || p <= 0) {
+            toast.error("Todos los bultos deben tener un peso válido (> 0).");
+            setSaving(false);
+            return;
+          }
+        }
+
+        body.bultos_salida = rows.map((r) => ({
+          id_bulto: Number(r.id_bulto),
+          peso_unitario: Number(r.peso_unitario),
+          eliminar: Boolean(r.eliminar),
+        }));
+      } else {
+        // Modo legacy (genera bultos nuevos): se mantiene el cierre por peso/unidades
+        body.peso_retirado = Number(formCompletar.peso_retirado);
+        body.unidades_de_salida = Number(formCompletar.unidades_de_salida);
+      }
 
       if (mostrarCantNuevasUnidades) {
         const unidades = Number(formCompletar.cant_nuevas_unidades || 0);
@@ -335,6 +412,17 @@ export default function EjecutarPasosPVA() {
       setSaving(false);
     };
   }
+
+  const resumenSalida = useMemo(() => {
+    const rows = Array.isArray(bultosSalida) ? bultosSalida : [];
+    const salida = rows.filter((r) => !r.eliminar);
+    const totalPeso = salida.reduce((acc, r) => acc + Number(r?.peso_unitario || 0), 0);
+    return {
+      totalBultos: rows.length,
+      bultosSalida: salida.length,
+      pesoTotal: totalPeso,
+    };
+  }, [bultosSalida]);
 
   const todosCompletos = tienePasos && pasos.length > 0 && pasos.every((p) => p.estado === "Completado");
   const puedeCompletar = pautaEnProceso && (todosCompletos || !tienePasos);
@@ -445,77 +533,86 @@ export default function EjecutarPasosPVA() {
       ) : null}
 
       {pautaEnProceso && tienePasos ? (
-        <div className="border border-gray-200 rounded-lg p-4 mb-6">
-          <div className="font-semibold text-text mb-3">2) Ejecutar pasos</div>
+        <div className="bg-gray-200 p-4 rounded-lg mb-6">
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="p-4 font-semibold text-text">2) Ejecutar pasos</div>
 
-      <table className="w-full border border-gray-200 rounded-lg text-sm">
-        <thead className="bg-gray-100">
-          <tr>
-            <th className="p-2 text-left">Orden</th>
-            <th className="p-2 text-left">Descripción</th>
-            <th className="p-2 text-center">Estado</th>
-            <th className="p-2 text-center">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pasos.map((p, index) => {
-            const puedeComenzar =
-              p.estado === "Pendiente" &&
-              (index === 0 ||
-                pasos[index - 1].estado === "En Proceso" ||
-                pasos[index - 1].estado === "Completado");
+            <div className="w-full overflow-x-auto">
+              <table className="min-w-max w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="p-2 text-left">#</th>
+                    <th className="p-2 text-left">Descripción</th>
+                    <th className="p-2 text-center">Estado</th>
+                    <th className="p-2 text-center">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-border">
+                  {pasos.map((p, index) => {
+                    const puedeComenzar =
+                      p.estado === "Pendiente" &&
+                      (index === 0 || pasos[index - 1].estado === "Completado");
 
-            return (
-              <tr key={p.id} className="border-t border-gray-200">
-                <td className="p-2 font-medium">{p.pasoValorAgregado?.orden}</td>
-                <td className="p-2">{p.pasoValorAgregado?.descripcion}</td>
-                <td className="p-2 text-center">
-                  {p.estado === "Completado" ? (
-                    <span className="text-green-700 font-medium">Completado</span>
-                  ) : p.estado === "En Proceso" ? (
-                    <span className="text-blue-700 font-medium">En Proceso</span>
-                  ) : (
-                    <span className="text-gray-500">Pendiente</span>
-                  )}
-                </td>
-                <td className="p-2 text-center space-x-2">
-                  {!todosCompletos && (
-                    <>
-                      {p.estado === "Pendiente" && puedeComenzar && (
-                        <button
-                          onClick={() => handleComenzarPaso(p.id)}
-                          disabled={saving}
-                          className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
-                        >
-                          Comenzar
-                        </button>
-                      )}
-                      {p.estado === "Pendiente" && !puedeComenzar && (
-                        <span className="text-gray-400 text-xs italic">
-                          Esperando paso anterior
-                        </span>
-                      )}
-                      {p.estado === "En Proceso" && (
-                        <button
-                          onClick={() => handleCompletarPaso(p.id)}
-                          disabled={saving}
-                          className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700"
-                        >
-                          Completar
-                        </button>
-                      )}
-                    </>
-                  )}
-                  {p.estado === "Completado" && (
-                    <span className="text-gray-400 text-xs">Finalizado</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                    const orden = p.pasoValorAgregado?.orden ?? index + 1;
+                    const desc = p.pasoValorAgregado?.descripcion || "—";
 
+                    return (
+                      <tr key={p.id}>
+                        <td className="p-2 font-medium text-gray-700">{orden}</td>
+                        <td className="p-2 text-gray-700">{desc}</td>
+                        <td className="p-2 text-center">
+                          {p.estado === "Completado" ? (
+                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                              Completado
+                            </span>
+                          ) : p.estado === "En Proceso" ? (
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                              En Proceso
+                            </span>
+                          ) : (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                              Pendiente
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-2 text-center">
+                          {!todosCompletos ? (
+                            <>
+                              {p.estado === "Pendiente" && puedeComenzar ? (
+                                <button
+                                  onClick={() => handleComenzarPaso(p.id)}
+                                  disabled={saving}
+                                  className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 disabled:opacity-60"
+                                >
+                                  Comenzar
+                                </button>
+                              ) : null}
+
+                              {p.estado === "Pendiente" && !puedeComenzar ? (
+                                <span className="text-gray-400 text-xs italic">Esperando paso anterior</span>
+                              ) : null}
+
+                              {p.estado === "En Proceso" ? (
+                                <button
+                                  onClick={() => handleCompletarPaso(p.id)}
+                                  disabled={saving}
+                                  className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60"
+                                >
+                                  Completar
+                                </button>
+                              ) : null}
+                            </>
+                          ) : (
+                            <span className="text-gray-400 text-xs">Finalizado</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -552,90 +649,178 @@ export default function EjecutarPasosPVA() {
         onClose={() => setShowCompletarModal(false)}
         className="fixed inset-0 flex items-center justify-center z-50 bg-black/40"
       >
-        <div className="bg-white rounded-lg p-6 shadow-xl w-full max-w-lg space-y-4">
+        <div className="bg-white rounded-lg p-6 shadow-xl w-full max-w-2xl space-y-4">
           <h2 className="text-xl font-bold text-gray-800 mb-3">
             Completar Pauta
           </h2>
 
-          <div className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Peso retirado (kg)
-              </label>
-              <input
-                type="number"
-                value={formCompletar.peso_retirado}
-                onChange={(e) =>
-                  setFormCompletar((prev) => ({
-                    ...prev,
-                    peso_retirado: e.target.value,
-                  }))
-                }
-                className="border w-full rounded px-3 py-2"
-              />
-            </div>
+          {proceso?.genera_bultos_nuevos === false ? (
+            <div className="space-y-3">
+              <div className="text-sm text-gray-700">
+                Confirma bultos de salida y ajusta el peso si cambió.
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Fecha de vencimiento
-              </label>
-              <input
-                type="date"
-                value={formCompletar.fecha_vencimiento}
-                onChange={(e) =>
-                  setFormCompletar((prev) => ({
-                    ...prev,
-                    fecha_vencimiento: e.target.value,
-                  }))
-                }
-                className="border w-full rounded px-3 py-2"
-              />
-            </div>
+              <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded p-3">
+                <div>
+                  <strong>Resumen:</strong> {resumenSalida.bultosSalida}/{resumenSalida.totalBultos} bultos de salida
+                </div>
+                <div>
+                  <strong>Peso total salida:</strong> {formatNumberCL(resumenSalida.pesoTotal, 2)} kg
+                </div>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Unidades de salida
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={formCompletar.unidades_de_salida}
-                onChange={(e) =>
-                  setFormCompletar((prev) => ({
-                    ...prev,
-                    unidades_de_salida: e.target.value,
-                  }))
-                }
-                className="border w-full rounded px-3 py-2"
-              />
-            </div>
+              <div className="border border-gray-200 rounded">
+                <button
+                  type="button"
+                  onClick={() => setBultosCollapsed((v) => !v)}
+                  className="w-full px-3 py-2 text-left text-sm font-medium bg-gray-50 hover:bg-gray-100"
+                >
+                  {bultosCollapsed ? "▶" : "▼"} Bultos ({resumenSalida.totalBultos})
+                </button>
 
-            {mostrarCantNuevasUnidades && (
+                {!bultosCollapsed ? (
+                  <div className="max-h-64 overflow-auto p-3 space-y-2">
+                    {bultosSalida.map((r, idx) => (
+                      <div key={r.id_bulto ?? idx} className="flex items-center gap-3">
+                        <div
+                          className="text-xs text-gray-600 w-64 whitespace-normal break-words"
+                          title={String(r.identificador ?? r.id_bulto)}
+                        >
+                          {String(r.identificador ?? `#${r.id_bulto}`)}
+                        </div>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className="border rounded px-2 py-1 w-32 text-sm"
+                          value={r.peso_unitario}
+                          disabled={saving || r.eliminar}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBultosSalida((prev) =>
+                              prev.map((x, i) => (i === idx ? { ...x, peso_unitario: val } : x))
+                            );
+                          }}
+                        />
+                        <div className="text-xs text-gray-500">kg</div>
+                        <label className="ml-auto flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(r.eliminar)}
+                            disabled={saving}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setBultosSalida((prev) =>
+                                prev.map((x, i) => (i === idx ? { ...x, eliminar: checked } : x))
+                              );
+                            }}
+                          />
+                          Quitar (merma)
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  Cantidad de nuevos bultos
+                  Fecha de vencimiento (opcional)
                 </label>
                 <input
-                  className="border p-2 w-full rounded"
-                  type="number"
-                  min="1"
-                  placeholder="Cantidad de nuevos bultos"
-                  value={formCompletar.cant_nuevas_unidades}
+                  type="date"
+                  value={formCompletar.fecha_vencimiento}
                   onChange={(e) =>
                     setFormCompletar((prev) => ({
                       ...prev,
-                      cant_nuevas_unidades: e.target.value,
+                      fecha_vencimiento: e.target.value,
                     }))
                   }
+                  className="border w-full rounded px-3 py-2"
                 />
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Peso retirado (kg)
+                </label>
+                <input
+                  type="number"
+                  value={formCompletar.peso_retirado}
+                  onChange={(e) =>
+                    setFormCompletar((prev) => ({
+                      ...prev,
+                      peso_retirado: e.target.value,
+                    }))
+                  }
+                  className="border w-full rounded px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Fecha de vencimiento
+                </label>
+                <input
+                  type="date"
+                  value={formCompletar.fecha_vencimiento}
+                  onChange={(e) =>
+                    setFormCompletar((prev) => ({
+                      ...prev,
+                      fecha_vencimiento: e.target.value,
+                    }))
+                  }
+                  className="border w-full rounded px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Unidades de salida
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formCompletar.unidades_de_salida}
+                  onChange={(e) =>
+                    setFormCompletar((prev) => ({
+                      ...prev,
+                      unidades_de_salida: e.target.value,
+                    }))
+                  }
+                  className="border w-full rounded px-3 py-2"
+                />
+              </div>
+
+              {mostrarCantNuevasUnidades && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Cantidad de nuevos bultos
+                  </label>
+                  <input
+                    className="border p-2 w-full rounded"
+                    type="number"
+                    min="1"
+                    placeholder="Cantidad de nuevos bultos"
+                    value={formCompletar.cant_nuevas_unidades}
+                    onChange={(e) =>
+                      setFormCompletar((prev) => ({
+                        ...prev,
+                        cant_nuevas_unidades: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 mt-4">
             <button
               onClick={() => setShowCompletarModal(false)}
+              disabled={saving}
               className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
             >
               Cancelar

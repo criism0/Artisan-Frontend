@@ -421,332 +421,330 @@ export default function PVAsTab({
           </div>
         ) : (
           <>
-            <div className="mt-4 border rounded-lg p-4">
-              <div className="text-sm font-semibold text-gray-800 mb-2">Agregar PVA</div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-1">Proceso</label>
-                  <Selector
-                    options={opcionesProcesos}
-                    selectedValue={nuevoProcesoId}
-                    onSelect={(v) => setNuevoProcesoId(v)}
-                    useFuzzy
-                    groupBy="category"
-                    className="w-full border rounded-lg px-3 py-2"
-                  />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+              <div className="border rounded-lg p-4">
+                <div className="text-sm font-semibold text-gray-800 mb-2">Agregar PVA</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium mb-1">Proceso</label>
+                    <Selector
+                      options={opcionesProcesos}
+                      selectedValue={nuevoProcesoId}
+                      onSelect={(v) => setNuevoProcesoId(v)}
+                      useFuzzy
+                      groupBy="category"
+                      className="w-full border rounded-lg px-3 py-2"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+                    onClick={handleCrearPVA}
+                    disabled={loading}
+                  >
+                    Agregar
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                  onClick={handleCrearPVA}
-                  disabled={loading}
-                >
-                  Agregar
-                </button>
-              </div>
 
-              <div className="mt-3 flex flex-wrap gap-2 items-center">
-                <button
-                  type="button"
-                  className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-                  onClick={() => setShowCrearProceso((v) => !v)}
-                  disabled={loading}
-                >
-                  {showCrearProceso ? "Ocultar creación de proceso" : "Crear nuevo proceso"}
-                </button>
-                <div className="text-xs text-gray-500">
-                  Si no existe el proceso, créalo aquí y se agregará automáticamente.
+                <div className="mt-3 flex flex-wrap gap-2 items-center">
+                  <button
+                    type="button"
+                    className="px-3 py-2 border rounded-lg hover:bg-gray-50"
+                    onClick={() => setShowCrearProceso((v) => !v)}
+                    disabled={loading}
+                  >
+                    {showCrearProceso ? "Ocultar creación de proceso" : "Crear nuevo proceso"}
+                  </button>
+                  <div className="text-xs text-gray-500">
+                    Si no existe el proceso, créalo aquí y se agregará automáticamente.
+                  </div>
                 </div>
-              </div>
 
-              {showCrearProceso ? (
-                <div className="mt-3 border rounded-lg p-3 bg-gray-50">
-                  <div className="text-sm font-semibold text-gray-800 mb-2">Nuevo Proceso de Valor Agregado</div>
+                {showCrearProceso ? (
+                  <div className="mt-3 border rounded-lg p-3 bg-gray-50">
+                    <div className="text-sm font-semibold text-gray-800 mb-2">Nuevo Proceso de Valor Agregado</div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium mb-1">Nombre</label>
-                      <input
-                        className="w-full border rounded-lg px-3 py-2"
-                        value={nuevoProcesoForm.descripcion}
-                        onChange={(e) =>
-                          setNuevoProcesoForm((prev) => ({ ...prev, descripcion: e.target.value }))
-                        }
-                        placeholder="Ej: Maduración"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Unidad de tiempo</label>
-                      <select
-                        className="w-full border rounded-lg px-3 py-2"
-                        value={nuevoProcesoForm.unidad_tiempo}
-                        onChange={(e) =>
-                          setNuevoProcesoForm((prev) => ({ ...prev, unidad_tiempo: e.target.value }))
-                        }
-                      >
-                        <option value="">Seleccionar...</option>
-                        <option value="Minutos">Minutos</option>
-                        <option value="Horas">Horas</option>
-                        <option value="Dias">Dias</option>
-                        <option value="Semanas">Semanas</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Tiempo estimado</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="w-full border rounded-lg px-3 py-2"
-                        value={nuevoProcesoForm.tiempo_estimado}
-                        onChange={(e) =>
-                          setNuevoProcesoForm((prev) => ({ ...prev, tiempo_estimado: e.target.value }))
-                        }
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Costo estimado referencial</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        className="w-full border rounded-lg px-3 py-2"
-                        value={nuevoProcesoForm.costo_estimado}
-                        onChange={(e) =>
-                          setNuevoProcesoForm((prev) => ({ ...prev, costo_estimado: e.target.value }))
-                        }
-                      />
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      
-                    </div>
-
-                    <div className="flex items-center gap-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium mb-1">Nombre</label>
                         <input
-                        id="pva_utiliza_insumos"
-                        type="checkbox"
-                        checked={nuevoProcesoForm.utiliza_insumos}
-                        onChange={(e) =>
-                          setNuevoProcesoForm((prev) => ({ ...prev, utiliza_insumos: e.target.checked }))
-                        }
-                      />
-                      <label htmlFor="pva_utiliza_insumos" className="text-sm">
-                        Utiliza insumos
-                      </label>
-                      <input
-                        id="pva_genera_bultos"
-                        type="checkbox"
-                        checked={nuevoProcesoForm.genera_bultos_nuevos}
-                        onChange={(e) =>
-                          setNuevoProcesoForm((prev) => ({ ...prev, genera_bultos_nuevos: e.target.checked }))
-                        }
-                      />
-                      <label htmlFor="pva_genera_bultos" className="text-sm">
-                        Genera nuevos bultos
-                      </label>
+                          className="w-full border rounded-lg px-3 py-2"
+                          value={nuevoProcesoForm.descripcion}
+                          onChange={(e) =>
+                            setNuevoProcesoForm((prev) => ({ ...prev, descripcion: e.target.value }))
+                          }
+                          placeholder="Ej: Maduración"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Unidad de tiempo</label>
+                        <select
+                          className="w-full border rounded-lg px-3 py-2"
+                          value={nuevoProcesoForm.unidad_tiempo}
+                          onChange={(e) =>
+                            setNuevoProcesoForm((prev) => ({ ...prev, unidad_tiempo: e.target.value }))
+                          }
+                        >
+                          <option value="">Seleccionar...</option>
+                          <option value="Minutos">Minutos</option>
+                          <option value="Horas">Horas</option>
+                          <option value="Dias">Dias</option>
+                          <option value="Semanas">Semanas</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Tiempo estimado</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="w-full border rounded-lg px-3 py-2"
+                          value={nuevoProcesoForm.tiempo_estimado}
+                          onChange={(e) =>
+                            setNuevoProcesoForm((prev) => ({ ...prev, tiempo_estimado: e.target.value }))
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Costo estimado referencial</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          className="w-full border rounded-lg px-3 py-2"
+                          value={nuevoProcesoForm.costo_estimado}
+                          onChange={(e) =>
+                            setNuevoProcesoForm((prev) => ({ ...prev, costo_estimado: e.target.value }))
+                          }
+                        />
+                      </div>
+
+                      <div className="md:col-span-2 flex flex-wrap items-center gap-4">
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            id="pva_utiliza_insumos"
+                            type="checkbox"
+                            checked={nuevoProcesoForm.utiliza_insumos}
+                            onChange={(e) =>
+                              setNuevoProcesoForm((prev) => ({ ...prev, utiliza_insumos: e.target.checked }))
+                            }
+                          />
+                          Utiliza insumos
+                        </label>
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            id="pva_genera_bultos"
+                            type="checkbox"
+                            checked={nuevoProcesoForm.genera_bultos_nuevos}
+                            onChange={(e) =>
+                              setNuevoProcesoForm((prev) => ({ ...prev, genera_bultos_nuevos: e.target.checked }))
+                            }
+                          />
+                          Genera nuevos bultos
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                        onClick={() => setShowCrearProceso(false)}
+                        disabled={creandoProceso || loading}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+                        onClick={handleCrearProcesoYAgregar}
+                        disabled={creandoProceso || loading}
+                      >
+                        Crear y agregar
+                      </button>
                     </div>
                   </div>
+                ) : null}
 
-                  <div className="mt-3 flex justify-end gap-2">
-                    <button
-                      type="button"
-                      className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                      onClick={() => setShowCrearProceso(false)}
-                      disabled={creandoProceso || loading}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                      onClick={handleCrearProcesoYAgregar}
-                      disabled={creandoProceso || loading}
-                    >
-                      Crear y agregar
-                    </button>
-                  </div>
+                <div className="text-xs text-gray-500 mt-2">
+                  Nota: el orden se gestiona con ↑/↓. Si el proceso utiliza insumos, podrás agregarlos dentro del PVA.
                 </div>
-              ) : null}
-
-              <div className="text-xs text-gray-500 mt-2">
-                Nota: el orden se gestiona con ↑/↓. Si el proceso utiliza insumos, podrás agregarlos abajo.
               </div>
-            </div>
 
-            <div className="mt-4 border rounded-lg p-4">
-              <div className="text-sm font-semibold text-gray-800 mb-2">PVAs asociados</div>
+              <div className="border rounded-lg p-4">
+                <div className="text-sm font-semibold text-gray-800 mb-2">PVAs asociados</div>
 
-              {loading ? <div className="text-sm text-gray-500">Cargando...</div> : null}
+                {loading ? <div className="text-sm text-gray-500">Cargando...</div> : null}
 
-              {!loading && pvas.length === 0 ? (
-                <div className="text-sm text-gray-600">Sin PVAs asociados por ahora.</div>
-              ) : (
-                <div className="space-y-3">
-                  {pvas.map((pva, idx) => {
-                    const proceso = procesosById.get(Number(pva?.id_proceso)) || null;
-                    const utilizaInsumos = Boolean(proceso?.utiliza_insumos);
-                    const generaBultos = Boolean(proceso?.genera_bultos_nuevos);
-                    const isExpanded = Number(expandedPvaId) === Number(pva.id);
+                {!loading && pvas.length === 0 ? (
+                  <div className="text-sm text-gray-600">Sin PVAs asociados por ahora.</div>
+                ) : (
+                  <div className="space-y-3">
+                    {pvas.map((pva, idx) => {
+                      const proceso = procesosById.get(Number(pva?.id_proceso)) || null;
+                      const utilizaInsumos = Boolean(proceso?.utiliza_insumos);
+                      const generaBultos = Boolean(proceso?.genera_bultos_nuevos);
+                      const isExpanded = Number(expandedPvaId) === Number(pva.id);
 
-                    const insumos = insumosByPvaId?.[Number(pva.id)] || [];
-                    const draftNuevo = getDraftNuevoInsumo(pva.id);
+                      const insumos = insumosByPvaId?.[Number(pva.id)] || [];
+                      const draftNuevo = getDraftNuevoInsumo(pva.id);
 
-                    return (
-                      <div key={pva.id} className="border rounded-lg p-4">
-                        <div className="flex items-start justify-between gap-3 flex-wrap">
-                          <div>
-                            <div className="font-semibold text-gray-900">
-                              #{Number(pva.orden || idx + 1)} — {proceso?.descripcion || `Proceso #${pva.id_proceso}`}
+                      return (
+                        <div key={pva.id} className="border rounded-lg p-4">
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div>
+                              <div className="font-semibold text-gray-900">
+                                #{Number(pva.orden || idx + 1)} — {proceso?.descripcion || `Proceso #${pva.id_proceso}`}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {utilizaInsumos ? "Usa insumos" : "Sin insumos"}
+                                {generaBultos ? " · Genera bultos" : ""}
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {utilizaInsumos ? "Usa insumos" : "Sin insumos"}
-                              {generaBultos ? " · Genera bultos" : ""}
-                            </div>
-                          </div>
 
-                          <div className="flex gap-2 flex-wrap">
-                            <button
-                              type="button"
-                              className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-                              onClick={() => handleReordenarSwap(idx, idx - 1)}
-                              disabled={loading || idx === 0}
-                              title="Subir"
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-                              onClick={() => handleReordenarSwap(idx, idx + 1)}
-                              disabled={loading || idx === pvas.length - 1}
-                              title="Bajar"
-                            >
-                              ↓
-                            </button>
-
-                            {utilizaInsumos ? (
+                            <div className="flex gap-2 flex-wrap">
                               <button
                                 type="button"
                                 className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-                                onClick={() => toggleExpand(pva.id)}
+                                onClick={() => handleReordenarSwap(idx, idx - 1)}
+                                disabled={loading || idx === 0}
+                                title="Subir"
                               >
-                                {isExpanded ? "Ocultar insumos" : "Insumos"}
+                                ↑
                               </button>
-                            ) : null}
-
-                            <button
-                              type="button"
-                              className="px-3 py-2 border rounded-lg hover:bg-gray-50 text-red-600"
-                              onClick={() => handleEliminarPVA(pva)}
-                              disabled={loading}
-                            >
-                              Eliminar
-                            </button>
-                          </div>
-                        </div>
-
-                        {utilizaInsumos && isExpanded ? (
-                          <div className="mt-4 border rounded-lg p-3">
-                            <div className="text-sm font-semibold text-gray-800 mb-2">Insumos por bulto</div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
-                              <div>
-                                <label className="block text-sm font-medium mb-1">Materia prima</label>
-                                <Selector
-                                  options={opcionesMateriaPrima}
-                                  selectedValue={draftNuevo.id_materia_prima}
-                                  onSelect={(v) =>
-                                    setDraftNuevoInsumo(pva.id, {
-                                      ...draftNuevo,
-                                      id_materia_prima: v,
-                                    })
-                                  }
-                                  useFuzzy
-                                  groupBy="category"
-                                  className="w-full border rounded-lg px-3 py-2"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-sm font-medium mb-1">Cantidad por bulto</label>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  className="w-full border rounded-lg px-3 py-2"
-                                  value={draftNuevo.cantidad_por_bulto}
-                                  onChange={(e) =>
-                                    setDraftNuevoInsumo(pva.id, {
-                                      ...draftNuevo,
-                                      cantidad_por_bulto: e.target.value,
-                                    })
-                                  }
-                                />
-                              </div>
                               <button
                                 type="button"
-                                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-                                onClick={() => handleAddInsumo(pva.id)}
+                                className="px-3 py-2 border rounded-lg hover:bg-gray-50"
+                                onClick={() => handleReordenarSwap(idx, idx + 1)}
+                                disabled={loading || idx === pvas.length - 1}
+                                title="Bajar"
+                              >
+                                ↓
+                              </button>
+
+                              {utilizaInsumos ? (
+                                <button
+                                  type="button"
+                                  className="px-3 py-2 border rounded-lg hover:bg-gray-50"
+                                  onClick={() => toggleExpand(pva.id)}
+                                >
+                                  {isExpanded ? "Ocultar insumos" : "Insumos"}
+                                </button>
+                              ) : null}
+
+                              <button
+                                type="button"
+                                className="px-3 py-2 border rounded-lg hover:bg-gray-50 text-red-600"
+                                onClick={() => handleEliminarPVA(pva)}
                                 disabled={loading}
                               >
-                                Agregar insumo
+                                Eliminar
                               </button>
                             </div>
-
-                            {Array.isArray(insumos) && insumos.length > 0 ? (
-                              <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden mt-3">
-                                <thead className="bg-gray-50 text-gray-700">
-                                  <tr>
-                                    <th className="px-3 py-2 text-left">Insumo</th>
-                                    <th className="px-3 py-2 text-left">Cantidad por bulto</th>
-                                    <th className="px-3 py-2"></th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {insumos.map((ins) => (
-                                    <tr key={ins.id} className="border-t">
-                                      <td className="px-3 py-2">
-                                        {ins?.materiaPrima?.nombre || `MP #${ins?.id_materia_prima}`}
-                                      </td>
-                                      <td className="px-3 py-2">
-                                        <input
-                                          className="border rounded px-2 py-1 w-40"
-                                          defaultValue={
-                                            ins?.cantidad_por_bulto != null ? String(ins.cantidad_por_bulto) : ""
-                                          }
-                                          onBlur={(e) => handleUpdateInsumoQty(ins.id, e.target.value)}
-                                        />
-                                      </td>
-                                      <td className="px-3 py-2 text-right">
-                                        <button
-                                          type="button"
-                                          className="text-red-600 hover:underline"
-                                          onClick={() => handleDeleteInsumo(pva.id, ins.id)}
-                                        >
-                                          Quitar
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            ) : (
-                              <div className="text-sm text-gray-600 mt-3">Sin insumos registrados.</div>
-                            )}
-
-                            <div className="text-xs text-gray-500 mt-2">
-                              Tip: edita cantidades y sal del campo para guardar.
-                            </div>
                           </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+
+                          {utilizaInsumos && isExpanded ? (
+                            <div className="mt-4 border rounded-lg p-3">
+                              <div className="text-sm font-semibold text-gray-800 mb-2">Insumos por bulto</div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 items-end">
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Materia prima</label>
+                                  <Selector
+                                    options={opcionesMateriaPrima}
+                                    selectedValue={draftNuevo.id_materia_prima}
+                                    onSelect={(v) =>
+                                      setDraftNuevoInsumo(pva.id, {
+                                        ...draftNuevo,
+                                        id_materia_prima: v,
+                                      })
+                                    }
+                                    useFuzzy
+                                    groupBy="category"
+                                    className="w-full border rounded-lg px-3 py-2"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Cantidad por bulto</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    className="w-full border rounded-lg px-3 py-2"
+                                    value={draftNuevo.cantidad_por_bulto}
+                                    onChange={(e) =>
+                                      setDraftNuevoInsumo(pva.id, {
+                                        ...draftNuevo,
+                                        cantidad_por_bulto: e.target.value,
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+                                  onClick={() => handleAddInsumo(pva.id)}
+                                  disabled={loading}
+                                >
+                                  Agregar insumo
+                                </button>
+                              </div>
+
+                              {Array.isArray(insumos) && insumos.length > 0 ? (
+                                <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden mt-3">
+                                  <thead className="bg-gray-50 text-gray-700">
+                                    <tr>
+                                      <th className="px-3 py-2 text-left">Insumo</th>
+                                      <th className="px-3 py-2 text-left">Cantidad por bulto</th>
+                                      <th className="px-3 py-2"></th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {insumos.map((ins) => (
+                                      <tr key={ins.id} className="border-t">
+                                        <td className="px-3 py-2">
+                                          {ins?.materiaPrima?.nombre || `MP #${ins?.id_materia_prima}`}
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          <input
+                                            className="border rounded px-2 py-1 w-40"
+                                            defaultValue={
+                                              ins?.cantidad_por_bulto != null ? String(ins.cantidad_por_bulto) : ""
+                                            }
+                                            onBlur={(e) => handleUpdateInsumoQty(ins.id, e.target.value)}
+                                          />
+                                        </td>
+                                        <td className="px-3 py-2 text-right">
+                                          <button
+                                            type="button"
+                                            className="text-red-600 hover:underline"
+                                            onClick={() => handleDeleteInsumo(pva.id, ins.id)}
+                                          >
+                                            Quitar
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              ) : (
+                                <div className="text-sm text-gray-600 mt-3">Sin insumos registrados.</div>
+                              )}
+
+                              <div className="text-xs text-gray-500 mt-2">
+                                Tip: edita cantidades y sal del campo para guardar.
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex justify-end mt-4">

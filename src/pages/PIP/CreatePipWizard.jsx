@@ -418,6 +418,7 @@ export default function CreatePipWizard() {
           peso: recetaActual.peso,
           unidad_medida: recetaActual.unidad_medida,
           costo_referencial_produccion: recetaActual.costo_referencial_produccion ?? 0,
+          dias_vida_util: recetaActual.dias_vida_util ?? null,
           id_pauta_elaboracion: Number(selectedPautaId),
           id_materia_prima: recetaActual.id_materia_prima ?? null,
           id_producto_base: recetaActual.id_producto_base ?? null,
