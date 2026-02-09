@@ -1049,8 +1049,8 @@ export default function ProduccionFinal() {
                   <div className="text-xs text-gray-500 font-medium">Merma estimada</div>
                   <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_merma_estimado || 0), 2)} kg</div>
                   <div className="text-xs text-gray-600 mt-1">
-                    {Number(preview.peso_objetivo || 0) > 0 
-                      ? `${formatNumberCL((Number(preview.peso_merma_estimado || 0) / Number(preview.peso_objetivo || 1)) * 100, 1)}% del objetivo`
+                    {Number(preview.peso_ingresado_rendimiento || preview.peso_objetivo || 0) > 0 
+                      ? `${formatNumberCL((Number(preview.peso_merma_estimado || 0) / Number(preview.peso_ingresado_rendimiento || preview.peso_objetivo || 1)) * 100, 1)}% del ingresado`
                       : "N/A"}
                   </div>
                 </div>
