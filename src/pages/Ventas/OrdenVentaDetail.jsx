@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { BackButton, ModifyButton, DeleteButton } from "../../components/Buttons/ActionButtons";
+import Table from "../../components/Table";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import jsPDF from "jspdf";
@@ -22,83 +23,171 @@ export default function OrdenVentaDetail() {
   const api = useApi();
 
   const [orden, setOrden] = useState(null);
-  const [direccion, setDireccion] = useState({});
-  const [cliente, setCliente] = useState({});
-  const [products, setProducts] = useState([]);
-  const [orderItems, setOrderItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [progresoData, setProgresoData] = useState(null);
+  const [loadingProgreso, setLoadingProgreso] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [delivering, setDelivering] = useState(false);
+
+  const fetchOrden = async () => {
+    const ordenData = await api(`/ordenes-venta/${id}/info`);
+    return ordenData?.data || ordenData;
+  };
+
+  const fetchProgreso = async () => {
+    const progreso = await api(`/ordenes-venta/${id}/progreso`);
+    return progreso?.data || progreso;
+  };
 
   useEffect(() => {
+    if (!id) return;
     (async () => {
       try {
-        const ordenData = await api(`/ordenes-venta/${id}/info`);
-        const o = ordenData.data || ordenData;
+        setLoading(true);
+        const o = await fetchOrden();
         setOrden(o);
-        
-        // Obtener clientes y buscar el que tiene esta dirección
-        const clientes = await api(`/clientes`);
-        const clientesList = Array.isArray(clientes) ? clientes : clientes.data || [];
-        
-        // Buscar el cliente que tiene la dirección
-        let clienteEncontrado = null;
-        let direccionEncontrada = null;
-        
-        for (const cli of clientesList) {
-          const dirs = Array.isArray(cli.direcciones) ? cli.direcciones : [];
-          const dir = dirs.find(d => d.id === o.id_local);
-          if (dir) {
-            clienteEncontrado = cli;
-            direccionEncontrada = dir;
-            break;
-          }
-        }
-        
-        if (clienteEncontrado) {
-          setCliente(clienteEncontrado);
-          setDireccion(direccionEncontrada || {});
-        }
       } catch (err) {
+        console.error("OrdenVentaDetail fetch error:", err);
         toast.error("Error al cargar los datos de la orden");
+      } finally {
+        setLoading(false);
       }
     })();
-
-    api(`/productos-base`)
-      .then((res) => {
-        const productsData = Array.isArray(res) ? res : res.data || [];
-        setProducts(
-          productsData.map((p) => ({
-            value: p.id,
-            label: p.nombre,
-            unidades_por_caja: p.unidades_por_caja,
-          }))
-        );
-      })
-      .catch(() => toast.error("Error al cargar productos"));
   }, [id, api]);
-  
 
   useEffect(() => {
-    if (!orden) return;
-    api(`/ordenes-venta/${id}/productos`)
-      .then((data) => {
-        const itemsData = Array.isArray(data) ? data : data.data || [];
-        const its = itemsData.map((item) => ({
-          id: item.id,
-          id_producto: item.id_producto,
-          cantidad: item.cantidad,
-          precio_venta: item.precio_venta,
-          porcentaje_descuento: item.porcentaje_descuento || 0,
-        }));
-        setOrderItems(its);
-      })
-      .catch(() => toast.error("Error al cargar productos de la orden"));
-  }, [orden, id, api]);
+    if (!id) return;
+    (async () => {
+      try {
+        setLoadingProgreso(true);
+        const p = await fetchProgreso();
+        setProgresoData(p);
+      } catch (err) {
+        console.error("OrdenVentaDetail progreso error:", err);
+        setProgresoData(null);
+      } finally {
+        setLoadingProgreso(false);
+      }
+    })();
+  }, [id, api]);
+
+  const direccion = orden?.direccion || {};
+  const cliente = direccion?.cliente || {};
+  const bodega = orden?.bodega || {};
+
+  const orderItems = useMemo(
+    () => (Array.isArray(orden?.productos) ? orden.productos : []),
+    [orden]
+  );
+
+  const progresoRows = useMemo(() => {
+    const items = Array.isArray(progresoData?.progreso) ? progresoData.progreso : [];
+    return items.map((p) => {
+      const requerido = Number(p?.requerido_unidades ?? 0);
+      const asignado = Number(p?.asignado_unidades ?? 0);
+      const faltante = Number(p?.faltante_unidades ?? Math.max(0, requerido - asignado));
+      const exceso = Number(p?.exceso_unidades ?? Math.max(0, asignado - requerido));
+      const bultosAsignados = Array.isArray(p?.bultos_asignados) ? p.bultos_asignados : [];
+      return {
+        id: p?.id_producto,
+        id_producto: p?.id_producto,
+        producto_nombre: p?.ProductoBase?.nombre || `Producto #${p?.id_producto ?? "—"}`,
+        requerido_unidades: requerido,
+        asignado_unidades: asignado,
+        faltante_unidades: faltante,
+        exceso_unidades: exceso,
+        bultos_asignados: bultosAsignados,
+      };
+    });
+  }, [progresoData]);
+
+  const filasExtraccion = useMemo(() => {
+    const rows = [];
+    for (const p of progresoRows) {
+      const bultos = Array.isArray(p?.bultos_asignados) ? p.bultos_asignados : [];
+      bultos.forEach((b, idx) => {
+        rows.push({
+          key: `${p?.id_producto ?? "p"}-${b?.id_pick ?? b?.id_bulto ?? b?.identificador ?? idx}`,
+          producto: p?.producto_nombre || "—",
+          bulto: b?.identificador || b?.id_bulto || "—",
+          pallet: b?.pallet_identificador || "—",
+          unidades_pickeadas: Number(b?.unidades_pickeadas ?? 0),
+        });
+      });
+    }
+    return rows;
+  }, [progresoRows]);
+
+  const canSend = orden?.estado === "Listo-para-despacho";
+  const canDeliver = orden?.estado === "Listo-para-despacho" || orden?.estado === "Enviado";
+
+  const handleEnviar = async () => {
+    if (!id) return;
+    if (!window.confirm("¿Enviar esta orden de venta?")) return;
+    try {
+      setSending(true);
+      const res = await api(`/ordenes-venta/${id}/enviar-orden`, { method: "PUT" });
+      const updated = res?.data?.orden || res?.orden;
+      if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
+      else setOrden((prev) => (prev ? { ...prev, estado: "Enviado" } : prev));
+      toast.success(res?.data?.message || "Orden enviada correctamente");
+    } catch (err) {
+      toast.error("No se pudo enviar la orden");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleEntregar = async () => {
+    if (!id) return;
+    if (!window.confirm("¿Confirmar la entrega exitosa de esta orden de venta?")) return;
+    try {
+      setDelivering(true);
+      const res = await api(`/ordenes-venta/${id}/entregar-orden`, { method: "PUT" });
+      const updated = res?.data?.orden || res?.orden;
+      if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
+      else setOrden((prev) => (prev ? { ...prev, estado: "Entregado" } : prev));
+      toast.success(res?.data?.message || "Orden entregada correctamente");
+    } catch (err) {
+      toast.error("No se pudo entregar la orden");
+    } finally {
+      setDelivering(false);
+    }
+  };
+
+  const formatDate = (value) => {
+    if (!value) return "—";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "—";
+    return d.toLocaleDateString("es-CL");
+  };
+
+  const fmtInt = (value) => {
+    const n = Number(value ?? 0);
+    if (!Number.isFinite(n)) return "0";
+    return new Intl.NumberFormat("es-CL").format(Math.trunc(n));
+  };
+
+  const getEstadoBadge = (estado) => {
+    if (!estado) return <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">—</span>;
+    const normalized = String(estado).toLowerCase();
+    const base = "px-3 py-1 rounded-full text-sm font-medium";
+    if (normalized.includes("pend")) return <span className={`${base} bg-amber-100 text-amber-800`}>Pendiente</span>;
+    if (normalized.includes("list")) return <span className={`${base} bg-blue-100 text-blue-700`}>Lista</span>;
+    if (normalized.includes("envi")) return <span className={`${base} bg-violet-100 text-violet-700`}>Enviada</span>;
+    if (normalized.includes("entreg")) return <span className={`${base} bg-green-100 text-green-700`}>Entregada</span>;
+    if (normalized.includes("cancel")) return <span className={`${base} bg-red-100 text-red-700`}>Cancelada</span>;
+    return <span className={`${base} bg-gray-100 text-gray-600`}>{estado}</span>;
+  };
 
   const totalProductos = useMemo(
     () =>
       orderItems.reduce(
         (sum, it) =>
           sum +
-          it.cantidad * it.precio_venta * (1 - (it.porcentaje_descuento || 0) / 100),
+          Number(it?.cantidad || 0) *
+            Number(it?.precio_venta || 0) *
+            (1 - (Number(it?.porcentaje_descuento || 0) || 0) / 100),
         0
       ),
     [orderItems]
@@ -109,13 +198,27 @@ export default function OrdenVentaDetail() {
   const iva = Math.round(totalNeto * 0.19);
   const total = totalNeto + iva;
 
-  if (!orden) return <div>Loading...</div>;
+  if (loading)
+    return (
+      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
+        Cargando...
+      </div>
+    );
+
+  if (!orden)
+    return (
+      <div className="p-6 bg-background min-h-screen flex items-center justify-center text-gray-500">
+        No se encontró la orden de venta
+      </div>
+    );
 
   return (
     <div className="p-6 bg-background min-h-screen">
-      <BackButton to="/ventas/ordenes" />
+      <div className="mb-4">
+        <BackButton to="/ventas/ordenes" />
+      </div>
       <div className="flex justify-between items-center my-4">
-        <h1 className="text-2xl font-bold">Detalle de Orden #{orden.id}</h1>
+        <h1 className="text-2xl font-bold text-text">Orden de Venta: {orden.id}</h1>
         <div className="flex gap-2">
           {/* ✅ NUEVO PDF FORMATO FACTURA */}
           <button
@@ -144,13 +247,16 @@ export default function OrdenVentaDetail() {
 
               // Datos cliente en tabla
               const clienteData = [
-                ["Fecha de Emisión", new Date(orden.fecha_orden).toLocaleDateString("es-CL")],
-                ["Cliente", cliente.nombre_empresa || ""],
-                ["Rut", cliente.rut || "-"],
-                ["Dirección", direccion.calle && direccion.numero 
-                  ? `${direccion.calle} ${direccion.numero}, ${direccion.comuna || ""}` 
-                  : direccion.nombre_sucursal || "-"],
-                ["Estado", orden.estado || "-"],
+                ["Fecha de Emisión", formatDate(orden.fecha_orden)],
+                ["Cliente", cliente?.nombre_empresa || "—"],
+                ["Rut", cliente?.rut || "—"],
+                [
+                  "Dirección",
+                  direccion?.calle && direccion?.numero
+                    ? `${direccion.calle} ${direccion.numero}, ${direccion.comuna || ""}`
+                    : direccion?.nombre_sucursal || "—",
+                ],
+                ["Estado", orden.estado || "—"],
               ];
               autoTable(doc, {
                 startY: 62,
@@ -163,12 +269,15 @@ export default function OrdenVentaDetail() {
 
               // Tabla productos
               const tableBody = orderItems.map((it) => {
-                const producto = products.find((p) => p.value === it.id_producto);
-                const subtotal = it.cantidad * it.precio_venta * (1 - (it.porcentaje_descuento || 0) / 100);
+                const productoNombre = it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`;
+                const subtotal =
+                  Number(it?.cantidad || 0) *
+                  Number(it?.precio_venta || 0) *
+                  (1 - (Number(it?.porcentaje_descuento || 0) || 0) / 100);
                 return [
-                  producto ? producto.label : it.id_producto,
-                  it.cantidad,
-                  formatCLP(it.precio_venta, 0),
+                  productoNombre,
+                  Number(it?.cantidad || 0),
+                  formatCLP(Number(it?.precio_venta || 0), 0),
                   formatCLP(subtotal, 0),
                 ];
               });
@@ -229,64 +338,199 @@ export default function OrdenVentaDetail() {
         </div>
       </div>
 
-      <div className="bg-gray-200 p-4 rounded mb-6">
-        <h2 className="text-xl font-semibold mb-2">Información</h2>
-        <table className="w-full bg-white rounded shadow">
-          <tbody>
-            <tr><td className="px-6 py-2 font-medium">Número OC</td><td className="px-6 py-2">{orden.numero_oc}</td></tr>
-            <tr><td className="px-6 py-2 font-medium">Costo de Envío</td><td className="px-6 py-2">{formatCLP(orden.costo_envio || 0, 0)}</td></tr>
-            <tr><td className="px-6 py-2 font-medium">Fecha Emisión OC</td><td className="px-6 py-2">{orden.fecha_orden ? new Date(orden.fecha_orden).toLocaleDateString("es-CL") : ""}</td></tr>
-            <tr><td className="px-6 py-2 font-medium">Fecha de Entrega</td><td className="px-6 py-2">{orden.fecha_envio ? new Date(orden.fecha_envio).toLocaleDateString("es-CL") : "-"}</td></tr>
-            <tr><td className="px-6 py-2 font-medium">Fecha Facturación</td><td className="px-6 py-2">{orden.fecha_facturacion ? new Date(orden.fecha_facturacion).toLocaleDateString("es-CL") : "-"}</td></tr>
-            <tr><td className="px-6 py-2 font-medium">Estado</td><td className="px-6 py-2">{orden.estado}</td></tr>
-            <tr>
-              <td className="px-6 py-2 font-medium">Dirección</td>
-              <td className="px-6 py-2">
-                {direccion.tipo_direccion || ""} {direccion.nombre_sucursal || ""} - {direccion.calle || ""} {direccion.numero || ""}, {direccion.comuna || ""}
-              </td>
-            </tr>
-            <tr><td className="px-6 py-2 font-medium">Cliente</td><td className="px-6 py-2">{cliente.nombre_empresa}</td></tr>
-            <tr><td className="px-6 py-2 font-medium">Total Neto</td><td className="px-6 py-2">{formatCLP(totalNeto, 0)}</td></tr>
-            <tr><td className="px-6 py-2 font-medium">Condiciones</td><td className="px-6 py-2">{orden.condiciones}</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div className="bg-gray-200 p-4 rounded mb-6">
-        <h2 className="text-xl font-semibold mb-2">Productos</h2>
-        <table className="w-full table-auto bg-white rounded shadow">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-2 text-left">Producto</th>
-              <th className="px-4 py-2 text-left">Cantidad</th>
-              <th className="px-4 py-2 text-left">Precio Unitario</th>
-              <th className="px-4 py-2 text-left">Descuento (%)</th>
-              <th className="px-4 py-2 text-left">Subtotal</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orderItems.map((item) => {
-              const producto = products.find((p) => p.value === item.id_producto);
-              const subtotal = item.cantidad * item.precio_venta * (1 - (item.porcentaje_descuento || 0) / 100);
-              return (
-                <tr key={item.id} className="border-t">
-                  <td className="px-4 py-2">{producto ? producto.label : `Producto #${item.id_producto}`}</td>
-                  <td className="px-4 py-2">{item.cantidad}</td>
-                  <td className="px-4 py-2">{formatCLP(item.precio_venta, 0)}</td>
-                  <td className="px-4 py-2">{item.porcentaje_descuento || 0}%</td>
-                  <td className="px-4 py-2">{formatCLP(subtotal, 0)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-6 flex justify-between items-center">
-        <div className="text-lg font-semibold">
-          Costo Envío: {formatCLP(costoEnvio, 0)} &nbsp;|&nbsp; Neto: {formatCLP(totalNeto, 0)} &nbsp;|&nbsp; IVA: {formatCLP(iva, 0)} &nbsp;|&nbsp;
-          <span className="text-primary">Total: {formatCLP(total, 0)}</span>
+      {/* Panel rápido (estilo OM/Solicitud) */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
+          <div className="text-xs text-gray-500 font-medium">CLIENTE</div>
+          <div className="font-bold text-text mt-1">
+            {cliente?.nombre_empresa || "—"}
+          </div>
+          <div className="text-xs text-gray-600 mt-2">RUT: {cliente?.rut || "—"}</div>
         </div>
+
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+          <div className="text-xs text-gray-500 font-medium">ESTADO</div>
+          <div className="mt-2">{getEstadoBadge(orden?.estado)}</div>
+          <div className="text-xs text-gray-600 mt-2">OC: {orden?.numero_oc || "—"}</div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+          <div className="text-xs text-gray-500 font-medium">TOTALES</div>
+          <div className="text-lg font-bold text-text mt-1">{formatCLP(total, 0)}</div>
+          <div className="text-xs text-gray-600 mt-2">Neto: {formatCLP(totalNeto, 0)} · IVA: {formatCLP(iva, 0)}</div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
+          <div className="text-xs text-gray-500 font-medium">BODEGA</div>
+          <div className="font-bold text-text mt-1">{bodega?.nombre || "—"}</div>
+          <div className="text-xs text-gray-600 mt-2">Despacho: {formatDate(orden?.fecha_envio)}</div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 className="text-base font-semibold text-text mb-3">Información</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+          <div className="bg-gray-50 rounded-lg border border-border p-3">
+            <div className="text-xs text-gray-500 font-medium">Dirección</div>
+            <div className="font-medium text-text mt-1">
+              {direccion?.tipo_direccion || ""} {direccion?.nombre_sucursal || ""}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              {direccion?.calle || ""} {direccion?.numero || ""}{direccion?.comuna ? `, ${direccion.comuna}` : ""}
+            </div>
+          </div>
+
+          <div className="bg-gray-50 rounded-lg border border-border p-3">
+            <div className="text-xs text-gray-500 font-medium">Fechas</div>
+            <div className="text-xs text-gray-600 mt-1">Emisión: {formatDate(orden?.fecha_orden)}</div>
+            <div className="text-xs text-gray-600">Despacho: {formatDate(orden?.fecha_envio)}</div>
+            <div className="text-xs text-gray-600">Facturación: {formatDate(orden?.fecha_facturacion)}</div>
+          </div>
+        </div>
+
+        <div className="mt-3 text-sm text-gray-700">
+          <span className="font-medium">Costo envío:</span> {formatCLP(costoEnvio, 0)} ·
+          <span className="font-medium"> Neto:</span> {formatCLP(totalNeto, 0)} ·
+          <span className="font-medium"> IVA:</span> {formatCLP(iva, 0)} ·
+          <span className="font-medium text-primary"> Total:</span> {formatCLP(total, 0)}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <h2 className="text-base font-semibold text-text mb-3">Resumen de asignación</h2>
+        {loadingProgreso ? (
+          <div className="text-sm text-gray-500">Cargando asignación...</div>
+        ) : progresoRows.length ? (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse border border-gray-300">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="border border-gray-300 px-4 py-2 text-left">Producto</th>
+                    <th className="border border-gray-300 px-4 py-2 text-right">Requerido (u)</th>
+                    <th className="border border-gray-300 px-4 py-2 text-right">Asignado (u)</th>
+                    <th className="border border-gray-300 px-4 py-2 text-right">Faltante (u)</th>
+                    <th className="border border-gray-300 px-4 py-2 text-right">Exceso (u)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {progresoRows.map((r) => (
+                    <tr key={r.id_producto ?? r.id} className="hover:bg-gray-50">
+                      <td className="border border-gray-300 px-4 py-2 whitespace-normal break-words">{r.producto_nombre}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(r.requerido_unidades)}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(r.asignado_unidades)}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(r.faltante_unidades)}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(r.exceso_unidades)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-text mb-2">Detalle de extracción por bulto</h3>
+              {filasExtraccion.length === 0 ? (
+                <div className="text-sm text-gray-500">No hay bultos asignados.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-300">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="border border-gray-300 px-4 py-2 text-left">Producto</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Bulto</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Pallet</th>
+                        <th className="border border-gray-300 px-4 py-2 text-right">Unidades pickeadas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filasExtraccion.map((row) => (
+                        <tr key={row.key} className="hover:bg-gray-50">
+                          <td className="border border-gray-300 px-4 py-2 whitespace-normal break-words">{row.producto}</td>
+                          <td className="border border-gray-300 px-4 py-2">{row.bulto}</td>
+                          <td className="border border-gray-300 px-4 py-2">{row.pallet}</td>
+                          <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(row.unidades_pickeadas)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="text-sm text-gray-500">Sin asignación registrada.</div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4">
+        <h2 className="text-base font-semibold text-text mb-3">Productos</h2>
+        <Table
+          columns={[
+            {
+              header: "Producto",
+              accessor: "producto_nombre",
+              cellClassName: "whitespace-normal break-words",
+            },
+            { header: "Cantidad", accessor: "cantidad" },
+            {
+              header: "Precio Unit.",
+              accessor: "precio_venta",
+              Cell: ({ value }) => formatCLP(Number(value || 0), 0),
+            },
+            {
+              header: "Desc. (%)",
+              accessor: "porcentaje_descuento",
+              Cell: ({ value }) => `${Number(value || 0)}%`,
+            },
+            {
+              header: "Subtotal",
+              accessor: "subtotal",
+              Cell: ({ value }) => formatCLP(Number(value || 0), 0),
+            },
+          ]}
+          data={orderItems.map((it) => {
+            const subtotal =
+              Number(it?.cantidad || 0) *
+              Number(it?.precio_venta || 0) *
+              (1 - (Number(it?.porcentaje_descuento || 0) || 0) / 100);
+            return {
+              id: it?.id,
+              producto_nombre: it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`,
+              cantidad: Number(it?.cantidad || 0),
+              precio_venta: Number(it?.precio_venta || 0),
+              porcentaje_descuento: Number(it?.porcentaje_descuento || 0),
+              subtotal,
+            };
+          })}
+        />
+      </div>
+
+      <div className="mt-6 flex justify-end gap-2">
+        <button
+          onClick={handleEnviar}
+          disabled={!canSend || sending || delivering}
+          className={`px-4 py-2 rounded-md text-white ${
+            !canSend || sending || delivering
+              ? "bg-gray-300 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700"
+          }`}
+          title={canSend ? "Enviar" : "Disponible solo cuando esté Listo-para-despacho"}
+        >
+          {sending ? "Enviando..." : "Enviar"}
+        </button>
+
+        <button
+          onClick={handleEntregar}
+          disabled={!canDeliver || delivering || sending}
+          className={`px-4 py-2 rounded-md text-white ${
+            !canDeliver || delivering || sending
+              ? "bg-gray-300 cursor-not-allowed"
+              : "bg-green-600 hover:bg-green-700"
+          }`}
+          title={canDeliver ? "Entregar" : "Disponible solo cuando esté Enviado o Listo-para-despacho"}
+        >
+          {delivering ? "Entregando..." : "Entregar"}
+        </button>
       </div>
     </div>
   );
