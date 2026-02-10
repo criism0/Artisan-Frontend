@@ -51,6 +51,36 @@ const mostrarNumeroExacto = (num) => {
   return str;
 };
 
+const UNDER_TOL_PCT = 0.05;
+const OVER_TOL_PCT = 0.01;
+const MIN_TOL_ABS = 0.0001;
+const SUM_SCALE = 1000;
+
+const toScaledInt = (v) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * SUM_SCALE);
+};
+
+const sumScaled = (values) => {
+  const arr = Array.isArray(values) ? values : [];
+  const totalInt = arr.reduce((acc, v) => acc + toScaledInt(v), 0);
+  return totalInt / SUM_SCALE;
+};
+
+const getUnderTolAbs = (pesoNecesario) =>
+  Math.max(MIN_TOL_ABS, Number(pesoNecesario || 0) * UNDER_TOL_PCT);
+
+const getOverTolAbs = (pesoNecesario) =>
+  Math.max(MIN_TOL_ABS, Number(pesoNecesario || 0) * OVER_TOL_PCT);
+
+const isAsignacionSuficiente = (pesoUtilizado, pesoNecesario) => {
+  const necesario = formatDecimal(Number(pesoNecesario || 0));
+  const utilizado = formatDecimal(Number(pesoUtilizado || 0));
+  const tol = getUnderTolAbs(necesario);
+  return utilizado >= necesario - tol;
+};
+
 export default function AsignarInsumos() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -89,6 +119,11 @@ export default function AsignarInsumos() {
   const [noPasosConfirmTitle, setNoPasosConfirmTitle] = useState("");
   const [noPasosConfirmDescription, setNoPasosConfirmDescription] = useState("");
   const [pendingAction, setPendingAction] = useState(null);
+
+  const [desfaseConfirmOpen, setDesfaseConfirmOpen] = useState(false);
+  const [desfaseConfirmTitle, setDesfaseConfirmTitle] = useState("");
+  const [desfaseConfirmDescription, setDesfaseConfirmDescription] = useState("");
+  const [desfasePendingAction, setDesfasePendingAction] = useState(null);
 
   const parsePasosResponse = (data) => {
     if (Array.isArray(data)) return data;
@@ -197,6 +232,13 @@ export default function AsignarInsumos() {
     setPendingAction(null);
   };
 
+  const closeDesfaseConfirm = () => {
+    setDesfaseConfirmOpen(false);
+    setDesfaseConfirmTitle("");
+    setDesfaseConfirmDescription("");
+    setDesfasePendingAction(null);
+  };
+
   const runWithNoPasosConfirmation = async (action, label) => {
     const computedHasPasos = await ensureHasPasos();
     if (computedHasPasos) {
@@ -290,32 +332,30 @@ export default function AsignarInsumos() {
     const insumoActual = insumos.find((i) => i.id === idRegistro);
     const pesoUtilizadoActual = Number(insumoActual?.peso_utilizado ?? 0);
     const pesoFaltante = Math.max(0, Number(pesoNecesario) - pesoUtilizadoActual);
+    const target = pesoFaltante;
 
     const bultosFormateados = bultosAsignados.map(b => ({
       ...b,
       peso_utilizado: formatDecimal(b.peso_utilizado)
     }));
 
-    const totalAsignado = bultosFormateados.reduce(
-      (acc, b) => acc + b.peso_utilizado,
-      0
-    );
+    const totalAsignado = sumScaled(bultosFormateados.map((b) => b.peso_utilizado));
 
-    const tolerancia = Math.max(0.0001, pesoNecesario * 0.01);
-    const diferencia = totalAsignado - pesoNecesario;
+    const tolerancia = getOverTolAbs(target);
+    const diferencia = totalAsignado - target;
     
     if (diferencia > 0 && diferencia <= tolerancia) {
       const ultimoBulto = bultosFormateados[bultosFormateados.length - 1];
-      const sumaAnteriores = bultosFormateados.slice(0, -1).reduce((acc, b) => acc + b.peso_utilizado, 0);
-      const pesoAjustado = pesoNecesario - sumaAnteriores;
+      const sumaAnteriores = sumScaled(bultosFormateados.slice(0, -1).map((b) => b.peso_utilizado));
+      const pesoAjustado = target - sumaAnteriores;
       
       if (pesoAjustado > 0) {
         ultimoBulto.peso_utilizado = formatDecimal(pesoAjustado);
       }
     }
     
-    const totalFinal = bultosFormateados.reduce((acc, b) => acc + b.peso_utilizado, 0);
-    const diferenciaFinal = totalFinal - pesoNecesario;
+    const totalFinal = sumScaled(bultosFormateados.map((b) => b.peso_utilizado));
+    const diferenciaFinal = totalFinal - target;
     
     if (diferenciaFinal > tolerancia) {
       const u = unidadMedida ? ` ${unidadMedida}` : "";
@@ -368,16 +408,32 @@ export default function AsignarInsumos() {
     try {
       for (const insumo of insumos) {
         const idRegistro = insumo.id;
+        const nombreInsumo =
+          insumo?.ingredienteReceta?.materiaPrima?.nombre || `Registro ${idRegistro}`;
+        const unidadMedida = insumo?.ingredienteReceta?.unidad_medida || '';
+        const u = unidadMedida ? ` ${unidadMedida}` : '';
 
-        if (insumo.peso_utilizado > 0) continue;
+        const pesoNecesario = Number(insumo.peso_necesario || 0);
+        const pesoUtilizadoActual = Number(insumo.peso_utilizado || 0);
+        const underTol = getUnderTolAbs(pesoNecesario);
 
-        const pesoNecesario = insumo.peso_necesario;
+        // Si ya hay peso asignado, al menos validamos que esté dentro de tolerancia.
+        if (pesoUtilizadoActual > 0) {
+          if (!isAsignacionSuficiente(pesoUtilizadoActual, pesoNecesario)) {
+            const faltan = mostrarNumeroExacto(formatDecimal(pesoNecesario) - formatDecimal(pesoUtilizadoActual));
+            toast.error(
+              `"${nombreInsumo}": faltan ${faltan}${u} para cumplir el mínimo (tolerancia ${Math.round(UNDER_TOL_PCT * 100)}%).`
+            );
+            return false;
+          }
+          continue;
+        }
         const bultosAsignados =
           asignaciones[idRegistro]?.filter((b) => b.peso_utilizado > 0) || [];
 
         if (bultosAsignados.length === 0) {
           toast.error(
-            `El insumo "${insumo.ingredienteReceta.materiaPrima.nombre}" no tiene bultos asignados.`
+            `El insumo "${nombreInsumo}" no tiene bultos asignados.`
           );
           return;
         }
@@ -387,21 +443,36 @@ export default function AsignarInsumos() {
           peso_utilizado: formatDecimal(b.peso_utilizado)
         }));
 
-        const totalAsignado = bultosFormateados.reduce(
-          (acc, b) => acc + b.peso_utilizado,
-          0
-        );
+        const totalAsignado = sumScaled(bultosFormateados.map((b) => b.peso_utilizado));
+        const overTol = getOverTolAbs(pesoNecesario);
+        const diferencia = totalAsignado - pesoNecesario;
 
-        const tolerancia = Math.max(0.0001, pesoNecesario * 0.01);
-        if (totalAsignado > pesoNecesario + tolerancia) {
-          const unidadMedida = insumo?.ingredienteReceta?.unidad_medida || '';
-          const u = unidadMedida ? ` ${unidadMedida}` : '';
+        // Auto-ajuste si quedó levemente por encima (mismo comportamiento que asignación individual)
+        if (diferencia > 0 && diferencia <= overTol) {
+          const ultimoBulto = bultosFormateados[bultosFormateados.length - 1];
+          const sumaAnteriores = sumScaled(bultosFormateados.slice(0, -1).map((b) => b.peso_utilizado));
+          const pesoAjustado = pesoNecesario - sumaAnteriores;
+          if (pesoAjustado > 0) {
+            ultimoBulto.peso_utilizado = formatDecimal(pesoAjustado);
+          }
+        }
+
+        const totalFinal = sumScaled(bultosFormateados.map((b) => b.peso_utilizado));
+        if (totalFinal > pesoNecesario + overTol) {
           toast.error(
-            `Estás intentando asignar ${mostrarNumeroExacto(totalAsignado)}${u} ` +
-              `pero solo hacen falta ${mostrarNumeroExacto(pesoNecesario)}${u} ` +
-              `para "${insumo.ingredienteReceta.materiaPrima.nombre}".`
+            `"${nombreInsumo}": estás asignando ${mostrarNumeroExacto(totalFinal)}${u} ` +
+              `pero el objetivo es ${mostrarNumeroExacto(pesoNecesario)}${u}. Corrige para continuar.`
           );
-          return;
+          return false;
+        }
+
+        // Validación de mínimo (tolerancia por debajo)
+        if (!isAsignacionSuficiente(totalFinal, pesoNecesario)) {
+          const faltan = mostrarNumeroExacto(formatDecimal(pesoNecesario) - formatDecimal(totalFinal));
+          toast.error(
+            `"${nombreInsumo}": faltan ${faltan}${u} para cumplir el mínimo (tolerancia ${Math.round(UNDER_TOL_PCT * 100)}%).`
+          );
+          return false;
         }
 
         const payload = {
@@ -436,9 +507,86 @@ export default function AsignarInsumos() {
   };
 
   const handleConfirmarAsignacion = async () => {
-    const ok = await handleAsignarTodo();
-    if (!ok) return;
-    navigate(`/Orden_de_Manufactura/${id}`);
+    const warnings = [];
+    for (const insumo of insumos) {
+      const idRegistro = insumo.id;
+      const nombreInsumo =
+        insumo?.ingredienteReceta?.materiaPrima?.nombre || `Registro ${idRegistro}`;
+      const unidadMedida = insumo?.ingredienteReceta?.unidad_medida || '';
+      const u = unidadMedida ? ` ${unidadMedida}` : '';
+
+      const pesoNecesario = Number(insumo.peso_necesario || 0);
+      const pesoUtilizadoActual = Number(insumo.peso_utilizado || 0);
+
+      let utilizadoFinal = pesoUtilizadoActual;
+      if (pesoUtilizadoActual <= 0) {
+        const bultosAsignados =
+          asignaciones[idRegistro]?.filter((b) => b.peso_utilizado > 0) || [];
+        if (bultosAsignados.length === 0) {
+          toast.error(`El insumo "${nombreInsumo}" no tiene bultos asignados.`);
+          return;
+        }
+        const bultosFormateados = bultosAsignados.map((b) => ({
+          ...b,
+          peso_utilizado: formatDecimal(b.peso_utilizado),
+        }));
+        utilizadoFinal = sumScaled(bultosFormateados.map((b) => b.peso_utilizado));
+      }
+
+      const underTol = getUnderTolAbs(pesoNecesario);
+      const overTol = getOverTolAbs(pesoNecesario);
+      const diff = formatDecimal(utilizadoFinal) - formatDecimal(pesoNecesario);
+
+      if (diff < 0 && Math.abs(diff) > underTol) {
+        toast.error(
+          `"${nombreInsumo}": estás ${mostrarNumeroExacto(Math.abs(diff))}${u} por debajo del mínimo permitido (${Math.round(
+            UNDER_TOL_PCT * 100
+          )}%).`
+        );
+        return;
+      }
+
+      if (diff > 0 && diff > overTol) {
+        toast.error(
+          `"${nombreInsumo}": estás ${mostrarNumeroExacto(diff)}${u} por encima del objetivo. Corrige para continuar.`
+        );
+        return;
+      }
+
+      if (diff < 0 && Math.abs(diff) <= underTol) {
+        warnings.push(
+          `- ${nombreInsumo}: ${mostrarNumeroExacto(Math.abs(diff))}${u} por debajo del objetivo (${mostrarNumeroExacto(pesoNecesario)}${u})`
+        );
+      }
+
+      if (diff > 0 && diff <= overTol) {
+        warnings.push(
+          `- ${nombreInsumo}: ${mostrarNumeroExacto(diff)}${u} por encima del objetivo (${mostrarNumeroExacto(pesoNecesario)}${u})`
+        );
+      }
+    }
+
+    const ejecutar = async () => {
+      const ok = await handleAsignarTodo();
+      if (!ok) return;
+      navigate(`/Orden_de_Manufactura/${id}`);
+    };
+
+    if (warnings.length > 0) {
+      setDesfaseConfirmTitle('Asignación con tolerancia');
+      setDesfaseConfirmDescription(
+        `Algunos insumos quedaron bajo el objetivo, pero dentro del margen permitido (${Math.round(
+          UNDER_TOL_PCT * 100
+        )}%).\n\n` +
+          warnings.join('\n') +
+          `\n\n¿Deseas continuar?`
+      );
+      setDesfasePendingAction(() => ejecutar);
+      setDesfaseConfirmOpen(true);
+      return;
+    }
+
+    await ejecutar();
   };
 
   return (
@@ -480,6 +628,24 @@ export default function AsignarInsumos() {
         cancelText="Cancelar"
       />
 
+      <ConfirmActionModal
+        isOpen={desfaseConfirmOpen}
+        onClose={closeDesfaseConfirm}
+        onConfirm={async () => {
+          try {
+            if (typeof desfasePendingAction === 'function') {
+              await desfasePendingAction();
+            }
+          } finally {
+            closeDesfaseConfirm();
+          }
+        }}
+        title={desfaseConfirmTitle || 'Confirmar'}
+        description={desfaseConfirmDescription}
+        confirmText="Sí, continuar"
+        cancelText="Cancelar"
+      />
+
       <div className="mb-4">
         <BackButton to={`/Orden_de_Manufactura/${id}`} />
       </div>
@@ -497,7 +663,8 @@ export default function AsignarInsumos() {
         const bultos = isVariable && Number.isFinite(mpSeleccionada)
           ? allBultos.filter((b) => Number(b?.id_materia_prima) === mpSeleccionada)
           : allBultos;
-        const yaAsignado = insumo.peso_utilizado >= insumo.peso_necesario;
+        const yaAsignado = isAsignacionSuficiente(insumo.peso_utilizado, insumo.peso_necesario);
+        const objetivoCubierto = formatDecimal(Number(insumo.peso_utilizado || 0)) >= formatDecimal(Number(insumo.peso_necesario || 0));
 
         const unidadMedida = insumo?.ingredienteReceta?.unidad_medida || "";
         const sufijoUnidad = unidadMedida ? ` ${unidadMedida}` : "";
@@ -515,7 +682,11 @@ export default function AsignarInsumos() {
               <div className="text-sm text-gray-700">
                 <span className="font-medium">Asignado:</span> {mostrarNumeroExacto(insumo.peso_utilizado)} / {mostrarNumeroExacto(insumo.peso_necesario)}{sufijoUnidad}
                 {yaAsignado && (
-                  <span className="ml-2 px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-medium">OK</span>
+                  objetivoCubierto ? (
+                    <span className="ml-2 px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-medium">OK</span>
+                  ) : (
+                    <span className="ml-2 px-2 py-1 rounded bg-yellow-100 text-yellow-700 text-xs font-medium">OK (tol.)</span>
+                  )
                 )}
               </div>
             </div>
