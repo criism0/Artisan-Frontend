@@ -27,6 +27,14 @@ export default function ProduccionFinal() {
     fecha_vencimiento: "",
   });
 
+  const [ptForm, setPtForm] = useState({
+    cajas_obtenidas: "",
+    unidades_sueltas: "",
+  });
+
+  const [productoBasePT, setProductoBasePT] = useState(null);
+  const [loadingProductoBasePT, setLoadingProductoBasePT] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -82,6 +90,74 @@ export default function ProduccionFinal() {
   }, [om?.receta?.dias_vida_util, form.fecha_vencimiento]);
 
   const esPT = Boolean(om?.receta?.id_producto_base);
+
+  useEffect(() => {
+    const idProductoBase = Number(om?.receta?.id_producto_base);
+    if (!esPT || !Number.isFinite(idProductoBase) || idProductoBase <= 0) {
+      setProductoBasePT(null);
+      setLoadingProductoBasePT(false);
+      return;
+    }
+
+    let mounted = true;
+    (async () => {
+      try {
+        setLoadingProductoBasePT(true);
+        const pb = await api(`/productos-base/${encodeURIComponent(idProductoBase)}`);
+        if (!mounted) return;
+        setProductoBasePT(pb);
+      } catch (_err) {
+        if (!mounted) return;
+        setProductoBasePT(null);
+      } finally {
+        if (mounted) setLoadingProductoBasePT(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [esPT, om?.receta?.id_producto_base]);
+
+  const unidadesPorCajaPT = useMemo(() => {
+    if (!esPT) return null;
+    const candidates = [
+      productoBasePT?.unidades_por_caja,
+      om?.productoBase?.unidades_por_caja,
+      om?.receta?.productoBase?.unidades_por_caja,
+      om?.receta?.ProductoBase?.unidades_por_caja,
+      om?.receta?.producto_base?.unidades_por_caja,
+      om?.producto_base?.unidades_por_caja,
+      om?.receta?.unidades_por_caja,
+    ];
+
+    for (const c of candidates) {
+      const n = Number(c);
+      if (Number.isFinite(n) && n > 0) return Math.trunc(n);
+    }
+    return null;
+  }, [esPT, om, productoBasePT]);
+
+  const totalUnidadesPT = useMemo(() => {
+    if (!esPT || !unidadesPorCajaPT) return NaN;
+    const cajas = ptForm.cajas_obtenidas === "" ? 0 : Math.trunc(Number(ptForm.cajas_obtenidas));
+    const sueltas = ptForm.unidades_sueltas === "" ? 0 : Math.trunc(Number(ptForm.unidades_sueltas));
+    if (!Number.isFinite(cajas) || cajas < 0) return NaN;
+    if (!Number.isFinite(sueltas) || sueltas < 0) return NaN;
+    return cajas * unidadesPorCajaPT + sueltas;
+  }, [esPT, unidadesPorCajaPT, ptForm.cajas_obtenidas, ptForm.unidades_sueltas]);
+
+  useEffect(() => {
+    if (!esPT || !unidadesPorCajaPT) return;
+    if (!Number.isFinite(totalUnidadesPT)) return;
+
+    setPreview(null);
+    setForm((s) => {
+      const next = String(totalUnidadesPT);
+      if (String(s.unidades_obtenidas ?? "") === next) return s;
+      return { ...s, unidades_obtenidas: next };
+    });
+  }, [esPT, unidadesPorCajaPT, totalUnidadesPT]);
 
   const pesoTotalNumber = useMemo(() => Number(form.peso_obtenido), [form.peso_obtenido]);
   const unidadesNumber = useMemo(() => Number(form.unidades_obtenidas), [form.unidades_obtenidas]);
@@ -609,24 +685,93 @@ export default function ProduccionFinal() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
-                Unidades obtenidas
-              </label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-                value={form.unidades_obtenidas}
-                onChange={(e) => setField("unidades_obtenidas", e.target.value)}
-                placeholder="5"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                {esPT
-                  ? "Se asignará automáticamente el peso promedio a cada unidad."
-                  : "En PIP puedes ajustar el peso de cada bulto si obtuviste unidades desiguales."}
-              </p>
+              {esPT ? (
+                <div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Cajas obtenidas</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                        value={ptForm.cajas_obtenidas}
+                        onChange={(e) => {
+                          setPreview(null);
+                          setPtForm((s) => ({ ...s, cajas_obtenidas: e.target.value }));
+                        }}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Unidades sueltas</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                        value={ptForm.unidades_sueltas}
+                        onChange={(e) => {
+                          setPreview(null);
+                          setPtForm((s) => ({ ...s, unidades_sueltas: e.target.value }));
+                        }}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-500 mt-1">
+                    Unid/caja:{" "}
+                    <span className="font-semibold">
+                      {unidadesPorCajaPT ? unidadesPorCajaPT : loadingProductoBasePT ? "Cargando…" : "No disponible"}
+                    </span>
+                    {unidadesPorCajaPT ? (
+                      <>
+                        {" "}· Total calculado:{" "}
+                        <span className="font-semibold">
+                          {Number.isFinite(totalUnidadesPT) ? formatNumberCL(totalUnidadesPT, 0) : "—"}
+                        </span>{" "}
+                        unidades.
+                      </>
+                    ) : null}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">Se asignará automáticamente el peso promedio a cada unidad.</p>
+
+                  {!unidadesPorCajaPT && !loadingProductoBasePT ? (
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium mb-1">Unidades obtenidas (manual)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                        value={form.unidades_obtenidas}
+                        onChange={(e) => setField("unidades_obtenidas", e.target.value)}
+                        placeholder="5"
+                        required
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        No se pudo determinar las unidades por caja del PT. Puedes continuar ingresando las unidades manualmente.
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Unidades obtenidas</label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                    value={form.unidades_obtenidas}
+                    onChange={(e) => setField("unidades_obtenidas", e.target.value)}
+                    placeholder="5"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">En PIP puedes ajustar el peso de cada bulto si obtuviste unidades desiguales.</p>
+                </div>
+              )}
             </div>
 
             {!esPT && unidadesNumber > 1 ? (

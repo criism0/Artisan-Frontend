@@ -50,6 +50,40 @@ export default function EjecutarPasosPVA() {
 
   const [bultosSalida, setBultosSalida] = useState([]);
   const [bultosCollapsed, setBultosCollapsed] = useState(true);
+  const [pesoFinalObtenido, setPesoFinalObtenido] = useState("");
+
+  const round2 = (n) => {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return 0;
+    return Math.round(x * 100) / 100;
+  };
+
+  const prorratearPesoEquitativo = (totalKg, rows) => {
+    const total = Number(totalKg);
+    if (!Number.isFinite(total) || total <= 0) return rows;
+
+    const salidaIdx = [];
+    rows.forEach((r, idx) => {
+      if (!r?.eliminar) salidaIdx.push(idx);
+    });
+    const n = salidaIdx.length;
+    if (n <= 0) return rows;
+
+    // Reparto con 2 decimales, ajustando el último para cuadrar el total.
+    const totalCents = Math.round(total * 100);
+    const base = Math.floor(totalCents / n);
+    const rem = totalCents - base * n;
+
+    let used = 0;
+    const next = rows.map((r) => ({ ...r }));
+    for (let i = 0; i < n; i++) {
+      const idx = salidaIdx[i];
+      const cents = base + (i === n - 1 ? rem : 0);
+      used += cents;
+      next[idx].peso_unitario = (cents / 100).toFixed(2);
+    }
+    return next;
+  };
 
   const toInputDate = (d) => {
     if (!d) return "";
@@ -306,21 +340,23 @@ export default function EjecutarPasosPVA() {
       [];
 
     // Inicializar salida por bulto (modo confirmación)
-    setBultosSalida(
-      (bultosLote || []).map((b) => ({
-        id_bulto: b?.id,
-        identificador:
-          b?.identificador ??
-          b?.codigo ??
-          b?.codigo_interno ??
-          b?.numero ??
-          b?.folio ??
-          b?.id,
-        peso_unitario: Number(b?.peso_unitario ?? 0),
-        eliminar: false,
-      }))
-    );
+    const salidaInit = (bultosLote || []).map((b) => ({
+      id_bulto: b?.id,
+      identificador:
+        b?.identificador ??
+        b?.codigo ??
+        b?.codigo_interno ??
+        b?.numero ??
+        b?.folio ??
+        b?.id,
+      peso_unitario: Number(b?.peso_unitario ?? 0),
+      eliminar: false,
+    }));
+    setBultosSalida(salidaInit);
     setBultosCollapsed(true);
+
+    const totalInicial = (salidaInit || []).reduce((acc, r) => acc + Number(r?.peso_unitario || 0), 0);
+    setPesoFinalObtenido(totalInicial > 0 ? String(round2(totalInicial)) : "");
 
     setFormCompletar({
       peso_retirado: "",
@@ -660,6 +696,44 @@ export default function EjecutarPasosPVA() {
                 Confirma bultos de salida y ajusta el peso si cambió.
               </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+                    <div className="sm:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Peso final obtenido (kg)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={pesoFinalObtenido}
+                        disabled={saving}
+                        onChange={(e) => setPesoFinalObtenido(e.target.value)}
+                        className="border w-full rounded px-3 h-10"
+                        placeholder="Ej: 120.50"
+                      />
+                      <div className="mt-1 text-xs text-gray-500">
+                        Puedes prorratear este peso entre los bultos y luego ajustar manualmente.
+                      </div>
+                    </div>
+                    <div>
+                      {/* Placeholder para alinear con el label del input */}
+                      <div aria-hidden className="block text-sm font-medium text-transparent select-none">
+                        Peso final obtenido (kg)
+                      </div>
+                      <button
+                        type="button"
+                        disabled={saving || !Number.isFinite(Number(pesoFinalObtenido)) || Number(pesoFinalObtenido) <= 0}
+                        onClick={() => {
+                          setBultosSalida((prev) => prorratearPesoEquitativo(pesoFinalObtenido, Array.isArray(prev) ? prev : []));
+                          setBultosCollapsed(false);
+                        }}
+                        className="w-full px-4 h-10 rounded bg-primary text-white hover:bg-hover disabled:opacity-60 text-sm"
+                      >
+                        Repartir equitativamente
+                      </button>
+                    </div>
+                  </div>
+
               <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded p-3">
                 <div>
                   <strong>Resumen:</strong> {resumenSalida.bultosSalida}/{resumenSalida.totalBultos} bultos de salida
@@ -667,6 +741,12 @@ export default function EjecutarPasosPVA() {
                 <div>
                   <strong>Peso total salida:</strong> {formatNumberCL(resumenSalida.pesoTotal, 2)} kg
                 </div>
+                {Number.isFinite(Number(pesoFinalObtenido)) && Number(pesoFinalObtenido) > 0 ? (
+                  <div>
+                    <strong>Objetivo:</strong> {formatNumberCL(Number(pesoFinalObtenido), 2)} kg · <strong>Diferencia:</strong>{" "}
+                    {formatNumberCL(round2(Number(pesoFinalObtenido) - Number(resumenSalida.pesoTotal || 0)), 2)} kg
+                  </div>
+                ) : null}
               </div>
 
               <div className="border border-gray-200 rounded">

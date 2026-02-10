@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import ConfirmModal from "../../components/ConfirmModal";
+import Selector from "../../components/Selector";
 import { buildOcEmailItemsFromOrden, notifyOrderChange } from "../../services/emailService";
 import { useAuth } from "../../auth/AuthContext";
 
@@ -143,6 +144,62 @@ export default function EditOrden() {
     };
     fetchInsumos();
   }, [form.id_proveedor]);
+
+  const setFormField = (name, value) => {
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const proveedoresOptions = useMemo(
+    () =>
+      (proveedores || []).map((p) => ({
+        label: p.nombre_empresa || p.nombre || `Proveedor #${p.id}`,
+        value: String(p.id),
+        searchText: `${p.nombre_empresa || ""} ${p.nombre || ""} ${p.rut || ""}`.trim(),
+      })),
+    [proveedores]
+  );
+
+  const bodegasOptions = useMemo(
+    () =>
+      (bodegas || []).map((b) => ({
+        label: b.nombre || `Bodega #${b.id}`,
+        value: String(b.id),
+        searchText: `${b.nombre || ""}`.trim(),
+      })),
+    [bodegas]
+  );
+
+  const materiasPrimasAgrupadas = useMemo(() => {
+    const groups = new Map();
+    for (const row of materiasPrimas || []) {
+      const mp = row?.materiaPrima;
+      const key = mp?.id != null ? `mp:${mp.id}` : `row:${row?.id}`;
+      if (!groups.has(key)) groups.set(key, { materiaPrima: mp, rows: [] });
+      groups.get(key).rows.push(row);
+    }
+
+    const sorted = Array.from(groups.values()).sort((a, b) =>
+      String(a?.materiaPrima?.nombre ?? "").localeCompare(
+        String(b?.materiaPrima?.nombre ?? ""),
+        "es"
+      )
+    );
+
+    for (const g of sorted) {
+      g.rows.sort((a, b) => {
+        const fa = String(a?.formato ?? "");
+        const fb = String(b?.formato ?? "");
+        const cmp = fa.localeCompare(fb, "es");
+        if (cmp !== 0) return cmp;
+        return (Number(a?.cantidad_por_formato) || 0) - (Number(b?.cantidad_por_formato) || 0);
+      });
+    }
+
+    return sorted;
+  }, [materiasPrimas]);
 
   // Si la OC carga insumos seleccionados después del fetch del proveedor,
   // aseguramos que se reflejen en la tabla (cantidad/precio).
@@ -340,19 +397,18 @@ export default function EditOrden() {
         {/* === Selección de proveedor === */}
         <div>
           <label className="block font-semibold mb-1">Proveedor:</label>
-          <select
-            name="id_proveedor"
-            value={form.id_proveedor}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">Seleccione proveedor</option>
-            {proveedores.map((prov) => (
-              <option key={prov.id} value={prov.id}>
-                {prov.nombre_empresa || prov.nombre}
-              </option>
-            ))}
-          </select>
+          <Selector
+            options={proveedoresOptions}
+            selectedValue={form.id_proveedor}
+            onSelect={(value) => {
+              // Cambiar proveedor invalida el set de insumos seleccionados.
+              setFormField("id_proveedor", String(value ?? ""));
+              setMateriasPrimas([]);
+              setInsumosSeleccionados([]);
+            }}
+            useFuzzy
+            className="p-2 border rounded"
+          />
           {formErrors.id_proveedor && (
             <p className="text-red-600 text-sm mt-1">{formErrors.id_proveedor}</p>
           )}
@@ -361,19 +417,13 @@ export default function EditOrden() {
         {/* === Bodega === */}
         <div>
           <label className="block font-semibold mb-1">Bodega:</label>
-          <select
-            name="id_bodega"
-            value={form.id_bodega}
-            onChange={handleChange}
-            className="w-full p-2 border rounded"
-          >
-            <option value="">Seleccione bodega</option>
-            {bodegas.map((bod) => (
-              <option key={bod.id} value={bod.id}>
-                {bod.nombre}
-              </option>
-            ))}
-          </select>
+          <Selector
+            options={bodegasOptions}
+            selectedValue={form.id_bodega}
+            onSelect={(value) => setFormField("id_bodega", String(value ?? ""))}
+            useFuzzy
+            className="p-2 border rounded"
+          />
           {formErrors.id_bodega && (
             <p className="text-red-600 text-sm mt-1">{formErrors.id_bodega}</p>
           )}
@@ -433,55 +483,68 @@ export default function EditOrden() {
                     </tr>
                   </thead>
                   <tbody>
-                    {materiasPrimas.map((insumo) => (
-                      <tr
-                        key={insumo.id}
-                        className="border-t border-gray-200 hover:bg-gray-50"
+                    {materiasPrimasAgrupadas.map((g) => (
+                      <Fragment
+                        key={
+                          g?.materiaPrima?.id != null
+                            ? `mp:${g.materiaPrima.id}`
+                            : `mp:${g?.materiaPrima?.nombre ?? "sin-nombre"}`
+                        }
                       >
-                        <td className="px-4 py-3 font-medium text-gray-800">
-                          {insumo.formato || ``} -{" "}
-                          {insumo.materiaPrima?.nombre || `Insumo ${insumo.id}`}{" "}
-                          ({insumo.cantidad_por_formato || "N/A"}{" "}
-                          {insumo.materiaPrima?.unidad_medida || "unidad"})
-                        </td>
+                        <tr className="bg-gray-50 border-t border-gray-200">
+                          <td className="px-4 py-2 font-semibold text-gray-800" colSpan={3}>
+                            {g?.materiaPrima?.nombre || "Insumo"}
+                          </td>
+                        </tr>
 
-                        <td className="px-4 py-3 text-center">
-                          <input
-                            type="number"
-                            min="0"
-                            placeholder="0"
-                            value={insumo.cantidad_formato ?? ""}
-                            onChange={(e) =>
-                              handleCantidadChange(
-                                insumo,
-                                e.target.value
-                              )
-                            }
-                            className="w-20 border border-gray-300 rounded-md px-2 py-1 text-center text-sm"
-                            step="any"
-                          />
-                        </td>
+                        {g.rows.map((insumo) => (
+                          <tr
+                            key={insumo.id}
+                            className="border-t border-gray-200 hover:bg-gray-50"
+                          >
+                            <td className="px-4 py-3 font-medium text-gray-800">
+                              <div className="pl-3">
+                                <div className="text-gray-700">{insumo.formato || "—"}</div>
+                                <div className="text-xs text-gray-500">
+                                  {insumo.cantidad_por_formato == null ? "N/A" : insumo.cantidad_por_formato}{" "}
+                                  {insumo.materiaPrima?.unidad_medida || "unidad"}
+                                </div>
+                              </div>
+                            </td>
 
-                        <td className="px-4 py-3 text-center">
-                          <input
-                            type="number"
-                            min="0"
-                            value={
-                              insumo.precio_unitario_input !== undefined
-                                ? insumo.precio_unitario_input
-                                : insumo.precio_unitario ?? ""
-                            }
-                            onChange={(e) =>
-                              handlePrecioChange(
-                                insumo,
-                                e.target.value
-                              )
-                            }
-                            className="w-24 border border-gray-300 rounded-md px-2 py-1 text-center text-sm"
-                            step="any"
-                          />
-                        </td>
-                      </tr>
+                            <td className="px-4 py-3 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                placeholder="0"
+                                value={insumo.cantidad_formato ?? ""}
+                                onChange={(e) =>
+                                  handleCantidadChange(insumo, e.target.value)
+                                }
+                                className="w-20 border border-gray-300 rounded-md px-2 py-1 text-center text-sm"
+                                step="any"
+                              />
+                            </td>
+
+                            <td className="px-4 py-3 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                value={
+                                  insumo.precio_unitario_input !== undefined
+                                    ? insumo.precio_unitario_input
+                                    : insumo.precio_unitario ?? ""
+                                }
+                                onChange={(e) =>
+                                  handlePrecioChange(insumo, e.target.value)
+                                }
+                                className="w-24 border border-gray-300 rounded-md px-2 py-1 text-center text-sm"
+                                step="any"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>

@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { getTodayDate } from "../../lib/dateUtils";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import Selector from "../../components/Selector";
 
 export default function AddOrdenVenta() {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function AddOrdenVenta() {
   const [clienteConfig, setClienteConfig] = useState(null);
   const [preciosLista, setPreciosLista] = useState([]);
   const [productosAgregados, setProductosAgregados] = useState([]);
+  const [isProductosExpanded, setIsProductosExpanded] = useState(false);
   const [errors, setErrors] = useState({});
   const [productErrors, setProductErrors] = useState({});
   const [condicionPagoCliente, setCondicionPagoCliente] = useState(null);
@@ -128,7 +130,8 @@ export default function AddOrdenVenta() {
 
   // Función para sumar días a una fecha y devolver en formato YYYY-MM-DD
   const sumarDiasAFecha = (fechaStr, dias) => {
-    if (!fechaStr || !dias || dias <= 0) return "";
+    if (!fechaStr) return "";
+    if (dias == null) return "";
     const fecha = new Date(fechaStr);
     fecha.setDate(fecha.getDate() + Number(dias));
     const year = fecha.getFullYear();
@@ -143,8 +146,8 @@ export default function AddOrdenVenta() {
     return sumarDiasAFecha(fechaBase, condicionPago);
   };
 
-  const handleClientChange = async (e) => {
-    const id_cliente = e.target.value;
+  const handleClientChange = async (eOrValue) => {
+    const id_cliente = eOrValue?.target ? eOrValue.target.value : eOrValue;
     setDirecciones([]);
     setClienteConfig(null);
     setPreciosLista([]);
@@ -246,8 +249,15 @@ export default function AddOrdenVenta() {
     setForm(updatedForm);
   };
 
-  const handleProductoChange = (e) => {
-    const { name, value } = e.target;
+  const setDateField = (name, value) => {
+    const updatedForm = { ...form, [name]: value };
+    if (name === "fecha_orden" && condicionPagoCliente && condicionPagoCliente > 0) {
+      updatedForm.fecha_facturacion = calcularFechaFacturacion(value, condicionPagoCliente);
+    }
+    setForm(updatedForm);
+  };
+
+  const setProductoField = (name, value) => {
     let updatedForm = { ...productoForm, [name]: value };
 
     if (name === "id_producto") {
@@ -261,6 +271,11 @@ export default function AddOrdenVenta() {
     }
 
     setProductoForm(updatedForm);
+  };
+
+  const handleProductoChange = (e) => {
+    const { name, value } = e.target;
+    setProductoField(name, value);
   };
 
   const validateForm = () => {
@@ -351,7 +366,9 @@ export default function AddOrdenVenta() {
       unidades_por_caja: unidadesPorCaja || null,
       total_linea: Number(productoForm.precio_unitario) * cantidad,
     };
-    setProductosAgregados((prev) => [...prev, newProd]);
+    // Insertar arriba (igual que en solicitudes)
+    setProductosAgregados((prev) => [newProd, ...prev]);
+    setIsProductosExpanded(false);
     setProductoForm({ id_producto: "", cantidad: "", precio_unitario: "" });
     setProductErrors({});
   };
@@ -439,52 +456,59 @@ export default function AddOrdenVenta() {
       <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 bg-white p-4 rounded shadow">
         <label className="flex flex-col">
           Cliente *
-          <select
-            name="id_cliente"
-            value={form.id_cliente}
-            onChange={handleClientChange}
-            className={`border px-2 py-1 rounded ${
+          <Selector
+            options={clients.map((c) => ({
+              value: String(c.id),
+              label: c.nombre_empresa,
+              searchText: [c.nombre_empresa, c.rut, c.giro].filter(Boolean).join(" "),
+            }))}
+            selectedValue={form.id_cliente}
+            onSelect={(value) => handleClientChange(value)}
+            useFuzzy
+            className={`w-full px-3 py-2 border ${
               errors.id_cliente ? "border-red-500" : "border-gray-300"
-            }`}
-          >
-            <option value="">Seleccione cliente...</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre_empresa}
-              </option>
-            ))}
-          </select>
+            } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary`}
+          />
           {errors.id_cliente && <span className="text-red-500 text-sm mt-1">{errors.id_cliente}</span>}
         </label>
 
         <label className="flex flex-col">
           Dirección *
-          <select
-            name="id_local"
-            value={form.id_local}
-            onChange={handleFieldChange}
-            disabled={!direcciones.length}
-            className={`border px-2 py-1 rounded ${
-              errors.id_local ? "border-red-500" : "border-gray-300"
-            }`}
-          >
-            <option value="">Seleccione dirección...</option>
-            {direcciones.map((d) => {
+          <Selector
+            options={direcciones.map((d) => {
               const label = [
                 d.tipo_direccion,
                 d.nombre_sucursal,
                 [d.calle, d.numero].filter(Boolean).join(" "),
-                d.comuna
+                d.comuna,
               ]
                 .filter(Boolean)
                 .join(" - ");
-              return (
-                <option key={d.id} value={d.id}>
-                  {label}
-                </option>
-              );
+              return {
+                value: String(d.id),
+                label,
+                searchText: [
+                  d.tipo_direccion,
+                  d.nombre_sucursal,
+                  d.calle,
+                  d.numero,
+                  d.comuna,
+                  d.region,
+                ]
+                  .filter(Boolean)
+                  .join(" "),
+              };
             })}
-          </select>
+            selectedValue={form.id_local}
+            onSelect={(value) => setForm((prev) => ({ ...prev, id_local: value }))}
+            disabled={!direcciones.length}
+            useFuzzy
+            className={`w-full px-3 py-2 border ${
+              errors.id_local ? "border-red-500" : "border-gray-300"
+            } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+              !direcciones.length ? "bg-gray-100 cursor-not-allowed" : "bg-white"
+            }`}
+          />
           {errors.id_local && <span className="text-red-500 text-sm mt-1">{errors.id_local}</span>}
         </label>
 
@@ -526,6 +550,22 @@ export default function AddOrdenVenta() {
               errors.fecha_orden ? "border-red-500" : "border-gray-300"
             }`}
           />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setDateField("fecha_orden", getTodayDate())}
+              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
+            >
+              Hoy
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateField("fecha_orden", sumarDiasAFecha(getTodayDate(), 1))}
+              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
+            >
+              Mañana
+            </button>
+          </div>
           {errors.fecha_orden && <span className="text-red-500 text-sm mt-1">{errors.fecha_orden}</span>}
         </label>
 
@@ -540,6 +580,48 @@ export default function AddOrdenVenta() {
               errors.fecha_envio ? "border-red-500" : "border-gray-300"
             }`}
           />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const base = form.fecha_orden || getTodayDate();
+                setDateField("fecha_envio", base);
+              }}
+              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
+            >
+              Igual emisión
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const base = form.fecha_orden || getTodayDate();
+                setDateField("fecha_envio", sumarDiasAFecha(base, 7));
+              }}
+              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
+            >
+              +7 días
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const base = form.fecha_orden || getTodayDate();
+                setDateField("fecha_envio", sumarDiasAFecha(base, 14));
+              }}
+              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
+            >
+              +14 días
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const base = form.fecha_orden || getTodayDate();
+                setDateField("fecha_envio", sumarDiasAFecha(base, 30));
+              }}
+              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
+            >
+              +30 días
+            </button>
+          </div>
           {errors.fecha_envio && <span className="text-red-500 text-sm mt-1">{errors.fecha_envio}</span>}
         </label>
 
@@ -572,21 +654,22 @@ export default function AddOrdenVenta() {
 
         <label className="flex flex-col">
           Bodega *
-          <select
-            name="bodega_id"
-            value={form.bodega_id}
-            onChange={handleFieldChange}
-            className={`border px-2 py-1 rounded ${
+          <Selector
+            options={bodegas.map((b) => {
+              const label = b.nombre || `Bodega ${b.id}`;
+              return {
+                value: String(b.id),
+                label,
+                searchText: label,
+              };
+            })}
+            selectedValue={form.bodega_id}
+            onSelect={(value) => setForm((prev) => ({ ...prev, bodega_id: value }))}
+            useFuzzy
+            className={`w-full px-3 py-2 border ${
               errors.bodega_id ? "border-red-500" : "border-gray-300"
-            }`}
-          >
-            <option value="">Seleccione bodega...</option>
-            {bodegas.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.nombre || `Bodega ${b.id}`}
-              </option>
-            ))}
-          </select>
+            } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary`}
+          />
           {errors.bodega_id && <span className="text-red-500 text-sm mt-1">{errors.bodega_id}</span>}
         </label>
       </form>
@@ -596,26 +679,24 @@ export default function AddOrdenVenta() {
         <div className="grid grid-cols-3 gap-4 mb-4">
           <label className="flex flex-col">
             Producto *
-            <select
-              name="id_producto"
-              value={productoForm.id_producto}
-              onChange={handleProductoChange}
+            <Selector
+              options={productos
+                .filter((p) => !productosAgregados.some((pa) => pa.id_producto === p.id))
+                .map((p) => ({
+                  value: String(p.id),
+                  label: p.nombre,
+                  searchText: p.nombre,
+                }))}
+              selectedValue={productoForm.id_producto}
+              onSelect={(value) => setProductoField("id_producto", value)}
               disabled={!form.id_cliente}
-              className={`border px-2 py-1 rounded ${
+              useFuzzy
+              className={`w-full px-3 py-2 border ${
                 productErrors.id_producto ? "border-red-500" : "border-gray-300"
-              } ${!form.id_cliente ? "bg-gray-100 cursor-not-allowed" : ""}`}
-            >
-              <option value="">
-                {!form.id_cliente ? "Seleccione cliente primero..." : "Seleccione producto..."}
-              </option>
-              {productos
-                .filter(p => !productosAgregados.some(pa => pa.id_producto === p.id))
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre}
-                  </option>
-                ))}
-            </select>
+              } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+                !form.id_cliente ? "bg-gray-100 cursor-not-allowed" : "bg-white"
+              }`}
+            />
             {productErrors.id_producto && (
               <span className="text-red-500 text-sm mt-1">{productErrors.id_producto}</span>
             )}
@@ -694,7 +775,7 @@ export default function AddOrdenVenta() {
               </tr>
             </thead>
             <tbody>
-              {productosAgregados.map((p) => (
+              {(isProductosExpanded ? productosAgregados : productosAgregados.slice(0, 5)).map((p) => (
                 <tr key={p.id_producto} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-2">{p.nombre}</td>
                   <td className="px-4 py-2">{p.cantidad}</td>
@@ -713,6 +794,36 @@ export default function AddOrdenVenta() {
                 </tr>
               ))}
             </tbody>
+            {productosAgregados.length > 5 && (
+              <tfoot>
+                <tr>
+                  <td colSpan={6} className="px-4 py-3 border-t border-gray-200 bg-gray-50">
+                    <button
+                      type="button"
+                      onClick={() => setIsProductosExpanded((v) => !v)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-text hover:bg-gray-100 transition-colors"
+                    >
+                      {isProductosExpanded ? (
+                        <>
+                          <ChevronUp size={16} />
+                          Mostrar menos
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown size={16} />
+                          Ver todos ({productosAgregados.length})
+                        </>
+                      )}
+                    </button>
+                    {!isProductosExpanded && (
+                      <p className="mt-2 text-center text-xs text-gray-500">
+                        Mostrando {Math.min(5, productosAgregados.length)} de {productosAgregados.length} productos
+                      </p>
+                    )}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         )}
       </div>
