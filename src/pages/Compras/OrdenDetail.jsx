@@ -127,7 +127,14 @@ export default function OrdenDetail() {
 
     const bodyRows = (orden.materiasPrimas || []).map((mp) => {
       // Usar unidad de medida - nombre insumo (cantidad total) para la descripción del PDF
-      const unidadMedida = mp.proveedorMateriaPrima?.materiaPrima?.unidad_medida || 'Unidad';
+      let unidadMedida = mp.proveedorMateriaPrima?.unidad_medida || 'Unidad';
+      if (unidadMedida.toLowerCase() === 'kilogramos') {
+        unidadMedida = 'Kilogramos';
+      } else if (unidadMedida.toLowerCase() === 'litros') {
+        unidadMedida = 'Litros';
+      } else if (unidadMedida.toLowerCase() === 'unidades') {
+        unidadMedida = 'Unidades';
+      }
       const nombreInsumo = mp.proveedorMateriaPrima?.materiaPrima?.nombre || 'Insumo desconocido';
       const cantidadTotal = mp.cantidad || 0;
        const nombre = `${unidadMedida} - ${nombreInsumo}`;
