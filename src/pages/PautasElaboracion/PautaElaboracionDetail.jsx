@@ -51,7 +51,7 @@ export default function PautaElaboracionDetail() {
           api(`/pautas-elaboracion/${id}/recetas`),
         ]);
 
-        // Análisis sensorial: es opcional, un 404 no debe romper el detalle.
+        // Análisis de Calidad: es opcional, un 404 no debe romper el detalle.
         try {
           const analisisRes = await api(`/analisis-sensorial/definicion/pauta/${id}`);
           setCamposAnalisisSensorial(
@@ -59,7 +59,7 @@ export default function PautaElaboracionDetail() {
           );
         } catch (err) {
           if (err?.status !== 404) {
-            console.error('Error cargando análisis sensorial:', err);
+            console.error('Error cargando Análisis de Calidad:', err);
           }
           setCamposAnalisisSensorial([]);
         }
@@ -180,7 +180,7 @@ export default function PautaElaboracionDetail() {
           </div>
 
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
-            <div className="text-xs text-gray-500 font-medium">ANÁLISIS SENSORIAL</div>
+            <div className="text-xs text-gray-500 font-medium">Análisis de Calidad</div>
             <div className="text-lg font-bold text-text mt-1">
               {tieneAnalisisSensorial ? `Configurado (${camposAnalisisSensorial.length})` : 'No configurado'}
             </div>
@@ -198,7 +198,7 @@ export default function PautaElaboracionDetail() {
         </div>
 
         <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <h2 className="text-base font-semibold text-text">Análisis Sensorial</h2>
+          <h2 className="text-base font-semibold text-text">Análisis de Calidad</h2>
 
           {!tieneAnalisisSensorial ? (
             <div className="mt-2 text-sm text-gray-600">

@@ -24,7 +24,7 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
       const checkRes = await api(`/analisis-sensorial/check-pendiente/${idOrdenManufactura}`);
       
       if (!checkRes.requiere_analisis) {
-        toast.info('Esta orden no requiere análisis sensorial');
+        toast.info('Esta orden no requiere Análisis de Calidad');
         onClose();
         return;
       }
@@ -41,7 +41,7 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
         setValores(checkRes.registro.valores_evaluacion || {});
       } else {
         if (camposDefinicion.length === 0) {
-          toast.info('No hay campos definidos para el análisis sensorial');
+          toast.info('No hay campos definidos para el Análisis de Calidad');
           onClose();
           return;
         }
@@ -53,8 +53,8 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
         setValores(valoresIniciales);
       }
     } catch (error) {
-      console.error('Error al cargar análisis sensorial:', error);
-      toast.error('Error al cargar el análisis sensorial');
+      console.error('Error al cargar Análisis de Calidad:', error);
+      toast.error('Error al cargar el Análisis de Calidad');
       onClose();
     } finally {
       setLoading(false);
@@ -72,7 +72,7 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
     e.preventDefault();
 
     if (!definicion || !Array.isArray(definicion?.campos_definicion)) {
-      toast.error('No hay definición válida de análisis sensorial para esta orden');
+      toast.error('No hay definición válida de Análisis de Calidad para esta orden');
       return;
     }
 
@@ -97,11 +97,11 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
         })
       });
 
-      toast.success(registro ? 'Análisis sensorial actualizado' : 'Análisis sensorial completado');
+      toast.success(registro ? 'Análisis de Calidad actualizado' : 'Análisis de Calidad completado');
       onClose(true); // true = recarga datos
     } catch (error) {
       console.error('Error al guardar análisis:', error);
-      toast.error(error.message || 'Error al guardar el análisis sensorial');
+      toast.error(error.message || 'Error al guardar el Análisis de Calidad');
     } finally {
       setSaving(false);
     }
@@ -185,7 +185,7 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
         {/* Header */}
         <div className="bg-primary text-white px-6 py-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold">
-            Análisis Sensorial - OM #{idOrdenManufactura}
+            Análisis de Calidad - OM #{idOrdenManufactura}
           </h2>
           <button
             onClick={() => onClose(false)}

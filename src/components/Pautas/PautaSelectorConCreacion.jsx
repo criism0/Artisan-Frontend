@@ -123,7 +123,7 @@ export default function PautaSelectorConCreacion({
         });
       }
 
-      // Guardar/actualizar definición de análisis sensorial solo si existe o el usuario configuró campos.
+      // Guardar/actualizar definición de Análisis de Calidad solo si existe o el usuario configuró campos.
       if (analisisDefinicionExiste || (pautaEditCamposAnalisis || []).length > 0) {
         await api("/analisis-sensorial/definicion", {
           method: "POST",
@@ -191,7 +191,7 @@ export default function PautaSelectorConCreacion({
         });
       }
 
-      // Guardar análisis sensorial si hay campos definidos
+      // Guardar Análisis de Calidad si hay campos definidos
       if (camposAnalisisSensorial.length > 0) {
         await api("/analisis-sensorial/definicion", {
           method: "POST",
@@ -319,7 +319,7 @@ export default function PautaSelectorConCreacion({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-900">Editar pauta y Análisis Sensorial</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Editar pauta y Análisis de Calidad</h2>
               <button
                 type="button"
                 onClick={handleCancelarEdicionPauta}

@@ -278,22 +278,30 @@ export default function RecepcionarOrden() {
       const ordenData = await api(
         `/proceso-compra/ordenes/${ordenId}`, { method: "GET" }
       );
-      const items = buildOcEmailItemsFromOrden(ordenData);
+      const { items, totalNeto, iva, totalPago } = buildOcEmailItemsFromOrden(ordenData);
+      
+      // Obtener usuarios con rol Super Admin
+      const superAdmins = await api(`/usuarios?role=Super Admin`, { method: "GET" });
+      const adminsArray = Array.isArray(superAdmins) ? superAdmins : [];
+      
+      // Obtener encargados de la bodega
       const bodegaId = ordenData.BodegaSolicitante?.id;
       let encargados = [];
       if (bodegaId) {
-        const bodegaData = await api(
-          `/bodegas/${bodegaId}`, { method: "GET" }
-        );
+        const bodegaData = await api(`/bodegas/${bodegaId}`, { method: "GET" });
         encargados = Array.isArray(bodegaData?.Encargados) ? bodegaData.Encargados : [];
       }
-      // Destinatarios y nombres para el template
-      const to = encargados
-        .map((e) => e?.usuario?.email)
-        .filter(Boolean)
-        .map((email) => ({ email }));
-      const encargadosNames =
-        encargados.map((e) => e?.usuario?.nombre).filter(Boolean).join(", ") || "Sin encargados";
+      
+      // Combinar ambos grupos de destinatarios
+      const adminEmails = adminsArray.map((admin) => admin?.email).filter(Boolean);
+      const encargadoEmails = encargados.map((e) => e?.usuario?.email).filter(Boolean);
+      const allEmails = [...new Set([...adminEmails, ...encargadoEmails])];
+      
+      const to = allEmails.map((email) => ({ email }));
+      
+      const adminsNames = adminsArray.map((admin) => admin?.nombre).filter(Boolean).join(", ");
+      const encargadosNames = encargados.map((e) => e?.usuario?.nombre).filter(Boolean).join(", ");
+      const allNames = [adminsNames, encargadosNames].filter(Boolean).join(", ") || "Sin destinatarios";
 
       let newState = ordenData.estado;
       if (ordenData.estado === "Rechazada") {
@@ -307,8 +315,12 @@ export default function RecepcionarOrden() {
         operador: user.nombre || user.email || "Operador desconocido",
         state: newState || "Estado desconocido",
         bodega: ordenData.BodegaSolicitante?.nombre || "No especificada",
-        clientNames: encargadosNames || "",
+        proveedor: ordenData.Proveedor?.nombre_empresa || ordenData.proveedor?.nombre_empresa || "No especificado",
+        clientNames: allNames,
         items,
+        totalNeto,
+        iva,
+        totalPago,
       });
     } catch (emailError) {
       console.error("Error enviando correo de notificación:", emailError);
