@@ -37,6 +37,7 @@ const FieldRow = React.memo(function FieldRow({
   onChange,
   required = false,
   numeric = false,
+  disabled = false,
 }) {
   const handleChange = (e) => {
     let val = e.target.value;
@@ -58,6 +59,7 @@ const FieldRow = React.memo(function FieldRow({
           value={value}
           onChange={handleChange}
           placeholder={placeholder}
+          disabled={disabled}
           className={classInput(error)}
         />
         {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
@@ -74,6 +76,7 @@ const SimpleSelectRow = React.memo(function SimpleSelectRow({
   error,
   onChange,
   required = false,
+  disabled = false,
 }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-center">
@@ -87,9 +90,10 @@ const SimpleSelectRow = React.memo(function SimpleSelectRow({
           id={id}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
           className={classInput(error)}
         >
-          <option value="">Selecciona‚Ä¶</option>
+          <option value="">Selecciona...</option>
           {options.map((opt) => (
             <option key={opt} value={opt}>
               {opt}
@@ -104,7 +108,7 @@ const SimpleSelectRow = React.memo(function SimpleSelectRow({
 
 export default function AddProvider() {
   const navigate = useNavigate();
-  const api = useApi()
+  const api = useApi();
 
   const [similarModal, setSimilarModal] = useState({
     open: false,
@@ -131,57 +135,59 @@ export default function AddProvider() {
 
   const [errors, setErrors] = useState({});
   const [errorGeneral, setErrorGeneral] = useState("");
+  const isWebpay = formData.banco === "Webpay";
 
   const labels = {
-    nombre_empresa: "Raz√≥n Social",
+    nombre_empresa: "RazÛn Social",
     rut_empresa: "RUT",
     giro: "Giro",
     tipo_proveedor: "Tipo de Proveedor",
-    region: "Regi√≥n",
+    region: "RegiÛn",
     comuna: "Comuna",
-    direccion: "Direcci√≥n",
-    cuenta_corriente: "N¬∫ de Cuenta",
+    direccion: "DirecciÛn",
+    cuenta_corriente: "N∫ de Cuenta",
     banco: "Banco",
     cuenta: "Tipo de Cuenta",
     email_transferencia: "Email para Transferencias",
     nombre_contacto: "Nombre Contacto Comercial",
-    telefono: "Tel√©fono de Contacto",
+    telefono: "TelÈfono de Contacto",
   };
 
   const validate = () => {
     const newErrors = {};
     if (!formData.nombre_empresa.trim())
-      newErrors.nombre_empresa = "Debe ingresar la raz√≥n social";
+      newErrors.nombre_empresa = "Debe ingresar la razÛn social";
     const rutRegex = /^[0-9]{1,2}\.[0-9]{3}\.[0-9]{3}-[0-9kK]$/;
     if (!formData.rut_empresa) newErrors.rut_empresa = "Debe ingresar el RUT";
     else if (!rutRegex.test(formData.rut_empresa))
-      newErrors.rut_empresa = "Formato inv√°lido (Ej: 76.123.456-7)";
+      newErrors.rut_empresa = "Formato inv·lido (Ej: 76.123.456-7)";
 
     if (!formData.giro.trim()) newErrors.giro = "Debe ingresar el giro";
-    if (!formData.tipo_proveedor) newErrors.tipo_proveedor = "Seleccione el tipo de proveedor";
-    if (!formData.region) newErrors.region = "Seleccione la regi√≥n";
+    if (!formData.tipo_proveedor)
+      newErrors.tipo_proveedor = "Seleccione el tipo de proveedor";
+    if (!formData.region) newErrors.region = "Seleccione la regiÛn";
     if (!formData.comuna) newErrors.comuna = "Seleccione la comuna";
     if (!formData.direccion.trim())
-      newErrors.direccion = "Debe ingresar la direcci√≥n completa";
+      newErrors.direccion = "Debe ingresar la direcciÛn completa";
 
-    if (!formData.cuenta_corriente)
-      newErrors.cuenta_corriente = "Debe ingresar el n√∫mero de cuenta";
+    if (!isWebpay && !formData.cuenta_corriente)
+      newErrors.cuenta_corriente = "Debe ingresar el n˙mero de cuenta";
     if (!formData.banco) newErrors.banco = "Seleccione el banco";
-    if (!formData.cuenta) newErrors.cuenta = "Seleccione el tipo de cuenta";
+    if (!isWebpay && !formData.cuenta)
+      newErrors.cuenta = "Seleccione el tipo de cuenta";
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!formData.email_transferencia)
+    if (!isWebpay && !formData.email_transferencia)
       newErrors.email_transferencia = "Debe ingresar el email";
-    else if (!emailRegex.test(formData.email_transferencia))
-      newErrors.email_transferencia = "Formato de email no v√°lido";
+    else if (!isWebpay && !emailRegex.test(formData.email_transferencia))
+      newErrors.email_transferencia = "Formato de email no v·lido";
 
     if (!formData.nombre_contacto.trim())
       newErrors.nombre_contacto = "Debe ingresar el nombre del contacto";
 
-    if (!formData.telefono)
-      newErrors.telefono = "Debe ingresar el tel√©fono";
+    if (!formData.telefono) newErrors.telefono = "Debe ingresar el telÈfono";
     else if (formData.telefono.length < 9)
-      newErrors.telefono = "El tel√©fono debe tener al menos 9 d√≠gitos";
+      newErrors.telefono = "El telÈfono debe tener al menos 9 dÌgitos";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -194,7 +200,37 @@ export default function AddProvider() {
 
   const handleRutChange = (value) => {
     setFormData((prev) => ({ ...prev, rut_empresa: formatRutDisplay(value) }));
-    if (errors.rut_empresa) setErrors((prev) => ({ ...prev, rut_empresa: "" }));
+    if (errors.rut_empresa)
+      setErrors((prev) => ({ ...prev, rut_empresa: "" }));
+  };
+
+  const handleBankChange = (value) => {
+    setFormData((prev) => ({
+      ...prev,
+      banco: value,
+      cuenta_corriente:
+        value === "Webpay" ? "-" : prev.cuenta_corriente === "-" ? "" : prev.cuenta_corriente,
+      cuenta: value === "Webpay" ? "-" : prev.cuenta === "-" ? "" : prev.cuenta,
+      email_transferencia:
+        value === "Webpay"
+          ? "-"
+          : prev.email_transferencia === "-"
+          ? ""
+          : prev.email_transferencia,
+    }));
+
+    const fieldsToClear =
+      value === "Webpay"
+        ? ["banco", "cuenta_corriente", "cuenta", "email_transferencia"]
+        : ["banco"];
+
+    setErrors((prev) => {
+      const next = { ...prev };
+      fieldsToClear.forEach((field) => {
+        if (next[field]) next[field] = "";
+      });
+      return next;
+    });
   };
 
   const comunasOptions = useMemo(
@@ -207,19 +243,32 @@ export default function AddProvider() {
     setErrorGeneral("");
     if (!validate()) return;
 
+    const payload = isWebpay
+      ? {
+          ...formData,
+          cuenta_corriente: "-",
+          cuenta: "-",
+          email_transferencia: "-",
+        }
+      : formData;
+
     try {
       await api("/proveedores", {
         method: "POST",
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
       toast.success("Proveedor creado correctamente");
       navigate("/Proveedores");
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409 && err.data?.code === "SIMILAR_NAME") {
-        setPendingPayload(formData);
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        err.data?.code === "SIMILAR_NAME"
+      ) {
+        setPendingPayload(payload);
         setSimilarModal({
           open: true,
-          inputName: err.data?.input || formData.nombre_empresa,
+          inputName: err.data?.input || payload.nombre_empresa,
           matches: err.data?.matches || [],
         });
         return;
@@ -254,7 +303,7 @@ export default function AddProvider() {
         <BackButton to="/Proveedores" />
       </div>
 
-      <h1 className="text-2xl font-bold mb-4 text-gray-800">A√±adir Proveedor</h1>
+      <h1 className="text-2xl font-bold mb-4 text-gray-800">AÒadir Proveedor</h1>
 
       {errorGeneral && (
         <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">
@@ -263,12 +312,12 @@ export default function AddProvider() {
       )}
 
       <form onSubmit={handleSubmit} className="bg-white shadow p-6 rounded-lg">
-        <Section title="Informaci√≥n General">
+        <Section title="InformaciÛn General">
           <FieldRow
             id="nombre_empresa"
             label={labels.nombre_empresa}
             value={formData.nombre_empresa}
-            placeholder="Ej: L√°cteos del Sur SpA"
+            placeholder="Ej: L·cteos del Sur SpA"
             error={errors.nombre_empresa}
             onChange={setField("nombre_empresa")}
             required
@@ -286,7 +335,7 @@ export default function AddProvider() {
             id="giro"
             label={labels.giro}
             value={formData.giro}
-            placeholder="Ej: Producci√≥n de alimentos"
+            placeholder="Ej: ProducciÛn de alimentos"
             error={errors.giro}
             onChange={setField("giro")}
           />
@@ -300,7 +349,7 @@ export default function AddProvider() {
           />
         </Section>
 
-        <Section title="Ubicaci√≥n">
+        <Section title="UbicaciÛn">
           <SimpleSelectRow
             id="region"
             label={labels.region}
@@ -327,15 +376,16 @@ export default function AddProvider() {
           />
         </Section>
 
-        <Section title="Informaci√≥n de Pago">
+        <Section title="InformaciÛn de Pago">
           <FieldRow
             id="cuenta_corriente"
             label={labels.cuenta_corriente}
             value={formData.cuenta_corriente}
-            placeholder="Ej: 12345678"
+            placeholder={isWebpay ? "-" : "Ej: 12345678"}
             error={errors.cuenta_corriente}
             onChange={setField("cuenta_corriente")}
             numeric
+            disabled={isWebpay}
           />
           <SimpleSelectRow
             id="banco"
@@ -343,24 +393,26 @@ export default function AddProvider() {
             value={formData.banco}
             options={BANCOS_CL}
             error={errors.banco}
-            onChange={setField("banco")}
+            onChange={handleBankChange}
           />
           <SimpleSelectRow
             id="cuenta"
             label={labels.cuenta}
             value={formData.cuenta}
-            options={TIPO_CUENTA}
+            options={isWebpay ? ["-"] : TIPO_CUENTA}
             error={errors.cuenta}
             onChange={setField("cuenta")}
+            disabled={isWebpay}
           />
           <FieldRow
             id="email_transferencia"
             label={labels.email_transferencia}
             type="email"
             value={formData.email_transferencia}
-            placeholder="Ej: pagos@empresa.cl"
+            placeholder={isWebpay ? "-" : "Ej: pagos@empresa.cl"}
             error={errors.email_transferencia}
             onChange={setField("email_transferencia")}
+            disabled={isWebpay}
           />
         </Section>
 
@@ -369,7 +421,7 @@ export default function AddProvider() {
             id="nombre_contacto"
             label={labels.nombre_contacto}
             value={formData.nombre_contacto}
-            placeholder="Ej: Mar√≠a P√©rez"
+            placeholder="Ej: MarÌa PÈrez"
             error={errors.nombre_contacto}
             onChange={setField("nombre_contacto")}
           />
