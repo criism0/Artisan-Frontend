@@ -433,7 +433,7 @@ export default function ProductDetail() {
                   </div>
 
                   <div className="border rounded-lg p-4">
-                    <div className="font-semibold text-gray-900 mb-2">Análisis Sensorial</div>
+                    <div className="font-semibold text-gray-900 mb-2">Análisis de Calidad</div>
                     {Array.isArray(pautaAnalisisDetalle?.campos_definicion) && pautaAnalisisDetalle.campos_definicion.length > 0 ? (
                       <div className="overflow-x-auto border border-gray-200 rounded">
                         <table className="min-w-full text-sm">
@@ -460,7 +460,7 @@ export default function ProductDetail() {
                         </table>
                       </div>
                     ) : (
-                      <div className="text-sm text-gray-600">Sin análisis sensorial configurado.</div>
+                      <div className="text-sm text-gray-600">Sin Análisis de Calidad configurado.</div>
                     )}
                   </div>
                 </>

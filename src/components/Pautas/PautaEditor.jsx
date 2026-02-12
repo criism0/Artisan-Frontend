@@ -4,14 +4,14 @@ import AnalisisSensorialDefinicionForm from '../AnalisisSensorial/DefinicionForm
 
 /**
  * Componente reutilizable para editar una Pauta de Elaboración completa
- * Incluye: Datos básicos, Pasos de elaboración, y Análisis Sensorial
+ * Incluye: Datos básicos, Pasos de elaboración, y Análisis de Calidad
  * 
  * @param {Object} props
  * @param {Object} props.pautaData - Datos básicos de la pauta {name, description, is_active}
  * @param {Function} props.onPautaDataChange - Callback cuando cambian los datos básicos
  * @param {Array} props.pasos - Array de pasos de elaboración
  * @param {Function} props.setPasos - Setter para los pasos
- * @param {Array} props.camposAnalisisSensorial - Array de campos de análisis sensorial
+ * @param {Array} props.camposAnalisisSensorial - Array de campos de Análisis de Calidad
  * @param {Function} props.setCamposAnalisisSensorial - Setter para los campos de análisis
  * @param {Object} props.errors - Objeto con errores de validación
  * @param {Function} props.onRemovePaso - Callback para remover un paso (opcional)
@@ -118,11 +118,11 @@ export default function PautaEditor({
         {errors.pasos && <p className="text-red-500 text-sm">{errors.pasos}</p>}
       </div>
 
-      {/* SECCIÓN 3: ANÁLISIS SENSORIAL */}
+      {/* SECCIÓN 3: Análisis de Calidad */}
       {setCamposAnalisisSensorial && (
         <div className={sectionClass}>
           {showTitle && (
-            <h2 className="text-lg font-semibold text-gray-800">Análisis Sensorial (Opcional)</h2>
+            <h2 className="text-lg font-semibold text-gray-800">Análisis de Calidad (Opcional)</h2>
           )}
           
           <AnalisisSensorialDefinicionForm 

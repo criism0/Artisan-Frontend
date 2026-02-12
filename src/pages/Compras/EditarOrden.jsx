@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
+import { uploadToS3 } from "../../lib/uploadToS3";
 import ConfirmModal from "../../components/ConfirmModal";
 import Selector from "../../components/Selector";
 import { buildOcEmailItemsFromOrden, notifyOrderChange } from "../../services/emailService";
@@ -26,6 +27,7 @@ export default function EditOrden() {
     condiciones: "",
     requiere_prepago: false,
     archivosAdjuntos: [],
+    archivosExistentes: [], // Archivos que ya están en S3
   });
 
   const [formErrors, setFormErrors] = useState({});
@@ -92,7 +94,8 @@ export default function EditOrden() {
           fecha: ordenRes.fecha?.split("T")[0] || "",
           condiciones: ordenRes.condiciones || "",
           requiere_prepago: ordenRes.requiere_prepago || false,
-          archivosAdjuntos: ordenRes.archivosAdjuntos || [],
+          archivosAdjuntos: [],
+          archivosExistentes: ordenRes.archivos || [],
         });
 
         setInsumosSeleccionados(
@@ -152,6 +155,43 @@ export default function EditOrden() {
     }));
   };
 
+  const handleChange = (e) => {
+    const { name, value, type, checked, files } = e.target;
+
+    if (type === "file") {
+      const nuevosArchivos = Array.from(files || []);
+      setForm((prev) => ({
+        ...prev,
+        [name]: [
+          ...prev.archivosAdjuntos,
+          ...nuevosArchivos.filter(
+            (nuevo) => !prev.archivosAdjuntos.some((existente) => existente.name === nuevo.name)
+          ),
+        ],
+      }));
+      return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleRemoveNewFile = (indexToRemove) => {
+    setForm((prev) => ({
+      ...prev,
+      archivosAdjuntos: prev.archivosAdjuntos.filter((_, i) => i !== indexToRemove),
+    }));
+  };
+
+  const handleRemoveExistingFile = (indexToRemove) => {
+    setForm((prev) => ({
+      ...prev,
+      archivosExistentes: prev.archivosExistentes.filter((_, i) => i !== indexToRemove),
+    }));
+  };
+
   const proveedoresOptions = useMemo(
     () =>
       (proveedores || []).map((p) => ({
@@ -208,14 +248,6 @@ export default function EditOrden() {
       return;
     setMateriasPrimas((prev) => hydrateProveedorInsumosWithOC(prev, insumosSeleccionados));
   }, [insumosSeleccionados]);
-
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
-  };
 
   const handleCantidadChange = (insumoRow, rawValue) => {
     const idNum = Number(insumoRow?.id);
@@ -308,23 +340,30 @@ export default function EditOrden() {
       const ordenData = await api(
         `/proceso-compra/ordenes/${ordenId}`, { method: "GET" }
       );
-      const items = buildOcEmailItemsFromOrden(ordenData);
+      const { items, totalNeto, iva, totalPago } = buildOcEmailItemsFromOrden(ordenData);
+      
+      // Obtener usuarios con rol Super Admin
+      const superAdmins = await api(`/usuarios?role=Super Admin`, { method: "GET" });
+      const adminsArray = Array.isArray(superAdmins) ? superAdmins : [];
+      
+      // Obtener encargados de la bodega
       const bodegaId = ordenData.BodegaSolicitante?.id;
       let encargados = [];
       if (bodegaId) {
-        const bodegaData = await api(
-          `/bodegas/${bodegaId}`, { method: "GET" }
-        );
+        const bodegaData = await api(`/bodegas/${bodegaId}`, { method: "GET" });
         encargados = Array.isArray(bodegaData?.Encargados) ? bodegaData.Encargados : [];
       }
-      // Destinatarios y nombres para el template
-      const to = encargados
-        .map((e) => e?.usuario?.email)
-        .filter(Boolean)
-        .map((email) => ({ email }));
-      const encargadosNames =
-        encargados.map((e) => e?.usuario?.nombre).filter(Boolean).join(", ") ||
-        "Sin encargados";
+      
+      // Combinar ambos grupos de destinatarios
+      const adminEmails = adminsArray.map((admin) => admin?.email).filter(Boolean);
+      const encargadoEmails = encargados.map((e) => e?.usuario?.email).filter(Boolean);
+      const allEmails = [...new Set([...adminEmails, ...encargadoEmails])];
+      
+      const to = allEmails.map((email) => ({ email }));
+      
+      const adminsNames = adminsArray.map((admin) => admin?.nombre).filter(Boolean).join(", ");
+      const encargadosNames = encargados.map((e) => e?.usuario?.nombre).filter(Boolean).join(", ");
+      const allNames = [adminsNames, encargadosNames].filter(Boolean).join(", ") || "Sin destinatarios";
         
       // Enviar correo de notificación
       await notifyOrderChange({
@@ -333,8 +372,12 @@ export default function EditOrden() {
         operador: user.nombre || user.email || "Operador desconocido",
         state: "Editada",
         bodega: ordenData.BodegaSolicitante?.nombre || "No especificada",
-        clientNames: encargadosNames || "",
+        proveedor: ordenData.Proveedor?.nombre_empresa || ordenData.proveedor?.nombre_empresa || "No especificado",
+        clientNames: allNames,
         items,
+        totalNeto,
+        iva,
+        totalPago,
       });
     } catch (emailError) {
       console.error("Error enviando correo de notificación:", emailError); 
@@ -345,6 +388,26 @@ export default function EditOrden() {
     e.preventDefault();
     if (!validateForm()) return;
 
+    // Subir archivos nuevos a S3
+    let nuevosS3Refs = [];
+    if (form.archivosAdjuntos.length > 0) {
+      nuevosS3Refs = await Promise.all(
+        form.archivosAdjuntos.map(async (file) => {
+          try {
+            const ref = await uploadToS3(file);
+            return ref;
+          } catch (err) {
+            toast.error(`Error subiendo ${file.name}:`, err);
+            return null;
+          }
+        })
+      );
+      nuevosS3Refs = nuevosS3Refs.filter(Boolean);
+    }
+
+    // Combinar archivos existentes (que no fueron eliminados) con los nuevos
+    const todosLosArchivos = [...form.archivosExistentes, ...nuevosS3Refs];
+
     const dataToSend = {
       id_proveedor: parseInt(form.id_proveedor),
       id_bodega_solicitante: parseInt(form.id_bodega),
@@ -352,6 +415,7 @@ export default function EditOrden() {
       condiciones: form.condiciones,
       requiere_prepago: form.requiere_prepago,
       fecha: form.fecha,
+      archivos: todosLosArchivos,
       materias_primas: (insumosSeleccionados || []).map((i) => ({
         ...i,
         id_proveedor_materia_prima: Number(i.id_proveedor_materia_prima),
@@ -463,6 +527,104 @@ export default function EditOrden() {
             onChange={handleChange}
             className="ml-2"
           />
+        </div>
+
+        {/* === Archivos Adjuntos === */}
+        <div className="border-t pt-4 mt-4">
+          <label className="block font-semibold mb-1">Archivos Adjuntos:</label>
+          
+          {/* Archivos existentes */}
+          {form.archivosExistentes.length > 0 && (
+            <div className="mb-3">
+              <p className="text-sm text-gray-600 mb-2">Archivos actuales:</p>
+              <ul className="space-y-1">
+                {form.archivosExistentes.map((file, index) => (
+                  <li
+                    key={index}
+                    className="flex items-center justify-between p-2 bg-gray-50 rounded border"
+                  >
+                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                      <span className="text-blue-600">📎</span>
+                      {file.url ? (
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:underline truncate"
+                        >
+                          {file.original_name || `Archivo ${index + 1}`}
+                        </a>
+                      ) : (
+                        <span className="text-sm text-gray-700 truncate">
+                          {file.original_name || `Archivo ${index + 1}`}
+                        </span>
+                      )}
+                      {file.size && (
+                        <span className="text-xs text-gray-500">
+                          ({(file.size / 1024).toFixed(1)} KB)
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveExistingFile(index)}
+                      className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 flex-shrink-0"
+                    >
+                      Eliminar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Nuevos archivos a subir */}
+          {form.archivosAdjuntos.length > 0 && (
+            <div className="mb-3">
+              <p className="text-sm text-gray-600 mb-2">Nuevos archivos a adjuntar:</p>
+              <ul className="space-y-1">
+                {form.archivosAdjuntos.map((file, index) => (
+                  <li
+                    key={index}
+                    className="flex items-center justify-between p-2 bg-green-50 rounded border border-green-200"
+                  >
+                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                      <span className="text-green-600">📎</span>
+                      <span className="text-sm text-gray-700 truncate">{file.name}</span>
+                      <span className="text-xs text-gray-500">
+                        ({(file.size / 1024).toFixed(1)} KB)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveNewFile(index)}
+                      className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 flex-shrink-0"
+                    >
+                      Quitar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Input para agregar archivos */}
+          <div>
+            <input
+              type="file"
+              id="archivosAdjuntos"
+              name="archivosAdjuntos"
+              multiple
+              onChange={handleChange}
+              className="hidden"
+            />
+            <label
+              htmlFor="archivosAdjuntos"
+              className="inline-block px-4 py-2 bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600"
+            >
+              Agregar Archivos
+            </label>
+          </div>
         </div>
 
         {/* === Tabla de insumos === */}

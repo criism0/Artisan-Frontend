@@ -145,21 +145,8 @@ export default function UsuariosPage() {
     );
     if (!seguro) return;
 
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-      alert("No hay token en localStorage. No se puede eliminar.");
-      return;
-    }
-
     try {
-      await api(`/usuarios/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
+      await api(`/usuarios/${id}`, { method: "DELETE" });
       toast.success("Usuario eliminado con éxito.");
       fetchUsuarios();
     } catch (err) {
@@ -232,8 +219,9 @@ export default function UsuariosPage() {
       </button>
 
       <TrashButton
-        onClick={() => handleDelete(row.id)} // ✅ ahora pregunta antes de eliminar y manda DELETE
+        onConfirmDelete={() => handleDelete(row.id)}
         tooltipText="Eliminar Usuario"
+        entityName={row.nombre || "Usuario"}
       />
     </div>
   );

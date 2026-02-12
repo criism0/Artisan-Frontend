@@ -7,6 +7,7 @@ import autoTable from "jspdf-autotable";
 import logo from "../../assets/logo.png";
 import { toast } from "../../lib/toast";
 import { useApi, API_BASE } from "../../lib/api";
+import { uploadToS3 } from "../../lib/uploadToS3";
 
 export default function OrdenDetail() {
   const { ordenId } = useParams();
@@ -16,6 +17,9 @@ export default function OrdenDetail() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [historial, setHistorial] = useState([]);
   const [showHistorial, setshowHistorial] = useState(false);
+  const [nuevosArchivos, setNuevosArchivos] = useState([]);
+  const [subiendoArchivos, setSubiendoArchivos] = useState(false);
+  const [mostrarModalArchivos, setMostrarModalArchivos] = useState(false);
   const navigate = useNavigate();
 
   const formatFechaCambio = (registro) => {
@@ -41,6 +45,74 @@ export default function OrdenDetail() {
       fetchOrden();
     }
   }, [ordenId]);
+
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    setNuevosArchivos((prev) => [
+      ...prev,
+      ...files.filter(
+        (nuevo) => !prev.some((existente) => existente.name === nuevo.name)
+      ),
+    ]);
+    // Resetear el input para permitir seleccionar el mismo archivo nuevamente
+    e.target.value = "";
+  };
+
+  const handleRemoveNewFile = (indexToRemove) => {
+    setNuevosArchivos((prev) => prev.filter((_, i) => i !== indexToRemove));
+  };
+
+  const handleAdjuntarArchivos = async () => {
+    if (nuevosArchivos.length === 0) {
+      toast.error("Selecciona al menos un archivo para adjuntar");
+      return;
+    }
+
+    setSubiendoArchivos(true);
+    try {
+      // Subir archivos a S3
+      const s3Refs = await Promise.all(
+        nuevosArchivos.map(async (file) => {
+          try {
+            const ref = await uploadToS3(file);
+            return ref;
+          } catch (err) {
+            toast.error(`Error subiendo ${file.name}: ${err}`);
+            return null;
+          }
+        })
+      );
+
+      const archivosValidos = s3Refs.filter(Boolean);
+
+      if (archivosValidos.length === 0) {
+        toast.error("No se pudo subir ningún archivo");
+        setSubiendoArchivos(false);
+        return;
+      }
+
+      // Enviar las referencias al backend para adjuntar a la orden
+      const response = await api(
+        `/proceso-compra/ordenes/${ordenId}/adjuntar-archivos`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ archivos: archivosValidos }),
+        }
+      );
+
+      toast.success("Archivos adjuntados correctamente");
+      setNuevosArchivos([]);
+
+      // Recargar la orden para mostrar los nuevos archivos
+      const dataActualizada = await api(`/proceso-compra/ordenes/${ordenId}`, { method: "GET" });
+      setOrden(dataActualizada);
+      setMostrarModalArchivos(false);
+    } catch (error) {
+      toast.error("Error al adjuntar archivos: " + error);
+    } finally {
+      setSubiendoArchivos(false);
+    }
+  };
 
   const formatCLP = (valor) =>
     new Intl.NumberFormat("es-CL", {
@@ -439,11 +511,11 @@ export default function OrdenDetail() {
 
             {/* Archivos adjuntos */}
             <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text align-center">
+              <td className="px-6 py-4 text-sm font-medium text-text align-top">
                 Archivos Adjuntos
               </td>
-              {orden.archivos && orden.archivos.length > 0 ? (
-                <td className="px-6 py-4 text-sm text-text">
+              <td className="px-6 py-4 text-sm text-text">
+                {orden.archivos && orden.archivos.length > 0 ? (
                   <ul className="space-y-2">
                     {orden.archivos.map((file, idx) => (
                       <li
@@ -457,9 +529,9 @@ export default function OrdenDetail() {
                           </span>
                         </div>
 
-                        {file.signed_url ? (
+                        {file.signed_url || file.url ? (
                           <a
-                            href={file.signed_url}
+                            href={file.signed_url || file.url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="ml-4 px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition"
@@ -474,17 +546,17 @@ export default function OrdenDetail() {
                       </li>
                     ))}
                   </ul>
-                </td>
-              ) : (
-                <td className="px-6 py-4 text-sm text-text">No hay archivos adjuntos</td> 
+                ) : (
+                  <p className="text-gray-500">No hay archivos adjuntos</p>
                 )}
+              </td>
             </tr>
 
-            <tr className=" divide-y divide-gray-300 divide-x">
-              <td className="px-6 py-4 text-sm font-medium text-text">Insumos</td>
-            
-              {orden.materiasPrimas?.length > 0 && (
-                <div className="p-4 rounded-lg mt-6">
+            <tr className="border-b border-border">
+              <td className="px-6 py-4 text-sm font-medium text-text align-top">Insumos</td>
+              <td className="px-6 py-4">
+                {orden.materiasPrimas?.length > 0 && (
+                  <div className="p-4 rounded-lg">
 
                   <table className="w-full bg-white  shadow overflow-hidden">
                     <thead className="bg-gray-100 text-sm text-gray-600">
@@ -519,43 +591,44 @@ export default function OrdenDetail() {
                         );
                       })}
                     </tbody>
-                    
-                  
-                  <tr className="border-b border-border">
-                    <td className="px-6 py-4" />
-                    <td className="px-6 py-4" />
-                    <td className="px-6 py-4 text-sm font-medium text-text">Neto</td>
-                    <td className="px-6 py-4 text-sm text-text">
-                      {formatCLP(orden.total_neto)}
-                    </td>
-                  </tr>
-                  <tr className="border-b border-border">
-                    <td className="px-6 py-4" />
-                    <td className="px-6 py-4" />
-                    <td className="px-6 py-4 text-sm font-medium text-text">IVA</td>
-                    <td className="px-6 py-4 text-sm text-text">
-                      {formatCLP(orden.iva)}
-                    </td>
-                  </tr>
-                  <tr className="border-b border-border">
-                    <td className="px-6 py-4" />
-                    <td className="px-6 py-4" />
-                    <td className="px-6 py-4 text-sm font-medium text-text bg-purple-300">Total</td>
-                    <td className="px-6 py-4 text-sm text-text bg-purple-300">
-                      {formatCLP(orden.total_pago)}
-                    </td>
-                  </tr>
-                  <tr className="border-b border-border">
-                    <td className="px-6 py-4" />
-                    <td className="px-6 py-4" />
-                    <td className="px-6 py-4 text-sm font-medium text-text">Total Neto Facturado</td>
-                    <td className="px-6 py-4 text-sm text-text">
-                      {formatCLP(totalNetoFacturado)}
-                    </td>
-                  </tr>
+                    <tfoot className="bg-gray-50">
+                      <tr className="border-t border-gray-300">
+                        <td className="px-6 py-3" />
+                        <td className="px-6 py-3" />
+                        <td className="px-6 py-3 text-sm font-medium text-text">Neto</td>
+                        <td className="px-6 py-3 text-sm text-text">
+                          {formatCLP(orden.total_neto)}
+                        </td>
+                      </tr>
+                      <tr className="border-t border-gray-200">
+                        <td className="px-6 py-3" />
+                        <td className="px-6 py-3" />
+                        <td className="px-6 py-3 text-sm font-medium text-text">IVA</td>
+                        <td className="px-6 py-3 text-sm text-text">
+                          {formatCLP(orden.iva)}
+                        </td>
+                      </tr>
+                      <tr className="border-t border-gray-200">
+                        <td className="px-6 py-3" />
+                        <td className="px-6 py-3" />
+                        <td className="px-6 py-3 text-sm font-semibold text-text bg-purple-200">Total</td>
+                        <td className="px-6 py-3 text-sm font-semibold text-text bg-purple-200">
+                          {formatCLP(orden.total_pago)}
+                        </td>
+                      </tr>
+                      <tr className="border-t border-gray-300">
+                        <td className="px-6 py-3" />
+                        <td className="px-6 py-3" />
+                        <td className="px-6 py-3 text-sm font-medium text-text">Total Neto Facturado</td>
+                        <td className="px-6 py-3 text-sm text-text">
+                          {formatCLP(totalNetoFacturado)}
+                        </td>
+                      </tr>
+                    </tfoot>
                   </table>
                 </div>
-              )}
+                )}
+              </td>
             </tr>
             </tbody>
         </table>
@@ -663,7 +736,120 @@ export default function OrdenDetail() {
         >
           Ver Detalle
         </button>
+        <button
+          className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-2"
+          onClick={() => setMostrarModalArchivos(true)}
+        >
+          <span>📎</span>
+          Adjuntar Archivos
+        </button>
       </div>
+
+      {/* Modal para adjuntar archivos */}
+      {mostrarModalArchivos && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-800">Adjuntar Archivos a la Orden</h3>
+              <button
+                onClick={() => {
+                  setMostrarModalArchivos(false);
+                  setNuevosArchivos([]);
+                }}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                Orden de Compra #{ordenId} - {orden.proveedor?.nombre_empresa || "Sin proveedor"}
+              </p>
+              {orden.archivos && orden.archivos.length > 0 && (
+                <p className="text-sm text-gray-500">
+                  Actualmente hay {orden.archivos.length} archivo(s) adjunto(s)
+                </p>
+              )}
+            </div>
+
+            {/* Archivos seleccionados para subir */}
+            {nuevosArchivos.length > 0 && (
+              <div className="mb-4">
+                <p className="text-sm font-medium text-gray-700 mb-2">Archivos seleccionados:</p>
+                <ul className="space-y-2 max-h-60 overflow-y-auto">
+                  {nuevosArchivos.map((file, index) => (
+                    <li
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-200"
+                    >
+                      <div className="flex items-center space-x-2 flex-1 min-w-0">
+                        <span className="text-blue-600 text-xl">📎</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-gray-800 truncate font-medium">{file.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024).toFixed(1)} KB · {file.type || "Archivo"}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveNewFile(index)}
+                        className="ml-2 px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600 flex-shrink-0"
+                      >
+                        Quitar
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Botones de acción */}
+            <div className="flex items-center justify-between pt-4 border-t">
+              <div>
+                <input
+                  type="file"
+                  id="modal-archivos"
+                  multiple
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <label
+                  htmlFor="modal-archivos"
+                  className="inline-block px-4 py-2 bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600"
+                >
+                  Seleccionar Archivos
+                </label>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMostrarModalArchivos(false);
+                    setNuevosArchivos([]);
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                >
+                  Cancelar
+                </button>
+                {nuevosArchivos.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleAdjuntarArchivos}
+                    disabled={subiendoArchivos}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {subiendoArchivos ? "Subiendo..." : `Adjuntar ${nuevosArchivos.length} archivo(s)`}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+     
      
       {showConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

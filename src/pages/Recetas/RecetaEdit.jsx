@@ -148,14 +148,14 @@ export default function RecetaEdit() {
       
       setPautaPasos(pasosRes);
 
-      // Cargar análisis sensorial si existe
+      // Cargar Análisis de Calidad si existe
       try {
         const analisisRes = await api(`/analisis-sensorial/definicion/pauta/${receta.id_pauta_elaboracion}`);
         if (analisisRes?.campos_definicion) {
           setCamposAnalisisSensorial(analisisRes.campos_definicion);
         }
       } catch (err) {
-        // No hay análisis sensorial definido
+        // No hay Análisis de Calidad definido
         setCamposAnalisisSensorial([]);
       }
 
@@ -209,7 +209,7 @@ export default function RecetaEdit() {
         }
       }
 
-      // Actualizar análisis sensorial
+      // Actualizar Análisis de Calidad
       if (camposAnalisisSensorial.length > 0) {
         await api("/analisis-sensorial/definicion", {
           method: "POST",

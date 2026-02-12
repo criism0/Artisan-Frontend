@@ -44,7 +44,7 @@ export default function PautaElaboracionEdit() {
             .sort((a, b) => a.orden - b.orden)
         );
 
-        // Cargar definición de análisis sensorial si existe
+        // Cargar definición de Análisis de Calidad si existe
         try {
           const analisisRes = await api(`/analisis-sensorial/definicion/pauta/${id}`);
           if (analisisRes && analisisRes.campos_definicion) {
@@ -53,7 +53,7 @@ export default function PautaElaboracionEdit() {
         } catch (err) {
           // Si no existe definición, no hay problema (404 esperado)
           if (err.status !== 404) {
-            console.error("Error cargando análisis sensorial:", err);
+            console.error("Error cargando Análisis de Calidad:", err);
           }
         }
       } catch (err) {
@@ -162,7 +162,7 @@ export default function PautaElaboracionEdit() {
         }
       }
 
-      // Guardar análisis sensorial (crear o actualizar)
+      // Guardar Análisis de Calidad (crear o actualizar)
       if (camposAnalisisSensorial.length > 0) {
         await api(`/analisis-sensorial/definicion`, {
           method: "POST",
@@ -258,7 +258,7 @@ export default function PautaElaboracionEdit() {
           {errors.pasos && <p className="text-red-500 text-sm">{errors.pasos}</p>}
         </div>
 
-        {/* ─────────────── SECCIÓN 3: ANÁLISIS SENSORIAL ─────────────── */}
+        {/* ─────────────── SECCIÓN 3: Análisis de Calidad ─────────────── */}
         <div className="bg-white p-6 rounded-lg shadow space-y-6 mb-8">
           <AnalisisSensorialDefinicionForm 
             campos={camposAnalisisSensorial}

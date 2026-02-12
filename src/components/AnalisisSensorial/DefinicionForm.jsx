@@ -118,7 +118,7 @@ export default function AnalisisSensorialDefinicionForm({ campos, setCampos }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900">
-          Análisis Sensorial
+          Análisis de Calidad
         </h3>
         <span className="text-sm text-gray-500">
           {campos.length} campo{campos.length !== 1 ? 's' : ''} configurado{campos.length !== 1 ? 's' : ''}

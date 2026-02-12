@@ -185,7 +185,7 @@ export default function OMDetail() {
         const status = await api(`/analisis-sensorial/check-pendiente/${id}`);
         setAnalisisSensorialStatus(status);
       } catch (error) {
-        console.error('Error checking análisis sensorial:', error);
+        console.error('Error checking Análisis de Calidad:', error);
         setAnalisisSensorialStatus(null);
       }
     };
@@ -833,7 +833,7 @@ export default function OMDetail() {
                 : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border border-yellow-300'
             }`}
           >
-            📝 Análisis Sensorial
+            📝 Análisis de Calidad
             {!analisisSensorialStatus.analisis_completado && (
               <span className="ml-2 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
                 Pendiente
@@ -1065,7 +1065,7 @@ export default function OMDetail() {
         </div>
       )}
 
-      {/* Modal de Análisis Sensorial */}
+      {/* Modal de Análisis de Calidad */}
       <ModalAnalisisSensorial
         isOpen={showModalAnalisisSensorial}
         onClose={(reload) => {
