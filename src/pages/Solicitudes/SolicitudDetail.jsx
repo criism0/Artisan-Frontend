@@ -326,8 +326,10 @@ export default function SolicitudDetail() {
     if (!solicitud) return;
 
     try {
-      const doc = new jsPDF("p", "mm", "a4");
-      const marginX = 14;
+      // Cambiar a orientación landscape para máximo espacio horizontal
+      const doc = new jsPDF("l", "mm", "a4");
+      const marginX = 12;
+      const marginY = 8;
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
 
@@ -343,23 +345,24 @@ export default function SolicitudDetail() {
         return d.toLocaleDateString("es-CL");
       })();
 
+      // Header con fondo gris
       doc.setFillColor(243, 244, 246);
-      doc.rect(0, 0, pageWidth, 36, "F");
+      doc.rect(0, 0, pageWidth, 28, "F");
       doc.setTextColor(0, 0, 0);
-      doc.setFontSize(13);
-      doc.text(titulo, marginX, 14);
-      doc.setFontSize(9);
-      doc.text(`Proveedora: ${bodegaProveedora} · Solicita: ${bodegaSolicitante}`, marginX, 21);
-      doc.text(`Estado: ${estado} · Creada: ${creada}`, marginX, 28);
+      doc.setFontSize(12);
+      doc.text(titulo, marginX, 10);
+      doc.setFontSize(8);
+      doc.text(`Proveedora: ${bodegaProveedora} · Solicita: ${bodegaSolicitante}`, marginX, 16);
+      doc.text(`Estado: ${estado} · Creada: ${creada}`, marginX, 21);
 
       try {
-        doc.addImage(logo, "PNG", pageWidth - marginX - 18, 9, 18, 18);
+        doc.addImage(logo, "PNG", pageWidth - marginX - 15, 6, 15, 15);
       } catch {
         // ignore
       }
 
-      // Abajo del header: solo la tabla de insumos
-      const startInsumosY = 44;
+      // Tabla de insumos - posición ajustada para landscape
+      const startInsumosY = 32;
       autoTable(doc, {
         startY: startInsumosY,
         head: [["#", "Insumo", "Cant. Sol.", "Cant. Rec.", "UM", "Comentario"]],
@@ -373,39 +376,57 @@ export default function SolicitudDetail() {
         ]),
         theme: "grid",
         styles: {
-          fontSize: 8,
-          cellPadding: 1.4,
-          overflow: "ellipsize",
-          valign: "middle",
+          fontSize: 7.5,
+          cellPadding: 2.5,
+          overflow: "linebreak",
+          valign: "top",
+          halign: "left",
+          minCellHeight: 8,
         },
         headStyles: {
           fillColor: [15, 23, 42],
           textColor: [255, 255, 255],
           fontStyle: "bold",
+          fontSize: 8,
+          halign: "center",
+          valign: "middle",
         },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: {
-          0: { cellWidth: 8, halign: "right" },
-          1: { cellWidth: 68 },
-          2: { cellWidth: 20, halign: "right" },
-          3: { cellWidth: 20, halign: "right" },
-          4: { cellWidth: 12 },
-          5: { cellWidth: 55 },
+          0: { cellWidth: 9, halign: "center", minCellHeight: 8 },
+          1: { cellWidth: 85, minCellHeight: 8 },
+          2: { cellWidth: 25, halign: "right", minCellHeight: 8 },
+          3: { cellWidth: 25, halign: "right", minCellHeight: 8 },
+          4: { cellWidth: 18, halign: "center", minCellHeight: 8 },
+          5: { cellWidth: 55, valign: "top", minCellHeight: 8 },
         },
         showHead: "everyPage",
         pageBreak: "auto",
         rowPageBreak: "avoid",
-        margin: { left: marginX, right: marginX, bottom: 14 },
-        didDrawPage: () => {
+        margin: { left: marginX, right: marginX, top: marginY, bottom: 14 },
+        didParseCell: (data) => {
+          // Aumentar altura de fila basado en contenido
+          const content = data.cell.text;
+          if (Array.isArray(content) && content.length > 0) {
+            const text = content[0];
+            const lines = String(text).split("\n").length;
+            const estimatedHeight = Math.max(8, lines * 3.5 + 5);
+            data.cell.height = Math.max(data.cell.height || 8, estimatedHeight);
+          }
+        },
+        didDrawPage: (data) => {
           const pageNumber = doc.internal.getNumberOfPages();
-          doc.setFontSize(8);
+          const totalPages = data.pageCount || "?";
+          
+          // Pie de página
+          doc.setFontSize(7);
           doc.setTextColor(100);
           doc.text(
-            `${titulo} · ${estado} · Desde ${bodegaProveedora} -> ${bodegaSolicitante}`,
+            `${titulo} · ${estado} · De: ${bodegaProveedora} → ${bodegaSolicitante}`,
             marginX,
-            pageHeight - 8
+            pageHeight - 5
           );
-          doc.text(`Página ${pageNumber}`, pageWidth - marginX, pageHeight - 8, {
+          doc.text(`Página ${pageNumber} de ${totalPages}`, pageWidth - marginX, pageHeight - 5, {
             align: "right",
           });
           doc.setTextColor(15, 23, 42);
