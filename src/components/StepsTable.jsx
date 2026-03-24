@@ -52,8 +52,6 @@ export default function StepsTable({ data, recetaId, onStepAdded }) {
         "descripcion": newStep.descripcion.trim()
       };
 
-      console.log('Enviando datos:', pasoData);
-
       const response = await axios.post(
         `${import.meta.env.VITE_BACKEND_URL}/pasos-recetas`,
         pasoData

@@ -124,7 +124,6 @@ export default function AddPautaElaboracion() {
       });
 
       const idPauta = pautaRes.id;
-      console.log("Pauta creada:", idPauta);
 
       // Create steps
       for (let i = 0; i < pasos.length; i++) {

@@ -30,12 +30,10 @@ export default function EnviarOrden() {
 
   const handleDescargar = () => {
     // Aquí irá la lógica para generar y descargar el PDF
-    console.log("Descargando orden:", ordenData);
   };
 
   const handleEnviar = () => {
     // Aquí irá la lógica para enviar la orden
-    console.log("Enviando orden:", ordenData);
     navigate("/Ordenes");
   };
 

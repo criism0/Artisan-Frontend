@@ -43,10 +43,7 @@ export default function QRScanner({ onScanSuccess, onClose }) {
       } else {
         setShowPermissionButton(true);
       }
-    } catch (err) {
-      console.log(
-        "Permissions API not supported, trying to initialize scanner"
-      );
+    } catch {
       initializeScanner();
     }
   }

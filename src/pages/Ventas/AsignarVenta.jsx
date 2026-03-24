@@ -238,9 +238,8 @@ export default function AsignarVenta() {
           ? resProductosDisponibles
           : resProductosDisponibles.data || [];
         setProductosDisponibles(productosDisponiblesData);
-      } catch (err) {
-        // No bloquear el flujo si falla este fetch; mostramos un log para debugging
-        console.log('Error recargando productos disponibles después de quitar bulto:', err);
+      } catch {
+        // No bloquear el flujo si falla este fetch
       }
 
       // Recalcular resumen de productos
@@ -276,7 +275,6 @@ export default function AsignarVenta() {
 
       toast.success("Pallet creado exitosamente");
     } catch (err) {
-      console.log(err);
       toast.error("Error al crear el pallet");
     } finally {
       setIsCreatingPallet(false);
@@ -363,7 +361,6 @@ export default function AsignarVenta() {
 
       toast.success("Bultos asignados al pallet exitosamente");
     } catch (err) {
-      console.log(err);
       toast.error("Error al asignar bultos al pallet");
     }
   };
@@ -526,7 +523,6 @@ export default function AsignarVenta() {
 
       toast.success("Bulto desasociado exitosamente");
     } catch (err) {
-      console.log(err);
       toast.error("Error al desasociar el bulto");
     } finally {
       setIsRemovingBulto(false);

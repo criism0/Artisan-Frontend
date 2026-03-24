@@ -17,7 +17,7 @@ export default function NextStepButton({ id, estado }) {
         break;
       // Aquí se pueden agregar más casos según los estados
       default:
-        console.log("Estado no manejado:", estado);
+        break;
     }
   };
 

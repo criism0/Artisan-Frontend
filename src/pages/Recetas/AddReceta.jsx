@@ -263,7 +263,6 @@ export default function AddReceta() {
       );
 
       const idReceta = recetaRes.id;
-      console.log("Receta creada:", idReceta);
 
       // Add ingredientes if any were specified
       if (ingredientes.length > 0) {
@@ -278,7 +277,6 @@ export default function AddReceta() {
               }),
             });
           }
-          console.log("Ingredientes agregados:", ingredientes.length);
         } catch (err) {
           console.error("Error agregando ingredientes:", err);
           toast.error("Receta creada pero hubo problemas agregando algunos ingredientes.");
@@ -296,7 +294,6 @@ export default function AddReceta() {
               }),
             });
           }
-          console.log("Subproductos agregados:", subproductos.length);
         } catch (err) {
           console.error("Error agregando subproductos:", err);
           toast.error("Receta creada pero hubo problemas agregando algunos subproductos.");

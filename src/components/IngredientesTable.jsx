@@ -95,8 +95,6 @@ export default function IngredientesTable({ pasoId, recetaId, ingredientes, onIn
         "unidad_medida": newIngrediente.unidad_medida
       };
 
-      console.log('Enviando datos:', ingredienteData);
-
       const response = await axiosInstance.post(
         `${import.meta.env.VITE_BACKEND_URL}/ingredientes-receta`,
         ingredienteData

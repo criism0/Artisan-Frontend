@@ -8,7 +8,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useApi } from '../../lib/api';
 import { toast, ToastContainer, Bounce } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { translateScopeType, translateModelType } from './permissionUtils';
+import { translateScopeType, translateModelType } from '../../utils/permissionUtils';
 
 export default function RolManagement() {
   const [roles, setRoles] = useState([]);
