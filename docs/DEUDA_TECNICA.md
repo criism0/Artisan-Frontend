@@ -130,3 +130,9 @@ llamada con `toast.error(...)`.
 - `src/Routing.jsx` línea ~178: comentario de verificación de rol de admin
   nunca implementado (relacionado con D1).
 
+---
+
+## Ver también
+
+- `Frontend/docs/DEUDA_VISUAL.md` — inconsistencias de diseño y UX pendientes
+
