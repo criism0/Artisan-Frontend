@@ -4,8 +4,8 @@ import { Pencil, Trash2, X, Upload, PlusCircle } from "lucide-react";
 import RowsPerPageSelector from "../../components/RowsPerPageSelector";
 import SearchBar from "../../components/SearchBar";
 import Pagination from "../../components/Pagination";
-import { procesarFacturaExtra1 } from "./facturas_extra_1";
-import {crear_factura, lista_de_facturas,editar_factura, eliminar_factura} from "./ocrfacturas_backend";
+import { procesarFacturaExtra1 } from "../../services/facturasExtra";
+import {crear_factura, lista_de_facturas,editar_factura, eliminar_factura} from "../../services/ocrfacturas";
 
 const fmtDate = (value) => {
   if (!value) return "—";

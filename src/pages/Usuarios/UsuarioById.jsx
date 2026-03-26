@@ -56,7 +56,7 @@ export default function UsuarioById() {
 
       <div className="flex gap-2 mt-6">
         <EditButton onClick={() => navigate(`/Usuarios/${usuario.id}/edit`)} tooltipText="Editar Usuario" />
-        <TrashButton onClick={() => console.log("Eliminar usuario", usuario)} tooltipText="Eliminar Usuario" />
+        <TrashButton onClick={() => {}} tooltipText="Eliminar Usuario" />
       </div>
     </div>
   );

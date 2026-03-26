@@ -6,9 +6,9 @@ import { toast } from "../../lib/toast";
 import { downloadBlob } from "../../lib/downloadBlob";
 import { FileDown, Pencil } from "lucide-react";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
-import HistorialPasosModal from "./modals/HistorialPasosModal";
-import HistorialBultosModal from "./modals/HistorialBultosModal";
-import HistorialCostosModal from "./modals/HistorialCostosModal";
+import HistorialPasosModal from "../../components/OrdenDeManufactura/HistorialPasosModal";
+import HistorialBultosModal from "../../components/OrdenDeManufactura/HistorialBultosModal";
+import HistorialCostosModal from "../../components/OrdenDeManufactura/HistorialCostosModal";
 import ModalAnalisisSensorial from "../../components/AnalisisSensorial/ModalRegistro";
 import { useApi } from "../../lib/api";
 

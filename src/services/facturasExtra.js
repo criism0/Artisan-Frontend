@@ -1,5 +1,5 @@
-// src/pages/Facturas_IA/facturas_extra_1.js
-import { apiExtra1 } from "../../lib/apiextra1";
+// src/services/facturasExtra.js
+import { apiExtra1 } from "../lib/apiextra1";
 
 export function procesarFacturaExtra1(file, { signal } = {}) {
   if (!(file instanceof File)) {

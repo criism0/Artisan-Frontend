@@ -1,5 +1,5 @@
-// src/services/ocrFacturas.js
-import { api } from "../../lib/api";
+// src/services/ocrfacturas.js
+import { api } from "../lib/api";
 
 export function crear_factura(payload) {
   return api(`/ocr-facturas`, {

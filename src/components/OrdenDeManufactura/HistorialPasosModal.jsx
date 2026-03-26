@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { api } from "../../../lib/api";
-import { toast } from "../../../lib/toast";
+import { api } from "../../lib/api";
+import { toast } from "../../lib/toast";
 
 function formatTime(val) {
   if (!val && val !== 0) return null;

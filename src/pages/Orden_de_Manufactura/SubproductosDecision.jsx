@@ -23,7 +23,6 @@ export default function SubproductosDecision() {
         
         // If no possible subproducts, automatically redirect to production final
         if (!hasPosiblesSubproductos) {
-          console.log('No subproducts, redirecting to produccion-final');
           navigate(`/Orden_de_Manufactura/${id}/produccion-final`);
         }
       } catch (err) {

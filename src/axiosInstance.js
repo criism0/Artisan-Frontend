@@ -39,4 +39,19 @@ axiosInstance.interceptors.request.use(
   }
 );
 
+// Interceptor de respuesta: redirige a /login si el servidor responde 401
+axiosInstance.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (
+      error.response?.status === 401 &&
+      window.location.pathname !== "/login"
+    ) {
+      localStorage.removeItem("access_token");
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default axiosInstance;

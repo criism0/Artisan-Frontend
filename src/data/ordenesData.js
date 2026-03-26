@@ -59,10 +59,7 @@ export const getOrdenes = () => {
 export const getOrdenById = (id) => {
   return new Promise((resolve, reject) => {
     setTimeout(() => {
-      console.log("Searching for order with ID:", id);
-      console.log("Available orders:", ordenes);
       const orden = ordenes.find(o => o.id === id);
-      console.log("Found order:", orden);
       if (orden) {
         resolve(orden);
       } else {

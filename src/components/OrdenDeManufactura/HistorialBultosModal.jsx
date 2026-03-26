@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { api } from "../../../lib/api";
-import { toast } from "../../../lib/toast";
-import { formatCLP, formatNumberCL } from "../../../services/formatHelpers";
+import { api } from "../../lib/api";
+import { toast } from "../../lib/toast";
+import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 
 function n(val) {
   const num = Number(val);
