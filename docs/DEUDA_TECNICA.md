@@ -136,3 +136,9 @@ llamada con `toast.error(...)`.
 
 - `Frontend/docs/DEUDA_VISUAL.md` — inconsistencias de diseño y UX pendientes
 
+---
+
+> **Aviso:** Este documento fue generado con asistencia de inteligencia artificial
+> mediante análisis estático del código fuente. Puede contener errores, omisiones
+> o apreciaciones incorrectas. Verificar cada ítem contra el código real antes de
+> tomar decisiones basadas en este documento.
