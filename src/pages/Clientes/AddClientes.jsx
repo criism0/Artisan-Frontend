@@ -279,10 +279,10 @@ export default function AddClientes() {
       newErrors.telefono_finanzas = "Formato inválido. Use +56 X XXXX XXXX";
     }
     if (!formData.condicion_pago || formData.condicion_pago.trim() === "") {
-      newErrors.condicion_pago = "Campo obligatorio.";
-    } else {
-      const condicionPagoNum = parseInt(formData.condicion_pago);
-      if (isNaN(condicionPagoNum) || condicionPagoNum <= 0) {
+      newErrors.condicion_pago = paymentType === "Crédito" ? "Ingresa los días de crédito." : "Campo obligatorio.";
+    } else if (paymentType === "Crédito") {
+      const dias = parseInt(creditDays);
+      if (isNaN(dias) || dias <= 0) {
         newErrors.condicion_pago = "Debe ser un número entero mayor a 0.";
       }
     }
@@ -302,7 +302,7 @@ export default function AddClientes() {
     const listaPrecioSeleccionada = listasPrecio.find(l => l.nombre === selectedListaPrecio);
     const payload = {
       ...formData,
-      condicion_pago: parseInt(formData.condicion_pago),
+      condicion_pago: formData.condicion_pago,
       id_canal: canalSeleccionado?.id || null,
       id_lista_precio: listaPrecioSeleccionada?.id || null,
       tipo_precio: selectedTipoPrecio,
