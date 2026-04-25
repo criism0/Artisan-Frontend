@@ -138,40 +138,40 @@ export default function AddProvider() {
   const isWebpay = formData.banco === "Webpay";
 
   const labels = {
-    nombre_empresa: "RazÛn Social",
+    nombre_empresa: "Raz√≥n Social",
     rut_empresa: "RUT",
     giro: "Giro",
     tipo_proveedor: "Tipo de Proveedor",
-    region: "RegiÛn",
+    region: "Regi√≥n",
     comuna: "Comuna",
-    direccion: "DirecciÛn",
-    cuenta_corriente: "N∫ de Cuenta",
+    direccion: "Direcci√≥n",
+    cuenta_corriente: "N¬∫ de Cuenta",
     banco: "Banco",
     cuenta: "Tipo de Cuenta",
     email_transferencia: "Email para Transferencias",
     nombre_contacto: "Nombre Contacto Comercial",
-    telefono: "TelÈfono de Contacto",
+    telefono: "Tel√©fono de Contacto",
   };
 
   const validate = () => {
     const newErrors = {};
     if (!formData.nombre_empresa.trim())
-      newErrors.nombre_empresa = "Debe ingresar la razÛn social";
+      newErrors.nombre_empresa = "Debe ingresar la raz√≥n social";
     const rutRegex = /^[0-9]{1,2}\.[0-9]{3}\.[0-9]{3}-[0-9kK]$/;
     if (!formData.rut_empresa) newErrors.rut_empresa = "Debe ingresar el RUT";
     else if (!rutRegex.test(formData.rut_empresa))
-      newErrors.rut_empresa = "Formato inv·lido (Ej: 76.123.456-7)";
+      newErrors.rut_empresa = "Formato inv√°lido (Ej: 76.123.456-7)";
 
     if (!formData.giro.trim()) newErrors.giro = "Debe ingresar el giro";
     if (!formData.tipo_proveedor)
       newErrors.tipo_proveedor = "Seleccione el tipo de proveedor";
-    if (!formData.region) newErrors.region = "Seleccione la regiÛn";
+    if (!formData.region) newErrors.region = "Seleccione la regi√≥n";
     if (!formData.comuna) newErrors.comuna = "Seleccione la comuna";
     if (!formData.direccion.trim())
-      newErrors.direccion = "Debe ingresar la direcciÛn completa";
+      newErrors.direccion = "Debe ingresar la direcci√≥n completa";
 
     if (!isWebpay && !formData.cuenta_corriente)
-      newErrors.cuenta_corriente = "Debe ingresar el n˙mero de cuenta";
+      newErrors.cuenta_corriente = "Debe ingresar el n√∫mero de cuenta";
     if (!formData.banco) newErrors.banco = "Seleccione el banco";
     if (!isWebpay && !formData.cuenta)
       newErrors.cuenta = "Seleccione el tipo de cuenta";
@@ -180,14 +180,14 @@ export default function AddProvider() {
     if (!isWebpay && !formData.email_transferencia)
       newErrors.email_transferencia = "Debe ingresar el email";
     else if (!isWebpay && !emailRegex.test(formData.email_transferencia))
-      newErrors.email_transferencia = "Formato de email no v·lido";
+      newErrors.email_transferencia = "Formato de email no v√°lido";
 
     if (!formData.nombre_contacto.trim())
       newErrors.nombre_contacto = "Debe ingresar el nombre del contacto";
 
-    if (!formData.telefono) newErrors.telefono = "Debe ingresar el telÈfono";
+    if (!formData.telefono) newErrors.telefono = "Debe ingresar el tel√©fono";
     else if (formData.telefono.length < 9)
-      newErrors.telefono = "El telÈfono debe tener al menos 9 dÌgitos";
+      newErrors.telefono = "El tel√©fono debe tener al menos 9 d√≠gitos";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -303,7 +303,7 @@ export default function AddProvider() {
         <BackButton to="/Proveedores" />
       </div>
 
-      <h1 className="text-2xl font-bold mb-4 text-gray-800">AÒadir Proveedor</h1>
+      <h1 className="text-2xl font-bold mb-4 text-gray-800">A√±adir Proveedor</h1>
 
       {errorGeneral && (
         <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">
@@ -312,12 +312,12 @@ export default function AddProvider() {
       )}
 
       <form onSubmit={handleSubmit} className="bg-white shadow p-6 rounded-lg">
-        <Section title="InformaciÛn General">
+        <Section title="Informaci√≥n General">
           <FieldRow
             id="nombre_empresa"
             label={labels.nombre_empresa}
             value={formData.nombre_empresa}
-            placeholder="Ej: L·cteos del Sur SpA"
+            placeholder="Ej: L√°cteos del Sur SpA"
             error={errors.nombre_empresa}
             onChange={setField("nombre_empresa")}
             required
@@ -335,7 +335,7 @@ export default function AddProvider() {
             id="giro"
             label={labels.giro}
             value={formData.giro}
-            placeholder="Ej: ProducciÛn de alimentos"
+            placeholder="Ej: Producci√≥n de alimentos"
             error={errors.giro}
             onChange={setField("giro")}
           />
@@ -349,7 +349,7 @@ export default function AddProvider() {
           />
         </Section>
 
-        <Section title="UbicaciÛn">
+        <Section title="Ubicaci√≥n">
           <SimpleSelectRow
             id="region"
             label={labels.region}
@@ -376,7 +376,7 @@ export default function AddProvider() {
           />
         </Section>
 
-        <Section title="InformaciÛn de Pago">
+        <Section title="Informaci√≥n de Pago">
           <FieldRow
             id="cuenta_corriente"
             label={labels.cuenta_corriente}
@@ -421,7 +421,7 @@ export default function AddProvider() {
             id="nombre_contacto"
             label={labels.nombre_contacto}
             value={formData.nombre_contacto}
-            placeholder="Ej: MarÌa PÈrez"
+            placeholder="Ej: Mar√≠a P√©rez"
             error={errors.nombre_contacto}
             onChange={setField("nombre_contacto")}
           />
