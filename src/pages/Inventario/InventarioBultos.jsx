@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import * as XLSX from "xlsx";
+import { useGoogleLogin } from "@react-oauth/google";
 import { api, apiBlob } from "../../lib/api";
+import { createAndOpenSheet } from "../../lib/googleSheets";
 import DividirBultoModal from "../../components/DividirBultoModal";
 import { toast } from "../../lib/toast";
 import { Download, FileDown, FileSpreadsheet, Pencil, Scissors, X } from "lucide-react";
@@ -96,6 +97,7 @@ export default function InventarioBultos() {
   const [sort, setSort] = useState({ key: "updatedAt", dir: "desc" });
 
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [exportingType, setExportingType] = useState(null);
 
   const canEditBulto =
     checkScope(ModelType.BULTO, ScopeType.WRITE) || isAdminOrSuperAdmin();
@@ -339,12 +341,11 @@ export default function InventarioBultos() {
     });
   };
 
-  const exportToExcel = (rows, fileName) => {
-    const sheet = XLSX.utils.json_to_sheet(rows);
-    const book = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(book, sheet, "Bultos");
-    XLSX.writeFile(book, fileName);
-  };
+  const HEADERS_BULTOS = [
+    "ID", "Identificador", "Categoría", "Bodega", "Pallet", "Ítem",
+    "Unidad medida", "Peso unitario", "Unidades disponibles", "Cantidad unidades",
+    "Total disponible", "Total cantidad", "Costo unitario", "Costo total", "Última actualización",
+  ];
 
   const buildExportRows = (list) => {
     return list.map((b) => {
@@ -382,22 +383,49 @@ export default function InventarioBultos() {
     });
   };
 
-  const exportSelected = () => {
-    const sel = bultosOrdenados.filter((b) => selectedIds.has(b.id));
-    if (sel.length === 0) {
-      toast.error("No hay filas seleccionadas");
-      return;
-    }
-    exportToExcel(buildExportRows(sel), `inventario_bultos_seleccionados.xlsx`);
-  };
+  const rowsToValues = (rows) =>
+    rows.map((r) => [
+      r.id, r.identificador, r.clave_categoria, r.bodega, r.pallet, r.item,
+      r.unidad_medida, r.peso_unitario, r.unidades_disponibles, r.cantidad_unidades,
+      r.total_disponible, r.total_cantidad, r.costo_unitario, r.costo_total, r.updatedAt,
+    ]);
 
-  const exportFiltered = () => {
-    if (bultosOrdenados.length === 0) {
-      toast.error("No hay datos para exportar");
-      return;
-    }
-    exportToExcel(buildExportRows(bultosOrdenados), `inventario_bultos_filtrados.xlsx`);
-  };
+  const loginAndExportSelected = useGoogleLogin({
+    onSuccess: async ({ access_token }) => {
+      const sel = bultosOrdenados.filter((b) => selectedIds.has(b.id));
+      if (sel.length === 0) { toast.error("No hay filas seleccionadas"); return; }
+      try {
+        setExportingType("selected");
+        const title = `Bultos seleccionados ${new Date().toLocaleDateString("es-CL")}`;
+        const url = await createAndOpenSheet(access_token, title, [HEADERS_BULTOS, ...rowsToValues(buildExportRows(sel))]);
+        toast.link("Hoja creada", url);
+      } catch {
+        toast.error("Error al exportar a Google Sheets");
+      } finally {
+        setExportingType(null);
+      }
+    },
+    onError: () => toast.error("No se pudo autenticar con Google"),
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+  });
+
+  const loginAndExportFiltered = useGoogleLogin({
+    onSuccess: async ({ access_token }) => {
+      if (bultosOrdenados.length === 0) { toast.error("No hay datos para exportar"); return; }
+      try {
+        setExportingType("filtered");
+        const title = `Inventario Bultos ${new Date().toLocaleDateString("es-CL")}`;
+        const url = await createAndOpenSheet(access_token, title, [HEADERS_BULTOS, ...rowsToValues(buildExportRows(bultosOrdenados))]);
+        toast.link("Hoja creada", url);
+      } catch {
+        toast.error("Error al exportar a Google Sheets");
+      } finally {
+        setExportingType(null);
+      }
+    },
+    onError: () => toast.error("No se pudo autenticar con Google"),
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+  });
 
   const clearFilters = () => {
     setBusqueda("");
@@ -426,16 +454,18 @@ export default function InventarioBultos() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={exportSelected}
-            className="text-gray-500 hover:text-green-700"
-            title="Exportar seleccionados (Excel)"
+            onClick={loginAndExportSelected}
+            disabled={exportingType === "selected"}
+            className="text-gray-500 hover:text-green-700 disabled:opacity-40"
+            title="Exportar seleccionados (Google Sheets)"
           >
             <FileSpreadsheet className="w-5 h-5" />
           </button>
           <button
-            onClick={exportFiltered}
-            className="text-gray-500 hover:text-green-700"
-            title="Exportar filtrados (Excel)"
+            onClick={loginAndExportFiltered}
+            disabled={exportingType === "filtered"}
+            className="text-gray-500 hover:text-green-700 disabled:opacity-40"
+            title="Exportar filtrados (Google Sheets)"
           >
             <Download className="w-5 h-5" />
           </button>

@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback, Fragment } from "react";
+import { useGoogleLogin } from "@react-oauth/google";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, FileSpreadsheet } from "lucide-react";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
+import { createAndOpenSheet } from "../../lib/googleSheets";
 
 // ── Badges ─────────────────────────────────────────────────────────────────
 
@@ -66,6 +68,7 @@ export default function Inventario() {
   const [tipoFilter, setTipoFilter] = useState("todos");
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
   // Accordion
@@ -265,10 +268,53 @@ export default function Inventario() {
     [expandedKey, bultosCache, bodegaFilter]
   );
 
+  const HEADERS_INVENTARIO = [
+    "Nombre", "Categoría", "Stock disponible", "Estado", "Costo total CLP", "Último movimiento",
+  ];
+
+  const buildExportRows = (data) =>
+    data.map((item) => [
+      item.materiaPrima?.nombre || item.nombre_producto || "—",
+      item.categoria || item.materiaPrima?.categoria?.nombre || "—",
+      item.unidades_disponibles ?? "—",
+      item.estado_stock ?? "—",
+      item.precio_total ?? 0,
+      item.ultimo_movimiento
+        ? new Date(item.ultimo_movimiento).toLocaleString("es-CL")
+        : "—",
+    ]);
+
+  const loginAndExport = useGoogleLogin({
+    onSuccess: async ({ access_token }) => {
+      try {
+        setIsExporting(true);
+        const title = `Inventario ${new Date().toLocaleDateString("es-CL")}`;
+        const url = await createAndOpenSheet(access_token, title, [HEADERS_INVENTARIO, ...buildExportRows(filtered)]);
+        toast.link("Hoja creada", url);
+      } catch {
+        toast.error("Error al exportar a Google Sheets");
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    onError: () => toast.error("No se pudo autenticar con Google"),
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+  });
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="flex items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold">Inventario</h1>
+        <button
+          onClick={loginAndExport}
+          disabled={isExporting || filtered.length === 0}
+          className="text-gray-500 hover:text-green-700 disabled:opacity-40"
+          title="Exportar a Google Sheets (vista actual)"
+        >
+          {isExporting
+            ? <span className="text-xs text-gray-500">Exportando…</span>
+            : <FileSpreadsheet className="w-5 h-5" />}
+        </button>
       </div>
 
       {/* Panel de filtros */}
