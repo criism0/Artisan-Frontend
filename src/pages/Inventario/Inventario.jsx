@@ -269,14 +269,15 @@ export default function Inventario() {
   );
 
   const HEADERS_INVENTARIO = [
-    "Nombre", "Categoría", "Stock disponible", "Estado", "Costo total CLP", "Último movimiento",
+    "Nombre", "Categoría", "Stock disponible", "Unidad", "Estado", "Costo total CLP", "Último movimiento",
   ];
 
   const buildExportRows = (data) =>
     data.map((item) => [
       item.materiaPrima?.nombre || item.nombre_producto || "—",
       item.categoria || item.materiaPrima?.categoria?.nombre || "—",
-      item.unidades_disponibles ?? "—",
+      item.unidades_disponibles ?? 0,
+      item.unidad_medida ?? "—",
       item.estado_stock ?? "—",
       item.precio_total ?? 0,
       item.ultimo_movimiento
@@ -440,7 +441,7 @@ export default function Inventario() {
                         <td className="p-2 border">
                           <BadgeCategoria value={categoria} />
                         </td>
-                        <td className="p-2 border">{item.unidades_disponibles ?? "—"}</td>
+                        <td className="p-2 border">{item.unidades_disponibles ?? "—"} {item.unidad_medida ?? ""}</td>
                         <td className="p-2 border">
                           <BadgeEstado value={item.estado_stock} />
                         </td>
@@ -582,7 +583,7 @@ export default function Inventario() {
                     <div>
                       Stock:{" "}
                       <span className="font-medium">
-                        {item.unidades_disponibles ?? "—"}
+                        {item.unidades_disponibles ?? "—"} {item.unidad_medida ?? ""}
                       </span>
                     </div>
                     <div>
