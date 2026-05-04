@@ -9,6 +9,75 @@ import autoTable from "jspdf-autotable";
 import logo from "../../assets/logo.png";
 import { formatCLP } from "../../services/formatHelpers";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import Selector from "../../components/Selector";
+
+function FacturarForm({
+  direccionesCliente,
+  idLocalDespacho,
+  setIdLocalDespacho,
+  loadingDirecciones,
+  fechaFacturacion,
+  setFechaFacturacion,
+  transitioning,
+  onConfirm,
+  onCancel,
+}) {
+  return (
+    <div className="flex flex-col gap-4 max-w-sm">
+      {/* Dirección de entrega */}
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-medium text-gray-700">Dirección de entrega</span>
+        {loadingDirecciones ? (
+          <span className="text-sm text-gray-400 py-2">Cargando direcciones...</span>
+        ) : (
+          <Selector
+            options={direccionesCliente.map((d) => ({
+              value: String(d.id),
+              label: [d.tipo_direccion, d.nombre_sucursal, [d.calle, d.numero].filter(Boolean).join(" "), d.comuna]
+                .filter(Boolean)
+                .join(" — "),
+              searchText: [d.tipo_direccion, d.nombre_sucursal, d.calle, d.numero, d.comuna, d.region]
+                .filter(Boolean)
+                .join(" "),
+            }))}
+            selectedValue={idLocalDespacho}
+            onSelect={setIdLocalDespacho}
+            useFuzzy
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          />
+        )}
+        <span className="text-xs text-gray-400 italic">Confirma o ajusta la dirección antes de facturar</span>
+      </div>
+
+      {/* Fecha facturación */}
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-medium text-gray-700">Fecha de facturación *</span>
+        <input
+          type="date"
+          value={fechaFacturacion}
+          onChange={(e) => setFechaFacturacion(e.target.value)}
+          className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={onConfirm}
+          disabled={transitioning}
+          className="px-4 py-2 rounded-md text-white bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-300 font-medium"
+        >
+          {transitioning ? "Facturando..." : "Confirmar factura"}
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-3 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const COMPANY = {
   nombre: "ELABORADORA DE ALIMENTOS GOURMET LTDA.",
@@ -35,6 +104,9 @@ export default function OrdenVentaDetail() {
   const [fechaFacturacion, setFechaFacturacion] = useState("");
   const [costoEnvio, setCostoEnvio] = useState("");
   const [fechaEnvio, setFechaEnvio] = useState("");
+  const [direccionesCliente, setDireccionesCliente] = useState([]);
+  const [idLocalDespacho, setIdLocalDespacho] = useState("");
+  const [loadingDirecciones, setLoadingDirecciones] = useState(false);
 
   const fetchOrden = async () => {
     const ordenData = await api(`/ordenes-venta/${id}/info`);
@@ -162,6 +234,20 @@ export default function OrdenVentaDetail() {
     }
   };
 
+  const loadDireccionesCliente = async (clienteId) => {
+    if (!clienteId) return;
+    setLoadingDirecciones(true);
+    try {
+      const res = await api(`/clientes/${clienteId}`);
+      const data = res?.data || res;
+      setDireccionesCliente(Array.isArray(data?.direcciones) ? data.direcciones : []);
+    } catch {
+      toast.error("No se pudieron cargar las direcciones del cliente");
+    } finally {
+      setLoadingDirecciones(false);
+    }
+  };
+
   const handleFacturar = async () => {
     if (!fechaFacturacion) {
       toast.error("Ingresa la fecha de facturación");
@@ -171,14 +257,19 @@ export default function OrdenVentaDetail() {
       setTransitioning(true);
       const res = await api(`/ordenes-venta/${id}/facturar`, {
         method: "PUT",
-        body: JSON.stringify({ fecha_facturacion: fechaFacturacion }),
+        body: JSON.stringify({
+          fecha_facturacion: fechaFacturacion,
+          ...(idLocalDespacho && { id_local: Number(idLocalDespacho) }),
+        }),
       });
-      const updated = res?.data?.orden || res?.orden;
-      if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
-      else setOrden((prev) => (prev ? { ...prev, estado: "Facturada" } : prev));
-      toast.success(res?.data?.message || "Orden facturada correctamente");
+      // Refetch para reflejar la dirección actualizada
+      const o = await fetchOrden();
+      setOrden(o);
+      toast.success(res?.data?.message || res?.message || "Orden facturada correctamente");
       setShowFacturarForm(false);
       setFechaFacturacion("");
+      setIdLocalDespacho("");
+      setDireccionesCliente([]);
     } catch (err) {
       toast.error(err?.response?.data?.error || "No se pudo facturar la orden");
     } finally {
@@ -636,35 +727,27 @@ export default function OrdenVentaDetail() {
         {orden?.estado === "Validada" && orden?.es_referencial && (
           !showFacturarForm ? (
             <button
-              onClick={() => setShowFacturarForm(true)}
+              onClick={() => {
+                setShowFacturarForm(true);
+                setIdLocalDespacho(String(orden?.id_local || ""));
+                loadDireccionesCliente(cliente?.id);
+              }}
               className="px-4 py-2 rounded-md text-white bg-yellow-500 hover:bg-yellow-600"
             >
               Facturar orden
             </button>
           ) : (
-            <div className="flex flex-col gap-3 max-w-xs">
-              <label className="flex flex-col text-sm">
-                Fecha de facturación *
-                <input
-                  type="date"
-                  value={fechaFacturacion}
-                  onChange={(e) => setFechaFacturacion(e.target.value)}
-                  className="border border-gray-300 px-2 py-1 rounded mt-1"
-                />
-              </label>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleFacturar}
-                  disabled={transitioning}
-                  className="px-4 py-2 rounded-md text-white bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-300"
-                >
-                  {transitioning ? "Facturando..." : "Confirmar factura"}
-                </button>
-                <button onClick={() => setShowFacturarForm(false)} className="px-3 py-2 rounded border border-gray-300 text-sm hover:bg-gray-50">
-                  Cancelar
-                </button>
-              </div>
-            </div>
+            <FacturarForm
+              direccionesCliente={direccionesCliente}
+              idLocalDespacho={idLocalDespacho}
+              setIdLocalDespacho={setIdLocalDespacho}
+              loadingDirecciones={loadingDirecciones}
+              fechaFacturacion={fechaFacturacion}
+              setFechaFacturacion={setFechaFacturacion}
+              transitioning={transitioning}
+              onConfirm={handleFacturar}
+              onCancel={() => { setShowFacturarForm(false); setIdLocalDespacho(""); setDireccionesCliente([]); }}
+            />
           )
         )}
 
@@ -681,35 +764,27 @@ export default function OrdenVentaDetail() {
         {orden?.estado === "Lista para despacho" && (
           !showFacturarForm ? (
             <button
-              onClick={() => setShowFacturarForm(true)}
+              onClick={() => {
+                setShowFacturarForm(true);
+                setIdLocalDespacho(String(orden?.id_local || ""));
+                loadDireccionesCliente(cliente?.id);
+              }}
               className="px-4 py-2 rounded-md text-white bg-yellow-500 hover:bg-yellow-600"
             >
               Facturar orden
             </button>
           ) : (
-            <div className="flex flex-col gap-3 max-w-xs">
-              <label className="flex flex-col text-sm">
-                Fecha de facturación *
-                <input
-                  type="date"
-                  value={fechaFacturacion}
-                  onChange={(e) => setFechaFacturacion(e.target.value)}
-                  className="border border-gray-300 px-2 py-1 rounded mt-1"
-                />
-              </label>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleFacturar}
-                  disabled={transitioning}
-                  className="px-4 py-2 rounded-md text-white bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-300"
-                >
-                  {transitioning ? "Facturando..." : "Confirmar factura"}
-                </button>
-                <button onClick={() => setShowFacturarForm(false)} className="px-3 py-2 rounded border border-gray-300 text-sm hover:bg-gray-50">
-                  Cancelar
-                </button>
-              </div>
-            </div>
+            <FacturarForm
+              direccionesCliente={direccionesCliente}
+              idLocalDespacho={idLocalDespacho}
+              setIdLocalDespacho={setIdLocalDespacho}
+              loadingDirecciones={loadingDirecciones}
+              fechaFacturacion={fechaFacturacion}
+              setFechaFacturacion={setFechaFacturacion}
+              transitioning={transitioning}
+              onConfirm={handleFacturar}
+              onCancel={() => { setShowFacturarForm(false); setIdLocalDespacho(""); setDireccionesCliente([]); }}
+            />
           )
         )}
 
