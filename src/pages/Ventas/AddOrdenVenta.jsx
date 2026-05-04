@@ -23,7 +23,6 @@ export default function AddOrdenVenta() {
 
   const [form, setForm] = useState({
     id_cliente: "",
-    id_local: "",
     numero_oc: "",
     fecha_orden: getTodayDate(),
     bodega_id: "",
@@ -101,10 +100,10 @@ export default function AddOrdenVenta() {
     setCondicionPagoCliente(null);
     if (!id_cliente) {
       setProductoForm({ id_producto: "", cantidad: "", precio_unitario: "" });
-      setForm(prev => ({ ...prev, id_cliente: "", id_local: "" }));
+      setForm(prev => ({ ...prev, id_cliente: "" }));
       return;
     }
-    setForm(prev => ({ ...prev, id_cliente, id_local: "" }));
+    setForm(prev => ({ ...prev, id_cliente }));
     try {
       const resCliente = await api(`/clientes/${id_cliente}`);
       const clienteData = resCliente.data || resCliente;
@@ -166,7 +165,6 @@ export default function AddOrdenVenta() {
   const validateForm = () => {
     const newErrors = {};
     if (!form.id_cliente) { newErrors.id_cliente = "Debes seleccionar un cliente."; setErrors(newErrors); toast.error("Debes seleccionar un cliente."); return false; }
-    if (!form.id_local) { newErrors.id_local = "Debes seleccionar una dirección."; setErrors(newErrors); toast.error("Debes seleccionar una dirección."); return false; }
     if (!form.bodega_id) { newErrors.bodega_id = "Debes seleccionar una bodega."; setErrors(newErrors); toast.error("Debes seleccionar una bodega."); return false; }
     if (!form.fecha_orden) { newErrors.fecha_orden = "La fecha de emisión es obligatoria."; setErrors(newErrors); toast.error("La fecha de emisión es obligatoria."); return false; }
     setErrors({});
@@ -221,14 +219,8 @@ export default function AddOrdenVenta() {
     if (!validateForm()) return;
     if (productosAgregados.length === 0) { toast.error("Debes agregar al menos un producto a la orden."); return; }
     try {
-      const direccionSeleccionada = direcciones.find(d => d.id === Number(form.id_local));
-      if (!direccionSeleccionada) { toast.error("La dirección seleccionada no es válida."); return; }
-      if (direccionSeleccionada.cliente_id && Number(direccionSeleccionada.cliente_id) !== Number(form.id_cliente)) {
-        toast.error("La dirección seleccionada no pertenece al cliente seleccionado.");
-        return;
-      }
       const payload = {
-        id_local: Number(form.id_local),
+        id_cliente: Number(form.id_cliente),
         numero_oc: form.numero_oc,
         fecha_orden: form.fecha_orden,
         bodega_id: Number(form.bodega_id),
@@ -274,8 +266,8 @@ export default function AddOrdenVenta() {
 
           <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-5">
 
-            {/* Cliente */}
-            <label className="flex flex-col gap-1">
+            {/* Cliente (ocupa ambas columnas) */}
+            <label className="flex flex-col gap-1 col-span-2">
               <span className="text-sm font-medium text-gray-700">Cliente *</span>
               <Selector
                 options={clients.map((c) => ({
@@ -291,36 +283,7 @@ export default function AddOrdenVenta() {
                 } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary`}
               />
               {errors.id_cliente && <span className="text-red-500 text-xs">{errors.id_cliente}</span>}
-            </label>
-
-            {/* Dirección */}
-            <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-gray-700">Dirección de entrega *</span>
-              <Selector
-                options={direcciones.map((d) => {
-                  const label = [d.tipo_direccion, d.nombre_sucursal, [d.calle, d.numero].filter(Boolean).join(" "), d.comuna]
-                    .filter(Boolean)
-                    .join(" - ");
-                  return {
-                    value: String(d.id),
-                    label,
-                    searchText: [d.tipo_direccion, d.nombre_sucursal, d.calle, d.numero, d.comuna, d.region].filter(Boolean).join(" "),
-                  };
-                })}
-                selectedValue={form.id_local}
-                onSelect={(value) => setForm((prev) => ({ ...prev, id_local: value }))}
-                disabled={!direcciones.length}
-                useFuzzy
-                className={`w-full px-3 py-2 border ${
-                  errors.id_local ? "border-red-500" : "border-gray-300"
-                } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
-                  !direcciones.length ? "bg-gray-100 cursor-not-allowed" : "bg-white"
-                }`}
-              />
-              {errors.id_local && <span className="text-red-500 text-xs">{errors.id_local}</span>}
-              {!form.id_cliente && (
-                <span className="text-gray-400 text-xs">Selecciona un cliente primero</span>
-              )}
+              <span className="text-xs text-gray-400 italic">La dirección de entrega se asignará al momento de facturar la orden</span>
             </label>
 
             {/* Número OC */}

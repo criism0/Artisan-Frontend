@@ -19,7 +19,6 @@ export default function OrdenesVentaPage() {
   const api = useApi();
   const [ordenes, setOrdenes] = useState([]);
   const [filtered, setFiltered] = useState([]);
-  const [direccionToCliente, setDireccionToCliente] = useState({});
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [page, setPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
@@ -31,30 +30,7 @@ export default function OrdenesVentaPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [ordRes, clientesRes] = await Promise.all([
-          api("/ordenes-venta"),
-          api("/clientes"),
-        ]);
-
-        const direccionToClienteId = {};
-        const clienteNombre = {};
-        
-        const clientesData = clientesRes.data || clientesRes || [];
-        clientesData.forEach((c) => {
-          clienteNombre[c.id] = c.nombre_empresa;
-          if (Array.isArray(c.direcciones)) {
-            c.direcciones.forEach((direccion) => {
-              direccionToClienteId[direccion.id] = c.id;
-            });
-          }
-        });
-
-        const d2c = {};
-        Object.entries(direccionToClienteId).forEach(([direccionId, clienteId]) => {
-          d2c[direccionId] = clienteNombre[clienteId] || "—";
-        });
-        setDireccionToCliente(d2c);
-
+        const ordRes = await api("/ordenes-venta");
         const ordenesData = ordRes.data || ordRes || [];
         const data = [...ordenesData].sort(
           (a, b) => new Date(b.fecha_orden) - new Date(a.fecha_orden)
@@ -139,12 +115,10 @@ export default function OrdenesVentaPage() {
 
   // === Acciones por fila ===
   const actions = (row) => {
-    const estadoListoDespacho = row.estado === "Listo-para-despacho";
-    const estadoEnviado = row.estado === "Enviado";
-    const estadoEntregado = row.estado === "Entregado";
-    const puedeEditar = !estadoListoDespacho && !estadoEnviado && !estadoEntregado;
-    const puedeVerResumen = estadoListoDespacho || estadoEnviado || estadoEntregado;
-    
+    const terminada = row.estado === "Entregada";
+    const puedeEditar = row.estado === "Creada";
+    const tieneAsignacion = ["En picking", "Lista para despacho", "Facturada", "Entregada"].includes(row.estado);
+
     return (
       <div className="flex gap-2 justify-center">
         <button
@@ -165,7 +139,7 @@ export default function OrdenesVentaPage() {
           </button>
         )}
 
-        {puedeVerResumen && (
+        {tieneAsignacion && (
           <button
             onClick={() => navigate(`/ventas/ordenes/${row.id}/resumen-asignacion`)}
             className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-blue-600"
@@ -175,27 +149,15 @@ export default function OrdenesVentaPage() {
           </button>
         )}
 
-        {estadoListoDespacho && (
+        {!terminada && (
           <button
-            onClick={() => handleEnviarOrden(row)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-purple-600"
-            title="Enviar orden"
+            onClick={() => navigate(`/ventas/ordenes/${row.id}`)}
+            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-amber-600"
+            title="Gestionar orden"
           >
-            <Truck size={18} strokeWidth={1.5} />
+            <FilePen size={18} strokeWidth={1.5} />
           </button>
         )}
-
-        {(estadoEnviado || estadoListoDespacho) && (
-          <button
-            onClick={() => handleEntregarOrden(row)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-green-600"
-            title="Entregar orden"
-          >
-            <CheckCircle size={18} strokeWidth={1.5} />
-          </button>
-        )}
-
-        <BotonEstado row={row} />
 
         <button
           onClick={() => handleDelete(row.id)}
@@ -219,7 +181,7 @@ export default function OrdenesVentaPage() {
       [
         String(o.id),
         fmtDate(o.fecha_orden),
-        direccionToCliente[o.id_local],
+        o.cliente?.nombre_empresa,
         fmtMoney(o.ingreso_venta),
         o.estado,
       ]
@@ -304,7 +266,7 @@ export default function OrdenesVentaPage() {
               <tr key={row.id} className="border-b hover:bg-gray-50">
                 <td className="px-4 py-2">{row.id}</td>
                 <td className="px-4 py-2">{fmtDate(row.fecha_orden)}</td>
-                <td className="px-4 py-2">{direccionToCliente[row.id_local] || "—"}</td>
+                <td className="px-4 py-2">{row.cliente?.nombre_empresa || "—"}</td>
                 <td className="px-4 py-2">{fmtMoney(row.ingreso_venta * 1.19)}</td>
                 <td className="px-4 py-2">{getEstadoBadge(row.estado)}</td>
                 <td className="px-4 py-2 text-center">{actions(row)}</td>

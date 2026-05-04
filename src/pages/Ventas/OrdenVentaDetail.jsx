@@ -21,12 +21,15 @@ function FacturarForm({
   transitioning,
   onConfirm,
   onCancel,
+  requiereDir = false,
 }) {
   return (
     <div className="flex flex-col gap-4 max-w-sm">
       {/* Dirección de entrega */}
       <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">Dirección de entrega</span>
+        <span className="text-sm font-medium text-gray-700">
+          Dirección de entrega {requiereDir && <span className="text-red-500">*</span>}
+        </span>
         {loadingDirecciones ? (
           <span className="text-sm text-gray-400 py-2">Cargando direcciones...</span>
         ) : (
@@ -46,7 +49,11 @@ function FacturarForm({
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           />
         )}
-        <span className="text-xs text-gray-400 italic">Confirma o ajusta la dirección antes de facturar</span>
+        <span className="text-xs text-gray-400 italic">
+          {requiereDir
+            ? "Debes seleccionar la dirección de entrega para poder facturar"
+            : "Confirma o ajusta la dirección antes de facturar"}
+        </span>
       </div>
 
       {/* Fecha facturación */}
@@ -150,8 +157,9 @@ export default function OrdenVentaDetail() {
     })();
   }, [id, api]);
 
-  const direccion = orden?.direccion || {};
-  const cliente = direccion?.cliente || {};
+  const direccion = orden?.direccion || null;
+  // cliente viene directo via id_cliente (siempre disponible, incluso sin id_local)
+  const cliente = orden?.cliente || {};
   const bodega = orden?.bodega || {};
 
   const orderItems = useMemo(
@@ -564,13 +572,23 @@ export default function OrdenVentaDetail() {
         <h2 className="text-base font-semibold text-text mb-3">Información</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
           <div className="bg-gray-50 rounded-lg border border-border p-3">
-            <div className="text-xs text-gray-500 font-medium">Dirección</div>
-            <div className="font-medium text-text mt-1">
-              {direccion?.tipo_direccion || ""} {direccion?.nombre_sucursal || ""}
-            </div>
-            <div className="text-xs text-gray-600 mt-1">
-              {direccion?.calle || ""} {direccion?.numero || ""}{direccion?.comuna ? `, ${direccion.comuna}` : ""}
-            </div>
+            <div className="text-xs text-gray-500 font-medium">Dirección de entrega</div>
+            {direccion ? (
+              <>
+                <div className="font-medium text-text mt-1">
+                  {[direccion.tipo_direccion, direccion.nombre_sucursal].filter(Boolean).join(" — ") || "—"}
+                </div>
+                <div className="text-xs text-gray-600 mt-1">
+                  {direccion.calle || ""} {direccion.numero || ""}{direccion.comuna ? `, ${direccion.comuna}` : ""}
+                </div>
+              </>
+            ) : (
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                  Por asignar — se confirma al facturar
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="bg-gray-50 rounded-lg border border-border p-3">
@@ -747,6 +765,7 @@ export default function OrdenVentaDetail() {
               transitioning={transitioning}
               onConfirm={handleFacturar}
               onCancel={() => { setShowFacturarForm(false); setIdLocalDespacho(""); setDireccionesCliente([]); }}
+              requiereDir={!orden?.id_local}
             />
           )
         )}
@@ -784,6 +803,7 @@ export default function OrdenVentaDetail() {
               transitioning={transitioning}
               onConfirm={handleFacturar}
               onCancel={() => { setShowFacturarForm(false); setIdLocalDespacho(""); setDireccionesCliente([]); }}
+              requiereDir={!orden?.id_local}
             />
           )
         )}
