@@ -173,10 +173,10 @@ export default function SolicitudDetail() {
         id: detalle?.id,
         nombre: detalle?.materiaPrima?.nombre ?? "—",
         cantidad_solicitada: detalle?.cantidad_solicitada ?? 0,
+        cantidad_despachada:
+          detalle?.cantidad_despachada == null ? "—" : detalle.cantidad_despachada,
         cantidad_recepcionada:
-          detalle?.cantidad_recepcionada == null
-            ? "—"
-            : detalle.cantidad_recepcionada,
+          detalle?.cantidad_recepcionada == null ? "—" : detalle.cantidad_recepcionada,
         unidad_medida: detalle?.materiaPrima?.unidad_medida ?? "—",
         comentario: getComentarioText(detalle),
       })),
@@ -192,9 +192,14 @@ export default function SolicitudDetail() {
         Cell: ({ value }) => formatCantidad(value),
       },
       {
+        header: "Cant. Despachada",
+        accessor: "cantidad_despachada",
+        Cell: ({ value }) => (value === "—" ? <span className="text-gray-400">—</span> : formatCantidad(value)),
+      },
+      {
         header: "Cant. Recepcionada",
         accessor: "cantidad_recepcionada",
-        Cell: ({ value }) => formatCantidad(value),
+        Cell: ({ value }) => (value === "—" ? <span className="text-gray-400">—</span> : formatCantidad(value)),
       },
       { header: "UM", accessor: "unidad_medida" },
       {
@@ -365,12 +370,13 @@ export default function SolicitudDetail() {
       const startInsumosY = 32;
       autoTable(doc, {
         startY: startInsumosY,
-        head: [["#", "Insumo", "Cant. Sol.", "Cant. Rec.", "UM", "Comentario"]],
+        head: [["#", "Insumo", "Cant. Sol.", "Cant. Desp.", "Cant. Rec.", "UM", "Comentario"]],
         body: insumosData.map((row, idx) => [
           String(idx + 1),
           String(row.nombre ?? "—"),
           String(formatCantidad(row.cantidad_solicitada)),
-          String(formatCantidad(row.cantidad_recepcionada)),
+          String(row.cantidad_despachada === "—" ? "—" : formatCantidad(row.cantidad_despachada)),
+          String(row.cantidad_recepcionada === "—" ? "—" : formatCantidad(row.cantidad_recepcionada)),
           String(row.unidad_medida ?? "—"),
           String(row.comentario ?? ""),
         ]),
@@ -394,11 +400,12 @@ export default function SolicitudDetail() {
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: {
           0: { cellWidth: 9, halign: "center", minCellHeight: 8 },
-          1: { cellWidth: 85, minCellHeight: 8 },
-          2: { cellWidth: 25, halign: "right", minCellHeight: 8 },
-          3: { cellWidth: 25, halign: "right", minCellHeight: 8 },
-          4: { cellWidth: 18, halign: "center", minCellHeight: 8 },
-          5: { cellWidth: 55, valign: "top", minCellHeight: 8 },
+          1: { cellWidth: 70, minCellHeight: 8 },
+          2: { cellWidth: 22, halign: "right", minCellHeight: 8 },
+          3: { cellWidth: 22, halign: "right", minCellHeight: 8 },
+          4: { cellWidth: 22, halign: "right", minCellHeight: 8 },
+          5: { cellWidth: 15, halign: "center", minCellHeight: 8 },
+          6: { cellWidth: 57, valign: "top", minCellHeight: 8 },
         },
         showHead: "everyPage",
         pageBreak: "auto",
