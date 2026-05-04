@@ -25,12 +25,9 @@ export default function AddOrdenVenta() {
     id_cliente: "",
     id_local: "",
     numero_oc: "",
-    costo_envio: "",
     fecha_orden: getTodayDate(),
-    fecha_envio: "",
-    fecha_facturacion: "",
-    condiciones: "Contado",
     bodega_id: "",
+    es_referencial: false,
   });
 
   const [productoForm, setProductoForm] = useState({
@@ -53,20 +50,6 @@ export default function AddOrdenVenta() {
       setBodegas(bodegasData);
     });
   }, [api]);
-
-  // Efecto para calcular automáticamente la fecha de facturación cuando cambian fecha_orden o condicionPagoCliente
-  useEffect(() => {
-    if (condicionPagoCliente && condicionPagoCliente > 0 && form.fecha_orden) {
-      const fechaFacturacion = calcularFechaFacturacion(form.fecha_orden, condicionPagoCliente);
-      setForm(prev => {
-        // Solo actualizar si la fecha calculada es diferente a la actual
-        if (prev.fecha_facturacion !== fechaFacturacion) {
-          return { ...prev, fecha_facturacion: fechaFacturacion };
-        }
-        return prev;
-      });
-    }
-  }, [form.fecha_orden, condicionPagoCliente]);
 
   // Función helper para calcular el precio de un producto según la lista de precios
   const calcularPrecioProducto = (productoId, preciosListaActual, clienteConfigActual) => {
@@ -140,12 +123,6 @@ export default function AddOrdenVenta() {
     return `${year}-${month}-${day}`;
   };
 
-  // Función para calcular la fecha de facturación basada en la condición de pago
-  const calcularFechaFacturacion = (fechaBase, condicionPago) => {
-    if (!fechaBase || !condicionPago || condicionPago <= 0) return "";
-    return sumarDiasAFecha(fechaBase, condicionPago);
-  };
-
   const handleClientChange = async (eOrValue) => {
     const id_cliente = eOrValue?.target ? eOrValue.target.value : eOrValue;
     setDirecciones([]);
@@ -156,7 +133,7 @@ export default function AddOrdenVenta() {
     // Limpiar formulario de producto si no hay cliente
     if (!id_cliente) {
       setProductoForm({ id_producto: "", cantidad: "", precio_unitario: "" });
-      setForm(prev => ({ ...prev, id_cliente: "", id_local: "", fecha_facturacion: "" }));
+      setForm(prev => ({ ...prev, id_cliente: "", id_local: "" }));
       return;
     }
     
@@ -179,18 +156,7 @@ export default function AddOrdenVenta() {
       const condicionPago = clienteData?.condicion_pago;
       setCondicionPagoCliente(condicionPago);
       
-      // Calcular fecha de facturación si hay condición de pago
-      if (condicionPago && condicionPago > 0) {
-        setForm(prev => {
-          const fechaBase = prev.fecha_orden || getTodayDate();
-          const fechaFacturacion = calcularFechaFacturacion(fechaBase, condicionPago);
-          return { ...prev, fecha_facturacion: fechaFacturacion };
-        });
-      } else {
-        // Si no hay condición de pago, limpiar la fecha de facturación
-        setForm(prev => ({ ...prev, fecha_facturacion: "" }));
-      }
-      
+        
       let productosLista = [];
       if (clienteData?.id_lista_precio) {
         try {
@@ -240,21 +206,12 @@ export default function AddOrdenVenta() {
     const { name, value } = e.target;
     const updatedForm = { ...form, [name]: value };
     
-    // Si cambia la fecha_orden y hay condición de pago del cliente, recalcular fecha_facturacion
-    if (name === "fecha_orden" && condicionPagoCliente && condicionPagoCliente > 0) {
-      const fechaFacturacion = calcularFechaFacturacion(value, condicionPagoCliente);
-      updatedForm.fecha_facturacion = fechaFacturacion;
-    }
     
     setForm(updatedForm);
   };
 
   const setDateField = (name, value) => {
-    const updatedForm = { ...form, [name]: value };
-    if (name === "fecha_orden" && condicionPagoCliente && condicionPagoCliente > 0) {
-      updatedForm.fecha_facturacion = calcularFechaFacturacion(value, condicionPagoCliente);
-    }
-    setForm(updatedForm);
+    setForm({ ...form, [name]: value });
   };
 
   const setProductoField = (name, value) => {
@@ -299,22 +256,10 @@ export default function AddOrdenVenta() {
       toast.error("Debes seleccionar una bodega.");
       return false;
     }
-    if (!form.costo_envio || form.costo_envio <= 0) {
-      newErrors.costo_envio = "Ingresa un costo de envío mayor a 0.";
-      setErrors(newErrors);
-      toast.error("Ingresa un costo de envío mayor a 0.");
-      return false;
-    }
     if (!form.fecha_orden) {
       newErrors.fecha_orden = "La fecha de emisión es obligatoria.";
       setErrors(newErrors);
       toast.error("La fecha de emisión es obligatoria.");
-      return false;
-    }
-    if (!form.fecha_envio) {
-      newErrors.fecha_envio = "Debes ingresar la fecha de entrega.";
-      setErrors(newErrors);
-      toast.error("Debes ingresar la fecha de entrega.");
       return false;
     }
     
@@ -380,11 +325,7 @@ export default function AddOrdenVenta() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
-    if (form.fecha_envio && form.fecha_envio < form.fecha_orden) {
-      toast.error("La fecha de entrega no puede ser anterior a la emisión.");
-      return;
-    }
-    if (productosAgregados.length === 0) {
+if (productosAgregados.length === 0) {
       toast.error("Debes agregar al menos un producto a la orden.");
       return;
     }
@@ -400,11 +341,11 @@ export default function AddOrdenVenta() {
       }
       
       const payload = {
-        ...form,
-        id_cliente: Number(form.id_cliente),
         id_local: Number(form.id_local),
-        costo_envio: Number(form.costo_envio),
+        numero_oc: form.numero_oc,
+        fecha_orden: form.fecha_orden,
         bodega_id: Number(form.bodega_id),
+        es_referencial: Boolean(form.es_referencial),
       };
       
       const res = await api("/ordenes-venta", { method: "POST", body: JSON.stringify(payload) });
@@ -525,21 +466,6 @@ export default function AddOrdenVenta() {
         </label>
 
         <label className="flex flex-col">
-          Costo de Envío *
-          <input
-            type="number"
-            name="costo_envio"
-            placeholder="Ejemplo: 5000"
-            value={form.costo_envio}
-            onChange={handleFieldChange}
-            className={`border px-2 py-1 rounded ${
-              errors.costo_envio ? "border-red-500" : "border-gray-300"
-            }`}
-          />
-          {errors.costo_envio && <span className="text-red-500 text-sm mt-1">{errors.costo_envio}</span>}
-        </label>
-
-        <label className="flex flex-col">
           Fecha Emisión OC *
           <input
             type="date"
@@ -569,87 +495,30 @@ export default function AddOrdenVenta() {
           {errors.fecha_orden && <span className="text-red-500 text-sm mt-1">{errors.fecha_orden}</span>}
         </label>
 
-        <label className="flex flex-col">
-          Fecha de Entrega *
+        <div className="flex flex-col">
+          <span className="text-sm font-medium mb-1">Condición de pago</span>
+          <p className="border border-gray-200 bg-gray-50 px-2 py-2 rounded text-sm text-gray-700">
+            {condicionPagoCliente
+              ? `${condicionPagoCliente} días`
+              : "—"}
+          </p>
+          <p className="text-xs text-gray-400 mt-1 italic">Condición de pago obtenida de los datos del cliente</p>
+        </div>
+
+        <label className="flex items-center gap-3 col-span-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
           <input
-            type="date"
-            name="fecha_envio"
-            value={form.fecha_envio}
-            onChange={handleFieldChange}
-            className={`border px-2 py-1 rounded ${
-              errors.fecha_envio ? "border-red-500" : "border-gray-300"
-            }`}
+            type="checkbox"
+            name="es_referencial"
+            checked={form.es_referencial}
+            onChange={(e) => setForm(prev => ({ ...prev, es_referencial: e.target.checked }))}
+            className="w-4 h-4 accent-amber-500"
           />
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                const base = form.fecha_orden || getTodayDate();
-                setDateField("fecha_envio", base);
-              }}
-              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
-            >
-              Igual emisión
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const base = form.fecha_orden || getTodayDate();
-                setDateField("fecha_envio", sumarDiasAFecha(base, 7));
-              }}
-              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
-            >
-              +7 días
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const base = form.fecha_orden || getTodayDate();
-                setDateField("fecha_envio", sumarDiasAFecha(base, 14));
-              }}
-              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
-            >
-              +14 días
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const base = form.fecha_orden || getTodayDate();
-                setDateField("fecha_envio", sumarDiasAFecha(base, 30));
-              }}
-              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
-            >
-              +30 días
-            </button>
+          <div>
+            <span className="font-medium text-amber-800">Orden referencial (sin picking)</span>
+            <p className="text-xs text-amber-600 mt-0.5">
+              Activa esta opción cuando la producción no está registrada en el sistema. La orden irá directo a Facturada sin pasar por picking.
+            </p>
           </div>
-          {errors.fecha_envio && <span className="text-red-500 text-sm mt-1">{errors.fecha_envio}</span>}
-        </label>
-
-        <label className="flex flex-col">
-          Fecha de Facturación
-          <input
-            type="date"
-            name="fecha_facturacion"
-            value={form.fecha_facturacion}
-            onChange={handleFieldChange}
-            className="border border-gray-300 px-2 py-1 rounded"
-          />
-        </label>
-
-        <label className="flex flex-col">
-          Condiciones
-          <select
-            name="condiciones"
-            value={form.condiciones}
-            onChange={handleFieldChange}
-            className="border border-gray-300 px-2 py-1 rounded"
-          >
-            <option>Contado</option>
-            <option>Crédito a 15 días</option>
-            <option>Crédito a 30 días</option>
-            <option>Crédito a 45 días</option>
-            <option>Crédito a 60 días</option>
-          </select>
         </label>
 
         <label className="flex flex-col">

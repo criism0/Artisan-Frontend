@@ -7,10 +7,6 @@ import {
   Edit,
   Trash2,
   FilePen,
-  Receipt,
-  Truck,
-  CheckCircle,
-  Undo2,
   ClipboardList,
 } from "lucide-react";
 import SearchBar from "../../components/SearchBar";
@@ -71,65 +67,22 @@ export default function OrdenesVentaPage() {
     })();
   }, [api]);
 
-  // === Transiciones de estado ===
-  const estados = ["Pendiente", "Asignado", "Facturado", "Enviado", "Entregado"];
-
-  const avanzarEstado = async (row) => {
-    try {
-      const idx = estados.indexOf(row.estado);
-      if (idx === -1 || idx === estados.length - 1) return;
-      const nuevoEstado = estados[idx + 1];
-
-      await api(`/ordenes-venta/${row.id}`, { method: "PUT", body: JSON.stringify({ estado: nuevoEstado }) });
-
-      setOrdenes((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: nuevoEstado } : o))
-      );
-      setFiltered((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: nuevoEstado } : o))
-      );
-      toast.success("Estado actualizado correctamente");
-    } catch (err) {
-      toast.error("No se pudo avanzar el estado");
-    }
-  };
-
-  const retrocederEstado = async (row) => {
-    try {
-      const idx = estados.indexOf(row.estado);
-      if (idx <= 0) return;
-      const nuevoEstado = estados[idx - 1];
-
-      await api(`/ordenes-venta/${row.id}`, { method: "PUT", body: JSON.stringify({ estado: nuevoEstado }) });
-
-      setOrdenes((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: nuevoEstado } : o))
-      );
-      setFiltered((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: nuevoEstado } : o))
-      );
-      toast.success("Estado actualizado correctamente");
-    } catch (err) {
-      toast.error("No se pudo retroceder el estado");
-    }
-  };
-
   // === Badges ===
   const getEstadoBadge = (estado) => {
     const base = "px-3 py-1 rounded-full text-xs font-medium";
     switch (estado) {
-      case "Pendiente":
-        return <span className={`${base} bg-gray-200 text-gray-700`}>Pendiente</span>;
-      case "Asignado":
-        return <span className={`${base} bg-blue-100 text-blue-700`}>Asignado</span>;
-      case "Listo-para-despacho":
-        return <span className={`${base} bg-cyan-100 text-cyan-700`}>Listo-para-despacho</span>;
-      case "Facturado":
-        return <span className={`${base} bg-yellow-100 text-yellow-700`}>Facturado</span>;
-      case "Enviado":
-        return <span className={`${base} bg-purple-100 text-purple-700`}>Enviado</span>;
-      case "Entregado":
-        return <span className={`${base} bg-green-100 text-green-700`}>Entregado</span>;
+      case "Creada":
+        return <span className={`${base} bg-gray-200 text-gray-700`}>Creada</span>;
+      case "Validada":
+        return <span className={`${base} bg-blue-100 text-blue-700`}>Validada</span>;
+      case "En picking":
+        return <span className={`${base} bg-indigo-100 text-indigo-700`}>En picking</span>;
+      case "Lista para despacho":
+        return <span className={`${base} bg-cyan-100 text-cyan-700`}>Lista para despacho</span>;
+      case "Facturada":
+        return <span className={`${base} bg-yellow-100 text-yellow-700`}>Facturada</span>;
+      case "Entregada":
+        return <span className={`${base} bg-green-100 text-green-700`}>Entregada</span>;
       default:
         return <span className={`${base} bg-gray-100 text-gray-600`}>{estado}</span>;
     }
@@ -182,73 +135,6 @@ export default function OrdenesVentaPage() {
         </div>
       </div>
     );
-  };
-
-  // === Botón dinámico según estado ===
-  const BotonEstado = ({ row }) => {
-    switch (row.estado) {
-      case "Pendiente":
-        return (
-          <button
-            onClick={() => navigate(`/ventas/ordenes/${row.id}/asignar`)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary"
-            title="Asignar productos"
-          >
-            <FilePen size={18} strokeWidth={1.5} />
-          </button>
-        );
-
-      case "Asignado":
-        return (
-          <>
-            <button
-              onClick={() => avanzarEstado(row)}
-              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-yellow-600"
-              title="Facturar"
-            >
-              <Receipt size={18} strokeWidth={1.5} />
-            </button>
-            <button
-              onClick={() => retrocederEstado(row)}
-              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-600"
-              title="Volver a Pendiente"
-            >
-              <Undo2 size={18} strokeWidth={1.5} />
-            </button>
-          </>
-        );
-
-      case "Facturado":
-        return (
-          <>
-            <button
-              onClick={() => avanzarEstado(row)}
-              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-purple-600"
-              title="Enviar"
-            >
-              <Truck size={18} strokeWidth={1.5} />
-            </button>
-            <button
-              onClick={() => retrocederEstado(row)}
-              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-yellow-600"
-              title="Volver a Asignado"
-            >
-              <Undo2 size={18} strokeWidth={1.5} />
-            </button>
-          </>
-        );
-
-      case "Enviado":
-        // No mostrar botones aquí, el botón de entregar se maneja en actions()
-        return null;
-
-      case "Entregado":
-        // No se puede retroceder desde Entregado
-        return null;
-
-      default:
-        return null;
-    }
   };
 
   // === Acciones por fila ===
@@ -342,38 +228,6 @@ export default function OrdenesVentaPage() {
     );
     setFiltered(next);
     setPage(1);
-  };
-
-  const handleEnviarOrden = async (row) => {
-    if (!window.confirm("¿Enviar esta orden de venta?")) return;
-    try {
-      await api(`/ordenes-venta/${row.id}/enviar-orden`, { method: "PUT" });
-      setOrdenes((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: "Enviado" } : o))
-      );
-      setFiltered((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: "Enviado" } : o))
-      );
-      toast.success("Orden enviada correctamente");
-    } catch (err) {
-      toast.error("No se pudo enviar la orden");
-    }
-  };
-
-  const handleEntregarOrden = async (row) => {
-    if (!window.confirm("¿Confirmar la entrega exitosa de esta orden de venta?")) return;
-    try {
-      await api(`/ordenes-venta/${row.id}/entregar-orden`, { method: "PUT" });
-      setOrdenes((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: "Entregado" } : o))
-      );
-      setFiltered((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: "Entregado" } : o))
-      );
-      toast.success("Orden entregada correctamente");
-    } catch (err) {
-      toast.error("No se pudo entregar la orden");
-    }
   };
 
   const handleDelete = async (id) => {

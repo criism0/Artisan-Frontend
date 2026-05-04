@@ -17,6 +17,7 @@ export const ModelType = {
   PROVEEDOR: "Proveedor",
   LOTE_PRODUCTO_FINAL: "LoteProductoFinal",
   PAUTA_ELABORACION: "PautaElaboracion",
+  VALIDAR_ORDEN_VENTA: "ValidarOrdenVenta",
   PASO_PAUTA_ELABORACION: "PasoPautaElaboracion",
 };
 
