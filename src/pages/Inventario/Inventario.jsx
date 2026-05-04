@@ -70,6 +70,7 @@ export default function Inventario() {
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
 
   // Accordion
   const [expandedKey, setExpandedKey] = useState(null);
@@ -222,6 +223,7 @@ export default function Inventario() {
 
         setFiltered(data);
         setExpandedKey(null);
+        setSelectedIds(new Set());
       } catch (err) {
         if (err?.name === "AbortError") return;
         console.error("Error aplicando filtros:", err);
@@ -285,12 +287,23 @@ export default function Inventario() {
         : "—",
     ]);
 
+  const getExportData = () => {
+    if (selectedIds.size > 0) {
+      return filtered.filter((item, idx) => selectedIds.has(item.materiaPrima?.id ?? idx));
+    }
+    return filtered;
+  };
+
   const loginAndExport = useGoogleLogin({
     onSuccess: async ({ access_token }) => {
       try {
         setIsExporting(true);
-        const title = `Inventario ${new Date().toLocaleDateString("es-CL")}`;
-        const url = await createAndOpenSheet(access_token, title, [HEADERS_INVENTARIO, ...buildExportRows(filtered)]);
+        const data = getExportData();
+        const hasSelection = selectedIds.size > 0;
+        const title = hasSelection
+          ? `Inventario seleccionados ${new Date().toLocaleDateString("es-CL")}`
+          : `Inventario ${new Date().toLocaleDateString("es-CL")}`;
+        const url = await createAndOpenSheet(access_token, title, [HEADERS_INVENTARIO, ...buildExportRows(data)]);
         toast.link("Hoja creada", url);
       } catch {
         toast.error("Error al exportar a Google Sheets");
@@ -306,16 +319,25 @@ export default function Inventario() {
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="flex items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold">Inventario</h1>
-        <button
-          onClick={loginAndExport}
-          disabled={isExporting || filtered.length === 0}
-          className="text-gray-500 hover:text-green-700 disabled:opacity-40"
-          title="Exportar a Google Sheets (vista actual)"
-        >
-          {isExporting
-            ? <span className="text-xs text-gray-500">Exportando…</span>
-            : <FileSpreadsheet className="w-5 h-5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <span className="text-xs text-gray-500">
+              {selectedIds.size} seleccionada{selectedIds.size !== 1 ? "s" : ""}
+            </span>
+          )}
+          <button
+            onClick={loginAndExport}
+            disabled={isExporting || filtered.length === 0}
+            className="text-gray-500 hover:text-green-700 disabled:opacity-40"
+            title={selectedIds.size > 0
+              ? `Exportar ${selectedIds.size} seleccionada(s) (Google Sheets)`
+              : "Exportar filtrados (Google Sheets)"}
+          >
+            {isExporting
+              ? <span className="text-xs text-gray-500">Exportando…</span>
+              : <FileSpreadsheet className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Panel de filtros */}
@@ -383,6 +405,20 @@ export default function Inventario() {
             <table className="w-full border border-gray-300 text-sm">
               <thead className="bg-gray-100">
                 <tr>
+                  <th className="p-2 border w-8">
+                    <input
+                      type="checkbox"
+                      className="cursor-pointer"
+                      checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedIds(new Set(filtered.map((item, idx) => item.materiaPrima?.id ?? idx)));
+                        } else {
+                          setSelectedIds(new Set());
+                        }
+                      }}
+                    />
+                  </th>
                   <th className="p-2 border w-8"></th>
                   <th className="p-2 border text-left font-semibold">
                     {renderHeader("Nombre", "nombre")}
@@ -405,7 +441,7 @@ export default function Inventario() {
               <tbody>
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-gray-500">
+                    <td colSpan={8} className="p-6 text-center text-gray-500">
                       No hay ítems para los filtros actuales.
                     </td>
                   </tr>
@@ -422,13 +458,32 @@ export default function Inventario() {
                   const bultos = bultosCache[key] || [];
                   const isLoadingBultos = loadingBultosKey === key;
 
+                  const isChecked = selectedIds.has(key);
+
                   return (
                     <Fragment key={`row-${key}`}>
                       <tr
                         className={`hover:bg-gray-50 ${expandible ? "cursor-pointer" : ""}`}
-                        onClick={() => expandible && handleExpandRow(item)}
                       >
-                        <td className="p-2 border text-center">
+                        <td className="p-2 border text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            className="cursor-pointer"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              setSelectedIds((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(key);
+                                else next.delete(key);
+                                return next;
+                              });
+                            }}
+                          />
+                        </td>
+                        <td
+                          className="p-2 border text-center"
+                          onClick={() => expandible && handleExpandRow(item)}
+                        >
                           {expandible ? (
                             isExpanded ? (
                               <ChevronDown className="w-4 h-4 text-gray-400 inline" />
@@ -437,20 +492,20 @@ export default function Inventario() {
                             )
                           ) : null}
                         </td>
-                        <td className="p-2 border font-medium">{nombre}</td>
-                        <td className="p-2 border">
+                        <td className="p-2 border font-medium" onClick={() => expandible && handleExpandRow(item)}>{nombre}</td>
+                        <td className="p-2 border" onClick={() => expandible && handleExpandRow(item)}>
                           <BadgeCategoria value={categoria} />
                         </td>
-                        <td className="p-2 border">{item.unidades_disponibles ?? "—"} {item.unidad_medida ?? ""}</td>
-                        <td className="p-2 border">
+                        <td className="p-2 border" onClick={() => expandible && handleExpandRow(item)}>{item.unidades_disponibles ?? "—"} {item.unidad_medida ?? ""}</td>
+                        <td className="p-2 border" onClick={() => expandible && handleExpandRow(item)}>
                           <BadgeEstado value={item.estado_stock} />
                         </td>
-                        <td className="p-2 border">
+                        <td className="p-2 border" onClick={() => expandible && handleExpandRow(item)}>
                           {item.precio_total != null
                             ? formatCLP(item.precio_total, 0)
                             : "—"}
                         </td>
-                        <td className="p-2 border text-gray-500 text-xs">
+                        <td className="p-2 border text-gray-500 text-xs" onClick={() => expandible && handleExpandRow(item)}>
                           {item.ultimo_movimiento
                             ? new Date(item.ultimo_movimiento).toLocaleString("es-CL")
                             : "—"}
@@ -460,7 +515,7 @@ export default function Inventario() {
                       {/* Sub-tabla accordion */}
                       {isExpanded && (
                         <tr>
-                          <td colSpan={7} className="p-0 border-b border-gray-200">
+                          <td colSpan={8} className="p-0 border-b border-gray-200">
                             <div className="bg-blue-50/30 px-6 py-3 border-t border-blue-100">
                               <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
                                 Bultos en inventario — {nombre}
