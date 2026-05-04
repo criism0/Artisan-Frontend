@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, Fragment } from "react";
 import { useGoogleLogin } from "@react-oauth/google";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { ChevronDown, ChevronRight, FileSpreadsheet } from "lucide-react";
+import { ChevronDown, ChevronRight, FileSpreadsheet, X } from "lucide-react";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import { createAndOpenSheet } from "../../lib/googleSheets";
 
@@ -319,24 +319,27 @@ export default function Inventario() {
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="flex items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold">Inventario</h1>
-        <div className="flex items-center gap-2">
-          {selectedIds.size > 0 && (
-            <span className="text-xs text-gray-500">
-              {selectedIds.size} seleccionada{selectedIds.size !== 1 ? "s" : ""}
-            </span>
-          )}
-          <button
-            onClick={loginAndExport}
-            disabled={isExporting || filtered.length === 0}
-            className="text-gray-500 hover:text-green-700 disabled:opacity-40"
-            title={selectedIds.size > 0
-              ? `Exportar ${selectedIds.size} seleccionada(s) (Google Sheets)`
-              : "Exportar filtrados (Google Sheets)"}
-          >
-            {isExporting
-              ? <span className="text-xs text-gray-500">Exportando…</span>
-              : <FileSpreadsheet className="w-5 h-5" />}
-          </button>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-xs text-gray-400">Exportar a Google Sheets</span>
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <span className="text-xs text-gray-500">
+                {selectedIds.size} seleccionada{selectedIds.size !== 1 ? "s" : ""}
+              </span>
+            )}
+            <button
+              onClick={loginAndExport}
+              disabled={isExporting || filtered.length === 0}
+              className="text-gray-500 hover:text-green-700 disabled:opacity-40"
+              title={selectedIds.size > 0
+                ? `Exportar ${selectedIds.size} seleccionada(s) (Google Sheets)`
+                : "Exportar filtrados (Google Sheets)"}
+            >
+              {isExporting
+                ? <span className="text-xs text-gray-500">Exportando…</span>
+                : <FileSpreadsheet className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -374,7 +377,7 @@ export default function Inventario() {
             </select>
           </div>
 
-          <div className="md:col-span-2">
+          <div>
             <label className="block text-sm font-semibold mb-1">Buscar</label>
             <input
               type="text"
@@ -383,6 +386,16 @@ export default function Inventario() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+          </div>
+
+          <div className="flex items-end">
+            <button
+              onClick={() => { setQuery(""); setBodegaFilter(0); setTipoFilter("todos"); }}
+              className="text-gray-400 hover:text-red-500 p-2 rounded"
+              title="Limpiar filtros"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 

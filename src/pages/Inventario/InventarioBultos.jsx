@@ -439,31 +439,27 @@ export default function InventarioBultos() {
       <div className="flex items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold">Inventario de Bultos</h1>
 
-        <div className="flex items-center gap-2">
-          {selectedIds.size > 0 && (
-            <span className="text-xs text-gray-500">
-              {selectedIds.size} seleccionada{selectedIds.size !== 1 ? "s" : ""}
-            </span>
-          )}
-          <button
-            onClick={loginAndExport}
-            disabled={isExporting || bultosOrdenados.length === 0}
-            className="text-gray-500 hover:text-green-700 disabled:opacity-40"
-            title={selectedIds.size > 0
-              ? `Exportar ${selectedIds.size} seleccionada(s) (Google Sheets)`
-              : "Exportar filtrados (Google Sheets)"}
-          >
-            {isExporting
-              ? <span className="text-xs text-gray-500">Exportando…</span>
-              : <FileSpreadsheet className="w-5 h-5" />}
-          </button>
-          <button
-            onClick={clearFilters}
-            className="text-gray-500 hover:text-red-600"
-            title="Limpiar filtros"
-          >
-            <X className="w-5 h-5" />
-          </button>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-xs text-gray-400">Exportar a Google Sheets</span>
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <span className="text-xs text-gray-500">
+                {selectedIds.size} seleccionada{selectedIds.size !== 1 ? "s" : ""}
+              </span>
+            )}
+            <button
+              onClick={loginAndExport}
+              disabled={isExporting || bultosOrdenados.length === 0}
+              className="text-gray-500 hover:text-green-700 disabled:opacity-40"
+              title={selectedIds.size > 0
+                ? `Exportar ${selectedIds.size} seleccionada(s) (Google Sheets)`
+                : "Exportar filtrados (Google Sheets)"}
+            >
+              {isExporting
+                ? <span className="text-xs text-gray-500">Exportando…</span>
+                : <FileSpreadsheet className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -500,7 +496,7 @@ export default function InventarioBultos() {
             </select>
           </div>
 
-          <div className="md:col-span-2">
+          <div>
             <label className="block text-sm font-semibold mb-1">Búsqueda</label>
             <input
               type="text"
@@ -509,6 +505,16 @@ export default function InventarioBultos() {
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
             />
+          </div>
+
+          <div className="flex items-end">
+            <button
+              onClick={clearFilters}
+              className="text-gray-400 hover:text-red-500 p-2 rounded"
+              title="Limpiar filtros"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
