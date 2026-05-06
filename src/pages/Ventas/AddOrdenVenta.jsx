@@ -23,14 +23,10 @@ export default function AddOrdenVenta() {
 
   const [form, setForm] = useState({
     id_cliente: "",
-    id_local: "",
     numero_oc: "",
-    costo_envio: "",
     fecha_orden: getTodayDate(),
-    fecha_envio: "",
-    fecha_facturacion: "",
-    condiciones: "Contado",
     bodega_id: "",
+    es_referencial: false,
   });
 
   const [productoForm, setProductoForm] = useState({
@@ -43,107 +39,57 @@ export default function AddOrdenVenta() {
     api("/clientes").then((res) => setClients(res.data || res));
     api("/productos-base").then((res) => setProductos(res.data || res));
     api("/bodegas").then((res) => {
-      const bodegasData = Array.isArray(res?.bodegas) 
-        ? res.bodegas 
-        : Array.isArray(res?.data) 
-        ? res.data 
-        : Array.isArray(res) 
-        ? res 
+      const bodegasData = Array.isArray(res?.bodegas)
+        ? res.bodegas
+        : Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res)
+        ? res
         : [];
       setBodegas(bodegasData);
     });
   }, [api]);
 
-  // Efecto para calcular automáticamente la fecha de facturación cuando cambian fecha_orden o condicionPagoCliente
-  useEffect(() => {
-    if (condicionPagoCliente && condicionPagoCliente > 0 && form.fecha_orden) {
-      const fechaFacturacion = calcularFechaFacturacion(form.fecha_orden, condicionPagoCliente);
-      setForm(prev => {
-        // Solo actualizar si la fecha calculada es diferente a la actual
-        if (prev.fecha_facturacion !== fechaFacturacion) {
-          return { ...prev, fecha_facturacion: fechaFacturacion };
-        }
-        return prev;
-      });
-    }
-  }, [form.fecha_orden, condicionPagoCliente]);
-
-  // Función helper para calcular el precio de un producto según la lista de precios
   const calcularPrecioProducto = (productoId, preciosListaActual, clienteConfigActual) => {
     if (!clienteConfigActual || !productoId) return "";
-    
     const precioLista = preciosListaActual.find((x) => x.id_producto_base === productoId);
     const productoBase = productos.find((p) => p.id === productoId);
     const unidadesPorCaja = Number(
       precioLista?.unidades_por_caja || productoBase?.unidades_por_caja || 0
     ) || 0;
-    
     const precioCaja = precioLista?.precio_caja;
     const precioUnidad = precioLista?.precio_unidad;
     const formato = (clienteConfigActual?.formato || "UNIDADES").toUpperCase();
-    
     if (formato.includes("CAJA")) {
-      if (precioCaja) {
-        return Number(precioCaja);
-      } else if (precioUnidad && unidadesPorCaja) {
-        return Number(precioUnidad) * Number(unidadesPorCaja);
-      }
+      if (precioCaja) return Number(precioCaja);
+      else if (precioUnidad && unidadesPorCaja) return Number(precioUnidad) * Number(unidadesPorCaja);
     } else {
-      if (precioUnidad) {
-        return Number(precioUnidad);
-      } else if (precioCaja && unidadesPorCaja) {
-        return Number(precioCaja) / Number(unidadesPorCaja);
-      }
+      if (precioUnidad) return Number(precioUnidad);
+      else if (precioCaja && unidadesPorCaja) return Number(precioCaja) / Number(unidadesPorCaja);
     }
-    
     return "";
   };
 
-  // Función para recalcular precios y formatos de productos ya agregados
   const recalcularPreciosProductos = (productosActuales, preciosListaActual, clienteConfigActual) => {
     if (!clienteConfigActual || productosActuales.length === 0) return productosActuales;
-    
     const formato = (clienteConfigActual?.formato || "UNIDADES").toUpperCase();
     const esCajas = formato.includes("CAJA");
-    
     return productosActuales.map((prod) => {
       const nuevoPrecio = calcularPrecioProducto(prod.id_producto, preciosListaActual, clienteConfigActual);
-      
-      // Obtener unidades_por_caja del producto
       const precioLista = preciosListaActual.find((x) => x.id_producto_base === prod.id_producto);
       const productoBase = productos.find((p) => p.id === prod.id_producto);
       const unidadesPorCaja = Number(
         precioLista?.unidades_por_caja || productoBase?.unidades_por_caja || prod.unidades_por_caja || 0
       ) || 0;
-      
-      // Mantener cantidad igual (el número original que el usuario ingresó)
       return {
         ...prod,
         precio_unitario: nuevoPrecio || 0,
-        cantidad: prod.cantidad, // Se mantiene igual (número original ingresado)
+        cantidad: prod.cantidad,
         formato_linea: esCajas ? "CAJAS" : "UNIDADES",
         unidades_por_caja: unidadesPorCaja || null,
         total_linea: (nuevoPrecio || 0) * prod.cantidad,
       };
     });
-  };
-
-  // Función para sumar días a una fecha y devolver en formato YYYY-MM-DD
-  const sumarDiasAFecha = (fechaStr, dias) => {
-    if (!fechaStr) return "";
-    if (dias == null) return "";
-    const fecha = new Date(fechaStr);
-    fecha.setDate(fecha.getDate() + Number(dias));
-    const year = fecha.getFullYear();
-    const month = String(fecha.getMonth() + 1).padStart(2, '0');
-    const day = String(fecha.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  // Función para calcular la fecha de facturación basada en la condición de pago
-  const calcularFechaFacturacion = (fechaBase, condicionPago) => {
-    if (!fechaBase || !condicionPago || condicionPago <= 0) return "";
-    return sumarDiasAFecha(fechaBase, condicionPago);
   };
 
   const handleClientChange = async (eOrValue) => {
@@ -152,124 +98,62 @@ export default function AddOrdenVenta() {
     setClienteConfig(null);
     setPreciosLista([]);
     setCondicionPagoCliente(null);
-    
-    // Limpiar formulario de producto si no hay cliente
     if (!id_cliente) {
       setProductoForm({ id_producto: "", cantidad: "", precio_unitario: "" });
-      setForm(prev => ({ ...prev, id_cliente: "", id_local: "", fecha_facturacion: "" }));
+      setForm(prev => ({ ...prev, id_cliente: "" }));
       return;
     }
-    
-    // Actualizar id_cliente e id_local primero
-    setForm(prev => ({ ...prev, id_cliente, id_local: "" }));
-    
+    setForm(prev => ({ ...prev, id_cliente }));
     try {
       const resCliente = await api(`/clientes/${id_cliente}`);
       const clienteData = resCliente.data || resCliente;
       const dirs = Array.isArray(clienteData?.direcciones) ? clienteData.direcciones : [];
       setDirecciones(dirs);
-      
       const nuevoClienteConfig = {
         formato: clienteData?.formato_compra_predeterminado || "UNIDADES",
         id_lista_precio: clienteData?.id_lista_precio || null,
       };
       setClienteConfig(nuevoClienteConfig);
-      
-      // Guardar condición de pago del cliente
-      const condicionPago = clienteData?.condicion_pago;
-      setCondicionPagoCliente(condicionPago);
-      
-      // Calcular fecha de facturación si hay condición de pago
-      if (condicionPago && condicionPago > 0) {
-        setForm(prev => {
-          const fechaBase = prev.fecha_orden || getTodayDate();
-          const fechaFacturacion = calcularFechaFacturacion(fechaBase, condicionPago);
-          return { ...prev, fecha_facturacion: fechaFacturacion };
-        });
-      } else {
-        // Si no hay condición de pago, limpiar la fecha de facturación
-        setForm(prev => ({ ...prev, fecha_facturacion: "" }));
-      }
-      
+      setCondicionPagoCliente(clienteData?.condicion_pago);
       let productosLista = [];
       if (clienteData?.id_lista_precio) {
         try {
           const resLista = await api(`/lista-precio/${clienteData.id_lista_precio}`);
           const listaData = resLista.data || resLista;
-          productosLista = Array.isArray(listaData?.productosBaseListaPrecio) 
-            ? listaData.productosBaseListaPrecio 
+          productosLista = Array.isArray(listaData?.productosBaseListaPrecio)
+            ? listaData.productosBaseListaPrecio
             : [];
           setPreciosLista(productosLista);
-        } catch (e2) {
+        } catch {
           toast.error("Error al cargar precios de lista");
         }
       }
-      
-      // Recalcular precios de productos ya agregados
       if (productosAgregados.length > 0) {
-        const productosActualizados = recalcularPreciosProductos(
-          productosAgregados,
-          productosLista,
-          nuevoClienteConfig
-        );
-        setProductosAgregados(productosActualizados);
+        setProductosAgregados(recalcularPreciosProductos(productosAgregados, productosLista, nuevoClienteConfig));
       }
-      
-      // Recalcular precio del producto en el formulario si hay uno seleccionado
       if (productoForm.id_producto) {
-        const nuevoPrecio = calcularPrecioProducto(
-          Number(productoForm.id_producto),
-          productosLista,
-          nuevoClienteConfig
-        );
-        setProductoForm((prev) => ({
-          ...prev,
-          precio_unitario: nuevoPrecio,
-        }));
+        const nuevoPrecio = calcularPrecioProducto(Number(productoForm.id_producto), productosLista, nuevoClienteConfig);
+        setProductoForm((prev) => ({ ...prev, precio_unitario: nuevoPrecio }));
       }
-      
       if (productosAgregados.length > 0 || productoForm.id_producto) {
         toast.success("Precios y formatos actualizados según la lista del cliente seleccionado");
       }
-    } catch (err) {
+    } catch {
       toast.error("Error al cargar datos del cliente");
     }
   };
 
   const handleFieldChange = (e) => {
     const { name, value } = e.target;
-    const updatedForm = { ...form, [name]: value };
-    
-    // Si cambia la fecha_orden y hay condición de pago del cliente, recalcular fecha_facturacion
-    if (name === "fecha_orden" && condicionPagoCliente && condicionPagoCliente > 0) {
-      const fechaFacturacion = calcularFechaFacturacion(value, condicionPagoCliente);
-      updatedForm.fecha_facturacion = fechaFacturacion;
-    }
-    
-    setForm(updatedForm);
-  };
-
-  const setDateField = (name, value) => {
-    const updatedForm = { ...form, [name]: value };
-    if (name === "fecha_orden" && condicionPagoCliente && condicionPagoCliente > 0) {
-      updatedForm.fecha_facturacion = calcularFechaFacturacion(value, condicionPagoCliente);
-    }
-    setForm(updatedForm);
+    setForm({ ...form, [name]: value });
   };
 
   const setProductoField = (name, value) => {
     let updatedForm = { ...productoForm, [name]: value };
-
-    if (name === "id_producto") {
-      setProductErrors({});
-    }
-
+    if (name === "id_producto") setProductErrors({});
     if (name === "id_producto" && form.id_cliente) {
-      const prodId = Number(value);
-      const nuevoPrecio = calcularPrecioProducto(prodId, preciosLista, clienteConfig);
-      updatedForm.precio_unitario = nuevoPrecio;
+      updatedForm.precio_unitario = calcularPrecioProducto(Number(value), preciosLista, clienteConfig);
     }
-
     setProductoForm(updatedForm);
   };
 
@@ -280,94 +164,47 @@ export default function AddOrdenVenta() {
 
   const validateForm = () => {
     const newErrors = {};
-    
-    if (!form.id_cliente) {
-      newErrors.id_cliente = "Debes seleccionar un cliente.";
-      setErrors(newErrors);
-      toast.error("Debes seleccionar un cliente.");
-      return false;
-    }
-    if (!form.id_local) {
-      newErrors.id_local = "Debes seleccionar una dirección.";
-      setErrors(newErrors);
-      toast.error("Debes seleccionar una dirección.");
-      return false;
-    }
-    if (!form.bodega_id) {
-      newErrors.bodega_id = "Debes seleccionar una bodega.";
-      setErrors(newErrors);
-      toast.error("Debes seleccionar una bodega.");
-      return false;
-    }
-    if (!form.costo_envio || form.costo_envio <= 0) {
-      newErrors.costo_envio = "Ingresa un costo de envío mayor a 0.";
-      setErrors(newErrors);
-      toast.error("Ingresa un costo de envío mayor a 0.");
-      return false;
-    }
-    if (!form.fecha_orden) {
-      newErrors.fecha_orden = "La fecha de emisión es obligatoria.";
-      setErrors(newErrors);
-      toast.error("La fecha de emisión es obligatoria.");
-      return false;
-    }
-    if (!form.fecha_envio) {
-      newErrors.fecha_envio = "Debes ingresar la fecha de entrega.";
-      setErrors(newErrors);
-      toast.error("Debes ingresar la fecha de entrega.");
-      return false;
-    }
-    
+    if (!form.id_cliente) { newErrors.id_cliente = "Debes seleccionar un cliente."; setErrors(newErrors); toast.error("Debes seleccionar un cliente."); return false; }
+    if (!form.bodega_id) { newErrors.bodega_id = "Debes seleccionar una bodega."; setErrors(newErrors); toast.error("Debes seleccionar una bodega."); return false; }
+    if (!form.fecha_orden) { newErrors.fecha_orden = "La fecha de emisión es obligatoria."; setErrors(newErrors); toast.error("La fecha de emisión es obligatoria."); return false; }
     setErrors({});
     return true;
   };
 
   const validateProducto = () => {
     const prodErrors = {};
-    if (!productoForm.id_producto)
-      prodErrors.id_producto = "Debes seleccionar un producto.";
-    if (!productoForm.cantidad || productoForm.cantidad <= 0)
-      prodErrors.cantidad = "Cantidad debe ser mayor a 0.";
-    if (!productoForm.precio_unitario || productoForm.precio_unitario <= 0)
-      prodErrors.precio_unitario = "Precio debe ser mayor a 0.";
+    if (!productoForm.id_producto) prodErrors.id_producto = "Debes seleccionar un producto.";
+    if (!productoForm.cantidad || productoForm.cantidad <= 0) prodErrors.cantidad = "Cantidad debe ser mayor a 0.";
+    if (!productoForm.precio_unitario || productoForm.precio_unitario <= 0) prodErrors.precio_unitario = "Precio debe ser mayor a 0.";
     setProductErrors(prodErrors);
     return Object.keys(prodErrors).length === 0;
   };
 
   const handleAddProduct = () => {
-    if (!form.id_cliente) {
-      toast.error("Debes seleccionar un cliente antes de agregar productos");
-      return;
-    }
-    
+    if (!form.id_cliente) { toast.error("Debes seleccionar un cliente antes de agregar productos"); return; }
     if (!validateProducto()) return;
-    
-    // Verificar si el producto ya está agregado
     const productoId = Number(productoForm.id_producto);
     if (productosAgregados.some(p => p.id_producto === productoId)) {
       setProductErrors({ id_producto: "Este producto ya está agregado a la orden." });
       return;
     }
-    
     const prod = productos.find((p) => p.id === productoId);
     const formato = (clienteConfig?.formato || "UNIDADES").toUpperCase();
     const precioLista = preciosLista.find((x) => x.id_producto_base === prod.id);
-    const unidadesPorCaja = Number(
-      precioLista?.unidades_por_caja || prod.unidades_por_caja || 0
-    ) || 0;
+    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || prod.unidades_por_caja || 0) || 0;
     const cantidad = Number(productoForm.cantidad);
-
-    const newProd = {
-      id_producto: prod.id,
-      nombre: prod.nombre,
-      precio_unitario: Number(productoForm.precio_unitario),
-      cantidad: cantidad, 
-      formato_linea: formato.includes("CAJA") ? "CAJAS" : "UNIDADES",
-      unidades_por_caja: unidadesPorCaja || null,
-      total_linea: Number(productoForm.precio_unitario) * cantidad,
-    };
-    // Insertar arriba (igual que en solicitudes)
-    setProductosAgregados((prev) => [newProd, ...prev]);
+    setProductosAgregados((prev) => [
+      {
+        id_producto: prod.id,
+        nombre: prod.nombre,
+        precio_unitario: Number(productoForm.precio_unitario),
+        cantidad,
+        formato_linea: formato.includes("CAJA") ? "CAJAS" : "UNIDADES",
+        unidades_por_caja: unidadesPorCaja || null,
+        total_linea: Number(productoForm.precio_unitario) * cantidad,
+      },
+      ...prev,
+    ]);
     setIsProductosExpanded(false);
     setProductoForm({ id_producto: "", cantidad: "", precio_unitario: "" });
     setProductErrors({});
@@ -380,67 +217,36 @@ export default function AddOrdenVenta() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
-    if (form.fecha_envio && form.fecha_envio < form.fecha_orden) {
-      toast.error("La fecha de entrega no puede ser anterior a la emisión.");
-      return;
-    }
-    if (productosAgregados.length === 0) {
-      toast.error("Debes agregar al menos un producto a la orden.");
-      return;
-    }
+    if (productosAgregados.length === 0) { toast.error("Debes agregar al menos un producto a la orden."); return; }
     try {
-      const direccionSeleccionada = direcciones.find(d => d.id === Number(form.id_local));
-      if (!direccionSeleccionada) {
-        toast.error("La dirección seleccionada no es válida. Por favor, selecciona una dirección del cliente.");
-        return;
-      }
-      if (direccionSeleccionada.cliente_id && Number(direccionSeleccionada.cliente_id) !== Number(form.id_cliente)) {
-        toast.error("La dirección seleccionada no pertenece al cliente seleccionado.");
-        return;
-      }
-      
       const payload = {
-        ...form,
         id_cliente: Number(form.id_cliente),
-        id_local: Number(form.id_local),
-        costo_envio: Number(form.costo_envio),
+        numero_oc: form.numero_oc,
+        fecha_orden: form.fecha_orden,
         bodega_id: Number(form.bodega_id),
+        es_referencial: Boolean(form.es_referencial),
       };
-      
       const res = await api("/ordenes-venta", { method: "POST", body: JSON.stringify(payload) });
       const created = res?.data || res || {};
       const id_orden = created.id;
-      
-      if (!id_orden) {
-        toast.error("No se pudo crear la orden (ID no recibido).");
-        return;
-      }
+      if (!id_orden) { toast.error("No se pudo crear la orden (ID no recibido)."); return; }
       for (const p of productosAgregados) {
-        // Calcular cantidad en unidades según el formato actual del cliente
         const formato = (clienteConfig?.formato || "UNIDADES").toUpperCase();
         const esCajas = formato.includes("CAJA");
-        const cantidadEnUnidades = esCajas && p.unidades_por_caja
-          ? p.cantidad * p.unidades_por_caja
-          : p.cantidad;
-        
+        const cantidadEnUnidades = esCajas && p.unidades_por_caja ? p.cantidad * p.unidades_por_caja : p.cantidad;
         await api(`/ordenes-venta/${id_orden}/productos`, {
           method: "POST",
-          body: JSON.stringify({
-            id_orden,
-            id_producto: p.id_producto,
-            cantidad: cantidadEnUnidades, // Calcular unidades desde cantidad según formato
-            precio_venta: p.precio_unitario,
-            porcentaje_descuento: 0,
-          }),
+          body: JSON.stringify({ id_orden, id_producto: p.id_producto, cantidad: cantidadEnUnidades, precio_venta: p.precio_unitario, porcentaje_descuento: 0 }),
         });
       }
-      
       toast.success("Orden creada correctamente.");
       navigate("/ventas/ordenes");
-    } catch (err) {
+    } catch {
       toast.error("No se pudo crear la orden.");
     }
   };
+
+  const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
 
   return (
     <div className="p-6 bg-background min-h-screen">
@@ -453,385 +259,274 @@ export default function AddOrdenVenta() {
 
       <h1 className="text-2xl font-bold mb-6">Nueva Orden de Venta</h1>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 bg-white p-4 rounded shadow">
-        <label className="flex flex-col">
-          Cliente *
-          <Selector
-            options={clients.map((c) => ({
-              value: String(c.id),
-              label: c.nombre_empresa,
-              searchText: [c.nombre_empresa, c.rut, c.giro].filter(Boolean).join(" "),
-            }))}
-            selectedValue={form.id_cliente}
-            onSelect={(value) => handleClientChange(value)}
-            useFuzzy
-            className={`w-full px-3 py-2 border ${
-              errors.id_cliente ? "border-red-500" : "border-gray-300"
-            } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary`}
-          />
-          {errors.id_cliente && <span className="text-red-500 text-sm mt-1">{errors.id_cliente}</span>}
-        </label>
+      {/* ── Card: Datos del pedido ── */}
+      <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+        <div className="p-6">
+          <h2 className="text-base font-semibold text-gray-800 mb-5">Datos del pedido</h2>
 
-        <label className="flex flex-col">
-          Dirección *
-          <Selector
-            options={direcciones.map((d) => {
-              const label = [
-                d.tipo_direccion,
-                d.nombre_sucursal,
-                [d.calle, d.numero].filter(Boolean).join(" "),
-                d.comuna,
-              ]
-                .filter(Boolean)
-                .join(" - ");
-              return {
-                value: String(d.id),
-                label,
-                searchText: [
-                  d.tipo_direccion,
-                  d.nombre_sucursal,
-                  d.calle,
-                  d.numero,
-                  d.comuna,
-                  d.region,
-                ]
-                  .filter(Boolean)
-                  .join(" "),
-              };
-            })}
-            selectedValue={form.id_local}
-            onSelect={(value) => setForm((prev) => ({ ...prev, id_local: value }))}
-            disabled={!direcciones.length}
-            useFuzzy
-            className={`w-full px-3 py-2 border ${
-              errors.id_local ? "border-red-500" : "border-gray-300"
-            } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
-              !direcciones.length ? "bg-gray-100 cursor-not-allowed" : "bg-white"
-            }`}
-          />
-          {errors.id_local && <span className="text-red-500 text-sm mt-1">{errors.id_local}</span>}
-        </label>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-5">
 
-        <label className="flex flex-col">
-          Número OC
-          <input
-            type="text"
-            name="numero_oc"
-            placeholder="Ejemplo: 7000537546"
-            value={form.numero_oc}
-            onChange={handleFieldChange}
-            className="border border-gray-300 px-2 py-1 rounded"
-          />
-        </label>
-
-        <label className="flex flex-col">
-          Costo de Envío *
-          <input
-            type="number"
-            name="costo_envio"
-            placeholder="Ejemplo: 5000"
-            value={form.costo_envio}
-            onChange={handleFieldChange}
-            className={`border px-2 py-1 rounded ${
-              errors.costo_envio ? "border-red-500" : "border-gray-300"
-            }`}
-          />
-          {errors.costo_envio && <span className="text-red-500 text-sm mt-1">{errors.costo_envio}</span>}
-        </label>
-
-        <label className="flex flex-col">
-          Fecha Emisión OC *
-          <input
-            type="date"
-            name="fecha_orden"
-            value={form.fecha_orden}
-            onChange={handleFieldChange}
-            className={`border px-2 py-1 rounded ${
-              errors.fecha_orden ? "border-red-500" : "border-gray-300"
-            }`}
-          />
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setDateField("fecha_orden", getTodayDate())}
-              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
-            >
-              Hoy
-            </button>
-            <button
-              type="button"
-              onClick={() => setDateField("fecha_orden", sumarDiasAFecha(getTodayDate(), 1))}
-              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
-            >
-              Mañana
-            </button>
-          </div>
-          {errors.fecha_orden && <span className="text-red-500 text-sm mt-1">{errors.fecha_orden}</span>}
-        </label>
-
-        <label className="flex flex-col">
-          Fecha de Entrega *
-          <input
-            type="date"
-            name="fecha_envio"
-            value={form.fecha_envio}
-            onChange={handleFieldChange}
-            className={`border px-2 py-1 rounded ${
-              errors.fecha_envio ? "border-red-500" : "border-gray-300"
-            }`}
-          />
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                const base = form.fecha_orden || getTodayDate();
-                setDateField("fecha_envio", base);
-              }}
-              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
-            >
-              Igual emisión
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const base = form.fecha_orden || getTodayDate();
-                setDateField("fecha_envio", sumarDiasAFecha(base, 7));
-              }}
-              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
-            >
-              +7 días
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const base = form.fecha_orden || getTodayDate();
-                setDateField("fecha_envio", sumarDiasAFecha(base, 14));
-              }}
-              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
-            >
-              +14 días
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const base = form.fecha_orden || getTodayDate();
-                setDateField("fecha_envio", sumarDiasAFecha(base, 30));
-              }}
-              className="px-3 py-1 rounded border border-gray-200 bg-white text-sm text-text hover:bg-gray-100"
-            >
-              +30 días
-            </button>
-          </div>
-          {errors.fecha_envio && <span className="text-red-500 text-sm mt-1">{errors.fecha_envio}</span>}
-        </label>
-
-        <label className="flex flex-col">
-          Fecha de Facturación
-          <input
-            type="date"
-            name="fecha_facturacion"
-            value={form.fecha_facturacion}
-            onChange={handleFieldChange}
-            className="border border-gray-300 px-2 py-1 rounded"
-          />
-        </label>
-
-        <label className="flex flex-col">
-          Condiciones
-          <select
-            name="condiciones"
-            value={form.condiciones}
-            onChange={handleFieldChange}
-            className="border border-gray-300 px-2 py-1 rounded"
-          >
-            <option>Contado</option>
-            <option>Crédito a 15 días</option>
-            <option>Crédito a 30 días</option>
-            <option>Crédito a 45 días</option>
-            <option>Crédito a 60 días</option>
-          </select>
-        </label>
-
-        <label className="flex flex-col">
-          Bodega *
-          <Selector
-            options={bodegas.map((b) => {
-              const label = b.nombre || `Bodega ${b.id}`;
-              return {
-                value: String(b.id),
-                label,
-                searchText: label,
-              };
-            })}
-            selectedValue={form.bodega_id}
-            onSelect={(value) => setForm((prev) => ({ ...prev, bodega_id: value }))}
-            useFuzzy
-            className={`w-full px-3 py-2 border ${
-              errors.bodega_id ? "border-red-500" : "border-gray-300"
-            } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary`}
-          />
-          {errors.bodega_id && <span className="text-red-500 text-sm mt-1">{errors.bodega_id}</span>}
-        </label>
-      </form>
-
-      <div className="mt-8 bg-white p-4 rounded shadow">
-        <h2 className="text-xl font-semibold mb-4">Agregar Productos</h2>
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          <label className="flex flex-col">
-            Producto *
-            <Selector
-              options={productos
-                .filter((p) => !productosAgregados.some((pa) => pa.id_producto === p.id))
-                .map((p) => ({
-                  value: String(p.id),
-                  label: p.nombre,
-                  searchText: p.nombre,
+            {/* Cliente (ocupa ambas columnas) */}
+            <label className="flex flex-col gap-1 col-span-2">
+              <span className="text-sm font-medium text-gray-700">Cliente *</span>
+              <Selector
+                options={clients.map((c) => ({
+                  value: String(c.id),
+                  label: c.nombre_empresa,
+                  searchText: [c.nombre_empresa, c.rut, c.giro].filter(Boolean).join(" "),
                 }))}
-              selectedValue={productoForm.id_producto}
-              onSelect={(value) => setProductoField("id_producto", value)}
-              disabled={!form.id_cliente}
-              useFuzzy
-              className={`w-full px-3 py-2 border ${
-                productErrors.id_producto ? "border-red-500" : "border-gray-300"
-              } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
-                !form.id_cliente ? "bg-gray-100 cursor-not-allowed" : "bg-white"
-              }`}
-            />
-            {productErrors.id_producto && (
-              <span className="text-red-500 text-sm mt-1">{productErrors.id_producto}</span>
-            )}
-            {!form.id_cliente && (
-              <span className="text-gray-500 text-sm mt-1">Debes seleccionar un cliente primero</span>
-            )}
-          </label>
+                selectedValue={form.id_cliente}
+                onSelect={(value) => handleClientChange(value)}
+                useFuzzy
+                className={`w-full px-3 py-2 border ${
+                  errors.id_cliente ? "border-red-500" : "border-gray-300"
+                } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary`}
+              />
+              {errors.id_cliente && <span className="text-red-500 text-xs">{errors.id_cliente}</span>}
+              <span className="text-xs text-gray-400 italic">La dirección de entrega se asignará al momento de facturar la orden</span>
+            </label>
 
-          <label className="flex flex-col">
-            {`Cantidad ${
-              (clienteConfig?.formato || 'UNIDADES').toUpperCase().includes('CAJA')
-                ? '(Cajas)'
-                : '(Unidades)'
-            } *`}
-            <input
-              type="number"
-              name="cantidad"
-              placeholder="Ejemplo: 10"
-              value={productoForm.cantidad}
-              onChange={handleProductoChange}
-              disabled={!form.id_cliente}
-              className={`border px-2 py-1 rounded ${
-                productErrors.cantidad ? "border-red-500" : "border-gray-300"
-              } ${!form.id_cliente ? "bg-gray-100 cursor-not-allowed" : ""}`}
-            />
-            {productErrors.cantidad && (
-              <span className="text-red-500 text-sm mt-1">{productErrors.cantidad}</span>
-            )}
-          </label>
+            {/* Número OC */}
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Número OC</span>
+              <input
+                type="text"
+                name="numero_oc"
+                placeholder="Ej. 7000537546"
+                value={form.numero_oc}
+                onChange={handleFieldChange}
+                className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+            </label>
 
-          <label className="flex flex-col">
-            {`Precio ${
-              (clienteConfig?.formato || 'UNIDADES').toUpperCase().includes('CAJA')
-                ? 'por Caja'
-                : 'Unitario'
-            } *`}
+            {/* Fecha Emisión */}
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Fecha Emisión OC *</span>
+              <input
+                type="date"
+                name="fecha_orden"
+                value={form.fecha_orden}
+                onChange={handleFieldChange}
+                className={`border px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+                  errors.fecha_orden ? "border-red-500" : "border-gray-300"
+                }`}
+              />
+              {errors.fecha_orden && <span className="text-red-500 text-xs">{errors.fecha_orden}</span>}
+            </label>
+
+            {/* Bodega */}
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Bodega de origen *</span>
+              <Selector
+                options={bodegas.map((b) => ({
+                  value: String(b.id),
+                  label: b.nombre || `Bodega ${b.id}`,
+                  searchText: b.nombre || `Bodega ${b.id}`,
+                }))}
+                selectedValue={form.bodega_id}
+                onSelect={(value) => setForm((prev) => ({ ...prev, bodega_id: value }))}
+                useFuzzy
+                className={`w-full px-3 py-2 border ${
+                  errors.bodega_id ? "border-red-500" : "border-gray-300"
+                } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary`}
+              />
+              {errors.bodega_id && <span className="text-red-500 text-xs">{errors.bodega_id}</span>}
+            </label>
+
+            {/* Condición de pago (solo lectura) */}
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Condición de pago</span>
+              <div className="border border-gray-200 bg-gray-50 px-3 py-2 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center">
+                {condicionPagoCliente
+                  ? `${condicionPagoCliente} días`
+                  : <span className="text-gray-400">—</span>}
+              </div>
+              <span className="text-xs text-gray-400 italic">Obtenida automáticamente del cliente</span>
+            </div>
+
+          </div>
+
+          {/* Orden referencial */}
+          <label className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 cursor-pointer">
             <input
-              type="number"
-              name="precio_unitario"
-              placeholder="Se llenará automáticamente"
-              value={productoForm.precio_unitario || ""}
-              readOnly
-              className={`border px-2 py-1 rounded bg-gray-100 cursor-not-allowed ${
-                productErrors.precio_unitario ? "border-red-500" : "border-gray-300"
-              }`}
+              type="checkbox"
+              name="es_referencial"
+              checked={form.es_referencial}
+              onChange={(e) => setForm(prev => ({ ...prev, es_referencial: e.target.checked }))}
+              className="mt-0.5 w-4 h-4 accent-amber-500 flex-shrink-0"
             />
-            {productErrors.precio_unitario && (
-              <span className="text-red-500 text-sm mt-1">{productErrors.precio_unitario}</span>
-            )}
+            <div>
+              <span className="text-sm font-medium text-amber-800">Orden referencial (sin picking)</span>
+              <p className="text-xs text-amber-600 mt-0.5">
+                Activa esta opción cuando la producción no está registrada en el sistema. La orden irá directo a Facturada sin pasar por picking.
+              </p>
+            </div>
           </label>
         </div>
-
-        <button
-          type="button"
-          onClick={handleAddProduct}
-          disabled={!form.id_cliente}
-          className={`px-4 py-2 rounded ${
-            !form.id_cliente
-              ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-              : "bg-primary text-white hover:bg-hover"
-          }`}
-        >
-          Agregar Producto
-        </button>
-
-        {productosAgregados.length > 0 && (
-          <table className="w-full mt-6 bg-white rounded shadow">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-4 py-2 text-left">Producto</th>
-                <th className="px-4 py-2 text-left">Cantidad (Formato)</th>
-                <th className="px-4 py-2 text-left">Formato</th>
-                <th className="px-4 py-2 text-left">Precio { (clienteConfig?.formato || 'UNIDADES').toUpperCase().includes('CAJA') ? 'por Caja' : 'Unitario' }</th>
-                <th className="px-4 py-2 text-left">Total Línea</th>
-                <th className="px-4 py-2 text-center">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(isProductosExpanded ? productosAgregados : productosAgregados.slice(0, 5)).map((p) => (
-                <tr key={p.id_producto} className="border-b hover:bg-gray-50">
-                  <td className="px-4 py-2">{p.nombre}</td>
-                  <td className="px-4 py-2">{p.cantidad}</td>
-                  <td className="px-4 py-2">{p.formato_linea}</td>
-                  <td className="px-4 py-2">${p.precio_unitario}</td>
-                  <td className="px-4 py-2">${p.total_linea}</td>
-                  <td className="px-4 py-2 text-center">
-                    <button
-                      onClick={() => handleDeleteProduct(p.id_producto)}
-                      className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-600"
-                      title="Eliminar"
-                    >
-                      <Trash2 size={18} strokeWidth={1.5} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            {productosAgregados.length > 5 && (
-              <tfoot>
-                <tr>
-                  <td colSpan={6} className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-                    <button
-                      type="button"
-                      onClick={() => setIsProductosExpanded((v) => !v)}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-200 bg-white text-text hover:bg-gray-100 transition-colors"
-                    >
-                      {isProductosExpanded ? (
-                        <>
-                          <ChevronUp size={16} />
-                          Mostrar menos
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown size={16} />
-                          Ver todos ({productosAgregados.length})
-                        </>
-                      )}
-                    </button>
-                    {!isProductosExpanded && (
-                      <p className="mt-2 text-center text-xs text-gray-500">
-                        Mostrando {Math.min(5, productosAgregados.length)} de {productosAgregados.length} productos
-                      </p>
-                    )}
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        )}
       </div>
 
-      <div className="flex justify-end mt-6">
+      {/* ── Card: Productos ── */}
+      <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-base font-semibold text-gray-800">Productos</h2>
+            {!form.id_cliente && (
+              <span className="text-sm text-gray-400">Selecciona un cliente para agregar productos</span>
+            )}
+          </div>
+
+          {/* Formulario agregar producto */}
+          <div className="grid grid-cols-3 gap-x-6 gap-y-4 mb-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Producto *</span>
+              <Selector
+                options={productos
+                  .filter((p) => !productosAgregados.some((pa) => pa.id_producto === p.id))
+                  .map((p) => ({ value: String(p.id), label: p.nombre, searchText: p.nombre }))}
+                selectedValue={productoForm.id_producto}
+                onSelect={(value) => setProductoField("id_producto", value)}
+                disabled={!form.id_cliente}
+                useFuzzy
+                className={`w-full px-3 py-2 border ${
+                  productErrors.id_producto ? "border-red-500" : "border-gray-300"
+                } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+                  !form.id_cliente ? "bg-gray-100 cursor-not-allowed" : "bg-white"
+                }`}
+              />
+              {productErrors.id_producto && (
+                <span className="text-red-500 text-xs">{productErrors.id_producto}</span>
+              )}
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
+                Cantidad {esCajas ? "(Cajas)" : "(Unidades)"} *
+              </span>
+              <input
+                type="number"
+                name="cantidad"
+                placeholder="Ej. 10"
+                value={productoForm.cantidad}
+                onChange={handleProductoChange}
+                disabled={!form.id_cliente}
+                className={`border px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+                  productErrors.cantidad ? "border-red-500" : "border-gray-300"
+                } ${!form.id_cliente ? "bg-gray-100 cursor-not-allowed" : ""}`}
+              />
+              {productErrors.cantidad && (
+                <span className="text-red-500 text-xs">{productErrors.cantidad}</span>
+              )}
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
+                Precio {esCajas ? "por Caja" : "Unitario"} *
+              </span>
+              <input
+                type="number"
+                name="precio_unitario"
+                placeholder="Se llenará automáticamente"
+                value={productoForm.precio_unitario || ""}
+                readOnly
+                className={`border px-3 py-2 rounded-md bg-gray-100 cursor-not-allowed ${
+                  productErrors.precio_unitario ? "border-red-500" : "border-gray-300"
+                }`}
+              />
+              {productErrors.precio_unitario && (
+                <span className="text-red-500 text-xs">{productErrors.precio_unitario}</span>
+              )}
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAddProduct}
+            disabled={!form.id_cliente}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              !form.id_cliente
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                : "bg-primary text-white hover:bg-hover"
+            }`}
+          >
+            Agregar producto
+          </button>
+
+          {/* Tabla de productos */}
+          {productosAgregados.length > 0 && (
+            <div className="mt-6 border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Producto</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Cantidad</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Formato</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Precio {esCajas ? "/ Caja" : "Unitario"}
+                    </th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Total</th>
+                    <th className="px-4 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wide">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {(isProductosExpanded ? productosAgregados : productosAgregados.slice(0, 5)).map((p) => (
+                    <tr key={p.id_producto} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-2.5 text-sm text-gray-800">{p.nombre}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-700">{p.cantidad}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-500">{p.formato_linea}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-700">
+                        ${p.precio_unitario.toLocaleString("es-CL")}
+                      </td>
+                      <td className="px-4 py-2.5 text-sm font-medium text-gray-800">
+                        ${p.total_linea.toLocaleString("es-CL")}
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProduct(p.id_producto)}
+                          className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={16} strokeWidth={1.5} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                {productosAgregados.length > 5 && (
+                  <tfoot>
+                    <tr>
+                      <td colSpan={6} className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                        <button
+                          type="button"
+                          onClick={() => setIsProductosExpanded((v) => !v)}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg border border-gray-200 bg-white text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                        >
+                          {isProductosExpanded ? (
+                            <><ChevronUp size={15} /> Mostrar menos</>
+                          ) : (
+                            <><ChevronDown size={15} /> Ver todos ({productosAgregados.length})</>
+                          )}
+                        </button>
+                        {!isProductosExpanded && (
+                          <p className="mt-1.5 text-center text-xs text-gray-400">
+                            Mostrando {Math.min(5, productosAgregados.length)} de {productosAgregados.length} productos
+                          </p>
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Acciones ── */}
+      <div className="flex justify-end">
         <button
           onClick={handleSubmit}
-          className="px-6 py-2 bg-primary text-white rounded hover:bg-hover"
+          className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium transition-colors"
         >
           Guardar Orden
         </button>

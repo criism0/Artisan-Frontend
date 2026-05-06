@@ -8,6 +8,83 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import logo from "../../assets/logo.png";
 import { formatCLP } from "../../services/formatHelpers";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import Selector from "../../components/Selector";
+
+function FacturarForm({
+  direccionesCliente,
+  idLocalDespacho,
+  setIdLocalDespacho,
+  loadingDirecciones,
+  fechaFacturacion,
+  setFechaFacturacion,
+  transitioning,
+  onConfirm,
+  onCancel,
+  requiereDir = false,
+}) {
+  return (
+    <div className="flex flex-col gap-4 max-w-sm">
+      {/* Dirección de entrega */}
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-medium text-gray-700">
+          Dirección de entrega {requiereDir && <span className="text-red-500">*</span>}
+        </span>
+        {loadingDirecciones ? (
+          <span className="text-sm text-gray-400 py-2">Cargando direcciones...</span>
+        ) : (
+          <Selector
+            options={direccionesCliente.map((d) => ({
+              value: String(d.id),
+              label: [d.tipo_direccion, d.nombre_sucursal, [d.calle, d.numero].filter(Boolean).join(" "), d.comuna]
+                .filter(Boolean)
+                .join(" — "),
+              searchText: [d.tipo_direccion, d.nombre_sucursal, d.calle, d.numero, d.comuna, d.region]
+                .filter(Boolean)
+                .join(" "),
+            }))}
+            selectedValue={idLocalDespacho}
+            onSelect={setIdLocalDespacho}
+            useFuzzy
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          />
+        )}
+        <span className="text-xs text-gray-400 italic">
+          {requiereDir
+            ? "Debes seleccionar la dirección de entrega para poder facturar"
+            : "Confirma o ajusta la dirección antes de facturar"}
+        </span>
+      </div>
+
+      {/* Fecha facturación */}
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-medium text-gray-700">Fecha de facturación *</span>
+        <input
+          type="date"
+          value={fechaFacturacion}
+          onChange={(e) => setFechaFacturacion(e.target.value)}
+          className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+        />
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={onConfirm}
+          disabled={transitioning}
+          className="px-4 py-2 rounded-md text-white bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-300 font-medium"
+        >
+          {transitioning ? "Facturando..." : "Confirmar factura"}
+        </button>
+        <button
+          onClick={onCancel}
+          className="px-3 py-2 rounded-md border border-gray-300 text-sm hover:bg-gray-50"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const COMPANY = {
   nombre: "ELABORADORA DE ALIMENTOS GOURMET LTDA.",
@@ -28,6 +105,15 @@ export default function OrdenVentaDetail() {
   const [loadingProgreso, setLoadingProgreso] = useState(false);
   const [sending, setSending] = useState(false);
   const [delivering, setDelivering] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+  const [showFacturarForm, setShowFacturarForm] = useState(false);
+  const [showEntregarForm, setShowEntregarForm] = useState(false);
+  const [fechaFacturacion, setFechaFacturacion] = useState("");
+  const [costoEnvio, setCostoEnvio] = useState("");
+  const [fechaEnvio, setFechaEnvio] = useState("");
+  const [direccionesCliente, setDireccionesCliente] = useState([]);
+  const [idLocalDespacho, setIdLocalDespacho] = useState("");
+  const [loadingDirecciones, setLoadingDirecciones] = useState(false);
 
   const fetchOrden = async () => {
     const ordenData = await api(`/ordenes-venta/${id}/info`);
@@ -71,8 +157,9 @@ export default function OrdenVentaDetail() {
     })();
   }, [id, api]);
 
-  const direccion = orden?.direccion || {};
-  const cliente = direccion?.cliente || {};
+  const direccion = orden?.direccion || null;
+  // cliente viene directo via id_cliente (siempre disponible, incluso sin id_local)
+  const cliente = orden?.cliente || {};
   const bodega = orden?.bodega || {};
 
   const orderItems = useMemo(
@@ -118,38 +205,110 @@ export default function OrdenVentaDetail() {
     return rows;
   }, [progresoRows]);
 
-  const canSend = orden?.estado === "Listo-para-despacho";
-  const canDeliver = orden?.estado === "Listo-para-despacho" || orden?.estado === "Enviado";
+  // Scope check para validar
+  const canValidar = checkScope(ModelType.VALIDAR_ORDEN_VENTA, ScopeType.WRITE);
 
-  const handleEnviar = async () => {
+  const handleValidar = async () => {
     if (!id) return;
-    if (!window.confirm("¿Enviar esta orden de venta?")) return;
+    if (!window.confirm("¿Validar esta orden de venta?")) return;
     try {
-      setSending(true);
-      const res = await api(`/ordenes-venta/${id}/enviar-orden`, { method: "PUT" });
+      setTransitioning(true);
+      const res = await api(`/ordenes-venta/${id}/validar`, { method: "PUT" });
       const updated = res?.data?.orden || res?.orden;
       if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
-      else setOrden((prev) => (prev ? { ...prev, estado: "Enviado" } : prev));
-      toast.success(res?.data?.message || "Orden enviada correctamente");
+      else setOrden((prev) => (prev ? { ...prev, estado: "Validada" } : prev));
+      toast.success(res?.data?.message || "Orden validada correctamente");
     } catch (err) {
-      toast.error("No se pudo enviar la orden");
+      toast.error(err?.response?.data?.error || "No se pudo validar la orden");
     } finally {
-      setSending(false);
+      setTransitioning(false);
+    }
+  };
+
+  const handleCompletarPicking = async () => {
+    if (!id) return;
+    if (!window.confirm("¿Completar el picking? Se verificará que todos los productos estén asignados.")) return;
+    try {
+      setTransitioning(true);
+      const res = await api(`/ordenes-venta/${id}/completar-picking`, { method: "PUT" });
+      const updated = res?.data?.orden || res?.orden;
+      if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
+      else setOrden((prev) => (prev ? { ...prev, estado: "Lista para despacho" } : prev));
+      toast.success(res?.data?.message || "Picking completado correctamente");
+    } catch (err) {
+      toast.error(err?.response?.data?.error || "No se pudo completar el picking");
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  const loadDireccionesCliente = async (clienteId) => {
+    if (!clienteId) return;
+    setLoadingDirecciones(true);
+    try {
+      const res = await api(`/clientes/${clienteId}`);
+      const data = res?.data || res;
+      setDireccionesCliente(Array.isArray(data?.direcciones) ? data.direcciones : []);
+    } catch {
+      toast.error("No se pudieron cargar las direcciones del cliente");
+    } finally {
+      setLoadingDirecciones(false);
+    }
+  };
+
+  const handleFacturar = async () => {
+    if (!fechaFacturacion) {
+      toast.error("Ingresa la fecha de facturación");
+      return;
+    }
+    try {
+      setTransitioning(true);
+      const res = await api(`/ordenes-venta/${id}/facturar`, {
+        method: "PUT",
+        body: JSON.stringify({
+          fecha_facturacion: fechaFacturacion,
+          ...(idLocalDespacho && { id_local: Number(idLocalDespacho) }),
+        }),
+      });
+      // Refetch para reflejar la dirección actualizada
+      const o = await fetchOrden();
+      setOrden(o);
+      toast.success(res?.data?.message || res?.message || "Orden facturada correctamente");
+      setShowFacturarForm(false);
+      setFechaFacturacion("");
+      setIdLocalDespacho("");
+      setDireccionesCliente([]);
+    } catch (err) {
+      toast.error(err?.response?.data?.error || "No se pudo facturar la orden");
+    } finally {
+      setTransitioning(false);
     }
   };
 
   const handleEntregar = async () => {
-    if (!id) return;
-    if (!window.confirm("¿Confirmar la entrega exitosa de esta orden de venta?")) return;
+    if (costoEnvio === "" || costoEnvio === null) {
+      toast.error("Ingresa el costo de envío (puede ser 0)");
+      return;
+    }
+    if (!fechaEnvio) {
+      toast.error("Ingresa la fecha de entrega");
+      return;
+    }
     try {
       setDelivering(true);
-      const res = await api(`/ordenes-venta/${id}/entregar-orden`, { method: "PUT" });
+      const res = await api(`/ordenes-venta/${id}/entregar`, {
+        method: "PUT",
+        body: JSON.stringify({ costo_envio: Number(costoEnvio), fecha_envio: fechaEnvio }),
+      });
       const updated = res?.data?.orden || res?.orden;
       if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
-      else setOrden((prev) => (prev ? { ...prev, estado: "Entregado" } : prev));
+      else setOrden((prev) => (prev ? { ...prev, estado: "Entregada" } : prev));
       toast.success(res?.data?.message || "Orden entregada correctamente");
+      setShowEntregarForm(false);
+      setCostoEnvio("");
+      setFechaEnvio("");
     } catch (err) {
-      toast.error("No se pudo entregar la orden");
+      toast.error(err?.response?.data?.error || "No se pudo entregar la orden");
     } finally {
       setDelivering(false);
     }
@@ -170,15 +329,55 @@ export default function OrdenVentaDetail() {
 
   const getEstadoBadge = (estado) => {
     if (!estado) return <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">—</span>;
-    const normalized = String(estado).toLowerCase();
     const base = "px-3 py-1 rounded-full text-sm font-medium";
-    if (normalized.includes("pend")) return <span className={`${base} bg-amber-100 text-amber-800`}>Pendiente</span>;
-    if (normalized.includes("list")) return <span className={`${base} bg-blue-100 text-blue-700`}>Lista</span>;
-    if (normalized.includes("envi")) return <span className={`${base} bg-violet-100 text-violet-700`}>Enviada</span>;
-    if (normalized.includes("entreg")) return <span className={`${base} bg-green-100 text-green-700`}>Entregada</span>;
-    if (normalized.includes("cancel")) return <span className={`${base} bg-red-100 text-red-700`}>Cancelada</span>;
-    return <span className={`${base} bg-gray-100 text-gray-600`}>{estado}</span>;
+    const map = {
+      "Creada": `${base} bg-gray-200 text-gray-700`,
+      "Validada": `${base} bg-blue-100 text-blue-700`,
+      "En picking": `${base} bg-indigo-100 text-indigo-700`,
+      "Lista para despacho": `${base} bg-cyan-100 text-cyan-700`,
+      "Facturada": `${base} bg-yellow-100 text-yellow-700`,
+      "Entregada": `${base} bg-green-100 text-green-700`,
+    };
+    return <span className={map[estado] || `${base} bg-gray-100 text-gray-600`}>{estado}</span>;
   };
+
+  // Step progress bar
+  const STEPS_NORMAL = ["Creada", "Validada", "En picking", "Lista para despacho", "Facturada", "Entregada"];
+  const STEPS_REF = ["Creada", "Validada", "Facturada", "Entregada"];
+  const steps = orden?.es_referencial ? STEPS_REF : STEPS_NORMAL;
+  const currentStepIdx = steps.indexOf(orden?.estado ?? "");
+
+  const StepBar = () => (
+    <div className="bg-white rounded-lg shadow p-4 mb-6">
+      <div className="flex items-center justify-between">
+        {steps.map((step, idx) => {
+          const done = idx < currentStepIdx;
+          const active = idx === currentStepIdx;
+          return (
+            <div key={step} className="flex items-center flex-1">
+              <div className="flex flex-col items-center flex-1">
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+                    ${done ? "bg-primary text-white" : active ? "bg-primary text-white ring-2 ring-primary ring-offset-2" : "bg-gray-200 text-gray-500"}`}
+                >
+                  {done ? "✓" : idx + 1}
+                </div>
+                <span className={`mt-1 text-xs text-center leading-tight ${active ? "font-semibold text-primary" : done ? "text-gray-600" : "text-gray-400"}`}>
+                  {step}
+                </span>
+                {step === "Creada" && orden?.es_referencial && (
+                  <span className="mt-0.5 text-xs text-amber-500 font-medium">Referencial</span>
+                )}
+              </div>
+              {idx < steps.length - 1 && (
+                <div className={`h-0.5 flex-1 mx-1 ${idx < currentStepIdx ? "bg-primary" : "bg-gray-200"}`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   const totalProductos = useMemo(
     () =>
@@ -193,8 +392,8 @@ export default function OrdenVentaDetail() {
     [orderItems]
   );
 
-  const costoEnvio = Number(orden?.costo_envio || 0);
-  const totalNeto = totalProductos + costoEnvio;
+  const costoEnvioActual = Number(orden?.costo_envio || 0);
+  const totalNeto = totalProductos + costoEnvioActual;
   const iva = Math.round(totalNeto * 0.19);
   const total = totalNeto + iva;
 
@@ -338,6 +537,8 @@ export default function OrdenVentaDetail() {
         </div>
       </div>
 
+      <StepBar />
+
       {/* Panel rápido (estilo OM/Solicitud) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
         <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
@@ -371,13 +572,23 @@ export default function OrdenVentaDetail() {
         <h2 className="text-base font-semibold text-text mb-3">Información</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
           <div className="bg-gray-50 rounded-lg border border-border p-3">
-            <div className="text-xs text-gray-500 font-medium">Dirección</div>
-            <div className="font-medium text-text mt-1">
-              {direccion?.tipo_direccion || ""} {direccion?.nombre_sucursal || ""}
-            </div>
-            <div className="text-xs text-gray-600 mt-1">
-              {direccion?.calle || ""} {direccion?.numero || ""}{direccion?.comuna ? `, ${direccion.comuna}` : ""}
-            </div>
+            <div className="text-xs text-gray-500 font-medium">Dirección de entrega</div>
+            {direccion ? (
+              <>
+                <div className="font-medium text-text mt-1">
+                  {[direccion.tipo_direccion, direccion.nombre_sucursal].filter(Boolean).join(" — ") || "—"}
+                </div>
+                <div className="text-xs text-gray-600 mt-1">
+                  {direccion.calle || ""} {direccion.numero || ""}{direccion.comuna ? `, ${direccion.comuna}` : ""}
+                </div>
+              </>
+            ) : (
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                  Por asignar — se confirma al facturar
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="bg-gray-50 rounded-lg border border-border p-3">
@@ -389,7 +600,7 @@ export default function OrdenVentaDetail() {
         </div>
 
         <div className="mt-3 text-sm text-gray-700">
-          <span className="font-medium">Costo envío:</span> {formatCLP(costoEnvio, 0)} ·
+          <span className="font-medium">Costo envío:</span> {formatCLP(costoEnvioActual, 0)} ·
           <span className="font-medium"> Neto:</span> {formatCLP(totalNeto, 0)} ·
           <span className="font-medium"> IVA:</span> {formatCLP(iva, 0)} ·
           <span className="font-medium text-primary"> Total:</span> {formatCLP(total, 0)}
@@ -505,32 +716,148 @@ export default function OrdenVentaDetail() {
         />
       </div>
 
-      <div className="mt-6 flex justify-end gap-2">
-        <button
-          onClick={handleEnviar}
-          disabled={!canSend || sending || delivering}
-          className={`px-4 py-2 rounded-md text-white ${
-            !canSend || sending || delivering
-              ? "bg-gray-300 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700"
-          }`}
-          title={canSend ? "Enviar" : "Disponible solo cuando esté Listo-para-despacho"}
-        >
-          {sending ? "Enviando..." : "Enviar"}
-        </button>
+      {/* Acciones según estado */}
+      <div className="mt-6 bg-white rounded-lg shadow p-4">
+        <h2 className="text-base font-semibold text-text mb-3">Acción disponible</h2>
 
-        <button
-          onClick={handleEntregar}
-          disabled={!canDeliver || delivering || sending}
-          className={`px-4 py-2 rounded-md text-white ${
-            !canDeliver || delivering || sending
-              ? "bg-gray-300 cursor-not-allowed"
-              : "bg-green-600 hover:bg-green-700"
-          }`}
-          title={canDeliver ? "Entregar" : "Disponible solo cuando esté Enviado o Listo-para-despacho"}
-        >
-          {delivering ? "Entregando..." : "Entregar"}
-        </button>
+        {orden?.estado === "Creada" && (
+          canValidar ? (
+            <button
+              onClick={handleValidar}
+              disabled={transitioning}
+              className="px-4 py-2 rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300"
+            >
+              {transitioning ? "Validando..." : "✔ Validar orden"}
+            </button>
+          ) : (
+            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+              Sin permisos para validar esta orden. Contacta a un administrador.
+            </p>
+          )
+        )}
+
+        {orden?.estado === "Validada" && !orden?.es_referencial && (
+          <p className="text-sm text-blue-600 bg-blue-50 border border-blue-200 rounded px-3 py-2">
+            La orden pasará automáticamente a <strong>En picking</strong> al registrar el primer bulto en la asignación.
+          </p>
+        )}
+
+        {orden?.estado === "Validada" && orden?.es_referencial && (
+          !showFacturarForm ? (
+            <button
+              onClick={() => {
+                setShowFacturarForm(true);
+                setIdLocalDespacho(String(orden?.id_local || ""));
+                loadDireccionesCliente(cliente?.id);
+              }}
+              className="px-4 py-2 rounded-md text-white bg-yellow-500 hover:bg-yellow-600"
+            >
+              Facturar orden
+            </button>
+          ) : (
+            <FacturarForm
+              direccionesCliente={direccionesCliente}
+              idLocalDespacho={idLocalDespacho}
+              setIdLocalDespacho={setIdLocalDespacho}
+              loadingDirecciones={loadingDirecciones}
+              fechaFacturacion={fechaFacturacion}
+              setFechaFacturacion={setFechaFacturacion}
+              transitioning={transitioning}
+              onConfirm={handleFacturar}
+              onCancel={() => { setShowFacturarForm(false); setIdLocalDespacho(""); setDireccionesCliente([]); }}
+              requiereDir={!orden?.id_local}
+            />
+          )
+        )}
+
+        {orden?.estado === "En picking" && (
+          <button
+            onClick={handleCompletarPicking}
+            disabled={transitioning}
+            className="px-4 py-2 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-300"
+          >
+            {transitioning ? "Completando..." : "✔ Completar picking"}
+          </button>
+        )}
+
+        {orden?.estado === "Lista para despacho" && (
+          !showFacturarForm ? (
+            <button
+              onClick={() => {
+                setShowFacturarForm(true);
+                setIdLocalDespacho(String(orden?.id_local || ""));
+                loadDireccionesCliente(cliente?.id);
+              }}
+              className="px-4 py-2 rounded-md text-white bg-yellow-500 hover:bg-yellow-600"
+            >
+              Facturar orden
+            </button>
+          ) : (
+            <FacturarForm
+              direccionesCliente={direccionesCliente}
+              idLocalDespacho={idLocalDespacho}
+              setIdLocalDespacho={setIdLocalDespacho}
+              loadingDirecciones={loadingDirecciones}
+              fechaFacturacion={fechaFacturacion}
+              setFechaFacturacion={setFechaFacturacion}
+              transitioning={transitioning}
+              onConfirm={handleFacturar}
+              onCancel={() => { setShowFacturarForm(false); setIdLocalDespacho(""); setDireccionesCliente([]); }}
+              requiereDir={!orden?.id_local}
+            />
+          )
+        )}
+
+        {orden?.estado === "Facturada" && (
+          !showEntregarForm ? (
+            <button
+              onClick={() => setShowEntregarForm(true)}
+              className="px-4 py-2 rounded-md text-white bg-green-600 hover:bg-green-700"
+            >
+              Entregar orden
+            </button>
+          ) : (
+            <div className="flex flex-col gap-3 max-w-xs">
+              <label className="flex flex-col text-sm">
+                Costo de envío * (puede ser 0)
+                <input
+                  type="number"
+                  value={costoEnvio}
+                  onChange={(e) => setCostoEnvio(e.target.value)}
+                  placeholder="Ej: 5000"
+                  className="border border-gray-300 px-2 py-1 rounded mt-1"
+                />
+              </label>
+              <label className="flex flex-col text-sm">
+                Fecha de entrega *
+                <input
+                  type="date"
+                  value={fechaEnvio}
+                  onChange={(e) => setFechaEnvio(e.target.value)}
+                  className="border border-gray-300 px-2 py-1 rounded mt-1"
+                />
+              </label>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleEntregar}
+                  disabled={delivering}
+                  className="px-4 py-2 rounded-md text-white bg-green-600 hover:bg-green-700 disabled:bg-gray-300"
+                >
+                  {delivering ? "Entregando..." : "Confirmar entrega"}
+                </button>
+                <button onClick={() => setShowEntregarForm(false)} className="px-3 py-2 rounded border border-gray-300 text-sm hover:bg-gray-50">
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )
+        )}
+
+        {orden?.estado === "Entregada" && (
+          <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+            ✔ Orden completada y entregada.
+          </p>
+        )}
       </div>
     </div>
   );

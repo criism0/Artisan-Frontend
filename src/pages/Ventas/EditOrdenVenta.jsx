@@ -1,38 +1,29 @@
-import React, { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { BackButton } from "../../components/Buttons/ActionButtons";
-import { Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
+import Selector from "../../components/Selector";
 
 export default function EditOrdenVenta() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const api = useApi();
 
-  const [clients, setClients] = useState([]);
-  const [direcciones, setDirecciones] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [orden, setOrden] = useState(null);
+  const [bodegas, setBodegas] = useState([]);
   const [productos, setProductos] = useState([]);
-  const [clienteConfig, setClienteConfig] = useState(null);
   const [preciosLista, setPreciosLista] = useState([]);
+  const [clienteConfig, setClienteConfig] = useState(null);
   const [productosAgregados, setProductosAgregados] = useState([]);
   const [productErrors, setProductErrors] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({
-    id_cliente: "",
-    id_local: "",
-    numero_oc: "",
-    costo_envio: "",
-    fecha_orden: "",
-    fecha_envio: "",
-    fecha_facturacion: "",
-    estado: "",
-    condiciones: ""
-  });
 
-  const initialIdDireccion = useRef("");
-  const isInitialLoad = useRef(true);
+  const [form, setForm] = useState({
+    numero_oc: "",
+    fecha_orden: "",
+    bodega_id: "",
+  });
 
   const [productoForm, setProductoForm] = useState({
     id_producto: "",
@@ -40,386 +31,198 @@ export default function EditOrdenVenta() {
     precio_unitario: "",
   });
 
+  // ── Carga inicial ──
   useEffect(() => {
     (async () => {
       try {
-        const cliRes = await api("/clientes");
-        const rawClients = Array.isArray(cliRes) ? cliRes : cliRes.data || [];
-        setClients(
-          rawClients.map(c => ({
-            value: c.id.toString(),
-            label: c.nombre_empresa
-          }))
-        );
+        const [ordRes, prodRes, bodRes] = await Promise.all([
+          api(`/ordenes-venta/${id}/info`),
+          api("/productos-base"),
+          api("/bodegas"),
+        ]);
 
-        let orden = location.state?.orden;
-        if (!orden) {
-          const ordRes = await api(`/ordenes-venta/${id}/info`);
-          orden = ordRes.data || ordRes;
-        }
-
-        // Obtener cliente desde la dirección (id_local es id_direccion)
-        let clienteId = "";
-        if (orden.id_local) {
-          // Buscar el cliente que tiene esta dirección
-          for (const cliente of rawClients) {
-            const dirs = Array.isArray(cliente.direcciones) ? cliente.direcciones : [];
-            if (dirs.some(d => d.id === orden.id_local)) {
-              clienteId = cliente.id.toString();
-              break;
-            }
-          }
-        }
-        
-        initialIdDireccion.current = orden.id_local?.toString() || "";
-
-        // Establecer el form inicial - id_local se establecerá después de cargar direcciones
+        const ord = ordRes?.data || ordRes;
+        setOrden(ord);
         setForm({
-          id_cliente: clienteId,
-          id_local: "",
-          numero_oc: orden.numero_oc || "",
-          costo_envio: orden.costo_envio?.toString() || "",
-          fecha_orden: orden.fecha_orden?.slice(0, 10) || "",
-          fecha_envio: orden.fecha_envio?.slice(0, 10) || "",
-          fecha_facturacion: orden.fecha_facturacion?.slice(0, 10) || "",
-          estado: orden.estado || "",
-          condiciones: orden.condiciones || ""
+          numero_oc: ord.numero_oc || "",
+          fecha_orden: ord.fecha_orden?.slice(0, 10) || "",
+          bodega_id: ord.bodega_id ? String(ord.bodega_id) : "",
         });
 
-        // Cargar direcciones y configuración del cliente si existe
+        const productosData = prodRes?.data || prodRes || [];
+        setProductos(productosData);
+
+        const bodegasData = Array.isArray(bodRes?.bodegas)
+          ? bodRes.bodegas
+          : Array.isArray(bodRes?.data)
+          ? bodRes.data
+          : Array.isArray(bodRes)
+          ? bodRes
+          : [];
+        setBodegas(bodegasData);
+
+        // Cargar lista de precios del cliente
+        const clienteId = ord.cliente?.id || ord.id_cliente;
         if (clienteId) {
           try {
-            const clienteRes = await api(`/clientes/${clienteId}`);
-            const clienteData = clienteRes.data || clienteRes;
-            const dirs = Array.isArray(clienteData?.direcciones) ? clienteData.direcciones : [];
-            setDirecciones(dirs);
+            const cliRes = await api(`/clientes/${clienteId}`);
+            const cliData = cliRes?.data || cliRes;
             setClienteConfig({
-              formato: clienteData?.formato_compra_predeterminado || "UNIDADES",
-              id_lista_precio: clienteData?.id_lista_precio || null,
+              formato: cliData?.formato_compra_predeterminado || "UNIDADES",
+              id_lista_precio: cliData?.id_lista_precio || null,
             });
-            
-            // Cargar lista de precios
-            if (clienteData?.id_lista_precio) {
-              try {
-                const resLista = await api(`/lista-precio/${clienteData.id_lista_precio}`);
-                const listaData = resLista.data || resLista;
-                const productosLista = Array.isArray(listaData?.productosBaseListaPrecio) 
-                  ? listaData.productosBaseListaPrecio 
-                  : [];
-                setPreciosLista(productosLista);
-              } catch (e2) {
-                toast.error("Error al cargar precios de lista");
-              }
+            if (cliData?.id_lista_precio) {
+              const listaRes = await api(`/lista-precio/${cliData.id_lista_precio}`);
+              const listaData = listaRes?.data || listaRes;
+              setPreciosLista(
+                Array.isArray(listaData?.productosBaseListaPrecio)
+                  ? listaData.productosBaseListaPrecio
+                  : []
+              );
             }
-            
-            // Establecer la dirección directamente en el form si existe
-            const direccionId = orden.id_local?.toString() || "";
-            if (direccionId && dirs.some(d => String(d.id) === direccionId)) {
-              setForm(f => ({ 
-                ...f, 
-                id_local: direccionId 
-              }));
-            }
-          } catch (e) {
-            toast.error("Error al cargar direcciones del cliente");
+          } catch {
+            // Sin lista de precios — no es crítico
           }
         }
-
-        // Cargar productos base y luego productos de la orden
-        const productosRes = await api("/productos-base");
-        const productosData = productosRes.data || productosRes || [];
-        setProductos(productosData);
 
         // Cargar productos existentes de la orden
         try {
-          const productosOrdenRes = await api(`/ordenes-venta/${id}/productos`);
-          const productosExistentes = productosOrdenRes.data || productosOrdenRes || [];
-          const productosConInfo = productosExistentes.map((item) => {
-            const prod = productosData.find(p => p.id === item.id_producto);
-            return {
-              id_producto: item.id_producto,
-              nombre: prod?.nombre || `Producto #${item.id_producto}`,
-              cantidad: item.cantidad,
-              precio_unitario: item.precio_venta,
-              cantidad_formato: item.cantidad,
-              formato_linea: "UNIDADES",
-              unidades_reservadas: item.cantidad,
-              total_linea: item.cantidad * item.precio_venta,
-              dbId: item.id,
-            };
-          });
-          setProductosAgregados(productosConInfo);
-        } catch (e) {
+          const prodOrdenRes = await api(`/ordenes-venta/${id}/productos`);
+          const prodOrden = prodOrdenRes?.data || prodOrdenRes || [];
+          setProductosAgregados(
+            prodOrden.map((item) => {
+              const prod = productosData.find((p) => p.id === item.id_producto);
+              return {
+                id_producto: item.id_producto,
+                nombre: prod?.nombre || `Producto #${item.id_producto}`,
+                cantidad: item.cantidad,
+                precio_unitario: item.precio_venta,
+                formato_linea: "UNIDADES",
+                total_linea: item.cantidad * item.precio_venta,
+                dbId: item.id,
+              };
+            })
+          );
+        } catch {
           toast.error("Error al cargar productos de la orden");
         }
       } catch (err) {
         toast.error(err.message || "Error al cargar la orden");
       } finally {
         setLoading(false);
-        isInitialLoad.current = false;
       }
     })();
-  }, [id, location.state, api]);
+  }, [id, api]);
 
-  useEffect(() => {
-    if (isInitialLoad.current) {
-      return;
+  // ── Producto form helpers ──
+  const calcularPrecio = (prodId) => {
+    if (!prodId || !clienteConfig) return "";
+    const precioLista = preciosLista.find((x) => x.id_producto_base === prodId);
+    const productoBase = productos.find((p) => p.id === prodId);
+    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || productoBase?.unidades_por_caja || 0) || 0;
+    const precioCaja = precioLista?.precio_caja;
+    const precioUnidad = precioLista?.precio_unidad;
+    const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
+    if (esCajas) {
+      if (precioCaja) return Number(precioCaja);
+      if (precioUnidad && unidadesPorCaja) return Number(precioUnidad) * Number(unidadesPorCaja);
+    } else {
+      if (precioUnidad) return Number(precioUnidad);
+      if (precioCaja && unidadesPorCaja) return Number(precioCaja) / Number(unidadesPorCaja);
     }
-    
-    if (!form.id_cliente) {
-      setDirecciones([]);
-      setClienteConfig(null);
-      setPreciosLista([]);
-      if (form.id_local) {
-        setForm(f => ({ ...f, id_local: "" }));
-      }
-      return;
-    }
-    
-    (async () => {
-      try {
-        const clienteRes = await api(`/clientes/${form.id_cliente}`);
-        const clienteData = clienteRes.data || clienteRes;
-        const dirs = Array.isArray(clienteData?.direcciones) ? clienteData.direcciones : [];
-        setDirecciones(dirs);
-        setClienteConfig({
-          formato: clienteData?.formato_compra_predeterminado || "UNIDADES",
-          id_lista_precio: clienteData?.id_lista_precio || null,
-        });
-        
-        // Cargar lista de precios
-        if (clienteData?.id_lista_precio) {
-          try {
-            const resLista = await api(`/lista-precio/${clienteData.id_lista_precio}`);
-            const listaData = resLista.data || resLista;
-            const productosLista = Array.isArray(listaData?.productosBaseListaPrecio) 
-              ? listaData.productosBaseListaPrecio 
-              : [];
-            setPreciosLista(productosLista);
-          } catch (e2) {
-            toast.error("Error al cargar precios de lista");
-          }
-        }
-        
-        // Si hay una dirección seleccionada y es válida en las nuevas direcciones, mantenerla
-        if (form.id_local && dirs.some(d => String(d.id) === form.id_local)) {
-          // La dirección ya está en el form y es válida, no hacer nada
-          return;
-        }
-        
-        // Si hay una dirección guardada en initialIdDireccion y existe en las direcciones, establecerla
-        if (
-          initialIdDireccion.current &&
-          dirs.some(d => String(d.id) === initialIdDireccion.current)
-        ) {
-          setForm(f => ({ ...f, id_local: initialIdDireccion.current }));
-          initialIdDireccion.current = "";
-        }
-      } catch (e) {
-        toast.error("Error al cargar direcciones del cliente");
-      }
-    })();
-  }, [form.id_cliente, api]);
-
-  const handleClientChange = e => {
-    setForm(f => ({ ...f, id_cliente: e.target.value, id_local: "" }));
-    setClienteConfig(null);
-    setPreciosLista([]);
-  };
-
-  const handleFieldChange = e => {
-    const { name, value } = e.target;
-    setForm(f => ({ ...f, [name]: value }));
+    return "";
   };
 
   const handleProductoChange = (e) => {
     const { name, value } = e.target;
-    let updatedForm = { ...productoForm, [name]: value };
-
-    // Limpiar errores cuando se cambia el producto
+    let updated = { ...productoForm, [name]: value };
     if (name === "id_producto") {
       setProductErrors({});
+      updated.precio_unitario = calcularPrecio(Number(value));
     }
-
-    if (name === "id_producto" && form.id_cliente) {
-      const prodId = Number(value);
-      const precioLista = preciosLista.find((x) => x.id_producto_base === prodId);
-      
-      const unidadesPorCaja = precioLista?.unidades_por_caja || productos.find(p => p.id === prodId)?.unidades_por_caja;
-      const precioCaja = precioLista?.precio_caja;
-      const precioUnidad = precioLista?.precio_unidad;
-
-      const formato = (clienteConfig?.formato || "UNIDADES").toUpperCase();
-      if (formato.includes("CAJA")) {
-        if (precioCaja) {
-          updatedForm.precio_unitario = Number(precioCaja);
-        } else if (precioUnidad && unidadesPorCaja) {
-          updatedForm.precio_unitario = Number(precioUnidad) * Number(unidadesPorCaja);
-        } else {
-          updatedForm.precio_unitario = "";
-        }
-      } else {
-        if (precioUnidad) {
-          updatedForm.precio_unitario = Number(precioUnidad);
-        } else if (precioCaja && unidadesPorCaja) {
-          updatedForm.precio_unitario = Number(precioCaja) / Number(unidadesPorCaja);
-        } else {
-          updatedForm.precio_unitario = "";
-        }
-      }
-    }
-
-    setProductoForm(updatedForm);
+    setProductoForm(updated);
   };
 
   const validateProducto = () => {
-    const prodErrors = {};
-    if (!productoForm.id_producto)
-      prodErrors.id_producto = "Debes seleccionar un producto.";
-    if (!productoForm.cantidad || productoForm.cantidad <= 0)
-      prodErrors.cantidad = "Cantidad debe ser mayor a 0.";
-    if (!productoForm.precio_unitario || productoForm.precio_unitario <= 0)
-      prodErrors.precio_unitario = "Precio debe ser mayor a 0.";
-    setProductErrors(prodErrors);
-    return Object.keys(prodErrors).length === 0;
+    const errs = {};
+    if (!productoForm.id_producto) errs.id_producto = "Debes seleccionar un producto.";
+    if (!productoForm.cantidad || Number(productoForm.cantidad) <= 0) errs.cantidad = "Cantidad debe ser mayor a 0.";
+    if (!productoForm.precio_unitario || Number(productoForm.precio_unitario) <= 0) errs.precio_unitario = "Precio debe ser mayor a 0.";
+    setProductErrors(errs);
+    return Object.keys(errs).length === 0;
   };
 
   const handleAddProduct = () => {
     if (!validateProducto()) return;
-    
-    // Verificar si el producto ya está agregado
     const productoId = Number(productoForm.id_producto);
-    if (productosAgregados.some(p => p.id_producto === productoId)) {
-      setProductErrors({ id_producto: "Este producto ya está agregado a la orden." });
+    if (productosAgregados.some((p) => p.id_producto === productoId)) {
+      setProductErrors({ id_producto: "Este producto ya está agregado." });
       return;
     }
-    
     const prod = productos.find((p) => p.id === productoId);
-    const formato = (clienteConfig?.formato || "UNIDADES").toUpperCase();
     const precioLista = preciosLista.find((x) => x.id_producto_base === prod.id);
-    const unidadesPorCaja = Number(
-      precioLista?.unidades_por_caja || prod.unidades_por_caja || 0
-    ) || 0;
+    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || prod.unidades_por_caja || 0) || 0;
+    const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
     const cantidadFormato = Number(productoForm.cantidad);
-    const cantidadUnidades = formato.includes("CAJA") && unidadesPorCaja
-      ? cantidadFormato * unidadesPorCaja
-      : cantidadFormato;
-
-    const newProd = {
-      id_producto: prod.id,
-      nombre: prod.nombre,
-      cantidad: cantidadUnidades,
-      precio_unitario: Number(productoForm.precio_unitario),
-      cantidad_formato: cantidadFormato,
-      formato_linea: formato.includes("CAJA") ? "CAJAS" : "UNIDADES",
-      unidades_por_caja: unidadesPorCaja || null,
-      total_linea: Number(productoForm.precio_unitario) * cantidadFormato,
-      unidades_reservadas: cantidadUnidades,
-      dbId: null,
-    };
-    setProductosAgregados((prev) => [...prev, newProd]);
+    const cantidadUnidades = esCajas && unidadesPorCaja ? cantidadFormato * unidadesPorCaja : cantidadFormato;
+    setProductosAgregados((prev) => [
+      {
+        id_producto: prod.id,
+        nombre: prod.nombre,
+        cantidad: cantidadUnidades,
+        precio_unitario: Number(productoForm.precio_unitario),
+        formato_linea: esCajas ? "CAJAS" : "UNIDADES",
+        total_linea: Number(productoForm.precio_unitario) * cantidadFormato,
+        dbId: null,
+      },
+      ...prev,
+    ]);
     setProductoForm({ id_producto: "", cantidad: "", precio_unitario: "" });
     setProductErrors({});
   };
 
-  const handleDeleteProduct = (id) => {
-    setProductosAgregados((prev) => prev.filter((p) => p.id_producto !== id));
+  const handleDeleteProduct = (prodId) => {
+    setProductosAgregados((prev) => prev.filter((p) => p.id_producto !== prodId));
   };
 
-  const validate = () => {
-    const miss = [];
-    if (!form.id_cliente) miss.push("Cliente");
-    if (!form.id_local) miss.push("Dirección");
-    if (!form.numero_oc.trim()) miss.push("Número OC");
-    if (!form.costo_envio.trim()) miss.push("Costo de Envío");
-    if (!form.fecha_orden.trim()) miss.push("Fecha Emisión OC");
-    if (!form.estado.trim()) miss.push("Estado");
-    return miss;
-  };
-
-  const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
-    const missing = validate();
-    if (missing.length) {
-      toast.error(`Por favor completa: ${missing.join(", ")}`);
-      return;
-    }
-
-    const fechaOrden = new Date(form.fecha_orden);
-    const fechaEnvio = form.fecha_envio ? new Date(form.fecha_envio) : null;
-    const fechaFacturacion = form.fecha_facturacion
-      ? new Date(form.fecha_facturacion)
-      : null;
-
-    if (fechaEnvio && fechaEnvio < fechaOrden) {
-      toast.error("La Fecha de Entrega no puede ser anterior a la Fecha de Emisión OC.");
-      return;
-    }
-
-    if (fechaFacturacion && fechaFacturacion < fechaOrden) {
-      toast.error("La Fecha de Facturación no puede ser anterior a la Fecha de Emisión OC.");
-      return;
-    }
+  // ── Submit ──
+  const handleSubmit = async () => {
+    if (!form.fecha_orden) { toast.error("La fecha de emisión es obligatoria."); return; }
+    if (!form.bodega_id) { toast.error("Debes seleccionar una bodega."); return; }
+    if (productosAgregados.length === 0) { toast.error("Debes agregar al menos un producto."); return; }
 
     try {
-      // Validar que la dirección seleccionada pertenece al cliente seleccionado
-      const direccionSeleccionada = direcciones.find(d => d.id === Number(form.id_local));
-      if (!direccionSeleccionada) {
-        toast.error("La dirección seleccionada no es válida. Por favor, selecciona una dirección del cliente.");
-        return;
-      }
-      if (direccionSeleccionada.cliente_id && Number(direccionSeleccionada.cliente_id) !== Number(form.id_cliente)) {
-        toast.error("La dirección seleccionada no pertenece al cliente seleccionado.");
-        return;
-      }
+      await api(`/ordenes-venta/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          numero_oc: form.numero_oc,
+          fecha_orden: form.fecha_orden,
+          bodega_id: Number(form.bodega_id),
+        }),
+      });
 
-      const payload = {
-        ...form,
-        id_cliente: Number(form.id_cliente),
-        id_local: Number(form.id_local),
-        costo_envio: Number(form.costo_envio),
-        fecha_envio: form.fecha_envio || null,
-        fecha_facturacion: form.fecha_facturacion || null
-      };
-      await api(`/ordenes-venta/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+      // Sincronizar productos
+      const prodExisRes = await api(`/ordenes-venta/${id}/productos`);
+      const prodExistentes = prodExisRes?.data || prodExisRes || [];
 
-      // Obtener productos existentes en BD para comparar
-      const productosExistentesRes = await api(`/ordenes-venta/${id}/productos`);
-      const productosExistentes = productosExistentesRes.data || productosExistentesRes || [];
-
-      // Procesar productos: crear nuevos, actualizar existentes, eliminar los que ya no están
-      for (const producto of productosAgregados) {
-        const existe = productosExistentes.find(p => p.id_producto === producto.id_producto);
-        if (existe) {
-          // Actualizar producto existente
-          await api(`/ordenes-venta/${id}/productos/${existe.id}`, {
+      for (const prod of productosAgregados) {
+        const existente = prodExistentes.find((p) => p.id_producto === prod.id_producto);
+        if (existente) {
+          await api(`/ordenes-venta/${id}/productos/${existente.id}`, {
             method: "PUT",
-            body: JSON.stringify({
-              cantidad: producto.cantidad,
-              precio_venta: producto.precio_unitario,
-              porcentaje_descuento: 0,
-            }),
+            body: JSON.stringify({ cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: 0 }),
           });
         } else {
-          // Crear nuevo producto
           await api(`/ordenes-venta/${id}/productos`, {
             method: "POST",
-            body: JSON.stringify({
-              id_orden: Number(id),
-              id_producto: producto.id_producto,
-              cantidad: producto.cantidad,
-              precio_venta: producto.precio_unitario,
-              porcentaje_descuento: 0,
-            }),
+            body: JSON.stringify({ id_orden: Number(id), id_producto: prod.id_producto, cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: 0 }),
           });
         }
       }
 
-      // Eliminar productos que ya no están en la lista
-      for (const productoExistente of productosExistentes) {
-        const sigueExistiendo = productosAgregados.some(p => p.id_producto === productoExistente.id_producto);
-        if (!sigueExistiendo) {
-          await api(`/ordenes-venta/${id}/productos/${productoExistente.id}`, { method: "DELETE" });
+      for (const existente of prodExistentes) {
+        if (!productosAgregados.some((p) => p.id_producto === existente.id_producto)) {
+          await api(`/ordenes-venta/${id}/productos/${existente.id}`, { method: "DELETE" });
         }
       }
 
@@ -430,270 +233,230 @@ export default function EditOrdenVenta() {
     }
   };
 
-  if (loading) return <div className="p-6">Cargando orden…</div>;
+  const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
+  const cliente = orden?.cliente || {};
+  const condicionPago = orden?.condiciones;
+
+  if (loading) return <div className="p-6 bg-background min-h-screen flex items-center justify-center text-gray-500">Cargando orden…</div>;
+  if (!orden) return <div className="p-6 bg-background min-h-screen flex items-center justify-center text-gray-500">No se encontró la orden.</div>;
 
   return (
     <div className="p-6 bg-background min-h-screen">
-      <div className="flex justify-between items-center mb-6">
-        <BackButton to="/ventas/ordenes" />
-        <h1 className="text-2xl font-bold">Editar Orden de Venta</h1>
-        <div style={{ width: 100 }} />
-      </div>
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4 mb-6">
-        <label className="flex flex-col">
-          Cliente *
-          <select
-            name="id_cliente"
-            value={form.id_cliente}
-            onChange={handleClientChange}
-            className="border px-2 py-1"
-            required
-          >
-            <option value="">-- Seleccione cliente --</option>
-            {clients.map(c => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <button
+        onClick={() => navigate("/ventas/ordenes")}
+        className="flex items-center text-primary mb-4 hover:underline"
+      >
+        <ArrowLeft size={18} className="mr-1" /> Volver
+      </button>
 
-        <label className="flex flex-col">
-          Dirección *
-          <select
-            name="id_local"
-            value={form.id_local}
-            onChange={handleFieldChange}
-            className="border px-2 py-1"
-            required
-            disabled={!direcciones.length}
-          >
-            <option value="">-- Seleccione dirección --</option>
-            {direcciones.map(d => {
-              const label = [
-                d.tipo_direccion,
-                d.nombre_sucursal,
-                [d.calle, d.numero].filter(Boolean).join(" "),
-                d.comuna
-              ]
-                .filter(Boolean)
-                .join(" - ");
-              return (
-                <option key={d.id} value={String(d.id)}>
-                  {label}
-                </option>
-              );
-            })}
-          </select>
-        </label>
+      <h1 className="text-2xl font-bold mb-6">Editar Orden de Venta #{id}</h1>
 
-        <label className="flex flex-col">
-          Número OC *
-          <input
-            type="text"
-            name="numero_oc"
-            value={form.numero_oc}
-            onChange={handleFieldChange}
-            className="border px-2 py-1"
-            required
-          />
-        </label>
+      {/* ── Card: Datos del pedido ── */}
+      <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+        <div className="p-6">
+          <h2 className="text-base font-semibold text-gray-800 mb-5">Datos del pedido</h2>
 
-        <label className="flex flex-col">
-          Costo de Envío *
-          <input
-            type="number"
-            name="costo_envio"
-            value={form.costo_envio}
-            onChange={handleFieldChange}
-            className="border px-2 py-1"
-            required
-          />
-        </label>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-5">
 
-        <label className="flex flex-col">
-          Fecha Emisión OC *
-          <input
-            type="date"
-            name="fecha_orden"
-            value={form.fecha_orden}
-            onChange={handleFieldChange}
-            className="border px-2 py-1"
-            required
-          />
-        </label>
+            {/* Cliente (solo lectura) */}
+            <div className="flex flex-col gap-1 col-span-2">
+              <span className="text-sm font-medium text-gray-700">Cliente</span>
+              <div className="border border-gray-200 bg-gray-50 px-3 py-2 rounded-md text-sm text-gray-800 font-medium">
+                {cliente.nombre_empresa || "—"}
+                {cliente.rut && <span className="ml-2 text-xs text-gray-400 font-normal">RUT {cliente.rut}</span>}
+              </div>
+              <span className="text-xs text-gray-400 italic">El cliente no se puede cambiar en edición</span>
+            </div>
 
-        <label className="flex flex-col">
-          Fecha de Entrega
-          <input
-            type="date"
-            name="fecha_envio"
-            value={form.fecha_envio}
-            onChange={handleFieldChange}
-            className="border px-2 py-1"
-          />
-        </label>
+            {/* Número OC */}
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Número OC</span>
+              <input
+                type="text"
+                value={form.numero_oc}
+                onChange={(e) => setForm((f) => ({ ...f, numero_oc: e.target.value }))}
+                placeholder="Ej. 7000537546"
+                className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+            </label>
 
-        <label className="flex flex-col">
-          Fecha Facturación
-          <input
-            type="date"
-            name="fecha_facturacion"
-            value={form.fecha_facturacion}
-            onChange={handleFieldChange}
-            className="border px-2 py-1"
-          />
-        </label>
+            {/* Fecha Emisión OC */}
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Fecha Emisión OC *</span>
+              <input
+                type="date"
+                value={form.fecha_orden}
+                onChange={(e) => setForm((f) => ({ ...f, fecha_orden: e.target.value }))}
+                className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+            </label>
 
-        <label className="flex flex-col">
-          Estado *
-          <input
-            type="text"
-            name="estado"
-            value={form.estado}
-            onChange={handleFieldChange}
-            className="border px-2 py-1"
-            required
-          />
-        </label>
+            {/* Bodega */}
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Bodega de origen *</span>
+              <Selector
+                options={bodegas.map((b) => ({
+                  value: String(b.id),
+                  label: b.nombre || `Bodega ${b.id}`,
+                  searchText: b.nombre || `Bodega ${b.id}`,
+                }))}
+                selectedValue={form.bodega_id}
+                onSelect={(value) => setForm((f) => ({ ...f, bodega_id: value }))}
+                useFuzzy
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+            </label>
 
-        <label className="flex flex-col col-span-2">
-          Condiciones
-          <select
-            name="condiciones"
-            value={form.condiciones}
-            onChange={handleFieldChange}
-            className="border px-2 py-1"
-          >
-            <option value="Credito 30 dias">Crédito a 30 días</option>
-            <option value="Credito 15 dias">Crédito a 15 días</option>
-            <option value="Credito 45 dias">Crédito a 45 días</option>
-            <option value="Credito 60 dias">Crédito a 60 días</option>
-            <option value="Contado">Contado</option>
-          </select>
-        </label>
-      </form>
+            {/* Condición de pago (solo lectura) */}
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Condición de pago</span>
+              <div className="border border-gray-200 bg-gray-50 px-3 py-2 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center">
+                {condicionPago || <span className="text-gray-400">—</span>}
+              </div>
+              <span className="text-xs text-gray-400 italic">Obtenida del cliente al crear la orden</span>
+            </div>
 
-      <div className="mt-8 bg-white p-4 rounded shadow">
-        <h2 className="text-xl font-semibold mb-4">Productos</h2>
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          <label className="flex flex-col">
-            Producto *
-            <select
-              name="id_producto"
-              value={productoForm.id_producto}
-              onChange={handleProductoChange}
-              className={`border px-2 py-1 rounded ${
-                productErrors.id_producto ? "border-red-500" : "border-gray-300"
-              }`}
-            >
-              <option value="">Seleccione producto...</option>
-              {productos
-                .filter(p => !productosAgregados.some(pa => pa.id_producto === p.id))
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre}
-                  </option>
-                ))}
-            </select>
-            {productErrors.id_producto && (
-              <span className="text-red-500 text-sm mt-1">{productErrors.id_producto}</span>
-            )}
-          </label>
+          </div>
 
-          <label className="flex flex-col">
-            {`Cantidad ${
-              (clienteConfig?.formato || 'UNIDADES').toUpperCase().includes('CAJA')
-                ? '(Cajas)'
-                : '(Unidades)'
-            } *`}
-            <input
-              type="number"
-              name="cantidad"
-              placeholder="Ejemplo: 10"
-              value={productoForm.cantidad}
-              onChange={handleProductoChange}
-              className={`border px-2 py-1 rounded ${
-                productErrors.cantidad ? "border-red-500" : "border-gray-300"
-              }`}
-            />
-            {productErrors.cantidad && (
-              <span className="text-red-500 text-sm mt-1">{productErrors.cantidad}</span>
-            )}
-          </label>
-
-          <label className="flex flex-col">
-            {`Precio ${
-              (clienteConfig?.formato || 'UNIDADES').toUpperCase().includes('CAJA')
-                ? 'por Caja'
-                : 'Unitario'
-            } *`}
-            <input
-              type="number"
-              name="precio_unitario"
-              placeholder="Se llenará automáticamente"
-              value={productoForm.precio_unitario || ""}
-              readOnly
-              className={`border px-2 py-1 rounded bg-gray-100 cursor-not-allowed ${
-                productErrors.precio_unitario ? "border-red-500" : "border-gray-300"
-              }`}
-            />
-            {productErrors.precio_unitario && (
-              <span className="text-red-500 text-sm mt-1">{productErrors.precio_unitario}</span>
-            )}
-          </label>
+          {/* Orden referencial (solo lectura) */}
+          {orden?.es_referencial && (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              <div className="mt-0.5 w-4 h-4 rounded bg-amber-500 flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-xs font-bold">✓</span>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-amber-800">Orden referencial (sin picking)</span>
+                <p className="text-xs text-amber-600 mt-0.5">
+                  Esta orden irá directo a Facturada sin pasar por picking.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
-
-        <button
-          type="button"
-          onClick={handleAddProduct}
-          className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
-        >
-          Agregar Producto
-        </button>
-
-        {productosAgregados.length > 0 && (
-          <table className="w-full mt-6 bg-white rounded shadow">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="px-4 py-2 text-left">Producto</th>
-                <th className="px-4 py-2 text-left">Cantidad (Formato)</th>
-                <th className="px-4 py-2 text-left">Formato</th>
-                <th className="px-4 py-2 text-left">Unidades Reservadas</th>
-                <th className="px-4 py-2 text-left">Precio { (clienteConfig?.formato || 'UNIDADES').toUpperCase().includes('CAJA') ? 'por Caja' : 'Unitario' }</th>
-                <th className="px-4 py-2 text-left">Total Línea</th>
-                <th className="px-4 py-2 text-center">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {productosAgregados.map((p) => (
-                <tr key={p.id_producto} className="border-b hover:bg-gray-50">
-                  <td className="px-4 py-2">{p.nombre}</td>
-                  <td className="px-4 py-2">{p.cantidad_formato}</td>
-                  <td className="px-4 py-2">{p.formato_linea}</td>
-                  <td className="px-4 py-2">{p.unidades_reservadas}</td>
-                  <td className="px-4 py-2">${p.precio_unitario}</td>
-                  <td className="px-4 py-2">${p.total_linea}</td>
-                  <td className="px-4 py-2 text-center">
-                    <button
-                      onClick={() => handleDeleteProduct(p.id_producto)}
-                      className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-600"
-                      title="Eliminar"
-                    >
-                      <Trash2 size={18} strokeWidth={1.5} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
       </div>
 
-      <div className="mt-6 flex justify-end">
+      {/* ── Card: Productos ── */}
+      <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+        <div className="p-6">
+          <h2 className="text-base font-semibold text-gray-800 mb-5">Productos</h2>
+
+          {/* Formulario agregar producto */}
+          <div className="grid grid-cols-3 gap-x-6 gap-y-4 mb-4">
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Producto *</span>
+              <select
+                name="id_producto"
+                value={productoForm.id_producto}
+                onChange={handleProductoChange}
+                className={`border px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+                  productErrors.id_producto ? "border-red-500" : "border-gray-300"
+                }`}
+              >
+                <option value="">Seleccionar producto…</option>
+                {productos
+                  .filter((p) => !productosAgregados.some((pa) => pa.id_producto === p.id))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+              </select>
+              {productErrors.id_producto && <span className="text-red-500 text-xs">{productErrors.id_producto}</span>}
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
+                Cantidad {esCajas ? "(Cajas)" : "(Unidades)"} *
+              </span>
+              <input
+                type="number"
+                name="cantidad"
+                placeholder="Ej. 10"
+                value={productoForm.cantidad}
+                onChange={handleProductoChange}
+                className={`border px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+                  productErrors.cantidad ? "border-red-500" : "border-gray-300"
+                }`}
+              />
+              {productErrors.cantidad && <span className="text-red-500 text-xs">{productErrors.cantidad}</span>}
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
+                Precio {esCajas ? "por Caja" : "Unitario"} *
+              </span>
+              <input
+                type="number"
+                name="precio_unitario"
+                placeholder="Se llenará automáticamente"
+                value={productoForm.precio_unitario || ""}
+                readOnly
+                className={`border px-3 py-2 rounded-md bg-gray-100 cursor-not-allowed ${
+                  productErrors.precio_unitario ? "border-red-500" : "border-gray-300"
+                }`}
+              />
+              {productErrors.precio_unitario && <span className="text-red-500 text-xs">{productErrors.precio_unitario}</span>}
+            </label>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAddProduct}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white hover:bg-hover transition-colors"
+          >
+            Agregar producto
+          </button>
+
+          {/* Tabla productos */}
+          {productosAgregados.length > 0 && (
+            <div className="mt-6 border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Producto</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Cantidad (u)</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Formato</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Precio {esCajas ? "/ Caja" : "Unitario"}
+                    </th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Total</th>
+                    <th className="px-4 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wide">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {productosAgregados.map((p) => (
+                    <tr key={p.id_producto} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-2.5 text-sm text-gray-800">{p.nombre}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-700">{p.cantidad}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-500">{p.formato_linea}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-700">
+                        ${Number(p.precio_unitario).toLocaleString("es-CL")}
+                      </td>
+                      <td className="px-4 py-2.5 text-sm font-medium text-gray-800">
+                        ${Number(p.total_linea).toLocaleString("es-CL")}
+                      </td>
+                      <td className="px-4 py-2.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProduct(p.id_producto)}
+                          className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
+                          title="Eliminar"
+                        >
+                          <Trash2 size={16} strokeWidth={1.5} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Acciones ── */}
+      <div className="flex justify-end">
         <button
           onClick={handleSubmit}
-          className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
+          className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium transition-colors"
         >
           Guardar Cambios
         </button>
@@ -701,4 +464,3 @@ export default function EditOrdenVenta() {
     </div>
   );
 }
-
