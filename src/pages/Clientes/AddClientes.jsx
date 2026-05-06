@@ -338,13 +338,8 @@ export default function AddClientes() {
     </div>
   );
 
-  const SectionHeader = ({ number, title }) => (
-    <h2 className="text-base font-semibold text-gray-800 mb-4 flex items-center">
-      <span className="bg-primary/10 text-primary rounded-full w-7 h-7 flex items-center justify-center text-xs font-bold mr-3 flex-shrink-0">
-        {number}
-      </span>
-      {title}
-    </h2>
+  const SectionHeader = ({ title }) => (
+    <h2 className="text-base font-semibold text-gray-800 mb-4">{title}</h2>
   );
 
   const FieldError = ({ msg }) =>
@@ -361,7 +356,7 @@ export default function AddClientes() {
 
         {/* ── 1. Clasificación Comercial ── */}
         <SectionCard>
-          <SectionHeader number="1" title="Clasificación Comercial" />
+          <SectionHeader title="Clasificación Comercial" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
             <label className="flex flex-col gap-1">
@@ -411,7 +406,7 @@ export default function AddClientes() {
 
         {/* ── 2. Información Fiscal ── */}
         <SectionCard>
-          <SectionHeader number="2" title="Información Fiscal y de Facturación" />
+          <SectionHeader title="Información Fiscal y de Facturación" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
             <label className="flex flex-col gap-1">
@@ -522,7 +517,7 @@ export default function AddClientes() {
 
         {/* ── 3. Direcciones ── */}
         <SectionCard>
-          <SectionHeader number="3" title="Gestión de Direcciones" />
+          <SectionHeader title="Gestión de Direcciones" />
           <DireccionesManager
             clienteId={null}
             direcciones={direcciones}
@@ -533,7 +528,7 @@ export default function AddClientes() {
 
         {/* ── 4. Puntos de Contacto ── */}
         <SectionCard>
-          <SectionHeader number="4" title="Puntos de Contacto" />
+          <SectionHeader title="Puntos de Contacto" />
           <div className="space-y-6">
 
             {/* Contacto Comercial */}
