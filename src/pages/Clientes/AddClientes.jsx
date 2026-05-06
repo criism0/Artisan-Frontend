@@ -55,7 +55,7 @@ function DynamicCombobox({ value, onChange, options, onSelect, placeholder }) {
           updatePosition();
           setOpen(true);
         }}
-        className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+        className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
       />
       {open && filtered.length > 0 &&
         createPortal(
@@ -68,14 +68,14 @@ function DynamicCombobox({ value, onChange, options, onSelect, placeholder }) {
               zIndex: 2147483647
             }}
           >
-            <ul className="bg-white border rounded-md shadow-lg max-h-56 overflow-auto">
+            <ul className="bg-white border border-gray-200 rounded-md shadow-lg max-h-56 overflow-auto">
               {filtered.map((opt, idx) => {
                 const label = opt.nombre || opt;
                 const id = opt.id ?? opt;
                 return (
                   <li
                     key={id || idx}
-                    className="px-3 py-2 hover:bg-primary/10 cursor-pointer"
+                    className="px-3 py-2 text-sm text-gray-700 hover:bg-primary/10 cursor-pointer"
                     onMouseDown={(e) => {
                       e.preventDefault();
                       onSelect(opt);
@@ -94,6 +94,12 @@ function DynamicCombobox({ value, onChange, options, onSelect, placeholder }) {
   );
 }
 
+// Clase base reutilizable para inputs de texto
+const inputClass = (hasError) =>
+  `border px-3 py-2 w-full rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+    hasError ? "border-red-500" : "border-gray-300"
+  }`;
+
 export default function AddClientes() {
   const navigate = useNavigate();
   const api = useApi();
@@ -103,7 +109,6 @@ export default function AddClientes() {
   const [selectedListaPrecio, setSelectedListaPrecio] = useState("");
   const [selectedTipoPrecio, setSelectedTipoPrecio] = useState("");
   const [direcciones, setDirecciones] = useState([]);
-  const [clienteId, setClienteId] = useState(null);
 
   const [similarModal, setSimilarModal] = useState({
     open: false,
@@ -111,8 +116,7 @@ export default function AddClientes() {
     matches: [],
   });
   const [pendingPayload, setPendingPayload] = useState(null);
-  
-  // Estado para condición de pago
+
   const [paymentType, setPaymentType] = useState("Contado");
   const [creditDays, setCreditDays] = useState("");
 
@@ -133,7 +137,6 @@ export default function AddClientes() {
 
   const tiposPrecio = ["UNIDADES", "CAJAS"];
 
-  // Efecto para actualizar condicion_pago en formData
   useEffect(() => {
     if (paymentType === "Contado") {
       setFormData(prev => ({ ...prev, condicion_pago: "Contado" }));
@@ -145,37 +148,29 @@ export default function AddClientes() {
   }, [paymentType, creditDays]);
 
   const validarRUT = (rut) => {
-    const rutLimpio = rut.replace(/[.-]/g, '');
-    if (!/^[0-9]+[0-9kK]$/.test(rutLimpio)) {
-      return false;
-    }
+    const rutLimpio = rut.replace(/[.-]/g, "");
+    if (!/^[0-9]+[0-9kK]$/.test(rutLimpio)) return false;
     const numero = rutLimpio.slice(0, -1);
     const dv = rutLimpio.slice(-1).toUpperCase();
-    if (numero.length < 7 || numero.length > 8) {
-      return false;
-    }
+    if (numero.length < 7 || numero.length > 8) return false;
     let suma = 0;
     let multiplicador = 2;
     for (let i = numero.length - 1; i >= 0; i--) {
       suma += parseInt(numero[i]) * multiplicador;
       multiplicador = multiplicador === 7 ? 2 : multiplicador + 1;
     }
-    
     const resto = suma % 11;
-    const dvCalculado = resto === 0 ? '0' : resto === 1 ? 'K' : (11 - resto).toString();
-    
+    const dvCalculado = resto === 0 ? "0" : resto === 1 ? "K" : (11 - resto).toString();
     return dv === dvCalculado;
   };
 
   const formatearRUT = (value) => {
-    const rutLimpio = value.replace(/[^0-9kK]/g, '');
-    
+    const rutLimpio = value.replace(/[^0-9kK]/g, "");
     if (rutLimpio.length <= 1) return rutLimpio;
-    
     const numero = rutLimpio.slice(0, -1);
     const dv = rutLimpio.slice(-1);
-    const numeroFormateado = numero.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    return numeroFormateado + (dv ? '-' + dv : '');
+    const numeroFormateado = numero.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return numeroFormateado + (dv ? "-" + dv : "");
   };
 
   const formatearTelefonoChile = (value) => {
@@ -192,32 +187,19 @@ export default function AddClientes() {
   };
 
   useEffect(() => {
-    api("/canales")
-      .then(data => setCanales(data))
-      .catch(() => {});
-    
-    api("/lista-precio")
-      .then(data => setListasPrecio(data))
-      .catch(() => {});
+    api("/canales").then(data => setCanales(data)).catch(() => {});
+    api("/lista-precio").then(data => setListasPrecio(data)).catch(() => {});
   }, [api]);
 
   const handleChange = e => {
     const { name, value } = e.target;
-    
-    if (name === 'rut') {
-      const rutFormateado = formatearRUT(value);
-      setFormData(prev => ({ ...prev, [name]: rutFormateado }));
-    } else if (name === 'telefono_comercial' || name === 'telefono_finanzas') {
-      const telFormateado = formatearTelefonoChile(value);
-      setFormData(prev => ({ ...prev, [name]: telFormateado }));
-    } else if (name === 'condicion_pago') {
-      // Solo permitir números enteros positivos
-      const numericValue = value.replace(/[^0-9]/g, '');
-      setFormData(prev => ({ ...prev, [name]: numericValue }));
+    if (name === "rut") {
+      setFormData(prev => ({ ...prev, [name]: formatearRUT(value) }));
+    } else if (name === "telefono_comercial" || name === "telefono_finanzas") {
+      setFormData(prev => ({ ...prev, [name]: formatearTelefonoChile(value) }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
-    
     setErrors(prev => ({ ...prev, [name]: "" }));
   };
 
@@ -226,7 +208,6 @@ export default function AddClientes() {
     razon_social: "Ej: Los Andes S.A.",
     rut: "Ej: 12.345.678-9",
     giro: "Ej: Venta de alimentos",
-    condicion_pago: "Ej: 30",
     email_comercial: "Ej: contacto@empresa.cl",
     contacto_comercial: "Ej: Juan Pérez",
     telefono_comercial: "Ej: +56 9 8765 4321",
@@ -237,31 +218,16 @@ export default function AddClientes() {
 
   const validateAll = () => {
     const newErrors = {};
-    
-    if (!selectedCanal) {
-      newErrors.canal = "Debes seleccionar un canal.";
-    }
-    if (!selectedListaPrecio) {
-      newErrors.lista_precio = "Debes seleccionar una lista de precios.";
-    }
-    if (!selectedTipoPrecio) {
-      newErrors.tipo_precio = "Debes seleccionar un tipo de precio.";
-    }
+    if (!selectedCanal) newErrors.canal = "Debes seleccionar un canal.";
+    if (!selectedListaPrecio) newErrors.lista_precio = "Debes seleccionar una lista de precios.";
+    if (!selectedTipoPrecio) newErrors.tipo_precio = "Debes seleccionar un tipo de precio.";
 
-    const camposObligatorios = ['nombre_empresa', 'razon_social', 'rut', 'giro'];
-    for (let key of camposObligatorios) {
-      if (!formData[key].trim()) {
-        newErrors[key] = "Campo obligatorio.";
-      }
+    for (const key of ["nombre_empresa", "razon_social", "rut", "giro"]) {
+      if (!formData[key].trim()) newErrors[key] = "Campo obligatorio.";
     }
-    
-    const camposContactoObligatorios = ['contacto_comercial', 'telefono_comercial', 'email_comercial'];
-    for (let key of camposContactoObligatorios) {
-      if (!formData[key].trim()) {
-        newErrors[key] = "Campo obligatorio.";
-      }
+    for (const key of ["contacto_comercial", "telefono_comercial", "email_comercial"]) {
+      if (!formData[key].trim()) newErrors[key] = "Campo obligatorio.";
     }
-    
     if (formData.rut && !validarRUT(formData.rut.trim())) {
       newErrors.rut = "RUT inválido. Verifique el formato y dígito verificador. Ej: 12.345.678-9";
     }
@@ -282,75 +248,64 @@ export default function AddClientes() {
       newErrors.condicion_pago = paymentType === "Crédito" ? "Ingresa los días de crédito." : "Campo obligatorio.";
     } else if (paymentType === "Crédito") {
       const dias = parseInt(creditDays);
-      if (isNaN(dias) || dias <= 0) {
-        newErrors.condicion_pago = "Debe ser un número entero mayor a 0.";
-      }
+      if (isNaN(dias) || dias <= 0) newErrors.condicion_pago = "Debe ser un número entero mayor a 0.";
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async e => {
-    e.preventDefault();
-    const isValid = validateAll();
-    if (!isValid) {
-      return;
-    }
-
+  const buildPayload = () => {
     const canalSeleccionado = canales.find(c => c.nombre === selectedCanal);
     const listaPrecioSeleccionada = listasPrecio.find(l => l.nombre === selectedListaPrecio);
-    const payload = {
+    return {
       ...formData,
-      condicion_pago: formData.condicion_pago,
       id_canal: canalSeleccionado?.id || null,
       id_lista_precio: listaPrecioSeleccionada?.id || null,
       tipo_precio: selectedTipoPrecio,
       cuenta_corriente: " ",
       banco: " "
     };
+  };
 
+  const saveDirecciones = async (clienteId) => {
+    for (const dir of direcciones) {
+      await api("/direcciones", {
+        method: "POST",
+        body: JSON.stringify({
+          tipo_direccion: dir.tipo_direccion,
+          nombre_sucursal: dir.nombre_sucursal,
+          calle: dir.calle,
+          numero: dir.numero,
+          comuna: dir.comuna,
+          region: dir.region,
+          tipo_recinto: dir.tipo_recinto,
+          es_principal: dir.es_principal,
+          cliente_id: clienteId
+        })
+      });
+    }
+  };
+
+  const handleSubmit = async e => {
+    e.preventDefault();
+    if (!validateAll()) return;
+
+    const payload = buildPayload();
     try {
       const response = await api("/clientes", { method: "POST", body: JSON.stringify(payload) });
-      const nuevoClienteId = response.id;
-      
-      // Si hay direcciones, las guardamos
       if (direcciones.length > 0) {
-        try {
-          for (const direccion of direcciones) {
-            const direccionData = {
-              tipo_direccion: direccion.tipo_direccion,
-              nombre_sucursal: direccion.nombre_sucursal,
-              calle: direccion.calle,
-              numero: direccion.numero,
-              comuna: direccion.comuna,
-              region: direccion.region,
-              tipo_recinto: direccion.tipo_recinto,
-              es_principal: direccion.es_principal,
-              cliente_id: nuevoClienteId
-            };
-            await api("/direcciones", { method: "POST", body: JSON.stringify(direccionData) });
-          }
-        } catch (direccionError) {
-          console.error("Error al guardar direcciones:", direccionError);
-          alert("Cliente creado pero hubo un error al guardar las direcciones. Puedes editarlas después.");
-        }
+        try { await saveDirecciones(response.id); }
+        catch { alert("Cliente creado pero hubo un error al guardar las direcciones. Puedes editarlas después."); }
       }
-      
       navigate("/clientes");
     } catch (err) {
       if (err instanceof ApiError && err.status === 409 && err.data?.code === "SIMILAR_NAME") {
         setPendingPayload(payload);
-        setSimilarModal({
-          open: true,
-          inputName: err.data?.input || payload.nombre_empresa,
-          matches: err.data?.matches || [],
-        });
+        setSimilarModal({ open: true, inputName: err.data?.input || payload.nombre_empresa, matches: err.data?.matches || [] });
         return;
       }
-
-      console.error("Error al crear cliente:", err);
-      alert("Error al crear cliente: " + (err.message));
+      alert("Error al crear cliente: " + err.message);
     }
   };
 
@@ -359,148 +314,135 @@ export default function AddClientes() {
     try {
       const response = await api("/clientes", {
         method: "POST",
-        body: JSON.stringify({ ...pendingPayload, confirmSimilarName: true }),
+        body: JSON.stringify({ ...pendingPayload, confirmSimilarName: true })
       });
-      const nuevoClienteId = response.id;
-
       if (direcciones.length > 0) {
-        try {
-          for (const direccion of direcciones) {
-            const direccionData = {
-              tipo_direccion: direccion.tipo_direccion,
-              nombre_sucursal: direccion.nombre_sucursal,
-              calle: direccion.calle,
-              numero: direccion.numero,
-              comuna: direccion.comuna,
-              region: direccion.region,
-              tipo_recinto: direccion.tipo_recinto,
-              es_principal: direccion.es_principal,
-              cliente_id: nuevoClienteId,
-            };
-            await api("/direcciones", { method: "POST", body: JSON.stringify(direccionData) });
-          }
-        } catch (direccionError) {
-          console.error("Error al guardar direcciones:", direccionError);
-          alert("Cliente creado pero hubo un error al guardar las direcciones. Puedes editarlas después.");
-        }
+        try { await saveDirecciones(response.id); }
+        catch { alert("Cliente creado pero hubo un error al guardar las direcciones. Puedes editarlas después."); }
       }
-
       setSimilarModal({ open: false, inputName: "", matches: [] });
       setPendingPayload(null);
       navigate("/clientes");
     } catch (err) {
       setSimilarModal({ open: false, inputName: "", matches: [] });
       setPendingPayload(null);
-      alert("Error al crear cliente: " + (err.message));
+      alert("Error al crear cliente: " + err.message);
     }
   };
 
+  // ── Helpers de UI ──────────────────────────────────────────────────────────
+
+  const SectionCard = ({ children }) => (
+    <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+      <div className="p-6">{children}</div>
+    </div>
+  );
+
+  const SectionHeader = ({ title }) => (
+    <h2 className="text-base font-semibold text-gray-800 mb-4">{title}</h2>
+  );
+
+  const FieldError = ({ msg }) =>
+    msg ? <span className="text-red-500 text-xs mt-0.5">{msg}</span> : null;
+
   return (
     <div className="p-6 bg-background min-h-screen">
-      <div className="mb-4">
+      <div className="mb-6">
         <BackButton to="/clientes" />
       </div>
-      <h1 className="text-2xl font-bold text-text mb-6">Añadir Cliente</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Añadir Cliente</h1>
 
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Sección 1: Clasificación Comercial */}
-        <div className="bg-white p-6 rounded-xl shadow border border-border">
-          <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
-            <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">1</span>
-            Clasificación Comercial
-          </h2>
-          
+      <form onSubmit={handleSubmit}>
+
+        {/* ── 1. Clasificación Comercial ── */}
+        <SectionCard>
+          <SectionHeader title="Clasificación Comercial" />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
+
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
                 Canal <span className="text-red-500">*</span>
-              </label>
+              </span>
               <DynamicCombobox
                 value={selectedCanal}
                 onChange={setSelectedCanal}
                 options={canales}
-                onSelect={(canal) => setSelectedCanal(canal.nombre)}
+                onSelect={(canal) => { setSelectedCanal(canal.nombre); setErrors(p => ({ ...p, canal: "" })); }}
                 placeholder="Selecciona canal..."
               />
-              {errors.canal && <p className="text-red-500 text-sm mt-1">{errors.canal}</p>}
-            </div>
+              <FieldError msg={errors.canal} />
+            </label>
 
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                Lista de Precios Asignada <span className="text-red-500">*</span>
-              </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
+                Lista de Precios <span className="text-red-500">*</span>
+              </span>
               <DynamicCombobox
                 value={selectedListaPrecio}
                 onChange={setSelectedListaPrecio}
                 options={listasPrecio}
-                onSelect={(lista) => setSelectedListaPrecio(lista.nombre)}
+                onSelect={(lista) => { setSelectedListaPrecio(lista.nombre); setErrors(p => ({ ...p, lista_precio: "" })); }}
                 placeholder="Selecciona lista de precios..."
               />
-              {errors.lista_precio && <p className="text-red-500 text-sm mt-1">{errors.lista_precio}</p>}
-            </div>
+              <FieldError msg={errors.lista_precio} />
+            </label>
 
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
-                Formato de Compra Predeterminado <span className="text-red-500">*</span>
-              </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
+                Formato de Compra <span className="text-red-500">*</span>
+              </span>
               <DynamicCombobox
                 value={selectedTipoPrecio}
                 onChange={setSelectedTipoPrecio}
                 options={tiposPrecio}
-                onSelect={(tp) => setSelectedTipoPrecio(tp)}
+                onSelect={(tp) => { setSelectedTipoPrecio(tp); setErrors(p => ({ ...p, tipo_precio: "" })); }}
                 placeholder="Selecciona formato..."
               />
-              {errors.tipo_precio && <p className="text-red-500 text-sm mt-1">{errors.tipo_precio}</p>}
-            </div>
-          </div>
-        </div>
+              <FieldError msg={errors.tipo_precio} />
+            </label>
 
-        {/* Sección 2: Información Fiscal y de Facturación */}
-        <div className="bg-white p-6 rounded-xl shadow border border-border">
-          <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
-            <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">2</span>
-            Información Fiscal y de Facturación
-          </h2>
-          
+          </div>
+        </SectionCard>
+
+        {/* ── 2. Información Fiscal ── */}
+        <SectionCard>
+          <SectionHeader title="Información Fiscal y de Facturación" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
+
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
                 Nombre Comercial <span className="text-red-500">*</span>
-              </label>
+              </span>
               <input
                 type="text"
                 name="nombre_empresa"
                 value={formData.nombre_empresa}
                 onChange={handleChange}
                 placeholder={placeholders.nombre_empresa}
-                className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                  errors.nombre_empresa ? "border-red-500" : "border-gray-300"
-                }`}
+                className={inputClass(errors.nombre_empresa)}
               />
-              {errors.nombre_empresa && <p className="text-red-500 text-sm mt-1">{errors.nombre_empresa}</p>}
-            </div>
+              <FieldError msg={errors.nombre_empresa} />
+            </label>
 
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
                 Razón Social <span className="text-red-500">*</span>
-              </label>
+              </span>
               <input
                 type="text"
                 name="razon_social"
                 value={formData.razon_social}
                 onChange={handleChange}
                 placeholder={placeholders.razon_social}
-                className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                  errors.razon_social ? "border-red-500" : "border-gray-300"
-                }`}
+                className={inputClass(errors.razon_social)}
               />
-              {errors.razon_social && <p className="text-red-500 text-sm mt-1">{errors.razon_social}</p>}
-            </div>
+              <FieldError msg={errors.razon_social} />
+            </label>
 
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
                 RUT <span className="text-red-500">*</span>
-              </label>
+              </span>
               <input
                 type="text"
                 name="rut"
@@ -508,236 +450,203 @@ export default function AddClientes() {
                 onChange={handleChange}
                 placeholder={placeholders.rut}
                 maxLength="12"
-                className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                  errors.rut ? "border-red-500" : "border-gray-300"
-                }`}
+                className={inputClass(errors.rut)}
               />
-              {errors.rut && <p className="text-red-500 text-sm mt-1">{errors.rut}</p>}
-            </div>
+              <FieldError msg={errors.rut} />
+            </label>
 
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
                 Giro <span className="text-red-500">*</span>
-              </label>
+              </span>
               <input
                 type="text"
                 name="giro"
                 value={formData.giro}
                 onChange={handleChange}
                 placeholder={placeholders.giro}
-                className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                  errors.giro ? "border-red-500" : "border-gray-300"
-                }`}
+                className={inputClass(errors.giro)}
               />
-              {errors.giro && <p className="text-red-500 text-sm mt-1">{errors.giro}</p>}
-            </div>
+              <FieldError msg={errors.giro} />
+            </label>
 
-            <div>
-              <label className="block text-gray-700 font-medium mb-2">
+            {/* Condición de pago — ocupa ambas columnas en móvil, una en md */}
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">
                 Condición de Pago <span className="text-red-500">*</span>
-              </label>
-              <div className="flex flex-col gap-2">
-                <div className="flex gap-4">
-                  <label className="inline-flex items-center">
+              </span>
+              <div className="flex gap-5 mt-1">
+                {[
+                  { value: "Contado", color: "accent-green-600" },
+                  { value: "Bloqueado", color: "accent-red-500" },
+                  { value: "Crédito", color: "accent-blue-600" },
+                ].map(({ value, color }) => (
+                  <label key={value} className="inline-flex items-center gap-1.5 cursor-pointer">
                     <input
                       type="radio"
-                      className="form-radio text-green-600"
                       name="paymentType"
-                      value="Contado"
-                      checked={paymentType === "Contado"}
-                      onChange={() => setPaymentType("Contado")}
+                      value={value}
+                      checked={paymentType === value}
+                      onChange={() => setPaymentType(value)}
+                      className={`w-4 h-4 ${color}`}
                     />
-                    <span className="ml-2">Contado</span>
+                    <span className="text-sm text-gray-700">{value}</span>
                   </label>
-                  <label className="inline-flex items-center">
-                    <input
-                      type="radio"
-                      className="form-radio text-red-600"
-                      name="paymentType"
-                      value="Bloqueado"
-                      checked={paymentType === "Bloqueado"}
-                      onChange={() => setPaymentType("Bloqueado")}
-                    />
-                    <span className="ml-2">Bloqueado</span>
-                  </label>
-                  <label className="inline-flex items-center">
-                    <input
-                      type="radio"
-                      className="form-radio text-blue-600"
-                      name="paymentType"
-                      value="Crédito"
-                      checked={paymentType === "Crédito"}
-                      onChange={() => setPaymentType("Crédito")}
-                    />
-                    <span className="ml-2">Crédito</span>
-                  </label>
-                </div>
-                
-                {paymentType === "Crédito" && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <input
-                      type="number"
-                      placeholder="Días"
-                      value={creditDays}
-                      onChange={(e) => setCreditDays(e.target.value)}
-                      className={`border px-3 py-1 w-24 rounded text-gray-700 placeholder-gray-400 ${
-                        errors.condicion_pago ? "border-red-500" : "border-gray-300"
-                      }`}
-                    />
-                    <span className="text-gray-600 text-sm">días</span>
-                  </div>
-                )}
+                ))}
               </div>
-              {errors.condicion_pago && <p className="text-red-500 text-sm mt-1">{errors.condicion_pago}</p>}
+              {paymentType === "Crédito" && (
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="number"
+                    placeholder="30"
+                    value={creditDays}
+                    onChange={(e) => setCreditDays(e.target.value)}
+                    min="1"
+                    className={`border px-3 py-1.5 w-24 rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+                      errors.condicion_pago ? "border-red-500" : "border-gray-300"
+                    }`}
+                  />
+                  <span className="text-sm text-gray-500">días</span>
+                </div>
+              )}
+              <FieldError msg={errors.condicion_pago} />
             </div>
-          </div>
-        </div>
 
-        {/* Sección 3: Gestión de Direcciones */}
-        <div className="bg-white p-6 rounded-xl shadow border border-border">
-          <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
-            <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">3</span>
-            Gestión de Direcciones
-          </h2>
-          
-          <DireccionesManager 
-            clienteId={clienteId}
+          </div>
+        </SectionCard>
+
+        {/* ── 3. Direcciones ── */}
+        <SectionCard>
+          <SectionHeader title="Gestión de Direcciones" />
+          <DireccionesManager
+            clienteId={null}
             direcciones={direcciones}
             onDireccionesChange={setDirecciones}
             isEditing={true}
           />
-        </div>
+        </SectionCard>
 
-        {/* Sección 4: Puntos de Contacto */}
-        <div className="bg-white p-6 rounded-xl shadow border border-border">
-          <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
-            <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">4</span>
-            Puntos de Contacto
-          </h2>
-          
+        {/* ── 4. Puntos de Contacto ── */}
+        <SectionCard>
+          <SectionHeader title="Puntos de Contacto" />
           <div className="space-y-6">
+
             {/* Contacto Comercial */}
             <div className="border-l-4 border-primary/60 pl-4">
-              <h3 className="text-base font-semibold text-text mb-3">Contacto Comercial</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                Contacto Comercial
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-gray-700">
                     Nombre <span className="text-red-500">*</span>
-                  </label>
+                  </span>
                   <input
                     type="text"
                     name="contacto_comercial"
                     value={formData.contacto_comercial}
                     onChange={handleChange}
                     placeholder={placeholders.contacto_comercial}
-                    className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                      errors.contacto_comercial ? "border-red-500" : "border-gray-300"
-                    }`}
+                    className={inputClass(errors.contacto_comercial)}
                   />
-                  {errors.contacto_comercial && <p className="text-red-500 text-sm mt-1">{errors.contacto_comercial}</p>}
-                </div>
+                  <FieldError msg={errors.contacto_comercial} />
+                </label>
 
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-gray-700">
                     Teléfono <span className="text-red-500">*</span>
-                  </label>
+                  </span>
                   <input
                     type="text"
                     name="telefono_comercial"
                     value={formData.telefono_comercial}
                     onChange={handleChange}
                     placeholder={placeholders.telefono_comercial}
-                    className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                      errors.telefono_comercial ? "border-red-500" : "border-gray-300"
-                    }`}
+                    className={inputClass(errors.telefono_comercial)}
                   />
-                  {errors.telefono_comercial && <p className="text-red-500 text-sm mt-1">{errors.telefono_comercial}</p>}
-                </div>
+                  <FieldError msg={errors.telefono_comercial} />
+                </label>
 
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-gray-700">
                     E-mail <span className="text-red-500">*</span>
-                  </label>
+                  </span>
                   <input
                     type="email"
                     name="email_comercial"
                     value={formData.email_comercial}
                     onChange={handleChange}
                     placeholder={placeholders.email_comercial}
-                    className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                      errors.email_comercial ? "border-red-500" : "border-gray-300"
-                    }`}
+                    className={inputClass(errors.email_comercial)}
                   />
-                  {errors.email_comercial && <p className="text-red-500 text-sm mt-1">{errors.email_comercial}</p>}
-                </div>
+                  <FieldError msg={errors.email_comercial} />
+                </label>
+
               </div>
             </div>
 
             {/* Contacto Finanzas */}
             <div className="border-l-4 border-primary/30 pl-4">
-              <h3 className="text-base font-semibold text-text mb-3">Contacto Finanzas (Opcional)</h3>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                Contacto Finanzas <span className="font-normal text-gray-400">(Opcional)</span>
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
-                    Nombre
-                  </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-gray-700">Nombre</span>
                   <input
                     type="text"
                     name="contacto_finanzas"
                     value={formData.contacto_finanzas}
                     onChange={handleChange}
                     placeholder={placeholders.contacto_finanzas}
-                    className="border border-gray-300 px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400"
+                    className="border border-gray-300 px-3 py-2 w-full rounded-md text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                   />
-                </div>
+                </label>
 
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
-                    Teléfono
-                  </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-gray-700">Teléfono</span>
                   <input
                     type="text"
                     name="telefono_finanzas"
                     value={formData.telefono_finanzas}
                     onChange={handleChange}
                     placeholder={placeholders.telefono_finanzas}
-                    className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                      errors.telefono_finanzas ? "border-red-500" : "border-gray-300"
-                    }`}
+                    className={inputClass(errors.telefono_finanzas)}
                   />
-                  {errors.telefono_finanzas && <p className="text-red-500 text-sm mt-1">{errors.telefono_finanzas}</p>}
-                </div>
+                  <FieldError msg={errors.telefono_finanzas} />
+                </label>
 
-                <div>
-                  <label className="block text-gray-700 font-medium mb-2">
-                    E-mail
-                  </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-gray-700">E-mail</span>
                   <input
                     type="email"
                     name="email_finanzas"
                     value={formData.email_finanzas}
                     onChange={handleChange}
                     placeholder={placeholders.email_finanzas}
-                    className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                      errors.email_finanzas ? "border-red-500" : "border-gray-300"
-                    }`}
+                    className={inputClass(errors.email_finanzas)}
                   />
-                  {errors.email_finanzas && <p className="text-red-500 text-sm mt-1">{errors.email_finanzas}</p>}
-                </div>
+                  <FieldError msg={errors.email_finanzas} />
+                </label>
+
               </div>
             </div>
-          </div>
-        </div>
 
-        {/* Botón de envío */}
+          </div>
+        </SectionCard>
+
+        {/* ── Acciones ── */}
         <div className="flex justify-end">
           <button
             type="submit"
-            className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-hover font-medium text-lg"
+            className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium transition-colors"
           >
             Guardar Cliente
           </button>
         </div>
+
       </form>
 
       <SimilarNameConfirmModal
@@ -745,28 +654,10 @@ export default function AddClientes() {
         entityLabel="cliente"
         inputName={similarModal.inputName}
         matches={similarModal.matches}
-        onCancel={() => {
-          setSimilarModal({ open: false, inputName: "", matches: [] });
-          setPendingPayload(null);
-        }}
+        onCancel={() => { setSimilarModal({ open: false, inputName: "", matches: [] }); setPendingPayload(null); }}
         onConfirm={confirmCreateAnyway}
         confirmText="Crear cliente igualmente"
       />
     </div>
   );
-}
-
-function formKeyToLabel(key) {
-  const mapa = {
-    nombre_empresa: "Nombre Comercial",
-    razon_social: "Razón Social",
-    rut: "RUT",
-    giro: "Giro",
-    email_transferencia: "Email Contacto",
-    contacto_comercial: "Contacto Comercial",
-    telefono_comercial: "Teléfono Comercial",
-    contacto_finanzas: "Contacto Finanzas",
-    telefono_finanzas: "Teléfono Finanzas"
-  };
-  return mapa[key] || key;
 }
