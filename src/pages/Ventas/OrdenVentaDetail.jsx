@@ -26,6 +26,31 @@ const btnCls = (...keys) => [btn.base, ...keys.map((k) => btn[k])].join(" ");
 // ── Estilos de inputs consistentes ───────────────────────────────────────────
 const inputCls = "border border-gray-300 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary w-full";
 
+// ── Extrae un mensaje de error legible desde una respuesta de API ─────────────
+// Maneja: 403 sin permiso · mensaje del backend · detalles de items afectados · red caída
+function apiErrorMsg(err, actionLabel = "realizar esta acción") {
+  const status = err?.response?.status;
+  const data   = err?.response?.data;
+
+  if (status === 403) {
+    return `Sin permiso para ${actionLabel}. Contacta al administrador.`;
+  }
+
+  const msg = data?.error;
+  if (!msg) {
+    return `Error al ${actionLabel}. Verifica tu conexión e intenta nuevamente.`;
+  }
+
+  // Si el backend envía un arreglo de detalles (ej. productos faltantes en picking),
+  // agrega el conteo para darle al usuario más contexto sin desbordar el toast.
+  const details = data?.details;
+  if (Array.isArray(details) && details.length > 0) {
+    return `${msg} (${details.length} ${details.length === 1 ? "ítem" : "ítems"})`;
+  }
+
+  return msg;
+}
+
 // ── Datos de la empresa emisora ───────────────────────────────────────────────
 const COMPANY = {
   nombre: "ELABORADORA DE ALIMENTOS GOURMET LTDA.",
@@ -260,7 +285,7 @@ export default function OrdenVentaDetail() {
       else setOrden((prev) => (prev ? { ...prev, estado: "Validada" } : prev));
       toast.success(res?.data?.message || "Orden validada correctamente");
     } catch (err) {
-      toast.error(err?.response?.data?.error || "No se pudo validar la orden");
+      toast.error(apiErrorMsg(err, "validar esta orden"));
     } finally {
       setTransitioning(false);
     }
@@ -277,7 +302,7 @@ export default function OrdenVentaDetail() {
       else setOrden((prev) => (prev ? { ...prev, estado: "Lista para despacho" } : prev));
       toast.success(res?.data?.message || "Picking completado correctamente");
     } catch (err) {
-      toast.error(err?.response?.data?.error || "No se pudo completar el picking");
+      toast.error(apiErrorMsg(err, "completar el picking"));
     } finally {
       setTransitioning(false);
     }
@@ -319,7 +344,7 @@ export default function OrdenVentaDetail() {
       setIdLocalDespacho("");
       setDireccionesCliente([]);
     } catch (err) {
-      toast.error(err?.response?.data?.error || "No se pudo facturar la orden");
+      toast.error(apiErrorMsg(err, "facturar esta orden"));
     } finally {
       setTransitioning(false);
     }
@@ -348,7 +373,7 @@ export default function OrdenVentaDetail() {
       setCostoEnvio("");
       setFechaEnvio("");
     } catch (err) {
-      toast.error(err?.response?.data?.error || "No se pudo entregar la orden");
+      toast.error(apiErrorMsg(err, "entregar esta orden"));
     } finally {
       setDelivering(false);
     }
