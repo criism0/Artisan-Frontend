@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft, Trash2, Pencil, Check, X } from "lucide-react";
 import Selector from "../../components/Selector";
 
 export default function EditOrdenVenta() {
@@ -18,6 +18,8 @@ export default function EditOrdenVenta() {
   const [clienteConfig, setClienteConfig] = useState(null);
   const [productosAgregados, setProductosAgregados] = useState([]);
   const [productErrors, setProductErrors] = useState({});
+  const [editingProdId, setEditingProdId] = useState(null);
+  const [editingCantidad, setEditingCantidad] = useState("");
 
   const [form, setForm] = useState({
     numero_oc: "",
@@ -183,6 +185,33 @@ export default function EditOrdenVenta() {
 
   const handleDeleteProduct = (prodId) => {
     setProductosAgregados((prev) => prev.filter((p) => p.id_producto !== prodId));
+  };
+
+  const handleStartEdit = (prod) => {
+    setEditingProdId(prod.id_producto);
+    setEditingCantidad(String(prod.cantidad));
+  };
+
+  const handleConfirmEdit = () => {
+    const nuevaCantidad = Number(editingCantidad);
+    if (!Number.isFinite(nuevaCantidad) || nuevaCantidad <= 0) {
+      toast.error("Ingresa una cantidad válida mayor a 0");
+      return;
+    }
+    setProductosAgregados((prev) =>
+      prev.map((p) =>
+        p.id_producto === editingProdId
+          ? { ...p, cantidad: nuevaCantidad, total_linea: p.precio_unitario * nuevaCantidad }
+          : p
+      )
+    );
+    setEditingProdId(null);
+    setEditingCantidad("");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProdId(null);
+    setEditingCantidad("");
   };
 
   // ── Submit ──
@@ -422,29 +451,82 @@ export default function EditOrdenVenta() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {productosAgregados.map((p) => (
-                    <tr key={p.id_producto} className="hover:bg-gray-50 transition-colors">
+                  {productosAgregados.map((p) => {
+                    const isEditing = editingProdId === p.id_producto;
+                    return (
+                    <tr key={p.id_producto} className={`transition-colors ${isEditing ? "bg-blue-50" : "hover:bg-gray-50"}`}>
                       <td className="px-4 py-2.5 text-sm text-gray-800">{p.nombre}</td>
-                      <td className="px-4 py-2.5 text-sm text-gray-700">{p.cantidad}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-700">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min="1"
+                            value={editingCantidad}
+                            onChange={(e) => setEditingCantidad(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleConfirmEdit(); if (e.key === "Escape") handleCancelEdit(); }}
+                            autoFocus
+                            className="w-24 border border-blue-400 px-2 py-1 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : p.cantidad}
+                      </td>
                       <td className="px-4 py-2.5 text-sm text-gray-500">{p.formato_linea}</td>
                       <td className="px-4 py-2.5 text-sm text-gray-700">
                         ${Number(p.precio_unitario).toLocaleString("es-CL")}
                       </td>
                       <td className="px-4 py-2.5 text-sm font-medium text-gray-800">
-                        ${Number(p.total_linea).toLocaleString("es-CL")}
+                        ${Number(isEditing
+                          ? p.precio_unitario * (Number(editingCantidad) || 0)
+                          : p.total_linea
+                        ).toLocaleString("es-CL")}
                       </td>
                       <td className="px-4 py-2.5 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteProduct(p.id_producto)}
-                          className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
-                          title="Eliminar"
-                        >
-                          <Trash2 size={16} strokeWidth={1.5} />
-                        </button>
+                        {isEditing ? (
+                          <div className="flex gap-1 justify-center">
+                            <button
+                              type="button"
+                              onClick={handleConfirmEdit}
+                              aria-label="Confirmar edición"
+                              className="p-1 rounded hover:bg-green-50 text-green-600 hover:text-green-700 transition-colors"
+                              title="Confirmar"
+                            >
+                              <Check size={16} strokeWidth={2} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCancelEdit}
+                              aria-label="Cancelar edición"
+                              className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                              title="Cancelar"
+                            >
+                              <X size={16} strokeWidth={2} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-1 justify-center">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEdit(p)}
+                              aria-label="Editar cantidad"
+                              className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
+                              title="Editar cantidad"
+                            >
+                              <Pencil size={15} strokeWidth={1.5} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteProduct(p.id_producto)}
+                              aria-label="Eliminar producto"
+                              className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 size={16} strokeWidth={1.5} />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

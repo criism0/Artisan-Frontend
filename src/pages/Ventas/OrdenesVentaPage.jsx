@@ -2,13 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import {
-  Eye,
-  Edit,
-  Trash2,
-  FilePen,
-  ClipboardList,
-} from "lucide-react";
+import { ClipboardList } from "lucide-react";
+import { ViewDetailButton, EditButton, TrashButton } from "../../components/Buttons/ActionButtons";
 import SearchBar from "../../components/SearchBar";
 import RowsPerPageSelector from "../../components/RowsPerPageSelector";
 import Pagination from "../../components/Pagination";
@@ -115,57 +110,38 @@ export default function OrdenesVentaPage() {
 
   // === Acciones por fila ===
   const actions = (row) => {
-    const terminada = row.estado === "Entregada";
     const puedeEditar = row.estado === "Creada";
     const tieneAsignacion = ["En picking", "Lista para despacho", "Facturada", "Entregada"].includes(row.estado);
 
     return (
-      <div className="flex gap-2 justify-center">
-        <button
+      <div className="flex gap-2 justify-center items-center">
+        <ViewDetailButton
           onClick={() => navigate(`/ventas/ordenes/${row.id}`)}
-          className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary"
-          title="Ver Detalle"
-        >
-          <Eye size={18} strokeWidth={1.5} />
-        </button>
+          tooltipText="Ver detalle"
+        />
 
         {puedeEditar && (
-          <button
+          <EditButton
             onClick={() => navigate(`/ventas/ordenes/${row.id}/edit`)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary"
-            title="Editar"
-          >
-            <Edit size={18} strokeWidth={1.5} />
-          </button>
+            tooltipText="Editar"
+          />
         )}
 
         {tieneAsignacion && (
           <button
             onClick={() => navigate(`/ventas/ordenes/${row.id}/resumen-asignacion`)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-blue-600"
-            title="Ver Resumen de Asignación"
+            className="text-gray-400 hover:text-blue-500"
+            title="Ver resumen de asignación"
           >
-            <ClipboardList size={18} strokeWidth={1.5} />
+            <ClipboardList className="w-5 h-5" />
           </button>
         )}
 
-        {!terminada && (
-          <button
-            onClick={() => navigate(`/ventas/ordenes/${row.id}`)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-amber-600"
-            title="Gestionar orden"
-          >
-            <FilePen size={18} strokeWidth={1.5} />
-          </button>
-        )}
-
-        <button
-          onClick={() => handleDelete(row.id)}
-          className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-600"
-          title="Eliminar"
-        >
-          <Trash2 size={18} strokeWidth={1.5} />
-        </button>
+        <TrashButton
+          onConfirmDelete={() => handleDelete(row.id)}
+          tooltipText="Eliminar"
+          entityName={`Orden de Venta #${row.id}`}
+        />
       </div>
     );
   };
@@ -193,7 +169,6 @@ export default function OrdenesVentaPage() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("¿Eliminar esta orden de venta?")) return;
     try {
       await api(`/ordenes-venta/${id}`, { method: "DELETE" });
       setOrdenes((prev) => prev.filter((x) => x.id !== id));
