@@ -246,7 +246,7 @@ export default function OrdenVentaDetail() {
     return rows;
   }, [progresoRows]);
 
-  const canValidar = checkScope(ModelType.VALIDAR_ORDEN_VENTA, ScopeType.WRITE);
+  const canValidar = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
 
   // ── Handlers de transición ──────────────────────────────────────────────────
   const handleValidar = async () => {

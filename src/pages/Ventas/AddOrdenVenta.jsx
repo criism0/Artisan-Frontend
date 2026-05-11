@@ -223,7 +223,10 @@ export default function AddOrdenVenta() {
 
   const handleConfirmEdit = () => {
     const nuevaCantidad = Number(editingCantidad);
-    if (!nuevaCantidad || nuevaCantidad <= 0) return;
+    if (!Number.isFinite(nuevaCantidad) || nuevaCantidad <= 0) {
+      toast.error("Ingresa una cantidad válida mayor a 0");
+      return;
+    }
     setProductosAgregados((prev) =>
       prev.map((p) =>
         p.id_producto === editingProdId
@@ -528,6 +531,7 @@ export default function AddOrdenVenta() {
                             <button
                               type="button"
                               onClick={handleConfirmEdit}
+                              aria-label="Confirmar edición"
                               className="p-1 rounded hover:bg-green-50 text-green-600 hover:text-green-700 transition-colors"
                               title="Confirmar"
                             >
@@ -536,6 +540,7 @@ export default function AddOrdenVenta() {
                             <button
                               type="button"
                               onClick={handleCancelEdit}
+                              aria-label="Cancelar edición"
                               className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
                               title="Cancelar"
                             >
@@ -547,6 +552,7 @@ export default function AddOrdenVenta() {
                             <button
                               type="button"
                               onClick={() => handleStartEdit(p)}
+                              aria-label="Editar cantidad"
                               className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
                               title="Editar cantidad"
                             >
@@ -555,6 +561,7 @@ export default function AddOrdenVenta() {
                             <button
                               type="button"
                               onClick={() => handleDeleteProduct(p.id_producto)}
+                              aria-label="Eliminar producto"
                               className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
                               title="Eliminar"
                             >
@@ -573,7 +580,10 @@ export default function AddOrdenVenta() {
                       <td colSpan={6} className="px-4 py-3 bg-gray-50 border-t border-gray-200">
                         <button
                           type="button"
-                          onClick={() => setIsProductosExpanded((v) => !v)}
+                          onClick={() => {
+                            if (editingProdId !== null) handleCancelEdit();
+                            setIsProductosExpanded((v) => !v);
+                          }}
                           className="w-full flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg border border-gray-200 bg-white text-sm text-gray-600 hover:bg-gray-100 transition-colors"
                         >
                           {isProductosExpanded ? (
