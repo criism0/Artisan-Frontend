@@ -111,6 +111,7 @@ import LocalClienteDetail from "./pages/Locales/LocalClienteDetail.jsx";
 
 // ====== Ventas ======
 import OrdenesVentaPage from "./pages/Ventas/OrdenesVentaPage";
+import ColaIAPage from "./pages/Ventas/ColaIAPage";
 import AddOrdenVenta from "./pages/Ventas/AddOrdenVenta";
 import EditOrdenVenta from "./pages/Ventas/EditOrdenVenta";
 import OrdenVentaDetail from "./pages/Ventas/OrdenVentaDetail";
@@ -549,6 +550,7 @@ function Routing() {
           <Route path="/ventas/facturas" element={<FacturasIA />} />
 
           {/* Ventas */}
+          <Route path="/ventas/cola-ia" element={<ColaIAPage />} />
           <Route path="/ventas/ordenes" element={<OrdenesVentaPage />} />
           <Route path="/ventas/ordenes/:ordenId/asignar" element={<AsignarVenta />} />
           <Route path="/ventas/ordenes/:ordenId/resumen-asignacion" element={<ResumenAsignacionVenta />} />

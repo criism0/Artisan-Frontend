@@ -164,8 +164,9 @@ export default function Navbar() {
             onOpen={() => handleOpen("ventas")}
             onClose={handleClose}
           >
-            <MenuGroup label="Ventas" icon={<FiBox />}>             
+            <MenuGroup label="Ventas" icon={<FiBox />}>
               <MenuLink to="/ventas/ordenes"  label="Órdenes de Venta" isAllowed={checkScope(ModelType.ORDEN_VENTA, ScopeType.READ)} />
+              <MenuLink to="/ventas/cola-ia"  label="Cola IA" />
             </MenuGroup>
 
           </Dropdown>
