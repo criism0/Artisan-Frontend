@@ -35,13 +35,38 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
   const api = useApi();
   const [editing, setEditing]       = useState(false);
   const [saving, setSaving]         = useState(false);
-  const [prodIdSel, setProdIdSel]   = useState(String(prod.id_producto ?? ""));
+  // Pre-fill con la sugerencia fuzzy si no hay match directo
+  const [prodIdSel, setProdIdSel]   = useState(
+    String(prod.id_producto ?? prod.producto_id_sugerido ?? "")
+  );
   const [cantidad, setCantidad]     = useState(String(prod.cantidad ?? ""));
   const [precio, setPrecio]         = useState(String(prod.precio_venta ?? ""));
   const [confirmDel, setConfirmDel] = useState(false);
 
-  const sinMatch = !prod.id_producto;
-  const nombre   = prod.ProductoBase?.nombre ?? null;
+  const sinMatch    = !prod.id_producto;
+  const nombre      = prod.ProductoBase?.nombre ?? null;
+  const sugerido    = prod.ProductoSugerido ?? null;
+  const simPct      = sugerido && prod.similitud_sugerencia != null
+    ? Math.round(prod.similitud_sugerencia * 100)
+    : null;
+
+  // Acepta la sugerencia fuzzy directamente (sin abrir el editor)
+  const handleAcceptSuggestion = async () => {
+    if (!prod.producto_id_sugerido) return;
+    setSaving(true);
+    try {
+      const updated = await api(`/ordenes-venta/${ovId}/productos/${prod.id}`, {
+        method: "PATCH",
+        body: { id_producto: prod.producto_id_sugerido },
+      });
+      toast.success(`Asociado: ${sugerido?.nombre}`);
+      onUpdated(updated);
+    } catch (err) {
+      toast.error(`Error: ${err?.message ?? "No se pudo aceptar"}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -139,40 +164,67 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
 
   return (
     <>
-      <li className="py-1.5 flex items-center justify-between gap-2 group">
-        <div className="flex flex-col min-w-0">
-          {/* Nombre del producto o descripción original */}
-          {nombre ? (
-            <span className="text-gray-700 text-sm truncate">{nombre}</span>
-          ) : (
-            <span className="text-orange-600 text-sm italic truncate">
-              ⚠ Sin match — {prod.descripcion_original ?? "producto desconocido"}
-            </span>
-          )}
-          {/* Si tiene match y además hay descripción original, mostrarla en gris */}
-          {nombre && prod.descripcion_original && (
-            <span className="text-xs text-gray-400 truncate italic">
-              «{prod.descripcion_original}»
-            </span>
-          )}
+      <li className="py-1.5 flex flex-col gap-1 group">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col min-w-0">
+            {/* Nombre del producto o descripción original */}
+            {nombre ? (
+              <span className="text-gray-700 text-sm truncate">{nombre}</span>
+            ) : (
+              <span className="text-orange-600 text-sm italic truncate">
+                ⚠ Sin match — {prod.descripcion_original ?? "producto desconocido"}
+              </span>
+            )}
+            {/* Si tiene match y además hay descripción original, mostrarla en gris */}
+            {nombre && prod.descripcion_original && (
+              <span className="text-xs text-gray-400 truncate italic">
+                «{prod.descripcion_original}»
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-gray-500 text-sm">× {prod.cantidad}</span>
+            <button
+              onClick={() => setEditing(true)}
+              className="text-gray-400 hover:text-[#7A5AF8] opacity-0 group-hover:opacity-100 transition"
+              title="Editar"
+            >
+              <FiEdit2 size={13} />
+            </button>
+            <button
+              onClick={() => setConfirmDel(true)}
+              className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+              title="Eliminar"
+            >
+              <FiTrash2 size={13} />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-gray-500 text-sm">× {prod.cantidad}</span>
-          <button
-            onClick={() => setEditing(true)}
-            className="text-gray-400 hover:text-[#7A5AF8] opacity-0 group-hover:opacity-100 transition"
-            title="Editar"
-          >
-            <FiEdit2 size={13} />
-          </button>
-          <button
-            onClick={() => setConfirmDel(true)}
-            className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
-            title="Eliminar"
-          >
-            <FiTrash2 size={13} />
-          </button>
-        </div>
+
+        {/* Sugerencia fuzzy — visible solo cuando sin match y hay candidato */}
+        {sinMatch && sugerido && simPct !== null && (
+          <div className="flex items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1 text-xs">
+            <span className="text-blue-700 truncate">
+              💡 ¿Es <strong>{sugerido.nombre}</strong>?{" "}
+              <span className={
+                simPct >= 80
+                  ? "text-green-600 font-semibold"
+                  : simPct >= 65
+                  ? "text-yellow-600 font-semibold"
+                  : "text-gray-500"
+              }>
+                ({simPct}%)
+              </span>
+            </span>
+            <button
+              onClick={handleAcceptSuggestion}
+              disabled={saving}
+              className="shrink-0 flex items-center gap-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-0.5 rounded font-medium"
+            >
+              <FiCheck size={11} /> Aceptar
+            </button>
+          </div>
+        )}
       </li>
 
       <ConfirmActionModal
