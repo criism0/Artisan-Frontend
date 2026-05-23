@@ -3,9 +3,12 @@ import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import Selector from "../../components/Selector";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
-import { FiMail, FiUser, FiPackage, FiCalendar, FiHash, FiAlertTriangle } from "react-icons/fi";
+import {
+  FiMail, FiUser, FiPackage, FiCalendar, FiHash,
+  FiAlertTriangle, FiEdit2, FiCheck, FiX, FiPlus, FiTrash2,
+} from "react-icons/fi";
 
-// ── Confianza badge ─────────────────────────────────────────────────────────
+// ── Confianza badge ──────────────────────────────────────────────────────────
 function ConfianzaBadge({ valor }) {
   const pct = Math.round((valor ?? 0) * 100);
   if (pct >= 85)
@@ -27,9 +30,265 @@ function ConfianzaBadge({ valor }) {
   );
 }
 
+// ── Fila de producto editable ────────────────────────────────────────────────
+function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
+  const api = useApi();
+  const [editing, setEditing]       = useState(false);
+  const [saving, setSaving]         = useState(false);
+  const [prodIdSel, setProdIdSel]   = useState(String(prod.id_producto ?? ""));
+  const [cantidad, setCantidad]     = useState(String(prod.cantidad ?? ""));
+  const [precio, setPrecio]         = useState(String(prod.precio_venta ?? ""));
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  const sinMatch = !prod.id_producto;
+  const nombre   = prod.ProductoBase?.nombre ?? null;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updated = await api(`/ordenes-venta/${ovId}/productos/${prod.id}`, {
+        method: "PATCH",
+        body: {
+          id_producto:  prodIdSel ? Number(prodIdSel) : null,
+          cantidad:     Number(cantidad),
+          precio_venta: Number(precio),
+        },
+      });
+      toast.success("Producto actualizado");
+      setEditing(false);
+      onUpdated(updated);
+    } catch (err) {
+      toast.error(`Error: ${err?.message ?? "No se pudo guardar"}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setSaving(true);
+    try {
+      await api(`/ordenes-venta/${ovId}/productos/${prod.id}`, { method: "DELETE" });
+      toast.success("Producto eliminado");
+      onDeleted(prod.id);
+    } catch (err) {
+      toast.error(`Error: ${err?.message ?? "No se pudo eliminar"}`);
+    } finally {
+      setSaving(false);
+      setConfirmDel(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <li className="py-2 flex flex-col gap-2 bg-purple-50 rounded-lg px-2 -mx-2">
+        {/* Descripción original de referencia */}
+        {prod.descripcion_original && (
+          <p className="text-xs text-gray-500 italic">
+            IA extrajo: «{prod.descripcion_original}»
+          </p>
+        )}
+        {/* Selector de producto del catálogo */}
+        <div>
+          <label className="text-xs text-gray-500 mb-0.5 block">Producto del catálogo</label>
+          <Selector
+            options={[{ value: "", label: "— Sin asociar —" }, ...catalogoOpts]}
+            selectedValue={prodIdSel}
+            onSelect={setProdIdSel}
+            disabled={saving}
+          />
+        </div>
+        <div className="flex gap-2">
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-0.5 block">Cantidad</label>
+            <input
+              type="number" min="1" value={cantidad}
+              onChange={(e) => setCantidad(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+              disabled={saving}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-0.5 block">Precio unitario</label>
+            <input
+              type="number" min="0" value={precio}
+              onChange={(e) => setPrecio(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+              disabled={saving}
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={() => setEditing(false)}
+            disabled={saving}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
+          >
+            <FiX /> Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !cantidad}
+            className="flex items-center gap-1 text-xs bg-[#7A5AF8] text-white px-3 py-1 rounded-lg hover:bg-[#6648e0] disabled:opacity-50"
+          >
+            <FiCheck /> {saving ? "Guardando…" : "Guardar"}
+          </button>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <>
+      <li className="py-1.5 flex items-center justify-between gap-2 group">
+        <div className="flex flex-col min-w-0">
+          {/* Nombre del producto o descripción original */}
+          {nombre ? (
+            <span className="text-gray-700 text-sm truncate">{nombre}</span>
+          ) : (
+            <span className="text-orange-600 text-sm italic truncate">
+              ⚠ Sin match — {prod.descripcion_original ?? "producto desconocido"}
+            </span>
+          )}
+          {/* Si tiene match y además hay descripción original, mostrarla en gris */}
+          {nombre && prod.descripcion_original && (
+            <span className="text-xs text-gray-400 truncate italic">
+              «{prod.descripcion_original}»
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-gray-500 text-sm">× {prod.cantidad}</span>
+          <button
+            onClick={() => setEditing(true)}
+            className="text-gray-400 hover:text-[#7A5AF8] opacity-0 group-hover:opacity-100 transition"
+            title="Editar"
+          >
+            <FiEdit2 size={13} />
+          </button>
+          <button
+            onClick={() => setConfirmDel(true)}
+            className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+            title="Eliminar"
+          >
+            <FiTrash2 size={13} />
+          </button>
+        </div>
+      </li>
+
+      <ConfirmActionModal
+        isOpen={confirmDel}
+        onClose={() => setConfirmDel(false)}
+        onConfirm={handleDelete}
+        title="Eliminar producto"
+        description={`¿Eliminar "${prod.descripcion_original ?? nombre ?? "este producto"}" de la OV?`}
+        confirmText="Eliminar"
+        cancelText="Cancelar"
+      />
+    </>
+  );
+}
+
+// ── Fila para agregar producto nuevo ─────────────────────────────────────────
+function AgregarProductoRow({ ovId, catalogoOpts, onAdded, onCancel }) {
+  const api = useApi();
+  const [saving, setSaving]       = useState(false);
+  const [prodIdSel, setProdIdSel] = useState("");
+  const [cantidad, setCantidad]   = useState("1");
+  const [precio, setPrecio]       = useState("0");
+  const [descOrig, setDescOrig]   = useState("");
+
+  const handleAdd = async () => {
+    if (!cantidad || Number(cantidad) <= 0) {
+      toast.warning("Ingresa una cantidad válida");
+      return;
+    }
+    setSaving(true);
+    try {
+      const created = await api(`/ordenes-venta/${ovId}/productos`, {
+        method: "POST",
+        body: {
+          id_producto:          prodIdSel ? Number(prodIdSel) : null,
+          descripcion_original: descOrig || null,
+          cantidad:             Number(cantidad),
+          precio_venta:         Number(precio),
+        },
+      });
+      toast.success("Producto agregado");
+      onAdded(created);
+    } catch (err) {
+      toast.error(`Error: ${err?.message ?? "No se pudo agregar"}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <li className="py-2 flex flex-col gap-2 border-t border-dashed border-[#7A5AF8]/30 mt-1 pt-2">
+      <p className="text-xs font-semibold text-[#7A5AF8]">Agregar producto</p>
+      <div>
+        <label className="text-xs text-gray-500 mb-0.5 block">Producto del catálogo</label>
+        <Selector
+          options={[{ value: "", label: "— Sin asociar / manual —" }, ...catalogoOpts]}
+          selectedValue={prodIdSel}
+          onSelect={setProdIdSel}
+          disabled={saving}
+        />
+      </div>
+      <div>
+        <label className="text-xs text-gray-500 mb-0.5 block">Descripción (opcional)</label>
+        <input
+          type="text" value={descOrig}
+          onChange={(e) => setDescOrig(e.target.value)}
+          placeholder="Texto tal como llegó en el email…"
+          className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+          disabled={saving}
+        />
+      </div>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="text-xs text-gray-500 mb-0.5 block">Cantidad</label>
+          <input
+            type="number" min="1" value={cantidad}
+            onChange={(e) => setCantidad(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+            disabled={saving}
+          />
+        </div>
+        <div className="flex-1">
+          <label className="text-xs text-gray-500 mb-0.5 block">Precio unitario</label>
+          <input
+            type="number" min="0" value={precio}
+            onChange={(e) => setPrecio(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+            disabled={saving}
+          />
+        </div>
+      </div>
+      <div className="flex gap-2 justify-end">
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
+        >
+          <FiX /> Cancelar
+        </button>
+        <button
+          onClick={handleAdd}
+          disabled={saving}
+          className="flex items-center gap-1 text-xs bg-[#7A5AF8] text-white px-3 py-1 rounded-lg hover:bg-[#6648e0] disabled:opacity-50"
+        >
+          <FiPlus /> {saving ? "Agregando…" : "Agregar"}
+        </button>
+      </div>
+    </li>
+  );
+}
+
 // ── Tarjeta de una OV IA ─────────────────────────────────────────────────────
-function OVIACard({ ov, bodegas, onValidar, onRechazar, procesando }) {
+function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, onValidar, onRechazar, procesando }) {
+  const [ov, setOv]             = useState(ovInicial);
   const [bodegaId, setBodegaId] = useState("");
+  const [agregando, setAgregando] = useState(false);
   const log = ov.ai_log;
 
   const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
@@ -38,6 +297,27 @@ function OVIACard({ ov, bodegas, onValidar, onRechazar, procesando }) {
     value: String(b.id),
     label: b.nombre_bodega ?? b.nombre ?? `Bodega ${b.id}`,
   }));
+
+  const handleUpdatedProd = (updated) => {
+    setOv((prev) => ({
+      ...prev,
+      productos: prev.productos.map((p) => (p.id === updated.id ? updated : p)),
+    }));
+  };
+
+  const handleDeletedProd = (prodId) => {
+    setOv((prev) => ({
+      ...prev,
+      productos: prev.productos.filter((p) => p.id !== prodId),
+    }));
+  };
+
+  const handleAddedProd = (created) => {
+    setOv((prev) => ({ ...prev, productos: [...prev.productos, created] }));
+    setAgregando(false);
+  };
+
+  const sinMatchCount = ov.productos?.filter((p) => !p.id_producto).length ?? 0;
 
   return (
     <div className="bg-white rounded-2xl shadow border border-gray-100 p-6 flex flex-col gap-4">
@@ -88,25 +368,50 @@ function OVIACard({ ov, bodegas, onValidar, onRechazar, procesando }) {
       </div>
 
       {/* Productos */}
-      {ov.productos?.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase mb-2 flex items-center gap-1">
-            <FiPackage /> Productos ({ov.productos.length})
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-gray-500 uppercase flex items-center gap-1">
+            <FiPackage /> Productos ({ov.productos?.length ?? 0})
+            {sinMatchCount > 0 && (
+              <span className="ml-1 text-orange-500">· {sinMatchCount} sin asociar</span>
+            )}
           </p>
-          <ul className="divide-y divide-gray-100 text-sm">
-            {ov.productos.map((p, i) => (
-              <li key={i} className="py-1.5 flex justify-between gap-2">
-                <span className="text-gray-700">
-                  {p.ProductoBase?.nombre ?? (
-                    <span className="italic text-gray-400">Sin match en catálogo</span>
-                  )}
-                </span>
-                <span className="text-gray-500 shrink-0">× {p.cantidad}</span>
-              </li>
-            ))}
-          </ul>
+          {!agregando && (
+            <button
+              onClick={() => setAgregando(true)}
+              className="flex items-center gap-1 text-xs text-[#7A5AF8] hover:text-[#6648e0] font-medium"
+            >
+              <FiPlus size={12} /> Agregar
+            </button>
+          )}
         </div>
-      )}
+
+        <ul className="divide-y divide-gray-100 text-sm">
+          {(ov.productos ?? []).map((p) => (
+            <ProductoRow
+              key={p.id}
+              prod={p}
+              catalogoOpts={catalogoOpts}
+              ovId={ov.id}
+              onUpdated={handleUpdatedProd}
+              onDeleted={handleDeletedProd}
+            />
+          ))}
+          {(ov.productos ?? []).length === 0 && !agregando && (
+            <li className="py-2 text-xs text-gray-400 italic text-center">
+              Sin productos — agrega al menos uno para validar
+            </li>
+          )}
+          {agregando && (
+            <AgregarProductoRow
+              ovId={ov.id}
+              catalogoOpts={catalogoOpts}
+              onAdded={handleAddedProd}
+              onCancel={() => setAgregando(false)}
+            />
+          )}
+        </ul>
+      </div>
 
       {/* Flags / advertencias */}
       {log?.error_detalle && (
@@ -153,19 +458,19 @@ function OVIACard({ ov, bodegas, onValidar, onRechazar, procesando }) {
 // ── Página principal ─────────────────────────────────────────────────────────
 export default function ColaIAPage() {
   const api = useApi();
-  const [ordenes, setOrdenes] = useState([]);
-  const [bodegas, setBodegas] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [ordenes, setOrdenes]   = useState([]);
+  const [bodegas, setBodegas]   = useState([]);
+  const [catalogo, setCatalogo] = useState([]);
+  const [loading, setLoading]   = useState(true);
   const [procesando, setProcesando] = useState(false);
-
-  // Estado para modal de rechazo
   const [rechazarId, setRechazarId] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [colaRes, bodegasRes] = await Promise.all([
+      const [colaRes, bodegasRes, catalogoRes] = await Promise.all([
         api("/ordenes-venta/cola-ia"),
         api("/bodegas"),
+        api("/productos-base"),
       ]);
       setOrdenes(Array.isArray(colaRes) ? colaRes : colaRes.data ?? []);
       const lista = Array.isArray(bodegasRes?.bodegas)
@@ -174,6 +479,12 @@ export default function ColaIAPage() {
         ? bodegasRes
         : [];
       setBodegas(lista.sort((a, b) => (a.id ?? 0) - (b.id ?? 0)));
+      const prods = Array.isArray(catalogoRes)
+        ? catalogoRes
+        : Array.isArray(catalogoRes?.data)
+        ? catalogoRes.data
+        : catalogoRes?.productos ?? [];
+      setCatalogo(prods);
     } catch {
       toast.error("Error al cargar la cola IA");
     } finally {
@@ -181,15 +492,16 @@ export default function ColaIAPage() {
     }
   }, [api]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Opciones del catálogo para Selector
+  const catalogoOpts = catalogo.map((p) => ({
+    value: String(p.id),
+    label: p.nombre,
+  }));
 
   const handleValidar = async (id, bodegaId) => {
-    if (!bodegaId) {
-      toast.warning("Debes seleccionar una bodega antes de validar");
-      return;
-    }
+    if (!bodegaId) { toast.warning("Debes seleccionar una bodega antes de validar"); return; }
     setProcesando(true);
     try {
       await api(`/ordenes-venta/${id}/validar`, {
@@ -203,10 +515,6 @@ export default function ColaIAPage() {
     } finally {
       setProcesando(false);
     }
-  };
-
-  const handleRechazar = (id) => {
-    setRechazarId(id);
   };
 
   const confirmarRechazo = async () => {
@@ -226,7 +534,6 @@ export default function ColaIAPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      {/* Encabezado */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           Cola IA
@@ -237,12 +544,11 @@ export default function ColaIAPage() {
           )}
         </h1>
         <p className="text-sm text-gray-500 mt-1">
-          Órdenes de venta detectadas automáticamente vía correo. Revisa los datos, asigna una
-          bodega y valida o rechaza cada orden.
+          Órdenes detectadas automáticamente vía correo. Revisa los productos, asocia los que
+          aparecen sin match, asigna bodega y valida cada orden.
         </p>
       </div>
 
-      {/* Contenido */}
       {loading ? (
         <div className="text-center py-20 text-gray-400">Cargando…</div>
       ) : ordenes.length === 0 ? (
@@ -260,15 +566,15 @@ export default function ColaIAPage() {
               key={ov.id}
               ov={ov}
               bodegas={bodegas}
+              catalogoOpts={catalogoOpts}
               onValidar={handleValidar}
-              onRechazar={handleRechazar}
+              onRechazar={setRechazarId}
               procesando={procesando}
             />
           ))}
         </div>
       )}
 
-      {/* Modal de confirmación de rechazo */}
       <ConfirmActionModal
         isOpen={rechazarId !== null}
         onClose={() => setRechazarId(null)}
