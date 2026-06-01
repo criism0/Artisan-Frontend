@@ -13,6 +13,7 @@ import {
 const FLAG_LABELS = {
   producto_sin_match:    "Hay productos sin asociar en el catálogo",
   precio_no_disponible:  "Algunos precios no estaban disponibles en el correo",
+  precio_desde_lista:    "Precios tomados de la lista de precios del cliente",
   cliente_no_encontrado: null, // se muestra vía el selector de cliente, no aquí
 };
 
@@ -444,12 +445,32 @@ function EmailModal({ log, onClose }) {
 
 // ── Tarjeta de una OV IA ─────────────────────────────────────────────────────
 function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValidar, onRechazar, procesando }) {
+  const api = useApi();
   const [ov, setOv]                   = useState(ovInicial);
   const [bodegaId, setBodegaId]       = useState("");
   const [clienteIdLocal, setClienteIdLocal] = useState("");
   const [agregando, setAgregando]     = useState(false);
   const [emailOpen, setEmailOpen]     = useState(false);
+  const [esReferencial, setEsReferencial] = useState(ovInicial.es_referencial ?? false);
+  const [guardandoRef, setGuardandoRef]   = useState(false);
   const log = ov.ai_log;
+
+  const handleToggleReferencial = async () => {
+    const nuevoValor = !esReferencial;
+    setEsReferencial(nuevoValor);
+    setGuardandoRef(true);
+    try {
+      await api(`/ordenes-venta/${ov.id}`, {
+        method: "PUT",
+        body: { es_referencial: nuevoValor },
+      });
+    } catch (err) {
+      setEsReferencial(!nuevoValor);
+      toast.error("No se pudo actualizar el modo referencial");
+    } finally {
+      setGuardandoRef(false);
+    }
+  };
 
   const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
 
@@ -634,6 +655,25 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
           </span>
         </div>
       )}
+
+      {/* Toggle: orden referencial */}
+      <label className={`flex items-center gap-2.5 cursor-pointer select-none w-fit ${guardandoRef ? "opacity-50" : ""}`}>
+        <div className="relative">
+          <input
+            type="checkbox"
+            className="sr-only"
+            checked={esReferencial}
+            onChange={handleToggleReferencial}
+            disabled={guardandoRef || procesando}
+          />
+          <div className={`w-9 h-5 rounded-full transition-colors ${esReferencial ? "bg-[#7A5AF8]" : "bg-gray-200"}`} />
+          <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${esReferencial ? "translate-x-4" : ""}`} />
+        </div>
+        <span className="text-xs text-gray-600">
+          Orden referencial
+          <span className="ml-1 text-gray-400">(omite picking)</span>
+        </span>
+      </label>
 
       {/* Selector de bodega */}
       <div>
