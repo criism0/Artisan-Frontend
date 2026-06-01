@@ -4,29 +4,70 @@ import { toast } from "../../lib/toast";
 import Selector from "../../components/Selector";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import {
-  FiMail, FiUser, FiPackage, FiCalendar, FiHash,
+  FiMail, FiPackage, FiCalendar, FiHash,
   FiAlertTriangle, FiEdit2, FiCheck, FiX, FiPlus, FiTrash2,
+  FiEye, FiInfo, FiFileText,
 } from "react-icons/fi";
 
-// ── Confianza badge ──────────────────────────────────────────────────────────
+// ── Flags IA: mapeo a etiquetas legibles ────────────────────────────────────
+const FLAG_LABELS = {
+  producto_sin_match:    "Hay productos sin asociar en el catálogo",
+  precio_no_disponible:  "Algunos precios no estaban disponibles en el correo",
+  cliente_no_encontrado: null, // se muestra vía el selector de cliente, no aquí
+};
+
+function parseFlagsVisibles(errorDetalle) {
+  if (!errorDetalle) return [];
+  return errorDetalle
+    .split(",")
+    .map((f) => f.trim())
+    .filter((f) => f && !f.startsWith("modificacion_oc:") && FLAG_LABELS[f] !== null)
+    .map((f) => FLAG_LABELS[f] ?? f.replace(/_/g, " "));
+}
+
+// ── Confianza badge con tooltip de escala ────────────────────────────────────
+const CONFIANZA_TOOLTIP = (
+  <div className="absolute top-full right-0 mt-2 w-60 bg-gray-900 text-white rounded-xl px-3.5 py-3 shadow-xl z-20 pointer-events-none">
+    <p className="text-xs font-semibold text-gray-300 mb-2">Nivel de confianza IA</p>
+    <div className="flex flex-col gap-1.5 text-xs">
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 w-2 h-2 rounded-full bg-green-400 shrink-0" />
+        <span><span className="font-semibold text-green-300">≥ 85%</span> — datos bien identificados, listo para revisar</span>
+      </div>
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
+        <span><span className="font-semibold text-yellow-300">70–84%</span> — algunos campos pueden necesitar corrección</span>
+      </div>
+      <div className="flex items-start gap-2">
+        <span className="mt-0.5 w-2 h-2 rounded-full bg-red-400 shrink-0" />
+        <span><span className="font-semibold text-red-300">&lt; 70%</span> — revisar todos los campos con cuidado</span>
+      </div>
+    </div>
+    <div className="absolute -top-1.5 right-5 w-3 h-3 bg-gray-900 rotate-45 rounded-sm" />
+  </div>
+);
+
 function ConfianzaBadge({ valor }) {
   const pct = Math.round((valor ?? 0) * 100);
-  if (pct >= 85)
-    return (
-      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-        ✓ {pct}% confianza
-      </span>
-    );
-  if (pct >= 70)
-    return (
-      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">
-        ⚠ {pct}% confianza
-      </span>
-    );
+
+  const badgeClass =
+    pct >= 85
+      ? "bg-green-100 text-green-700"
+      : pct >= 70
+      ? "bg-yellow-100 text-yellow-700"
+      : "bg-red-100 text-red-700";
+
+  const icon = pct >= 85 ? "✓" : pct >= 70 ? "⚠" : "✕";
+
   return (
-    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
-      ✕ {pct}% confianza
-    </span>
+    <div className="relative group inline-flex cursor-help">
+      <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${badgeClass}`}>
+        {icon} {pct}% confianza
+      </span>
+      <div className="hidden group-hover:block">
+        {CONFIANZA_TOOLTIP}
+      </div>
+    </div>
   );
 }
 
@@ -336,22 +377,85 @@ function AgregarProductoRow({ ovId, catalogoOpts, onAdded, onCancel }) {
   );
 }
 
+// ── Modal correo original ────────────────────────────────────────────────────
+function EmailModal({ log, onClose }) {
+  if (!log) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm px-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+          <div className="flex items-center gap-2">
+            <FiMail className="text-[#7A5AF8]" size={16} />
+            <h2 className="text-sm font-semibold text-gray-800">Correo original</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition rounded-lg p-1 hover:bg-gray-100"
+          >
+            <FiX size={16} />
+          </button>
+        </div>
+
+        {/* Metadata del correo */}
+        <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 shrink-0 flex flex-col gap-1 text-xs">
+          {log.email_remitente && (
+            <div className="flex gap-2">
+              <span className="text-gray-400 shrink-0 w-14">De:</span>
+              <span className="text-gray-700 font-medium break-all">{log.email_remitente}</span>
+            </div>
+          )}
+          {log.email_asunto && (
+            <div className="flex gap-2">
+              <span className="text-gray-400 shrink-0 w-14">Asunto:</span>
+              <span className="text-gray-700">{log.email_asunto}</span>
+            </div>
+          )}
+          {log.procesado_en && (
+            <div className="flex gap-2">
+              <span className="text-gray-400 shrink-0 w-14">Recibido:</span>
+              <span className="text-gray-500">{new Date(log.procesado_en).toLocaleString("es-CL")}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Cuerpo */}
+        <div className="px-6 py-4 overflow-y-auto flex-1">
+          {log.raw_email_texto ? (
+            <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
+              {log.raw_email_texto}
+            </pre>
+          ) : (
+            <p className="text-xs text-gray-400 italic text-center py-10">
+              Texto del correo no disponible
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Tarjeta de una OV IA ─────────────────────────────────────────────────────
-function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, onValidar, onRechazar, procesando }) {
-  const [ov, setOv]             = useState(ovInicial);
-  const [bodegaId, setBodegaId] = useState("");
-  const [agregando, setAgregando] = useState(false);
+function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValidar, onRechazar, procesando }) {
+  const [ov, setOv]                   = useState(ovInicial);
+  const [bodegaId, setBodegaId]       = useState("");
+  const [clienteIdLocal, setClienteIdLocal] = useState("");
+  const [agregando, setAgregando]     = useState(false);
+  const [emailOpen, setEmailOpen]     = useState(false);
   const log = ov.ai_log;
 
   const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
 
-  // Detectar flag modificacion_oc en error_detalle (ej. "modificacion_oc:OV#209")
-  const modOcMatch = log?.error_detalle?.match(/modificacion_oc:OV#(\d+)/);
+  const modOcMatch  = log?.error_detalle?.match(/modificacion_oc:OV#(\d+)/);
   const ovOriginalId = modOcMatch ? modOcMatch[1] : null;
-  // Flags restantes sin el de modificacion_oc para mostrar en la advertencia genérica
-  const otrasAdvertencias = log?.error_detalle
-    ? log.error_detalle.replace(/modificacion_oc:OV#\d+,?\s*/g, "").trim().replace(/,$/, "")
-    : null;
+  const flagsInfo   = parseFlagsVisibles(log?.error_detalle);
 
   const bodegaOptions = bodegas.map((b) => ({
     value: String(b.id),
@@ -399,33 +503,72 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, onValidar, onRechazar,
         <ConfianzaBadge valor={ov.confianza_ia} />
       </div>
 
-      {/* Metadata */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600">
+      {/* Metadata: remitente + asunto + OC/fecha */}
+      <div className="flex flex-col gap-1.5 text-sm border-t border-gray-100 pt-3 -mt-1">
         {log?.email_remitente && (
           <div className="flex items-center gap-2">
-            <FiMail className="text-gray-400 shrink-0" />
-            <span className="truncate">{log.email_remitente}</span>
+            <FiMail className="text-gray-400 shrink-0" size={13} />
+            <span className="text-gray-600 truncate flex-1">{log.email_remitente}</span>
+            <button
+              onClick={() => setEmailOpen(true)}
+              className="shrink-0 flex items-center gap-1 text-xs text-[#7A5AF8] hover:text-[#6648e0] font-medium ml-2"
+            >
+              <FiEye size={12} /> Ver correo
+            </button>
           </div>
         )}
         {log?.email_asunto && (
-          <div className="flex items-center gap-2">
-            <FiHash className="text-gray-400 shrink-0" />
-            <span className="truncate">{log.email_asunto}</span>
+          <div className="flex items-start gap-2">
+            <FiHash className="text-gray-400 shrink-0 mt-0.5" size={13} />
+            <span className="text-gray-500 text-xs leading-snug">{log.email_asunto}</span>
           </div>
         )}
-        {ov.numero_oc && (
-          <div className="flex items-center gap-2">
-            <FiUser className="text-gray-400 shrink-0" />
-            <span>OC {ov.numero_oc}</span>
-          </div>
-        )}
-        {ov.fecha_orden && (
-          <div className="flex items-center gap-2">
-            <FiCalendar className="text-gray-400 shrink-0" />
-            <span>{fmtDate(ov.fecha_orden)}</span>
+        {(ov.numero_oc || ov.fecha_orden) && (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-gray-500 mt-0.5">
+            {ov.numero_oc && (
+              <div className="flex items-center gap-1.5">
+                <FiFileText className="text-gray-400 shrink-0" size={12} />
+                <span>OC {ov.numero_oc}</span>
+              </div>
+            )}
+            {ov.fecha_orden && (
+              <div className="flex items-center gap-1.5">
+                <FiCalendar className="text-gray-400 shrink-0" size={12} />
+                <span>{fmtDate(ov.fecha_orden)}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Chips informativos de flags IA */}
+      {flagsInfo.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {flagsInfo.map((label, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-600 border border-blue-100"
+            >
+              <FiInfo size={10} /> {label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Selector de cliente — solo cuando la IA no pudo identificarlo */}
+      {!ov.id_cliente && (
+        <div className="border border-orange-200 bg-orange-50 rounded-xl p-3 flex flex-col gap-2">
+          <p className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
+            <FiAlertTriangle size={13} /> Cliente no identificado — selecciona uno para validar
+          </p>
+          <Selector
+            options={[{ value: "", label: "— Busca y selecciona un cliente —" }, ...clientesOpts]}
+            selectedValue={clienteIdLocal}
+            onSelect={setClienteIdLocal}
+            disabled={procesando}
+          />
+        </div>
+      )}
 
       {/* Productos */}
       <div>
@@ -492,14 +635,6 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, onValidar, onRechazar,
         </div>
       )}
 
-      {/* Flags / advertencias genéricas */}
-      {otrasAdvertencias && (
-        <div className="flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-xs text-yellow-800">
-          <FiAlertTriangle className="mt-0.5 shrink-0" />
-          <span>{otrasAdvertencias}</span>
-        </div>
-      )}
-
       {/* Selector de bodega */}
       <div>
         <label className="block text-xs font-semibold text-gray-600 mb-1">
@@ -516,8 +651,8 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, onValidar, onRechazar,
       {/* Acciones */}
       <div className="flex gap-3 pt-1">
         <button
-          onClick={() => onValidar(ov.id, bodegaId)}
-          disabled={!bodegaId || procesando}
+          onClick={() => onValidar(ov.id, bodegaId, clienteIdLocal || null)}
+          disabled={!bodegaId || (!ov.id_cliente && !clienteIdLocal) || procesando}
           className="flex-1 bg-[#7A5AF8] hover:bg-[#6648e0] disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-semibold py-2 rounded-xl transition"
         >
           {procesando ? "Procesando…" : "Validar"}
@@ -530,6 +665,8 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, onValidar, onRechazar,
           Rechazar
         </button>
       </div>
+
+      {emailOpen && <EmailModal log={log} onClose={() => setEmailOpen(false)} />}
     </div>
   );
 }
@@ -540,16 +677,18 @@ export default function ColaIAPage() {
   const [ordenes, setOrdenes]   = useState([]);
   const [bodegas, setBodegas]   = useState([]);
   const [catalogo, setCatalogo] = useState([]);
+  const [clientes, setClientes] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [procesando, setProcesando] = useState(false);
   const [rechazarId, setRechazarId] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [colaRes, bodegasRes, catalogoRes] = await Promise.all([
+      const [colaRes, bodegasRes, catalogoRes, clientesRes] = await Promise.all([
         api("/ordenes-venta/cola-ia"),
         api("/bodegas"),
         api("/productos-base"),
+        api("/clientes"),
       ]);
       setOrdenes(Array.isArray(colaRes) ? colaRes : colaRes.data ?? []);
       const lista = Array.isArray(bodegasRes?.bodegas)
@@ -564,6 +703,13 @@ export default function ColaIAPage() {
         ? catalogoRes.data
         : catalogoRes?.productos ?? [];
       setCatalogo(prods);
+
+      const clis = Array.isArray(clientesRes)
+        ? clientesRes
+        : Array.isArray(clientesRes?.data)
+        ? clientesRes.data
+        : clientesRes?.clientes ?? [];
+      setClientes(clis);
     } catch {
       toast.error("Error al cargar la cola IA");
     } finally {
@@ -579,13 +725,20 @@ export default function ColaIAPage() {
     label: p.nombre,
   }));
 
-  const handleValidar = async (id, bodegaId) => {
+  const clientesOpts = clientes.map((c) => ({
+    value: String(c.id),
+    label: c.nombre_empresa ?? `Cliente #${c.id}`,
+  }));
+
+  const handleValidar = async (id, bodegaId, clienteId) => {
     if (!bodegaId) { toast.warning("Debes seleccionar una bodega antes de validar"); return; }
     setProcesando(true);
     try {
+      const body = { bodega_id: Number(bodegaId) };
+      if (clienteId) body.id_cliente = Number(clienteId);
       await api(`/ordenes-venta/${id}/validar`, {
         method: "PUT",
-        body: { bodega_id: Number(bodegaId) },
+        body,
       });
       toast.success(`OV #${id} validada correctamente`);
       setOrdenes((prev) => prev.filter((o) => o.id !== id));
@@ -646,6 +799,7 @@ export default function ColaIAPage() {
               ov={ov}
               bodegas={bodegas}
               catalogoOpts={catalogoOpts}
+              clientesOpts={clientesOpts}
               onValidar={handleValidar}
               onRechazar={setRechazarId}
               procesando={procesando}
