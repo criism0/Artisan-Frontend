@@ -19,6 +19,9 @@ export default function FormField({
   options = [], // para select
   containerClassName = "",
   inputClassName = "",
+  step,         // p.ej. "any" para inputs numéricos decimales
+  min,
+  max,
 }) {
   const hasError = Boolean(error);
 
@@ -80,6 +83,9 @@ export default function FormField({
           placeholder={placeholder}
           disabled={disabled || readOnly}
           required={required}
+          step={step}
+          min={min}
+          max={max}
           className={finalInputClass}
         />
       )}
