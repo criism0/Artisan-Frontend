@@ -345,6 +345,14 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, onValidar, onRechazar,
 
   const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
 
+  // Detectar flag modificacion_oc en error_detalle (ej. "modificacion_oc:OV#209")
+  const modOcMatch = log?.error_detalle?.match(/modificacion_oc:OV#(\d+)/);
+  const ovOriginalId = modOcMatch ? modOcMatch[1] : null;
+  // Flags restantes sin el de modificacion_oc para mostrar en la advertencia genérica
+  const otrasAdvertencias = log?.error_detalle
+    ? log.error_detalle.replace(/modificacion_oc:OV#\d+,?\s*/g, "").trim().replace(/,$/, "")
+    : null;
+
   const bodegaOptions = bodegas.map((b) => ({
     value: String(b.id),
     label: b.nombre_bodega ?? b.nombre ?? `Bodega ${b.id}`,
@@ -465,11 +473,30 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, onValidar, onRechazar,
         </ul>
       </div>
 
-      {/* Flags / advertencias */}
-      {log?.error_detalle && (
+      {/* Banner: OC modificada — enlace a la OV original */}
+      {ovOriginalId && (
+        <div className="flex items-start gap-2 bg-orange-50 border border-orange-300 rounded-lg px-3 py-2 text-xs text-orange-800 font-medium">
+          <FiAlertTriangle className="mt-0.5 shrink-0 text-orange-500" />
+          <span>
+            Posible modificación de OC — la OV original ya fue validada (
+            <a
+              href={`/ventas/ordenes/${ovOriginalId}`}
+              className="underline font-semibold hover:text-orange-900"
+              target="_blank"
+              rel="noreferrer"
+            >
+              OV #{ovOriginalId}
+            </a>
+            ). Revisa y edita antes de validar.
+          </span>
+        </div>
+      )}
+
+      {/* Flags / advertencias genéricas */}
+      {otrasAdvertencias && (
         <div className="flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-xs text-yellow-800">
           <FiAlertTriangle className="mt-0.5 shrink-0" />
-          <span>{log.error_detalle}</span>
+          <span>{otrasAdvertencias}</span>
         </div>
       )}
 
