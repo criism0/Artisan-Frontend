@@ -25,6 +25,7 @@ export default function EditOrdenVenta() {
     numero_oc: "",
     fecha_orden: "",
     bodega_id: "",
+    es_referencial: false,
   });
 
   const [productoForm, setProductoForm] = useState({
@@ -49,6 +50,7 @@ export default function EditOrdenVenta() {
           numero_oc: ord.numero_oc || "",
           fecha_orden: ord.fecha_orden?.slice(0, 10) || "",
           bodega_id: ord.bodega_id ? String(ord.bodega_id) : "",
+          es_referencial: ord.es_referencial ?? false,
         });
 
         const productosData = prodRes?.data || prodRes || [];
@@ -227,6 +229,7 @@ export default function EditOrdenVenta() {
           numero_oc: form.numero_oc,
           fecha_orden: form.fecha_orden,
           bodega_id: Number(form.bodega_id),
+          es_referencial: form.es_referencial,
         }),
       });
 
@@ -347,20 +350,25 @@ export default function EditOrdenVenta() {
 
           </div>
 
-          {/* Orden referencial (solo lectura) */}
-          {orden?.es_referencial && (
-            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-              <div className="mt-0.5 w-4 h-4 rounded bg-amber-500 flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-xs font-bold">✓</span>
-              </div>
-              <div>
-                <span className="text-sm font-medium text-amber-800">Orden referencial (sin picking)</span>
-                <p className="text-xs text-amber-600 mt-0.5">
-                  Esta orden irá directo a Facturada sin pasar por picking.
-                </p>
-              </div>
+          {/* Orden referencial — toggle editable */}
+          <label className="flex items-center gap-3 cursor-pointer select-none col-span-2 w-fit">
+            <div className="relative shrink-0">
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={form.es_referencial}
+                onChange={(e) => setForm((f) => ({ ...f, es_referencial: e.target.checked }))}
+              />
+              <div className={`w-10 h-6 rounded-full transition-colors ${form.es_referencial ? "bg-primary" : "bg-gray-200"}`} />
+              <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.es_referencial ? "translate-x-4" : ""}`} />
             </div>
-          )}
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-gray-700">Orden referencial</span>
+              <span className="text-xs text-gray-400">
+                Omite picking con QR — factura directo desde estado Validada
+              </span>
+            </div>
+          </label>
         </div>
       </div>
 
