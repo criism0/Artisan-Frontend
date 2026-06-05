@@ -681,7 +681,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
         </div>
         <div className="flex flex-col">
           <span className="text-xs font-medium text-gray-700">Orden referencial</span>
-          <span className="text-xs text-gray-400">Omite picking con QR — factura directo desde Validada</span>
+          <span className="text-xs text-gray-400">El picking no se realiza con QR, se declara la cantidad directamente</span>
         </div>
       </label>
 

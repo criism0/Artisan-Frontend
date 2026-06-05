@@ -365,7 +365,7 @@ export default function EditOrdenVenta() {
             <div className="flex flex-col">
               <span className="text-sm font-medium text-gray-700">Orden referencial</span>
               <span className="text-xs text-gray-400">
-                Omite picking con QR — factura directo desde estado Validada
+                El picking no se realiza con QR, se declara la cantidad directamente
               </span>
             </div>
           </label>
