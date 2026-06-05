@@ -447,11 +447,16 @@ function EmailModal({ log, onClose }) {
 function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValidar, onRechazar, procesando }) {
   const api = useApi();
   const [ov, setOv]                   = useState(ovInicial);
-  const [bodegaId, setBodegaId]       = useState("");
+  const [bodegaId, setBodegaId]       = useState(() => {
+    const santiago = bodegas.find(
+      (b) => (b.nombre_bodega ?? b.nombre ?? "").toLowerCase().includes("santiago")
+    );
+    return santiago ? String(santiago.id) : "";
+  });
   const [clienteIdLocal, setClienteIdLocal] = useState("");
   const [agregando, setAgregando]     = useState(false);
   const [emailOpen, setEmailOpen]     = useState(false);
-  const [esReferencial, setEsReferencial] = useState(ovInicial.es_referencial ?? false);
+  const [esReferencial, setEsReferencial] = useState(ovInicial.es_referencial ?? true);
   const [guardandoRef, setGuardandoRef]   = useState(false);
   const log = ov.ai_log;
 
