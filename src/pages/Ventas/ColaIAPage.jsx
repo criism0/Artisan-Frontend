@@ -509,9 +509,14 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-            OV #{ov.id}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+              OV #{ov.id}
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+              Pendiente IA
+            </span>
+          </div>
           <h3 className="text-lg font-bold text-gray-800 mt-0.5">
             {ov.cliente?.nombre_empresa ?? (
               <span className="text-orange-500 italic">Cliente no identificado</span>
@@ -776,7 +781,7 @@ export default function ColaIAPage() {
     try {
       const body = { bodega_id: Number(bodegaId) };
       if (clienteId) body.id_cliente = Number(clienteId);
-      await api(`/ordenes-venta/${id}/validar`, {
+      await api(`/ordenes-venta/${id}/validar-cola-ia`, {
         method: "PUT",
         body,
       });
