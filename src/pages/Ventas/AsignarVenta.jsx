@@ -534,17 +534,17 @@ export default function AsignarVenta() {
     setIsSaving(true);
 
     try {
-      // Actualizar el estado de la orden a "Listo-para-despacho"
-      await api(`/ordenes-venta/${ordenId}/listo-para-despacho`, {
+      // Actualizar el estado de la orden a "Lista para facturación"
+      await api(`/ordenes-venta/${ordenId}/lista-para-facturacion`, {
         method: "PUT",
       });
 
-      toast.success("Orden marcada como lista para despacho");
-      
+      toast.success("Orden marcada como lista para facturación");
+
       // Redirigir a la vista de resumen
       navigate(`/ventas/ordenes/${ordenId}/resumen-asignacion`);
     } catch (err) {
-      toast.error("Error al marcar la orden como lista para despacho");
+      toast.error("Error al marcar la orden como lista para facturación");
     } finally {
       setIsSaving(false);
     }
