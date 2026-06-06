@@ -447,11 +447,16 @@ function EmailModal({ log, onClose }) {
 function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValidar, onRechazar, procesando }) {
   const api = useApi();
   const [ov, setOv]                   = useState(ovInicial);
-  const [bodegaId, setBodegaId]       = useState("");
+  const [bodegaId, setBodegaId]       = useState(() => {
+    const santiago = bodegas.find(
+      (b) => (b.nombre_bodega ?? b.nombre ?? "").toLowerCase().includes("santiago")
+    );
+    return santiago ? String(santiago.id) : "";
+  });
   const [clienteIdLocal, setClienteIdLocal] = useState("");
   const [agregando, setAgregando]     = useState(false);
   const [emailOpen, setEmailOpen]     = useState(false);
-  const [esReferencial, setEsReferencial] = useState(ovInicial.es_referencial ?? false);
+  const [esReferencial, setEsReferencial] = useState(ovInicial.es_referencial ?? true);
   const [guardandoRef, setGuardandoRef]   = useState(false);
   const log = ov.ai_log;
 
@@ -509,9 +514,14 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-            OV #{ov.id}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+              OV #{ov.id}
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+              Pendiente IA
+            </span>
+          </div>
           <h3 className="text-lg font-bold text-gray-800 mt-0.5">
             {ov.cliente?.nombre_empresa ?? (
               <span className="text-orange-500 italic">Cliente no identificado</span>
@@ -658,7 +668,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
 
       {/* Toggle: orden referencial */}
       <label className={`flex items-center gap-2.5 cursor-pointer select-none w-fit ${guardandoRef ? "opacity-50" : ""}`}>
-        <div className="relative">
+        <div className="relative shrink-0">
           <input
             type="checkbox"
             className="sr-only"
@@ -669,10 +679,10 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
           <div className={`w-9 h-5 rounded-full transition-colors ${esReferencial ? "bg-[#7A5AF8]" : "bg-gray-200"}`} />
           <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${esReferencial ? "translate-x-4" : ""}`} />
         </div>
-        <span className="text-xs text-gray-600">
-          Orden referencial
-          <span className="ml-1 text-gray-400">(omite picking)</span>
-        </span>
+        <div className="flex flex-col">
+          <span className="text-xs font-medium text-gray-700">Orden referencial</span>
+          <span className="text-xs text-gray-400">El picking no se realiza con QR, se declara la cantidad directamente</span>
+        </div>
       </label>
 
       {/* Selector de bodega */}
@@ -776,7 +786,7 @@ export default function ColaIAPage() {
     try {
       const body = { bodega_id: Number(bodegaId) };
       if (clienteId) body.id_cliente = Number(clienteId);
-      await api(`/ordenes-venta/${id}/validar`, {
+      await api(`/ordenes-venta/${id}/validar-cola-ia`, {
         method: "PUT",
         body,
       });

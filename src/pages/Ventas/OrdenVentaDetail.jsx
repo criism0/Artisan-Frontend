@@ -299,7 +299,7 @@ export default function OrdenVentaDetail() {
       const res = await api(`/ordenes-venta/${id}/completar-picking`, { method: "PUT" });
       const updated = res?.data?.orden || res?.orden;
       if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
-      else setOrden((prev) => (prev ? { ...prev, estado: "Lista para despacho" } : prev));
+      else setOrden((prev) => (prev ? { ...prev, estado: "Lista para facturación" } : prev));
       toast.success(res?.data?.message || "Picking completado correctamente");
     } catch (err) {
       toast.error(apiErrorMsg(err, "completar el picking"));
@@ -480,15 +480,15 @@ export default function OrdenVentaDetail() {
       "Creada":             `${base} bg-gray-200 text-gray-700`,
       "Validada":           `${base} bg-blue-100 text-blue-700`,
       "En picking":         `${base} bg-indigo-100 text-indigo-700`,
-      "Lista para despacho":`${base} bg-cyan-100 text-cyan-700`,
+      "Lista para facturación":`${base} bg-cyan-100 text-cyan-700`,
       "Facturada":          `${base} bg-yellow-100 text-yellow-700`,
       "Entregada":          `${base} bg-green-100 text-green-700`,
     };
     return <span className={map[estado] || `${base} bg-gray-100 text-gray-600`}>{estado}</span>;
   };
 
-  const STEPS_NORMAL = ["Creada", "Validada", "En picking", "Lista para despacho", "Facturada", "Entregada"];
-  const STEPS_REF    = ["Creada", "Validada", "Facturada", "Entregada"];
+  const STEPS_NORMAL = ["Creada", "Validada", "En picking", "Lista para facturación", "Facturada", "Entregada"];
+  const STEPS_REF    = ["Creada", "Validada", "Lista para facturación", "Facturada", "Entregada"];
   const steps = orden?.es_referencial ? STEPS_REF : STEPS_NORMAL;
   const currentStepIdx = steps.indexOf(orden?.estado ?? "");
 
@@ -612,7 +612,7 @@ export default function OrdenVentaDetail() {
       );
     }
 
-    if (estado === "Lista para despacho") {
+    if (estado === "Lista para facturación") {
       return showFacturarForm ? (
         <FacturarForm
           direccionesCliente={direccionesCliente}
