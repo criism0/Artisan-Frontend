@@ -487,9 +487,8 @@ export default function OrdenVentaDetail() {
     return <span className={map[estado] || `${base} bg-gray-100 text-gray-600`}>{estado}</span>;
   };
 
-  const STEPS_NORMAL = ["Creada", "Validada", "En picking", "Lista para facturación", "Facturada", "Entregada"];
-  const STEPS_REF    = ["Creada", "Validada", "Lista para facturación", "Facturada", "Entregada"];
-  const steps = orden?.es_referencial ? STEPS_REF : STEPS_NORMAL;
+  // Referenciales y normales siguen el mismo flujo de estados desde la app móvil
+  const steps = ["Creada", "Validada", "En picking", "Lista para facturación", "Facturada", "Entregada"];
   const currentStepIdx = steps.indexOf(orden?.estado ?? "");
 
   const StepBar = () => (
@@ -510,9 +509,6 @@ export default function OrdenVentaDetail() {
                 <span className={`mt-1 text-xs text-center leading-tight ${active ? "font-semibold text-primary" : done ? "text-gray-600" : "text-gray-400"}`}>
                   {step}
                 </span>
-                {step === "Creada" && orden?.es_referencial && (
-                  <span className="mt-0.5 text-xs text-amber-500 font-medium">Referencial</span>
-                )}
               </div>
               {idx < steps.length - 1 && (
                 <div className={`h-0.5 flex-1 mx-1 ${idx < currentStepIdx ? "bg-primary" : "bg-gray-200"}`} />
@@ -572,35 +568,13 @@ export default function OrdenVentaDetail() {
       );
     }
 
-    if (estado === "Validada" && !orden?.es_referencial) {
+    if (estado === "Validada") {
       return (
         <p className="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
-          La orden pasará a <strong>En picking</strong> automáticamente al registrar el primer bulto en la asignación.
+          {orden?.es_referencial
+            ? <>La orden referencial pasará a <strong>En picking</strong> cuando el operario inicie el proceso de declaración de cantidades desde la app móvil.</>
+            : <>La orden pasará a <strong>En picking</strong> automáticamente al registrar el primer bulto en la asignación.</>}
         </p>
-      );
-    }
-
-    if (estado === "Validada" && orden?.es_referencial) {
-      return showFacturarForm ? (
-        <FacturarForm
-          direccionesCliente={direccionesCliente}
-          idLocalDespacho={idLocalDespacho}
-          setIdLocalDespacho={setIdLocalDespacho}
-          loadingDirecciones={loadingDirecciones}
-          fechaFacturacion={fechaFacturacion}
-          setFechaFacturacion={setFechaFacturacion}
-          transitioning={transitioning}
-          onConfirm={handleFacturar}
-          onCancel={() => { setShowFacturarForm(false); setIdLocalDespacho(""); setDireccionesCliente([]); }}
-          requiereDir={!orden?.id_local}
-        />
-      ) : (
-        <button
-          onClick={() => { setShowFacturarForm(true); setIdLocalDespacho(String(orden?.id_local || "")); loadDireccionesCliente(cliente?.id); }}
-          className={btnCls("yellow")}
-        >
-          Facturar orden
-        </button>
       );
     }
 
@@ -708,7 +682,12 @@ export default function OrdenVentaDetail() {
 
         <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
           <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Estado</div>
-          <div className="mt-2">{getEstadoBadge(orden?.estado)}</div>
+          <div className="mt-2 flex items-center gap-2">
+            {getEstadoBadge(orden?.estado)}
+            {orden?.es_referencial && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Referencial</span>
+            )}
+          </div>
           <div className="text-xs text-gray-600 mt-2">OC: {orden?.numero_oc || "—"}</div>
         </div>
 
