@@ -27,9 +27,9 @@ export default function OrdenesVentaPage() {
       try {
         const ordRes = await api("/ordenes-venta");
         const ordenesData = ordRes.data || ordRes || [];
-        const data = [...ordenesData].sort(
-          (a, b) => new Date(b.fecha_orden) - new Date(a.fecha_orden)
-        );
+        const data = [...ordenesData]
+          .filter((o) => o.estado !== "PendienteIA")
+          .sort((a, b) => new Date(b.fecha_orden) - new Date(a.fecha_orden));
         setOrdenes(data);
         setFiltered(data);
       } catch (err) {
@@ -48,8 +48,8 @@ export default function OrdenesVentaPage() {
         return <span className={`${base} bg-blue-100 text-blue-700`}>Validada</span>;
       case "En picking":
         return <span className={`${base} bg-indigo-100 text-indigo-700`}>En picking</span>;
-      case "Lista para despacho":
-        return <span className={`${base} bg-cyan-100 text-cyan-700`}>Lista para despacho</span>;
+      case "Lista para facturación":
+        return <span className={`${base} bg-cyan-100 text-cyan-700`}>Lista para facturación</span>;
       case "Facturada":
         return <span className={`${base} bg-yellow-100 text-yellow-700`}>Facturada</span>;
       case "Entregada":
@@ -111,7 +111,7 @@ export default function OrdenesVentaPage() {
   // === Acciones por fila ===
   const actions = (row) => {
     const puedeEditar = row.estado === "Creada";
-    const tieneAsignacion = ["En picking", "Lista para despacho", "Facturada", "Entregada"].includes(row.estado);
+    const tieneAsignacion = ["En picking", "Lista para facturación", "Facturada", "Entregada"].includes(row.estado);
 
     return (
       <div className="flex gap-2 justify-center items-center">
