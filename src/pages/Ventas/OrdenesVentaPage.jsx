@@ -27,9 +27,9 @@ export default function OrdenesVentaPage() {
       try {
         const ordRes = await api("/ordenes-venta");
         const ordenesData = ordRes.data || ordRes || [];
-        const data = [...ordenesData].sort(
-          (a, b) => new Date(b.fecha_orden) - new Date(a.fecha_orden)
-        );
+        const data = [...ordenesData]
+          .filter((o) => o.estado !== "PendienteIA")
+          .sort((a, b) => new Date(b.fecha_orden) - new Date(a.fecha_orden));
         setOrdenes(data);
         setFiltered(data);
       } catch (err) {
