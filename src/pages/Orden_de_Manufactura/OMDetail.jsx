@@ -315,11 +315,33 @@ export default function OMDetail() {
   const pesoMerma = Number.isFinite(Number(om?.peso_merma))
     ? Number(om?.peso_merma)
     : (pesoObjetivo ? (pesoObjetivo - pesoTotalSalidaRendimiento) : 0);
-  const rendimientoPeso = Number.isFinite(Number(om?.rendimiento_peso))
-    ? Number(om?.rendimiento_peso)
-    : (pesoObjetivo > 0 ? (pesoTotalSalidaRendimiento / pesoObjetivo) : null);
   const costoTotal = Number(om?.costo_total || 0);
   const costoPorKg = pesoObtenido > 0 ? (costoTotal / pesoObtenido) : null;
+
+  // --- Métricas post-cierre extendidas ---
+  // Peso total de entrada = suma de insumos realmente consumidos
+  const pesoTotalEntrada = (consumoInsumos || []).reduce(
+    (acc, r) => acc + Number(r?.peso_utilizado || 0),
+    0
+  );
+  // Rendimiento = Peso Obtenido (PIP/PT) / Peso Total entrada
+  const rendimientoPeso = pesoTotalEntrada > 0 ? pesoObtenido / pesoTotalEntrada : null;
+
+  // Determinar si la OM produce PT o PIP
+  const esPIP = Boolean(loteProductoEnProceso);
+  const labelObtenido = esPIP ? "Peso Obtenido (PIP)" : "Peso Obtenido (PT)";
+
+  // Bultos productivos (PT o PIP, excluye merma)
+  const bultosProductivos = (bultosAsociados || []).filter(
+    (b) => getClaveCategoria(b) === "PT" || getClaveCategoria(b) === "PIP"
+  );
+  const cajasObtenidas = bultosProductivos.length;
+  const unidadesObtenidas = bultosProductivos.reduce(
+    (acc, b) => acc + Number(b?.cantidad_unidades || 0),
+    0
+  );
+  const costoPorUnidad = unidadesObtenidas > 0 ? costoTotal / unidadesObtenidas : null;
+  const costoPorCaja = cajasObtenidas > 0 ? costoTotal / cajasObtenidas : null;
 
   const fechaVencimiento = (() => {
     const fromPT = productosFinales?.[0]?.loteProductoFinal?.fecha_vencimiento;
@@ -402,49 +424,86 @@ export default function OMDetail() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {/* Fila 1: Pesos */}
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Peso objetivo</div>
+              <div className="text-xs text-gray-500 font-medium">Peso Objetivo</div>
               <div className="text-lg font-bold text-text">{formatNumberCL(pesoObjetivo, 2)} kg</div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Peso obtenido</div>
+              <div className="text-xs text-gray-500 font-medium">Peso Total entrada</div>
+              <div className="text-lg font-bold text-text">
+                {pesoTotalEntrada > 0 ? `${formatNumberCL(pesoTotalEntrada, 2)} kg` : "—"}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">Suma insumos consumidos</div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">{labelObtenido}</div>
               <div className="text-lg font-bold text-text">{formatNumberCL(pesoObtenido, 2)} kg</div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Subproductos</div>
+              <div className="text-xs text-gray-500 font-medium">Peso Subproductos</div>
               <div className="text-lg font-bold text-text">{formatNumberCL(pesoSubproductos, 2)} kg</div>
             </div>
 
+            {/* Fila 2: Merma y rendimiento */}
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Salida total (rendimiento)</div>
-              <div className="text-lg font-bold text-text">{formatNumberCL(pesoTotalSalidaRendimiento, 2)} kg</div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Merma (no inventariada)</div>
+              <div className="text-xs text-gray-500 font-medium">Peso Merma</div>
               <div className={`text-lg font-bold ${pesoMerma > 0.0001 ? "text-orange-700" : "text-text"}`}>
                 {Number.isFinite(pesoMerma) ? `${formatNumberCL(pesoMerma, 2)} kg` : "—"}
               </div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Rendimiento (peso)</div>
+              <div className="text-xs text-gray-500 font-medium">Rendimiento</div>
               <div className="text-lg font-bold text-text">
                 {rendimientoPeso == null ? "—" : `${formatNumberCL(Number(rendimientoPeso) * 100, 2)}%`}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">Obtenido / Total entrada</div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Unidades Obtenidas</div>
+              <div className="text-lg font-bold text-text">
+                {unidadesObtenidas > 0 ? unidadesObtenidas : "—"}
               </div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Costo total</div>
+              <div className="text-xs text-gray-500 font-medium">Cajas Obtenidas</div>
+              <div className="text-lg font-bold text-text">
+                {cajasObtenidas > 0 ? cajasObtenidas : "—"}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">Bultos PT/PIP</div>
+            </div>
+
+            {/* Fila 3: Costos */}
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Costo Total</div>
               <div className="text-lg font-bold text-text">{formatCLP(costoTotal, 0)}</div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Costo por kg (sobre peso obtenido)</div>
+              <div className="text-xs text-gray-500 font-medium">Costo por kg</div>
               <div className="text-lg font-bold text-text">
                 {costoPorKg == null ? "—" : formatCLP(costoPorKg, 2)}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">Sobre peso obtenido</div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Costo por Unidad</div>
+              <div className="text-lg font-bold text-text">
+                {costoPorUnidad == null ? "—" : formatCLP(costoPorUnidad, 2)}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Costo por Caja</div>
+              <div className="text-lg font-bold text-text">
+                {costoPorCaja == null ? "—" : formatCLP(costoPorCaja, 2)}
               </div>
             </div>
           </div>
