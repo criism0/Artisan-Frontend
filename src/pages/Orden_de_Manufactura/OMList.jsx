@@ -3,7 +3,7 @@ import Table from "../../components/Table";
 import SearchBar from "../../components/SearchBar";
 import RowsPerPageSelector from "../../components/RowsPerPageSelector";
 import Pagination from "../../components/Pagination";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import { FiClipboard, FiPlay, FiPackage, FiLayers } from "react-icons/fi";
@@ -172,42 +172,50 @@ export default function OMList() {
   };
 
   const handleSort = (key) => {
-    let direction = "asc";
-    if (sortConfig.key === key)
-      direction = sortConfig.direction === "asc" ? "desc" : "asc";
-
-    setSortConfig({ key, direction });
-
-    const sorted = [...filteredOrdenes].sort((a, b) => {
-      const aVal = a[key];
-      const bVal = b[key];
-      if (aVal == null) return 1;
-      if (bVal == null) return -1;
-
-      if (typeof aVal === "number" && typeof bVal === "number")
-        return direction === "asc" ? aVal - bVal : bVal - aVal;
-
-      return direction === "asc"
-        ? String(aVal).toLowerCase().localeCompare(String(bVal).toLowerCase())
-        : String(bVal).toLowerCase().localeCompare(String(aVal).toLowerCase());
-    });
-
-    setFilteredOrdenes(sorted);
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
     setCurrentPage(1);
+  };
+
+  const renderHeader = (label, accessor, align = "left") => {
+    const isActive = sortConfig.key === accessor;
+    const ascActive = isActive && sortConfig.direction === "asc";
+    const descActive = isActive && sortConfig.direction === "desc";
+    return (
+      <div
+        className={`flex items-center gap-1 cursor-pointer select-none${align === "center" ? " justify-center" : ""}`}
+        onClick={() => handleSort(accessor)}
+      >
+        <span>{label}</span>
+        <div className="flex flex-col leading-none text-xs ml-1">
+          <span className={ascActive ? "text-gray-900" : "text-gray-300"}>▲</span>
+          <span className={descActive ? "text-gray-900" : "text-gray-300"}>▼</span>
+        </div>
+      </div>
+    );
   };
 
   const columns = [
     {
-      header: "Producto / PIP",
+      header: renderHeader("# OM", "id"),
+      accessor: "id",
+      Cell: ({ value }) => (
+        <span className="font-mono text-sm font-semibold text-primary">#{value}</span>
+      ),
+    },
+    {
+      header: renderHeader("Producto / PIP", "receta"),
       accessor: "receta",
-      Cell: ({ row }) => 
-        row.productoBase?.nombre || 
-        row.materiaPrima?.nombre || 
-        row.receta?.nombre || 
+      Cell: ({ row }) =>
+        row.productoBase?.nombre ||
+        row.materiaPrima?.nombre ||
+        row.receta?.nombre ||
         "—",
     },
     {
-      header: "Bodega",
+      header: renderHeader("Bodega", "id_bodega"),
       accessor: "bodega",
       Cell: ({ row }) =>
         row.bodega?.nombre ||
@@ -215,22 +223,22 @@ export default function OMList() {
         row.id_bodega,
     },
     {
-      header: "Fecha",
+      header: renderHeader("Fecha", "fecha"),
       accessor: "fecha",
       Cell: ({ value }) => (value ? new Date(value).toLocaleDateString() : ""),
     },
     {
-      header: "Estado",
+      header: renderHeader("Estado", "estado"),
       accessor: "estado",
       Cell: ({ value }) => getEstadoBadge(value),
     },
     {
-      header: "PVA",
+      header: renderHeader("PVA", "pva_resumen"),
       accessor: "pva_resumen",
       Cell: ({ row }) => getPvaResumenBadge(row),
     },
     {
-      header: "Peso Objetivo",
+      header: renderHeader("Peso Objetivo", "peso_objetivo"),
       accessor: "peso_objetivo",
       Cell: ({ value }) => (value ? `${value} kg` : ""),
     },
@@ -436,9 +444,24 @@ export default function OMList() {
     }
   };
 
-  const totalPages = Math.ceil(filteredOrdenes.length / rowsPerPage);
+  const sortedOrdenes = useMemo(() => {
+    if (!sortConfig.key) return filteredOrdenes;
+    return [...filteredOrdenes].sort((a, b) => {
+      const aVal = a[sortConfig.key];
+      const bVal = b[sortConfig.key];
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      if (typeof aVal === "number" && typeof bVal === "number")
+        return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+      return sortConfig.direction === "asc"
+        ? String(aVal).toLowerCase().localeCompare(String(bVal).toLowerCase())
+        : String(bVal).toLowerCase().localeCompare(String(aVal).toLowerCase());
+    });
+  }, [filteredOrdenes, sortConfig]);
+
+  const totalPages = Math.ceil(sortedOrdenes.length / rowsPerPage);
   const startIndex = (currentPage - 1) * rowsPerPage;
-  const pageData = filteredOrdenes.slice(startIndex, startIndex + rowsPerPage);
+  const pageData = sortedOrdenes.slice(startIndex, startIndex + rowsPerPage);
 
   useEffect(() => {
     for (const row of pageData) {
