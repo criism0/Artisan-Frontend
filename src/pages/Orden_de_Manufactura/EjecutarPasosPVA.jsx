@@ -574,11 +574,11 @@ export default function EjecutarPasosPVA() {
             <div className="p-4 font-semibold text-text">2) Ejecutar pasos</div>
 
             <div className="w-full overflow-x-auto">
-              <table className="min-w-max w-full text-sm">
+              <table className="w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="p-2 text-left">#</th>
-                    <th className="p-2 text-left">Descripción</th>
+                    <th className="p-2 text-left min-w-[16rem]">Descripción</th>
                     <th className="p-2 text-center">Estado</th>
                     <th className="p-2 text-center">Acción</th>
                   </tr>
@@ -595,7 +595,9 @@ export default function EjecutarPasosPVA() {
                     return (
                       <tr key={p.id}>
                         <td className="p-2 font-medium text-gray-700">{orden}</td>
-                        <td className="p-2 text-gray-700">{desc}</td>
+                        <td className="p-2 text-gray-700 align-top">
+                          <div className="max-w-md whitespace-normal break-words">{desc}</div>
+                        </td>
                         <td className="p-2 text-center">
                           {p.estado === "Completado" ? (
                             <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
