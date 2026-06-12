@@ -246,15 +246,15 @@ export default function EjecutarPasos() {
             </div>
           ) : (
             <div className="w-full overflow-x-auto">
-              <table className="min-w-max w-full text-sm">
+              <table className="w-full text-sm">
                 <thead className="bg-gray-50">
           <tr>
             <th className="p-2 text-left">#</th>
-            <th className="p-2 text-left">Descripción</th>
+            <th className="p-2 text-left min-w-[16rem]">Descripción</th>
             <th className="p-2 text-center">Variables</th>
             <th className="p-2 text-center">Hora Inicio</th>
             <th className="p-2 text-center">Hora Término</th>
-            <th className="p-2 text-center">Observaciones</th>
+            <th className="p-2 text-center min-w-[12rem]">Observaciones</th>
             <th className="p-2 text-center">Estado</th>
             <th className="p-2 text-center">Acción</th>
           </tr>
@@ -265,8 +265,8 @@ export default function EjecutarPasos() {
               <td className="p-2 font-medium text-gray-700">
                 {p.pasoPautaElaboracion?.orden ?? idx + 1}
               </td>
-              <td className="p-2 text-gray-700">
-                <div>
+              <td className="p-2 text-gray-700 align-top">
+                <div className="max-w-md whitespace-normal break-words">
                   {p.pasoPautaElaboracion?.descripcion}
                   <div className="mt-2 flex flex-wrap gap-1">
                     {p.pasoPautaElaboracion?.requires_ph && (
