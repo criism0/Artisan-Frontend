@@ -101,7 +101,7 @@ export default function PautaElaboracionEdit() {
         await api(`/pasos-pauta-elaboracion/${paso.id}`, { method: "DELETE" });
       } catch (err) {
         console.error("Error eliminando paso:", err);
-        toast.error("No se pudo eliminar el paso.");
+        toast.error(err.message || "No se pudo eliminar el paso.");
         return;
       }
     }
