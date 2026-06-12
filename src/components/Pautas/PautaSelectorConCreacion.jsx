@@ -99,28 +99,43 @@ export default function PautaSelectorConCreacion({
         }),
       });
 
-      // Reemplazo simple de pasos (borra y recrea)
-      const pasosActuales = await api(`/pasos-pauta-elaboracion/pauta/${idPauta}`);
-      for (const paso of Array.isArray(pasosActuales) ? pasosActuales : []) {
-        await api(`/pasos-pauta-elaboracion/${paso.id}`, { method: "DELETE" });
+      // Actualización segura: PUT para pasos existentes, POST para nuevos, DELETE solo para los eliminados
+      const pasosEnDB = await api(`/pasos-pauta-elaboracion/pauta/${idPauta}`);
+      const idsEnUI = new Set(
+        (pautaEditPasos || []).filter(p => p.id).map(p => p.id)
+      );
+
+      // Eliminar solo los pasos que el usuario quitó del editor
+      for (const paso of (Array.isArray(pasosEnDB) ? pasosEnDB : [])) {
+        if (!idsEnUI.has(paso.id)) {
+          await api(`/pasos-pauta-elaboracion/${paso.id}`, { method: "DELETE" });
+        }
       }
 
+      // Actualizar pasos existentes o crear nuevos
       for (let i = 0; i < (pautaEditPasos || []).length; i++) {
         const paso = pautaEditPasos[i];
         const descripcion = String(paso?.descripcion || "").trim();
         if (!descripcion) continue;
-        await api("/pasos-pauta-elaboracion", {
-          method: "POST",
-          body: JSON.stringify({
-            id_pauta_elaboracion: idPauta,
-            orden: i + 1,
-            descripcion,
-            requires_ph: !!paso?.requires_ph,
-            requires_temperature: !!paso?.requires_temperature,
-            requires_obtained_quantity: false,
-            extra_input_data: paso?.extra_input_data || null,
-          }),
-        });
+        const stepBody = {
+          orden: i + 1,
+          descripcion,
+          requires_ph: !!paso?.requires_ph,
+          requires_temperature: !!paso?.requires_temperature,
+          requires_obtained_quantity: false,
+          extra_input_data: paso?.extra_input_data || null,
+        };
+        if (paso.id) {
+          await api(`/pasos-pauta-elaboracion/${paso.id}`, {
+            method: "PUT",
+            body: JSON.stringify(stepBody),
+          });
+        } else {
+          await api("/pasos-pauta-elaboracion", {
+            method: "POST",
+            body: JSON.stringify({ id_pauta_elaboracion: idPauta, ...stepBody }),
+          });
+        }
       }
 
       // Guardar/actualizar definición de Análisis de Calidad solo si existe o el usuario configuró campos.
