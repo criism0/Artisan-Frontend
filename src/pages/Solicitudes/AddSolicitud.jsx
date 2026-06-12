@@ -2,8 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import MultiSelectInput from '../../components/MultiSelectInput';
 import InsumosTable from '../../components/InsumosTable';
+import ImportarDesdeOCModal from '../../components/ImportarDesdeOCModal';
 import Selector from '../../components/Selector';
-import { FiArrowRight } from 'react-icons/fi';
+import { FiArrowRight, FiDownload } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { BackButton } from '../../components/Buttons/ActionButtons';
 import { useApi } from '../../lib/api';
@@ -21,6 +22,9 @@ export default function AddSolicitud() {
   const [loading, setLoading] = useState(false);
   const [addSignal, setAddSignal] = useState(0);
   const [canAddMoreInsumos, setCanAddMoreInsumos] = useState(false);
+  const [showImportOC, setShowImportOC] = useState(false);
+  const [importInsumos, setImportInsumos] = useState(null);
+  const [importSignal, setImportSignal] = useState(0);
   const navigate = useNavigate();
   const api = useApi();
 
@@ -137,6 +141,15 @@ export default function AddSolicitud() {
     }
   };
 
+  const handleImportFromOC = (insumos, ocId) => {
+    setImportInsumos(insumos);
+    setImportSignal((n) => n + 1);
+    setShowImportOC(false);
+    toast.success(
+      `${insumos.length} insumo${insumos.length === 1 ? '' : 's'} importado${insumos.length === 1 ? '' : 's'} desde OC-${String(ocId).padStart(3, '0')}. Revisa cantidades y disponibilidad antes de solicitar.`
+    );
+  };
+
   // Precargar encargados de la bodega proveedora en las selecciones
   const handleAddEncargados = () => {
     if (!priorityUserIds || priorityUserIds.length === 0) return;
@@ -232,15 +245,27 @@ export default function AddSolicitud() {
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setAddSignal((n) => n + 1)}
-                disabled={!selectedOrigen || !selectedDestino || !canAddMoreInsumos}
-                title={!selectedOrigen || !selectedDestino ? 'Selecciona ambas bodegas para agregar insumos' : (!canAddMoreInsumos ? 'No quedan insumos por agregar' : undefined)}
-                className={`px-4 py-2 rounded-lg transition-colors ${(!selectedOrigen || !selectedDestino || !canAddMoreInsumos) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-hover'}`}
-              >
-                Añadir Insumo
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowImportOC(true)}
+                  disabled={!selectedOrigen || !selectedDestino}
+                  title={!selectedOrigen || !selectedDestino ? 'Selecciona ambas bodegas para importar insumos' : 'Precargar insumos y cantidades desde una orden de compra'}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-lg border transition-colors ${(!selectedOrigen || !selectedDestino) ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-primary text-primary bg-white hover:bg-primary hover:text-white'}`}
+                >
+                  <FiDownload className="w-4 h-4" />
+                  Importar desde OC
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAddSignal((n) => n + 1)}
+                  disabled={!selectedOrigen || !selectedDestino || !canAddMoreInsumos}
+                  title={!selectedOrigen || !selectedDestino ? 'Selecciona ambas bodegas para agregar insumos' : (!canAddMoreInsumos ? 'No quedan insumos por agregar' : undefined)}
+                  className={`px-4 py-2 rounded-lg transition-colors ${(!selectedOrigen || !selectedDestino || !canAddMoreInsumos) ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-primary text-white hover:bg-hover'}`}
+                >
+                  Añadir Insumo
+                </button>
+              </div>
             </div>
             <InsumosTable
               onInsumosChange={setInsumosSeleccionados}
@@ -249,6 +274,8 @@ export default function AddSolicitud() {
               bodegaSolicitanteId={selectedDestino}
               addSignal={addSignal}
               onAvailabilityChange={setCanAddMoreInsumos}
+              importInsumos={importInsumos}
+              importSignal={importSignal}
             />
             {selectedOrigen && selectedDestino && showErrors && errors.insumos && (
               <p className="mt-2 text-sm text-red-500">{errors.insumos}</p>
@@ -268,6 +295,12 @@ export default function AddSolicitud() {
           </div>
         </div>
       </div>
+
+      <ImportarDesdeOCModal
+        open={showImportOC}
+        onClose={() => setShowImportOC(false)}
+        onImport={handleImportFromOC}
+      />
     </div>
   );
 }
