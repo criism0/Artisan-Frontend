@@ -184,27 +184,41 @@ export default function RecetaEdit() {
         })
       });
 
-      // Eliminar pasos existentes y crear nuevos (estrategia más simple)
-      const pasosActuales = await api(`/pasos-pauta-elaboracion/pauta/${receta.id_pauta_elaboracion}`);
-      for (const paso of pasosActuales) {
-        await api(`/pasos-pauta-elaboracion/${paso.id}`, { method: "DELETE" });
+      // Actualización segura: PUT para pasos existentes, POST para nuevos, DELETE solo para los eliminados
+      const pasosEnDB = await api(`/pasos-pauta-elaboracion/pauta/${receta.id_pauta_elaboracion}`);
+      const idsEnUI = new Set(
+        (pautaPasos || []).filter(p => p.id).map(p => p.id)
+      );
+
+      for (const paso of (Array.isArray(pasosEnDB) ? pasosEnDB : [])) {
+        if (!idsEnUI.has(paso.id)) {
+          await api(`/pasos-pauta-elaboracion/${paso.id}`, { method: "DELETE" });
+        }
       }
 
-      // Crear pasos nuevos
       for (let i = 0; i < pautaPasos.length; i++) {
         const paso = pautaPasos[i];
-        if (paso.descripcion?.trim()) {
+        if (!paso.descripcion?.trim()) continue;
+        const stepBody = {
+          orden: i + 1,
+          descripcion: paso.descripcion,
+          requires_ph: !!paso.requires_ph,
+          requires_temperature: !!paso.requires_temperature,
+          requires_obtained_quantity: false,
+          extra_input_data: paso.extra_input_data || null,
+        };
+        if (paso.id) {
+          await api(`/pasos-pauta-elaboracion/${paso.id}`, {
+            method: "PUT",
+            body: JSON.stringify(stepBody),
+          });
+        } else {
           await api("/pasos-pauta-elaboracion", {
             method: "POST",
             body: JSON.stringify({
               id_pauta_elaboracion: receta.id_pauta_elaboracion,
-              orden: i + 1,
-              descripcion: paso.descripcion,
-              requires_ph: !!paso.requires_ph,
-              requires_temperature: !!paso.requires_temperature,
-              requires_obtained_quantity: false,
-              extra_input_data: paso.extra_input_data || null
-            })
+              ...stepBody,
+            }),
           });
         }
       }
