@@ -8,6 +8,7 @@ import logo from "../../assets/logo.png";
 import { toast } from "../../lib/toast";
 import { useApi, API_BASE } from "../../lib/api";
 import { uploadToS3 } from "../../lib/uploadToS3";
+import AvanceItems from "../../components/AvanceItems";
 
 export default function OrdenDetail() {
   const { ordenId } = useParams();
@@ -431,53 +432,7 @@ export default function OrdenDetail() {
                       )}
                     </>
                   ) : orden.estado === "Parcialmente recepcionada" ? (
-                    <>
-                      <span className="font-semibold text-amber-600">{orden.estado}</span>
-
-                      {/* Mostrar detalles de materias primas incompletas */}
-                      {Array.isArray(orden.materiasPrimas) &&
-                        orden.materiasPrimas.some(
-                          (mp) => (mp.cantidad || 0) > (mp.cantidad_recepcionada || 0)
-                        ) && (
-                          <div className="mt-1 text-gray-700 text-xs">
-                            <span className="block font-medium text-gray-800">
-                              Faltan unidades de:
-                            </span>
-                            <ul className="list-disc list-inside">
-                              {orden.materiasPrimas
-                                .filter(
-                                  (mp) => (mp.cantidad_formato || 0) > (mp.cantidad_recepcionada || 0)
-                                )
-                                .map((mp) => {
-                                  const faltan =
-                                    (mp.cantidad_formato || 0) - (mp.cantidad_recepcionada || 0);
-                                  const nombre =
-                                    mp.proveedorMateriaPrima?.materiaPrima?.nombre ||
-                                    mp.proveedorMateriaPrima?.MateriaPrima?.nombre ||
-                                    "Materia prima sin nombre";
-                                  const formato =
-                                    mp.proveedorMateriaPrima?.formato || "";
-                                  return (
-                                    <li key={mp.id}>
-                                      {nombre}
-                                      {formato && (
-                                        <span className="text-gray-500">
-                                          {" "}
-                                          ({formato})
-                                        </span>
-                                      )}{" "}
-                                      →{" "}
-                                      <span className="font-semibold text-red-600">
-                                        {faltan}
-                                      </span>{" "}
-                                      pendiente
-                                    </li>
-                                  );
-                                })}
-                            </ul>
-                          </div>
-                        )}
-                    </>
+                    <span className="font-semibold text-amber-600">{orden.estado}</span>
                   ) : (
                     orden.estado
                   )
@@ -487,6 +442,35 @@ export default function OrdenDetail() {
               </td>
 
             </tr>
+            {["Parcialmente recepcionada", "Recepcionada"].includes(orden.estado) &&
+              Array.isArray(orden.materiasPrimas) &&
+              orden.materiasPrimas.length > 0 && (
+                <tr className="border-b border-border">
+                  <td className="px-6 py-4 text-sm font-medium text-text align-top">
+                    Avance de recepción
+                  </td>
+                  <td className="px-6 py-4">
+                    <AvanceItems
+                      items={orden.materiasPrimas.map((mp) => ({
+                        id: mp.id,
+                        nombre:
+                          mp.proveedorMateriaPrima?.materiaPrima?.nombre ||
+                          mp.proveedorMateriaPrima?.MateriaPrima?.nombre ||
+                          `Materia prima #${mp.id_proveedor_materia_prima}`,
+                        unidad: mp.proveedorMateriaPrima?.formato || "",
+                        solicitado: Number(mp.cantidad_formato) || 0,
+                        completado: Number(mp.cantidad_recepcionada) || 0,
+                      }))}
+                      labels={{
+                        solicitado: "Pedido",
+                        completado: "Recepcionado",
+                        pendiente: "Falta por recepcionar",
+                        itemNoun: "insumos",
+                      }}
+                    />
+                  </td>
+                </tr>
+              )}
             <tr className="border-b border-border">
               <td className="px-6 py-4 text-sm font-medium text-text">Número Factura(s)</td>
               <td className="px-6 py-4 text-sm text-text">

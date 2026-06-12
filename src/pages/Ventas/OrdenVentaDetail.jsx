@@ -10,6 +10,7 @@ import logo from "../../assets/logo.png";
 import { formatCLP } from "../../services/formatHelpers";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 import Selector from "../../components/Selector";
+import AvanceItems from "../../components/AvanceItems";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -751,30 +752,21 @@ export default function OrdenVentaDetail() {
           <div className="text-sm text-gray-500">Cargando asignación...</div>
         ) : progresoRows.length ? (
           <>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse border border-gray-300">
-                <thead>
-                  <tr className="bg-gray-50">
-                    <th className="border border-gray-300 px-4 py-2 text-left">Producto</th>
-                    <th className="border border-gray-300 px-4 py-2 text-right">Requerido (u)</th>
-                    <th className="border border-gray-300 px-4 py-2 text-right">Asignado (u)</th>
-                    <th className="border border-gray-300 px-4 py-2 text-right">Faltante (u)</th>
-                    <th className="border border-gray-300 px-4 py-2 text-right">Exceso (u)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {progresoRows.map((r) => (
-                    <tr key={r.id_producto ?? r.id} className="hover:bg-gray-50">
-                      <td className="border border-gray-300 px-4 py-2 whitespace-normal break-words">{r.producto_nombre}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(r.requerido_unidades)}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(r.asignado_unidades)}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(r.faltante_unidades)}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(r.exceso_unidades)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <AvanceItems
+              items={progresoRows.map((r) => ({
+                id: r.id_producto ?? r.id,
+                nombre: r.producto_nombre,
+                unidad: "u",
+                solicitado: Number(r.requerido_unidades) || 0,
+                completado: Number(r.asignado_unidades) || 0,
+              }))}
+              labels={{
+                solicitado: "Solicitado",
+                completado: "Pickeado",
+                pendiente: "Falta por pickear",
+                itemNoun: "productos",
+              }}
+            />
 
             <div className="mt-6">
               <h3 className="text-sm font-semibold text-text mb-2">Detalle de extracción por bulto</h3>
