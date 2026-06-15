@@ -560,7 +560,6 @@ export default function InventarioBultos() {
                 <th className="p-2 border"><SortHeader label="Identificador" sortKey="identificador" /></th>
                 <th className="p-2 border"><SortHeader label="Item" sortKey="item" /></th>
                 <th className="p-2 border"><SortHeader label="Bodega" sortKey="bodega" /></th>
-                <th className="p-2 border"><SortHeader label="Pallet" sortKey="pallet" /></th>
                 <th className="p-2 border"><SortHeader label="Formato" sortKey="peso_unitario" /></th>
                 <th className="p-2 border"><SortHeader label="Disponible" sortKey="disponible" /></th>
                 <th className="p-2 border"><SortHeader label="Costo" sortKey="costo" /></th>
@@ -581,7 +580,7 @@ export default function InventarioBultos() {
                 </th>
                 <th className="p-1 border">
                   <input
-                    className="border rounded px-2 py-1 w-52"
+                    className="border rounded px-2 py-1 w-40"
                     placeholder="filtrar"
                     value={filters.identificador}
                     onChange={(e) => setFilters((p) => ({ ...p, identificador: e.target.value }))}
@@ -589,21 +588,13 @@ export default function InventarioBultos() {
                 </th>
                 <th className="p-1 border">
                   <input
-                    className="border rounded px-2 py-1 w-56"
+                    className="border rounded px-2 py-1 w-44"
                     placeholder="filtrar"
                     value={filters.item}
                     onChange={(e) => setFilters((p) => ({ ...p, item: e.target.value }))}
                   />
                 </th>
                 <th className="p-1 border"></th>
-                <th className="p-1 border">
-                  <input
-                    className="border rounded px-2 py-1 w-32"
-                    placeholder="filtrar"
-                    value={filters.pallet}
-                    onChange={(e) => setFilters((p) => ({ ...p, pallet: e.target.value }))}
-                  />
-                </th>
                 <th className="p-1 border">
                   <div className="flex gap-1">
                     <input
@@ -659,7 +650,7 @@ export default function InventarioBultos() {
             <tbody>
               {!cargando && bultosOrdenados.length === 0 ? (
                 <tr>
-                  <td className="p-6 text-center text-gray-600" colSpan={12}>
+                  <td className="p-6 text-center text-gray-600" colSpan={11}>
                     No hay bultos para los filtros actuales.
                   </td>
                 </tr>
@@ -669,7 +660,6 @@ export default function InventarioBultos() {
                 const unidad = getUnidadMedida(b);
                 const nombre = getItemNombre(b);
                 const bodegaNombre = getBodegaNombre(b);
-                const palletIdent = getPalletIdentificador(b);
 
                 const cantidadDisponibleNum =
                   Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0);
@@ -696,7 +686,6 @@ export default function InventarioBultos() {
                   <td className="p-2 border font-mono text-xs">{b.identificador}</td>
                   <td className="p-2 border">{nombre}</td>
                   <td className="p-2 border">{bodegaNombre}</td>
-                  <td className="p-2 border">{palletIdent || <span className="text-gray-400">—</span>}</td>
 
                   <td className="p-2 border">
                     {formatNumberCL(b.peso_unitario, 2)} {unidad}
