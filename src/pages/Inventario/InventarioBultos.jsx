@@ -61,6 +61,17 @@ function getClaveCategoria(b) {
   return b?.clave_categoria ?? (b?.es_merma ? "M" : b?.categoria) ?? "";
 }
 
+// Fecha en que el bulto ingresó al sistema (incluye los resultantes de una división), formato DD/MM/YYYY.
+function formatFechaIngreso(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  const dia = String(d.getDate()).padStart(2, "0");
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const ano = d.getFullYear();
+  return `${dia}/${mes}/${ano}`;
+}
+
 function BadgeCategoria({ value }) {
   const v = value || "";
   const base = "inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-semibold";
@@ -258,6 +269,8 @@ export default function InventarioBultos() {
           return Number(b?.unidades_disponibles ?? 0) * Number(b?.peso_unitario ?? 0);
         case "costo":
           return Number(b?.costo_unitario ?? 0) * Number(b?.unidades_disponibles ?? 0);
+        case "fecha_ingreso":
+          return new Date(b?.createdAt ?? b?.updatedAt ?? 0).getTime();
         case "updatedAt":
         default:
           return new Date(b?.updatedAt ?? b?.createdAt ?? 0).getTime();
@@ -345,6 +358,7 @@ export default function InventarioBultos() {
     "ID", "Identificador", "Categoría", "Bodega", "Pallet", "Ítem",
     "Unidad medida", "Peso unitario", "Unidades disponibles", "Cantidad unidades",
     "Total disponible", "Total cantidad", "Costo unitario", "Costo total", "Última actualización",
+    "Fecha ingreso",
   ];
 
   const buildExportRows = (list) => {
@@ -379,6 +393,7 @@ export default function InventarioBultos() {
         costo_unitario: costoUnit,
         costo_total: costoTot,
         updatedAt: b?.updatedAt ?? "",
+        fecha_ingreso: formatFechaIngreso(b?.createdAt),
       };
     });
   };
@@ -388,6 +403,7 @@ export default function InventarioBultos() {
       r.id, r.identificador, r.clave_categoria, r.bodega, r.pallet, r.item,
       r.unidad_medida, r.peso_unitario, r.unidades_disponibles, r.cantidad_unidades,
       r.total_disponible, r.total_cantidad, r.costo_unitario, r.costo_total, r.updatedAt,
+      r.fecha_ingreso,
     ]);
 
   const loginAndExport = useGoogleLogin({
@@ -544,10 +560,10 @@ export default function InventarioBultos() {
                 <th className="p-2 border"><SortHeader label="Identificador" sortKey="identificador" /></th>
                 <th className="p-2 border"><SortHeader label="Item" sortKey="item" /></th>
                 <th className="p-2 border"><SortHeader label="Bodega" sortKey="bodega" /></th>
-                <th className="p-2 border"><SortHeader label="Pallet" sortKey="pallet" /></th>
                 <th className="p-2 border"><SortHeader label="Formato" sortKey="peso_unitario" /></th>
                 <th className="p-2 border"><SortHeader label="Disponible" sortKey="disponible" /></th>
                 <th className="p-2 border"><SortHeader label="Costo" sortKey="costo" /></th>
+                <th className="p-2 border"><SortHeader label="Fecha ingreso" sortKey="fecha_ingreso" /></th>
                 <th className="p-2 border w-28 text-center">Acciones</th>
               </tr>
 
@@ -564,7 +580,7 @@ export default function InventarioBultos() {
                 </th>
                 <th className="p-1 border">
                   <input
-                    className="border rounded px-2 py-1 w-52"
+                    className="border rounded px-2 py-1 w-40"
                     placeholder="filtrar"
                     value={filters.identificador}
                     onChange={(e) => setFilters((p) => ({ ...p, identificador: e.target.value }))}
@@ -572,21 +588,13 @@ export default function InventarioBultos() {
                 </th>
                 <th className="p-1 border">
                   <input
-                    className="border rounded px-2 py-1 w-56"
+                    className="border rounded px-2 py-1 w-44"
                     placeholder="filtrar"
                     value={filters.item}
                     onChange={(e) => setFilters((p) => ({ ...p, item: e.target.value }))}
                   />
                 </th>
                 <th className="p-1 border"></th>
-                <th className="p-1 border">
-                  <input
-                    className="border rounded px-2 py-1 w-32"
-                    placeholder="filtrar"
-                    value={filters.pallet}
-                    onChange={(e) => setFilters((p) => ({ ...p, pallet: e.target.value }))}
-                  />
-                </th>
                 <th className="p-1 border">
                   <div className="flex gap-1">
                     <input
@@ -636,6 +644,7 @@ export default function InventarioBultos() {
                   </div>
                 </th>
                 <th className="p-1 border"></th>
+                <th className="p-1 border"></th>
               </tr>
             </thead>
             <tbody>
@@ -651,7 +660,6 @@ export default function InventarioBultos() {
                 const unidad = getUnidadMedida(b);
                 const nombre = getItemNombre(b);
                 const bodegaNombre = getBodegaNombre(b);
-                const palletIdent = getPalletIdentificador(b);
 
                 const cantidadDisponibleNum =
                   Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0);
@@ -678,7 +686,6 @@ export default function InventarioBultos() {
                   <td className="p-2 border font-mono text-xs">{b.identificador}</td>
                   <td className="p-2 border">{nombre}</td>
                   <td className="p-2 border">{bodegaNombre}</td>
-                  <td className="p-2 border">{palletIdent || <span className="text-gray-400">—</span>}</td>
 
                   <td className="p-2 border">
                     {formatNumberCL(b.peso_unitario, 2)} {unidad}
@@ -690,6 +697,7 @@ export default function InventarioBultos() {
                   <td className="p-2 border">
                     <div className="font-medium">{formatCLP(costoTotal, 0)}</div>
                   </td>
+                  <td className="p-2 border whitespace-nowrap">{formatFechaIngreso(b.createdAt)}</td>
                   <td className="p-2 border text-center">
                     <div className="flex items-center justify-center gap-3">
                       <button
