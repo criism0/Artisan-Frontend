@@ -7,6 +7,31 @@ import ResumenOMOperario from "../../components/OM/ResumenOMOperario";
 import { downloadBlob } from "../../lib/downloadBlob";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 
+const round3 = (n) => Math.round(Number(n) * 1000) / 1000;
+
+// Reparte el peso total entre N bultos con 3 decimales. El último bulto absorbe
+// el residuo del redondeo para que la suma calce EXACTAMENTE con el peso total
+// (el backend exige |suma - peso_obtenido| <= 0.001 al cerrar la OM).
+const distribuirPeso = (pesoTotal, unidades) => {
+  const total = Number(pesoTotal);
+  const n = Math.trunc(Number(unidades));
+  if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(n) || n < 1) return [];
+  if (n === 1) return [round3(total)];
+  const base = round3(total / n);
+  const arr = Array(n).fill(base);
+  arr[n - 1] = round3(total - base * (n - 1));
+  return arr;
+};
+
+// "Unidades obtenidas" sólo admite enteros positivos: descarta cualquier parte
+// decimal. Evita que Array(unidades) reciba un número no entero (RangeError) y
+// deje el cierre de OM en pantalla en blanco.
+const sanitizarEntero = (raw) => {
+  const s = String(raw ?? "");
+  if (s.trim() === "") return "";
+  return s.replace(/[.,].*$/, "").replace(/[^\d]/g, "");
+};
+
 export default function ProduccionFinal() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -160,14 +185,10 @@ export default function ProduccionFinal() {
   }, [esPT, unidadesPorCajaPT, totalUnidadesPT]);
 
   const pesoTotalNumber = useMemo(() => Number(form.peso_obtenido), [form.peso_obtenido]);
-  const unidadesNumber = useMemo(() => Number(form.unidades_obtenidas), [form.unidades_obtenidas]);
+  const unidadesNumber = useMemo(() => Math.trunc(Number(form.unidades_obtenidas)), [form.unidades_obtenidas]);
 
   const resetPesosPorUnidad = () => {
-    const pesoTotal = Number(form.peso_obtenido);
-    const unidades = Number(form.unidades_obtenidas);
-    const pesoPromedio = unidades > 0 ? pesoTotal / unidades : 0;
-    const arr = unidades > 0 ? Array(unidades).fill(pesoPromedio) : [];
-    setPesosPorUnidad(arr);
+    setPesosPorUnidad(distribuirPeso(form.peso_obtenido, form.unidades_obtenidas));
     setPesosPorUnidadTocados(false);
   };
 
@@ -177,7 +198,7 @@ export default function ProduccionFinal() {
     // - Si no han sido tocados, recalcula el promedio automáticamente.
     if (esPT) return;
 
-    const unidades = Number(form.unidades_obtenidas);
+    const unidades = Math.trunc(Number(form.unidades_obtenidas));
     const pesoTotal = Number(form.peso_obtenido);
 
     if (!unidades || unidades < 1) {
@@ -190,32 +211,32 @@ export default function ProduccionFinal() {
     // Si veníamos de "Repartir igual" con N unidades, no se puede dejar el primer valor antiguo
     // (porque la UI oculta inputs y quedaría inconsistente con peso_obtenido).
     if (unidades === 1) {
-      setPesosPorUnidad([Number.isFinite(pesoTotal) ? pesoTotal : 0]);
+      setPesosPorUnidad([Number.isFinite(pesoTotal) ? round3(pesoTotal) : 0]);
       setPesosPorUnidadTocados(false);
       return;
     }
 
-    const pesoPromedio = pesoTotal > 0 ? pesoTotal / unidades : 0;
+    const distribuidos = distribuirPeso(pesoTotal, unidades);
 
     setPesosPorUnidad((prev) => {
       const prevArr = Array.isArray(prev) ? prev.slice() : [];
       if (prevArr.length !== unidades) {
         // Si no han sido tocados (p.ej. venimos de "Repartir igual"), siempre recalcular.
         if (!pesosPorUnidadTocados) {
-          return Array(unidades).fill(pesoPromedio);
+          return distribuidos;
         }
 
-        // Si fueron tocados manualmente, preservamos lo que exista y completamos con promedio.
+        // Si fueron tocados manualmente, preservamos lo que exista y completamos con el reparto.
         return Array(unidades)
           .fill(null)
           .map((_, idx) => {
             const v = prevArr[idx];
-            return typeof v === "number" && Number.isFinite(v) ? v : pesoPromedio;
+            return typeof v === "number" && Number.isFinite(v) ? v : distribuidos[idx];
           });
       }
 
       if (!pesosPorUnidadTocados) {
-        return Array(unidades).fill(pesoPromedio);
+        return distribuidos;
       }
 
       return prevArr;
@@ -366,12 +387,11 @@ export default function ProduccionFinal() {
 
   const buildPayload = () => {
     const pesoTotal = Number(form.peso_obtenido);
-    const unidades = Number(form.unidades_obtenidas);
+    const unidades = Math.trunc(Number(form.unidades_obtenidas));
 
     const noEmpacar = String(formatoEmpaqueId) === NO_EMPACAR_VALUE;
 
-    const pesoPromedio = unidades > 0 ? pesoTotal / unidades : 0;
-    const pesosCalculados = unidades > 0 ? Array(unidades).fill(pesoPromedio) : [];
+    const pesosCalculados = distribuirPeso(pesoTotal, unidades);
     const pesosFinalRaw =
       !esPT && Array.isArray(pesosPorUnidad) && pesosPorUnidad.length === unidades
         ? pesosPorUnidad
@@ -746,7 +766,7 @@ export default function ProduccionFinal() {
                         step="1"
                         className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                         value={form.unidades_obtenidas}
-                        onChange={(e) => setField("unidades_obtenidas", e.target.value)}
+                        onChange={(e) => setField("unidades_obtenidas", sanitizarEntero(e.target.value))}
                         placeholder="5"
                         required
                       />
@@ -765,7 +785,7 @@ export default function ProduccionFinal() {
                     step="1"
                     className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                     value={form.unidades_obtenidas}
-                    onChange={(e) => setField("unidades_obtenidas", e.target.value)}
+                    onChange={(e) => setField("unidades_obtenidas", sanitizarEntero(e.target.value))}
                     placeholder="5"
                     required
                   />
@@ -800,7 +820,7 @@ export default function ProduccionFinal() {
                         <input
                           type="number"
                           min="0"
-                          step="0.01"
+                          step="0.001"
                           className="flex-1 border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                           value={val}
                           onChange={(e) => {
