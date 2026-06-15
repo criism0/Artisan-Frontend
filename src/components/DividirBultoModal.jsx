@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { api } from "../lib/api";
+import { api, apiBlob } from "../lib/api";
 import { toast } from "../lib/toast";
 
 export default function DividirBultoModal({ bulto, onClose, onSuccess }) {
@@ -111,7 +111,32 @@ export default function DividirBultoModal({ bulto, onClose, onSuccess }) {
       } else {
         toast.success("Bulto dividido exitosamente.");
       }
-      
+
+      // Descargar automáticamente las etiquetas de los bultos resultantes de la división.
+      const nuevosIds = Array.isArray(res?.nuevos_bultos)
+        ? res.nuevos_bultos.map((b) => Number(b?.id)).filter((x) => Number.isFinite(x) && x > 0)
+        : [];
+
+      if (nuevosIds.length > 0) {
+        try {
+          const blob = await apiBlob("/bultos/etiquetas", {
+            method: "POST",
+            body: JSON.stringify({ ids_bultos: nuevosIds }),
+          });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `Etiquetas_division_${bulto.identificador || bulto.id}.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+        } catch (err) {
+          console.error("Error al descargar etiquetas de la división:", err);
+          toast.error("El bulto se dividió, pero no se pudieron descargar las etiquetas nuevas.");
+        }
+      }
+
       onSuccess();
       onClose();
     } catch (err) {
