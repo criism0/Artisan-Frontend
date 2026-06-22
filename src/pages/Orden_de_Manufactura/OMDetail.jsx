@@ -94,6 +94,9 @@ export default function OMDetail() {
   const [analisisSensorialStatus, setAnalisisSensorialStatus] = useState(null);
   const [insumosAsignados, setInsumosAsignados] = useState(false);
   const [tieneRegistrosInsumo, setTieneRegistrosInsumo] = useState(false);
+  const [editandoCantidad, setEditandoCantidad] = useState(false);
+  const [nuevaCantidad, setNuevaCantidad] = useState("");
+  const [guardandoCantidad, setGuardandoCantidad] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -196,6 +199,35 @@ export default function OMDetail() {
     fetchBultosAsociados();
     fetchAnalisisSensorial();
   }, [id]);
+
+  const handleGuardarCantidad = async () => {
+    const valor = Number(nuevaCantidad);
+    if (!Number.isFinite(valor) || valor <= 0) {
+      toast.error("Ingresa una cantidad válida mayor a 0.");
+      return;
+    }
+    try {
+      setGuardandoCantidad(true);
+      await api(`/ordenes_manufactura/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ peso_objetivo: valor }),
+      });
+      // Refrescar OM e insumos: cambió el peso necesario de cada ingrediente.
+      const [omRefrescada, insumosRes] = await Promise.all([
+        api(`/ordenes_manufactura/${id}`),
+        api(`/registros-insumo-produccion?id_orden_manufactura=${id}`).catch(() => ({ registros: [] })),
+      ]);
+      setOM(omRefrescada);
+      const registros = insumosRes?.registros || [];
+      setConsumoInsumos(Array.isArray(registros) ? registros : []);
+      setEditandoCantidad(false);
+      toast.success("Cantidad objetivo actualizada.");
+    } catch (err) {
+      toast.error(err?.message || "No se pudo actualizar la cantidad.");
+    } finally {
+      setGuardandoCantidad(false);
+    }
+  };
 
   const descargarEtiquetas = async (ids, filename) => {
     const idsNum = (Array.isArray(ids) ? ids : [ids])
@@ -319,11 +351,28 @@ export default function OMDetail() {
   const costoPorKg = pesoObtenido > 0 ? (costoTotal / pesoObtenido) : null;
 
   // --- Métricas post-cierre extendidas ---
-  // Peso total de entrada = suma de insumos realmente consumidos
-  const pesoTotalEntrada = (consumoInsumos || []).reduce(
-    (acc, r) => acc + Number(r?.peso_utilizado || 0),
-    0
-  );
+  // Peso total de entrada = suma de insumos realmente consumidos.
+  // Excluye los costos secos (EMPAQUE) y los insumos contados por unidad, porque
+  // no forman parte del peso de entrada del proceso y distorsionan el rendimiento.
+  // Mismo criterio que el backend (controllers/produccion/orden_manufactura/_helpers.ts).
+  const pesoTotalEntrada = (consumoInsumos || []).reduce((acc, r) => {
+    const tipo = String(r?.tipo || "").toUpperCase();
+    if (tipo === "EMPAQUE") return acc;
+
+    const unidad = String(
+      r?.materiaPrima?.unidad_medida ??
+        r?.ingredienteReceta?.materiaPrima?.unidad_medida ??
+        ""
+    )
+      .trim()
+      .toLowerCase();
+    if (unidad === "unidades" || unidad === "unidad") return acc;
+
+    const peso = Number(r?.peso_utilizado || 0);
+    if (!Number.isFinite(peso) || peso <= 0) return acc;
+
+    return acc + peso;
+  }, 0);
   // Rendimiento = Peso Obtenido (PIP/PT) / Peso Total entrada
   const rendimientoPeso = pesoTotalEntrada > 0 ? pesoObtenido / pesoTotalEntrada : null;
 
@@ -467,7 +516,7 @@ export default function OMDetail() {
             <div className="bg-gray-50 rounded-lg border border-border p-3">
               <div className="text-xs text-gray-500 font-medium">Unidades Obtenidas</div>
               <div className="text-lg font-bold text-text">
-                {unidadesObtenidas > 0 ? unidadesObtenidas : "—"}
+                {unidadesObtenidas > 0 ? formatNumberCL(unidadesObtenidas, 2) : "—"}
               </div>
             </div>
 
@@ -833,7 +882,47 @@ export default function OMDetail() {
         </table>
       </div>
 
-      <div className="mt-8 flex flex-wrap gap-3">
+      <div className="mt-8 flex flex-wrap gap-3 items-center">
+        {estado === "Borrador" &&
+          (editandoCantidad ? (
+            <div className="flex items-center gap-2 bg-white border border-border rounded-lg px-3 py-2 shadow">
+              <label className="text-sm font-medium text-text">Cantidad objetivo:</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={nuevaCantidad}
+                onChange={(e) => setNuevaCantidad(e.target.value)}
+                className="w-28 border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+              <button
+                className="px-3 py-1 bg-primary text-white rounded hover:bg-hover text-sm font-medium disabled:opacity-60"
+                onClick={handleGuardarCantidad}
+                disabled={guardandoCantidad}
+              >
+                {guardandoCantidad ? "Guardando…" : "Guardar"}
+              </button>
+              <button
+                className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+                onClick={() => setEditandoCantidad(false)}
+                disabled={guardandoCantidad}
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              className="px-4 py-2 bg-white border border-border text-text rounded-lg hover:bg-gray-100 font-medium shadow flex items-center gap-2"
+              onClick={() => {
+                setNuevaCantidad(String(om?.peso_objetivo ?? ""));
+                setEditandoCantidad(true);
+              }}
+            >
+              <Pencil size={16} /> Modificar cantidad
+            </button>
+          ))}
+
         {estado === "Borrador" && !insumosAsignados && tieneRegistrosInsumo && (
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium shadow"

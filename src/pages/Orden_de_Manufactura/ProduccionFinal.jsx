@@ -7,19 +7,19 @@ import ResumenOMOperario from "../../components/OM/ResumenOMOperario";
 import { downloadBlob } from "../../lib/downloadBlob";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 
-const round3 = (n) => Math.round(Number(n) * 1000) / 1000;
+const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
-// Reparte el peso total entre N bultos con 3 decimales. El último bulto absorbe
-// el residuo del redondeo para que la suma calce EXACTAMENTE con el peso total
-// (el backend exige |suma - peso_obtenido| <= 0.001 al cerrar la OM).
+// Reparte el peso total entre N bultos con 2 decimales (lo que exige el sistema
+// para poder cerrar la OM). El último bulto absorbe el residuo del redondeo para
+// que la suma calce EXACTAMENTE con el peso total ingresado por el operario.
 const distribuirPeso = (pesoTotal, unidades) => {
   const total = Number(pesoTotal);
   const n = Math.trunc(Number(unidades));
   if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(n) || n < 1) return [];
-  if (n === 1) return [round3(total)];
-  const base = round3(total / n);
+  if (n === 1) return [round2(total)];
+  const base = round2(total / n);
   const arr = Array(n).fill(base);
-  arr[n - 1] = round3(total - base * (n - 1));
+  arr[n - 1] = round2(total - base * (n - 1));
   return arr;
 };
 
@@ -211,7 +211,7 @@ export default function ProduccionFinal() {
     // Si veníamos de "Repartir igual" con N unidades, no se puede dejar el primer valor antiguo
     // (porque la UI oculta inputs y quedaría inconsistente con peso_obtenido).
     if (unidades === 1) {
-      setPesosPorUnidad([Number.isFinite(pesoTotal) ? round3(pesoTotal) : 0]);
+      setPesosPorUnidad([Number.isFinite(pesoTotal) ? round2(pesoTotal) : 0]);
       setPesosPorUnidadTocados(false);
       return;
     }
@@ -354,8 +354,6 @@ export default function ProduccionFinal() {
     }
     return Number(v);
   };
-
-  const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
   const autoDistribuirSugerido = ({ disponibles, totalSugerido }) => {
     const list = Array.isArray(disponibles) ? disponibles : [];
@@ -820,7 +818,7 @@ export default function ProduccionFinal() {
                         <input
                           type="number"
                           min="0"
-                          step="0.001"
+                          step="0.01"
                           className="flex-1 border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
                           value={val}
                           onChange={(e) => {
