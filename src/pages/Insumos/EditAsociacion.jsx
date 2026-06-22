@@ -213,7 +213,31 @@ export default function EditAsociacion() {
   return (
     <div className="p-6 bg-background min-h-screen">
       <BackButton to={`/Insumos/${formData.id_materia_prima}`} />
-      <h1 className="text-2xl font-bold text-text mb-6">Editar Asociación</h1>
+      <h1 className="text-2xl font-bold text-text mb-2">Editar Asociación</h1>
+      <p className="text-sm text-gray-600 mb-6">
+        Aquí editas <span className="font-semibold">un</span> formato existente (su nombre, contenido y costo).
+      </p>
+
+      {/* Acceso para agregar OTRO formato sin borrar este */}
+      <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <span className="font-semibold">¿Quieres agregar un formato nuevo</span> (ej. Caja) a este proveedor?
+          No borres esta asociación: agrégalo aparte y los formatos existentes se conservan.
+        </div>
+        {formData.id_materia_prima && formData.id_proveedor ? (
+          <button
+            type="button"
+            onClick={() =>
+              navigate(
+                `/Insumos/asociar/${formData.id_materia_prima}?proveedor=${formData.id_proveedor}`
+              )
+            }
+            className="shrink-0 px-3 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium"
+          >
+            + Agregar formato
+          </button>
+        ) : null}
+      </div>
 
       {error && (
         <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">
@@ -302,6 +326,11 @@ export default function EditAsociacion() {
               Es unidad de consumo (base) / Toma de Inventario
             </span>
           </label>
+          <p className="text-xs text-gray-500 mt-1 ml-7">
+            El formato <span className="font-semibold">base</span> define cuánto, en la unidad del insumo, equivale
+            una unidad de consumo, y es el que se cuenta en Toma de Inventario. Los demás formatos (ej. Caja)
+            <span className="font-semibold"> contienen</span> a este.
+          </p>
         </div>
 
         {/* Contiene Formato | Cantidad Contenida (o peso base) */}

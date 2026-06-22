@@ -401,7 +401,18 @@ export default function AddAsociacion() {
   return (
     <div className="p-6 bg-background min-h-screen">
       <BackButton to={id ? `/Insumos/${id}` : "/Insumos"} />
-      <h1 className="text-2xl font-bold text-text mb-6">Asociar Insumo con Proveedor</h1>
+      <h1 className="text-2xl font-bold text-text mb-2">Asociar Insumo con Proveedor</h1>
+
+      <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
+        <p>
+          Defines cómo <span className="font-semibold">este proveedor vende</span> el insumo. El
+          <span className="font-semibold"> formato base</span> es la unidad de costeo/consumo (lo que se cuenta en
+          Toma de Inventario); los formatos superiores (Caja, Pallet…) lo <span className="font-semibold">contienen</span>.
+          Esto es independiente de la <span className="font-semibold">unidad del insumo</span> con la que dosifican las
+          recetas. Si el proveedor ya está asociado, puedes <span className="font-semibold">agregar más formatos</span>
+          {" "}sin borrar los existentes.
+        </p>
+      </div>
 
       {error && <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">{error}</div>}
 

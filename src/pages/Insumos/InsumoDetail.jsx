@@ -614,7 +614,23 @@ export default function InsumoDetail() {
         {/* Tabla de Proveedores */}
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-text mb-2">Proveedores Asociados</h2>
-          <Table 
+
+          <div className="mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
+            <p className="font-semibold mb-1">Formato de compra ≠ unidad del insumo</p>
+            <p>
+              Los <span className="font-semibold">formatos</span> (Sobre, Caja…) son la forma en que cada
+              proveedor <span className="font-semibold">vende y se recepciona</span> este insumo. Las recetas, en
+              cambio, dosifican siempre con la <span className="font-semibold">unidad del insumo</span>
+              {insumo?.unidad_medida ? ` (${insumo.unidad_medida})` : ""}, que no depende del proveedor.
+            </p>
+            <p className="mt-1">
+              El <span className="font-semibold">formato base</span> ("Contiene") indica cuánto, en esa unidad,
+              equivale una unidad de consumo, y es lo que se cuenta en Toma de Inventario. Un mismo proveedor puede
+              tener <span className="font-semibold">varios formatos</span> (ej. Sobre y Caja).
+            </p>
+          </div>
+
+          <Table
             data={proveedoresData}
             columns={columns}
             actions={actions}
@@ -624,8 +640,12 @@ export default function InsumoDetail() {
               onClick={() => navigate(`/Insumos/asociar/${id}`)}
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
             >
-              + Asociar Nuevo Proveedor
+              + Asociar proveedor o agregar formato
             </button>
+            <p className="text-xs text-gray-500 mt-1">
+              Usa esta opción también para agregar un formato nuevo (ej. Caja) a un proveedor ya asociado, sin borrar
+              los formatos existentes.
+            </p>
           </div>
         </div>
       </div>
