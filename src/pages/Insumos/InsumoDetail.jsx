@@ -621,21 +621,6 @@ export default function InsumoDetail() {
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
         <h2 className="text-xl font-semibold text-text mb-3">Proveedores Asociados</h2>
 
-        <div className="mb-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
-          <p className="font-semibold mb-1">Formato de compra ≠ unidad del insumo</p>
-          <p>
-            Los <span className="font-semibold">formatos</span> (Sobre, Caja…) son la forma en que cada
-            proveedor <span className="font-semibold">vende y se recepciona</span> este insumo. Las recetas, en
-            cambio, dosifican siempre con la <span className="font-semibold">unidad del insumo</span>
-            {insumo?.unidad_medida ? ` (${insumo.unidad_medida})` : ""}, que no depende del proveedor.
-          </p>
-          <p className="mt-1">
-            El <span className="font-semibold">formato base</span> ("Contiene") indica cuánto, en esa unidad,
-            equivale una unidad de consumo, y es lo que se cuenta en Toma de Inventario. Un mismo proveedor puede
-            tener <span className="font-semibold">varios formatos</span> (ej. Sobre y Caja).
-          </p>
-        </div>
-
         <Table
           data={proveedoresData}
           columns={columns}
