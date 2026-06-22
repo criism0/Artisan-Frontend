@@ -11,29 +11,15 @@ const handleNumberInputWheel = (e) => {
   e.preventDefault();
 };
 
+// Redondea a 4 decimales (0,0001 kg = 0,1 g), el MISMO criterio que el backend
+// (utils/formatDecimals.ts). Antes el frontend conservaba 2 cifras significativas /
+// 3 decimales, lo que difería del backend y, para insumos dosificados en gramos,
+// dejaba al operario sin un valor válido para asignar ("error al asignar bulto").
 const formatDecimal = (num) => {
   const numValue = Number(num);
-  if (isNaN(numValue)) return num;
-
-  if (numValue === 0) return 0;
-
-  const str = numValue.toString();
-  if (str.includes('e') || str.includes('E')) {
-    return numValue;
-  }
-
-  const parts = str.split('.');
-  if (parts.length === 1) return numValue;
-
-  const decimalPart = parts[1] || '';
-  const firstNonZeroIndex = decimalPart.search(/[1-9]/);
-
-  if (firstNonZeroIndex === -1) return 0;
-
-  if (firstNonZeroIndex <= 1) {
-    return Number(numValue.toFixed(3));
-  }
-  return numValue;
+  if (!Number.isFinite(numValue)) return num;
+  if (numValue <= 0) return numValue;
+  return Math.round(numValue * 10000) / 10000;
 };
 
 const mostrarNumeroExacto = (num) => {
@@ -54,7 +40,9 @@ const mostrarNumeroExacto = (num) => {
 const UNDER_TOL_PCT = 0.05;
 const OVER_TOL_PCT = 0.01;
 const MIN_TOL_ABS = 0.0001;
-const SUM_SCALE = 1000;
+// Escala entera para sumar sin errores de punto flotante. 10000 = 4 decimales,
+// alineado con formatDecimal y el backend (permite dosificar a nivel de gramos).
+const SUM_SCALE = 10000;
 
 const toScaledInt = (v) => {
   const n = Number(v);
@@ -697,7 +685,7 @@ export default function AsignarInsumos() {
 
         const unidadMedida = insumo?.ingredienteReceta?.unidad_medida || "";
         const sufijoUnidad = unidadMedida ? ` ${unidadMedida}` : "";
-        const stepInput = unidadMedida === "unidades" ? "1" : "0.001";
+        const stepInput = unidadMedida === "unidades" ? "1" : "0.0001";
 
         const bultosAsignados = insumo?.bultos || insumo?.Bultos || [];
 
