@@ -416,7 +416,7 @@ export default function AddAsociacion() {
 
       {error && <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">{error}</div>}
 
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow space-y-4">
+      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-5">
         <div>
           <label className="block text-sm font-medium mb-1">Proveedor *</label>
           <select
@@ -424,7 +424,7 @@ export default function AddAsociacion() {
             value={formData.id_proveedor}
             onChange={handleChange}
             disabled={!!(searchParams.get("proveedor") || searchParams.get("id_proveedor") || searchParams.get("proveedorId"))}
-            className={`w-full border rounded-lg px-3 py-2 ${errors.id_proveedor ? "border-red-500" : "border-gray-300"}`}
+            className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${errors.id_proveedor ? "border-red-500" : "border-gray-300"}`}
           >
             <option value="">Seleccionar proveedor</option>
             {proveedores.map((p) => (
@@ -440,7 +440,7 @@ export default function AddAsociacion() {
               name="id_materia_prima"
               value={formData.id_materia_prima}
               onChange={handleChange}
-              className={`w-full border rounded-lg px-3 py-2 ${errors.id_materia_prima ? "border-red-500" : "border-gray-300"}`}
+              className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${errors.id_materia_prima ? "border-red-500" : "border-gray-300"}`}
             >
               <option value="">Seleccionar insumo</option>
               {insumos.map((i) => (
@@ -456,7 +456,7 @@ export default function AddAsociacion() {
               value={formData.moneda}
               onChange={handleChange}
               disabled={!!baseNivel?.isExisting}
-              className={`w-full border rounded-lg px-3 py-2 ${errors.moneda ? "border-red-500" : "border-gray-300"}`}
+              className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${errors.moneda ? "border-red-500" : "border-gray-300"}`}
             >
               <option value="">Seleccionar</option>
               <option value="CLP">CLP</option>
@@ -524,7 +524,7 @@ export default function AddAsociacion() {
                 <label className="block text-sm font-medium mb-1">Nombre formato base</label>
                 <input
                   type="text"
-                  className="border px-3 py-2 rounded w-full"
+                  className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors w-full"
                   placeholder="Formato (ej: caja, pallet...)"
                   value={baseNivel.formato}
                   disabled={!!baseNivel.isExisting}
@@ -536,7 +536,7 @@ export default function AddAsociacion() {
                 <input
                   type="number"
                   step="0.0001"
-                  className="border px-3 py-2 rounded w-full"
+                  className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors w-full"
                   placeholder={`Cantidad de ${baseNivel.unidad} del formato (ej: 0.5, 1, 5...)`}
                   value={baseNivel.peso_unitario}
                   disabled={!!baseNivel.isExisting}
@@ -576,7 +576,7 @@ export default function AddAsociacion() {
                     value={nivel.formato}
                     disabled={!!nivel.isExisting}
                     onChange={(e) => handleNivelChange(idx, "formato", e.target.value)}
-                    className="border px-3 py-2 rounded w-1/2"
+                    className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors w-1/2"
                   />
                   <input
                     type="number"
@@ -584,7 +584,7 @@ export default function AddAsociacion() {
                     value={nivel.cantidad}
                     disabled={!!nivel.isExisting}
                     onChange={(e) => handleNivelChange(idx, "cantidad", e.target.value)}
-                    className="border px-3 py-2 rounded w-1/2"
+                    className="border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors w-1/2"
                   />
                 </div>
               </div>

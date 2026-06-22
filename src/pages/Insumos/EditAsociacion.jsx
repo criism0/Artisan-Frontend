@@ -247,7 +247,7 @@ export default function EditAsociacion() {
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white p-6 rounded-lg shadow space-y-4"
+        className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-5"
       >
         {/* Proveedor */}
         <div>
@@ -256,7 +256,7 @@ export default function EditAsociacion() {
             name="id_proveedor"
             value={formData.id_proveedor}
             onChange={handleChange}
-            className={`w-full border rounded-lg px-3 py-2 ${
+            className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${
               errors.id_proveedor ? "border-red-500" : "border-gray-300"
             }`}
           >
@@ -279,7 +279,7 @@ export default function EditAsociacion() {
             name="id_materia_prima"
             value={formData.id_materia_prima}
             onChange={handleChange}
-            className={`w-full border rounded-lg px-3 py-2 ${
+            className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${
               errors.id_materia_prima ? "border-red-500" : "border-gray-300"
             }`}
           >
@@ -303,7 +303,7 @@ export default function EditAsociacion() {
             value={formData.formato}
             onChange={handleChange}
             placeholder="Ej: caja, saco, rollo..."
-            className={`w-full border rounded-lg px-3 py-2 ${
+            className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${
               errors.formato ? "border-red-500" : "border-gray-300"
             }`}
           />
@@ -345,7 +345,7 @@ export default function EditAsociacion() {
               step="0.0001"
               value={formData.peso_unitario}
               onChange={handleChange}
-              className={`w-full border rounded-lg px-3 py-2 ${
+              className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${
                 errors.peso_unitario ? "border-red-500" : "border-gray-300"
               }`}
             />
@@ -361,7 +361,7 @@ export default function EditAsociacion() {
                 name="id_formato_hijo"
                 value={formData.id_formato_hijo || ""}
                 onChange={handleChange}
-                className={`w-full border rounded-lg px-3 py-2 ${errors.id_formato_hijo ? "border-red-500" : "border-gray-300"}`}
+                className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${errors.id_formato_hijo ? "border-red-500" : "border-gray-300"}`}
               >
                 <option value="">Seleccionar formato contenido</option>
                 {formatosHijos.map((h) => (
@@ -382,7 +382,7 @@ export default function EditAsociacion() {
                 step="0.01"
                 value={formData.cantidad_hijos}
                 onChange={handleChange}
-                className={`w-full border rounded-lg px-3 py-2 ${errors.cantidad_hijos ? "border-red-500" : "border-gray-300"}`}
+                className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${errors.cantidad_hijos ? "border-red-500" : "border-gray-300"}`}
               />
               {errors.cantidad_hijos && (
                 <p className="text-red-500 text-sm mt-1">{errors.cantidad_hijos}</p>
@@ -434,7 +434,7 @@ export default function EditAsociacion() {
                 setFormData((prev) => ({ ...prev, precio_unitario: nuevoValor }));
                 setHasChanges(true);
               }}
-              className={`w-full border rounded-lg px-3 py-2 ${
+              className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${
                 errors.precio_unitario ? "border-red-500" : "border-gray-300"
               }`}
             />
@@ -452,7 +452,7 @@ export default function EditAsociacion() {
               value={formData.es_unidad_consumo ? formData.moneda : (monedaBase || formData.moneda)}
               onChange={handleChange}
               disabled={!formData.es_unidad_consumo}
-              className={`w-full border rounded-lg px-3 py-2 ${
+              className={`w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary transition-colors ${
                 errors.moneda ? "border-red-500" : "border-gray-300"
               }`}
             >
