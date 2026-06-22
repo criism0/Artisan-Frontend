@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { FiPlus } from "react-icons/fi";
 import { ModifyButton, TrashButton, BackButton, EditButton, ToggleActiveButton } from "../../components/Buttons/ActionButtons";
 import { useState, useEffect } from "react";
 import { useApi } from "../../lib/api";
@@ -582,9 +583,15 @@ export default function InsumoDetail() {
       <div className="mb-4">
         <BackButton to="/Insumos"/>
       </div>
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-text">Detalle del Insumo</h1>
-        <div className="flex gap-4">
+
+      <div className="flex justify-between items-start gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-text">Detalle del Insumo</h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Datos del insumo y sus formatos de compra por proveedor.
+          </p>
+        </div>
+        <div className="flex gap-3 shrink-0">
           <ModifyButton onClick={() => navigate(`/Insumos/${id}/edit`)} />
           <ToggleActiveButton
             isActive={insumo.activo === true}
@@ -595,40 +602,44 @@ export default function InsumoDetail() {
         </div>
       </div>
 
-      <div className="bg-gray-200 p-4 rounded-lg">
-        {/* Información Principal */}
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-text mb-2">Información Principal</h2>
-          <table className="w-full bg-white rounded-lg shadow overflow-hidden">
-            <tbody>
-              {Object.entries(insumoInfo).map(([key, value]) => (
-                <tr key={key} className="border-b border-border">
-                  <td className="px-6 py-4 text-sm font-medium text-text">{key}</td>
-                  <td className="px-6 py-4 text-sm text-text">{value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Información Principal */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
+        <h2 className="text-xl font-semibold text-text mb-4">Información Principal</h2>
+        <table className="w-full bg-white rounded-lg overflow-hidden border border-gray-200">
+          <tbody>
+            {Object.entries(insumoInfo).map(([key, value], idx, arr) => (
+              <tr key={key} className={idx < arr.length - 1 ? "border-b border-gray-100" : ""}>
+                <td className="px-6 py-3 text-sm font-medium text-gray-600 bg-gray-50 w-1/3">{key}</td>
+                <td className="px-6 py-3 text-sm text-gray-900">{value}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-        {/* Tabla de Proveedores */}
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-text mb-2">Proveedores Asociados</h2>
-          <Table 
-            data={proveedoresData}
-            columns={columns}
-            actions={actions}
-          />
-          <div className="mt-4">
-            <button
-              onClick={() => navigate(`/Insumos/asociar/${id}`)}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-            >
-              + Asociar Nuevo Proveedor
-            </button>
-          </div>
+      {/* Proveedores Asociados */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
+        <h2 className="text-xl font-semibold text-text mb-3">Proveedores Asociados</h2>
+
+        <Table
+          data={proveedoresData}
+          columns={columns}
+          actions={actions}
+        />
+
+        <div className="mt-4">
+          <button
+            onClick={() => navigate(`/Insumos/asociar/${id}`)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors font-medium"
+          >
+            <FiPlus className="w-4 h-4" /> Asociar proveedor o agregar formato
+          </button>
+          <p className="text-xs text-gray-500 mt-2">
+            Usa esta opción también para agregar un formato nuevo (ej. Caja) a un proveedor ya asociado, sin borrar
+            los formatos existentes.
+          </p>
         </div>
       </div>
     </div>
   );
-} 
+}
