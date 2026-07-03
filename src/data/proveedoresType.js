@@ -1,0 +1,1 @@
+export const TIPO_PROVEEDOR = ["Empresa", "Persona Natural", "Servicios", "Distribuidor", "Otro"]

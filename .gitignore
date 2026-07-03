@@ -1,0 +1,99 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Yarn (Berry)
+.yarn/install-state.gz
+
+# Env
+.env
+.env.*
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# Archivos de configuración con secrets
+config/secrets.*
+secrets.yml
+secrets.yaml
+settings_local.py
+appsettings.Production.json
+
+# Certificados y llaves criptográficas
+*.key
+*.pem
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+
+# Credenciales de servicios cloud
+credentials.json
+*-credentials.json
+service-account*.json
+firebase-adminsdk*.json
+google-credentials*.json
+aws-credentials.json
+azure-credentials.json
+gcp-credentials.json
+
+# Llaves SSH
+id_rsa
+id_ed25519
+id_ecdsa
+*.pub
+known_hosts
+authorized_keys
+
+# Logs
+logs/
+*.log
+
+# Tokens y sesiones
+*.token
+.token
+*.session
+.session
+refresh_token.txt
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# SQLite / PostgreSQL (Backups / temporales locales)
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.bak
+*.sql
+
+# Runtime
+dist/
+build/
+coverage/
+.vite/
+tmp/
+temp/
+
+# Directorios completos de archivos sensibles
+/secrets/
+/keys/
+/certs/
+/.ssh/
+
+# OS
+.idea/
+*.swp
+*.swo
+
+# Others
+*.local
+*.tgzdocs/INVESTIGACIÓN_MEJORAS.md

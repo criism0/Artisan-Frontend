@@ -1,0 +1,33 @@
+# Dependencias (se instalan dentro de la imagen con npm ci)
+node_modules
+npm-debug.log
+
+# Build artifacts
+.next
+out
+dist
+build
+
+# Secretos y config local — lo MÁS importante para este hotspot
+.env
+.env.*
+*.pem
+*.key
+
+# Git e historial
+.git
+.gitignore
+
+# CI / infra
+.github
+Dockerfile
+.dockerignore
+
+# Editor / SO
+.vscode
+.idea
+.DS_Store
+
+# Tests y docs que no necesita el runtime
+coverage
+*.md

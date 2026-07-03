@@ -1,0 +1,973 @@
+// src/pages/compras/RecepcionarOrden.jsx
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import Table from "../../components/Tables/Table";
+import { BackButton } from "../../components/Buttons/ActionButtons";
+import { useApi, apiBlob } from "../../lib/api";
+import { toast } from "../../lib/toast";
+import { buildOcEmailItemsFromOrden, notifyOrderChange } from "../../services/emailService";
+import { useAuth } from "../../auth/AuthContext";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { formatCLP } from "../../services/formatHelpers";
+
+// Evita que el scroll cambie el valor del input type="number"
+const handleNumberInputWheel = (e) => {
+  e.preventDefault();
+};
+
+export default function RecepcionarOrden() {
+  const { user } = useAuth();
+  const api = useApi();
+  const navigate = useNavigate();
+  const { ordenId } = useParams();
+  const [ordenData, setOrdenData] = useState(null);
+  const [bodegas, setBodegas] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [_hasPartialReception, setHasPartialReception] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [bultosGenerados, setBultosGenerados] = useState([]);
+  const [showRejectPopup, setShowRejectPopup] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const fechaActual = new Date().toISOString().split("T")[0];
+
+  const canWritePurchaseOrder = checkScope(ModelType.ORDEN_COMPRA, ScopeType.WRITE);
+  const canWriteBulk = checkScope(ModelType.BULTO, ScopeType.WRITE);
+
+  // El codigo es tal que, si no se obtienen los resultados, simplemente no se muestran
+  // Por lo que no se revisara para restringir su acceso usando este permiso
+  const canReadProvider = checkScope(ModelType.PROVEEDOR, ScopeType.READ);
+
+  useEffect(() => {
+    const fetchBodegas = async () => {
+      try {
+        const res = await api(`/bodegas`, { method: "GET" });
+        const list = Array.isArray(res) ? res : (Array.isArray(res?.bodegas) ? res.bodegas : []);
+        setBodegas(list);
+      } catch (e) {
+        setBodegas([]);
+      }
+    };
+    fetchBodegas();
+  }, []);
+
+  const downloadEtiquetasForBultos = async ({ idsBultos, ordenIdForName }) => {
+    const ids_bultos = Array.isArray(idsBultos) ? idsBultos.filter(Boolean) : [];
+    if (ids_bultos.length === 0) return;
+
+    const blob = await apiBlob("/bultos/etiquetas", { method: "POST", body: { ids_bultos } });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Etiquetas_OC_${ordenIdForName ?? ""}_Recepcion.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
+  useEffect(() => {
+    setIsLoading(true);
+    const fetchOrden = async () => {
+      try {
+        const fetched = await api(`/proceso-compra/ordenes/${ordenId}`);
+
+        if (!fetched || fetched.error) throw new Error("Error al obtener orden");
+
+        // Neto ya facturado en recepciones anteriores (desde bultos existentes)
+        const rawBultos = Array.isArray(fetched?.bultos)
+          ? fetched.bultos
+          : (Array.isArray(fetched?.Bultos) ? fetched.Bultos : []);
+
+        const netoFacturadoPrevByMpocId = {};
+        for (const b of rawBultos) {
+          const mpocId = b?.id_materia_prima_orden_de_compra ?? b?.materiaPrimaOrdenDeCompra?.id;
+          if (!mpocId) continue;
+
+          const costoUnitario = Number(b?.costo_unitario);
+          const unidades = Number(b?.cantidad_unidades);
+          if (!Number.isFinite(costoUnitario) || !Number.isFinite(unidades)) continue;
+
+          netoFacturadoPrevByMpocId[mpocId] =
+            (Number(netoFacturadoPrevByMpocId[mpocId]) || 0) + (costoUnitario * unidades);
+        }
+
+        // Para poder mostrar equivalencias y declarar bultos directo acá,
+        // necesitamos la info completa de formatos del proveedor (PMP).
+        let proveedorData = null;
+        try {
+          proveedorData = await api(`/proveedores/${fetched.id_proveedor}`, { method: "GET" });
+        } catch (e) {
+          // Si falla, seguimos igual (solo se pierde equivalencia visual)
+          proveedorData = null;
+        }
+
+        const pmpById = {};
+        const pmps = Array.isArray(proveedorData?.materiasPrimas) ? proveedorData.materiasPrimas : [];
+        for (const p of pmps) {
+          pmpById[p.id] = p;
+        }
+
+        const getBasePmp = (pmp) => {
+          if (!pmp) return null;
+
+          const visited = new Set();
+          let cur = pmp;
+
+          // Seguimos id_formato_hijo hasta llegar a hoja (formato base)
+          while (cur?.id_formato_hijo) {
+            if (visited.has(cur.id)) break;
+            visited.add(cur.id);
+            const next = pmpById[cur.id_formato_hijo];
+            if (!next) break;
+            cur = next;
+          }
+
+          return cur;
+        };
+
+        // Fallback: si un proveedor no tiene relaciones id_formato_hijo pobladas,
+        // intentamos elegir el "más pequeño" por cantidad_por_formato.
+        const fallbackBaseByMpId = {};
+        for (const p of pmps) {
+          const mpId = p?.materiaPrima?.id ?? p?.id_materia_prima;
+          if (!mpId) continue;
+          const qty = Number(p.cantidad_por_formato) || 0;
+          if (!fallbackBaseByMpId[mpId] || qty < (Number(fallbackBaseByMpId[mpId].cantidad_por_formato) || Infinity)) {
+            fallbackBaseByMpId[mpId] = p;
+          }
+        }
+
+        const insumosTransformados = fetched.materiasPrimas.map((mp) => {
+          const purchasePmpId = mp.id_proveedor_materia_prima;
+          const purchasePmp = pmpById[purchasePmpId] || mp.proveedorMateriaPrima;
+          const mpId = purchasePmp?.materiaPrima?.id ?? purchasePmp?.id_materia_prima;
+          const basePmp = getBasePmp(purchasePmp) || (mpId ? fallbackBaseByMpId[mpId] : null);
+
+          const purchaseQty = Number(purchasePmp?.cantidad_por_formato) || 0;
+          const baseQty = Number(basePmp?.cantidad_por_formato) || 1;
+          const ratio = baseQty > 0 ? (purchaseQty / baseQty) : 1;
+
+          const cantidadSolicitadaFormato = Number(mp.cantidad_formato) || 0;
+          const cantidadRecepcionadaAcumFormato = Number(mp.cantidad_recepcionada) || 0;
+          const cantidadPendienteFormato = Math.max(
+            0,
+            cantidadSolicitadaFormato - cantidadRecepcionadaAcumFormato
+          );
+
+          // Por defecto se asume que se recepciona lo pendiente
+          const expectedBaseUnits = cantidadPendienteFormato * ratio;
+
+          const precioUnitarioOC = Number(mp.precio_unitario) || 0;
+          const defaultNeto = precioUnitarioOC * cantidadSolicitadaFormato;
+
+          return {
+            // Identificadores
+            mpocId: mp.id,
+            id_proveedor_materia_prima: purchasePmpId,
+
+            // Visual
+            nombre:
+              purchasePmp?.materiaPrima?.nombre ||
+              purchasePmp?.MateriaPrima?.nombre ||
+              "—",
+            formato: purchasePmp?.formato || mp.formato || "",
+            unidad_medida:
+              purchasePmp?.unidad_medida ||
+              purchasePmp?.materiaPrima?.unidad_medida ||
+              "",
+            base_formato: basePmp?.formato || "",
+            base_qty: baseQty,
+            purchase_qty: purchaseQty,
+            ratio,
+
+            // Pedido
+            cantidad_solicitada: cantidadSolicitadaFormato,
+            cantidad_recepcionada_acumulada: cantidadRecepcionadaAcumFormato,
+            cantidad_pendiente: cantidadPendienteFormato,
+
+            // Recepción (nuevo flujo)
+            bultos: 0,
+            bultos_detalle: [],
+            total_neto_factura: defaultNeto,
+            costoEdited: false,
+            neto_facturado_prev: Number(netoFacturadoPrevByMpocId?.[mp.id]) || 0,
+
+            // Derivados
+            expected_base_units: expectedBaseUnits,
+            total_base_units: 0,
+            // cantidad_recibida ahora significa "cantidad recepcionada en ESTA recepción" (en formato comprado)
+            cantidad_recibida: 0,
+
+            // Info OC
+            precio_unitario: precioUnitarioOC,
+          };
+        })
+        // Ocultar insumos ya totalmente recepcionados (pendiente = 0)
+        .filter((i) => (Number(i?.cantidad_pendiente) || 0) > 1e-9);
+
+        setOrdenData({
+          ...fetched,
+          proveedor: fetched.proveedor?.nombre_empresa || fetched.id_proveedor,
+          lugar: fetched.BodegaSolicitante?.nombre || "-",
+          numero: `OC-${String(fetched.id).padStart(3, "0")}`,
+          id_bodega_recepcion: fetched.id_bodega_destino ?? "",
+          fecha_recepcion: fechaActual,
+          numero_factura: "",
+          fecha_documento: "",
+          guia_despacho: "",
+          insumos: insumosTransformados,
+        });
+      } catch (error) {
+        toast.error(`Error al cargar la orden: ${error.message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchOrden();
+  }, [ordenId]);
+
+  const buildDefaultDistribution = (totalBaseUnits, cantidadBultos) => {
+    const out = [];
+    if (!cantidadBultos || cantidadBultos <= 0) return out;
+    if (Number.isInteger(totalBaseUnits)) {
+      const totalInt = Math.trunc(totalBaseUnits);
+      const base = Math.floor(totalInt / cantidadBultos);
+      const rem = totalInt % cantidadBultos;
+      for (let i = 0; i < cantidadBultos; i++) out.push(base + (i < rem ? 1 : 0));
+    } else {
+      const u = totalBaseUnits / cantidadBultos;
+      for (let i = 0; i < cantidadBultos; i++) out.push(u);
+    }
+    return out;
+  };
+
+  const recalcInsumoDerived = (insumo) => {
+    const ratio = Number(insumo.ratio) || 1;
+    const totalBase = (insumo.bultos_detalle || []).reduce(
+      (s, b) => s + (Number(b.cantidad_unidades) || 0),
+      0
+    );
+    const cantidadRecibidaFormato = ratio > 0 ? (totalBase / ratio) : 0;
+    const next = {
+      ...insumo,
+      total_base_units: totalBase,
+      cantidad_recibida: cantidadRecibidaFormato,
+    };
+
+    if (!next.costoEdited) {
+      const precioOC = Number(next.precio_unitario) || 0;
+      next.total_neto_factura = precioOC * cantidadRecibidaFormato;
+    }
+
+    return next;
+  };
+
+  const emailSender = async (ordenId) => {
+    try {
+      const ordenData = await api(
+        `/proceso-compra/ordenes/${ordenId}`, { method: "GET" }
+      );
+      const { items, totalNeto, iva, totalPago } = buildOcEmailItemsFromOrden(ordenData);
+      
+      // Obtener usuarios con rol Super Admin
+      const superAdmins = await api(`/usuarios?role=Super Admin`, { method: "GET" });
+      const adminsArray = Array.isArray(superAdmins) ? superAdmins : [];
+      
+      // Obtener encargados de la bodega
+      const bodegaId = ordenData.BodegaSolicitante?.id;
+      let encargados = [];
+      if (bodegaId) {
+        const bodegaData = await api(`/bodegas/${bodegaId}`, { method: "GET" });
+        encargados = Array.isArray(bodegaData?.Encargados) ? bodegaData.Encargados : [];
+      }
+      
+      // Combinar ambos grupos de destinatarios
+      const adminEmails = adminsArray.map((admin) => admin?.email).filter(Boolean);
+      const encargadoEmails = encargados.map((e) => e?.usuario?.email).filter(Boolean);
+      const allEmails = [...new Set([...adminEmails, ...encargadoEmails])];
+      
+      const to = allEmails.map((email) => ({ email }));
+      
+      const adminsNames = adminsArray.map((admin) => admin?.nombre).filter(Boolean).join(", ");
+      const encargadosNames = encargados.map((e) => e?.usuario?.nombre).filter(Boolean).join(", ");
+      const allNames = [adminsNames, encargadosNames].filter(Boolean).join(", ") || "Sin destinatarios";
+
+      let newState = ordenData.estado;
+      if (ordenData.estado === "Rechazada") {
+        newState = ordenData.estado + (ordenData.motivo_rechazo ? ` - ${ordenData.motivo_rechazo}` : "");
+      }
+
+      // Enviar correo de notificación
+      await notifyOrderChange({
+        emails: to.map((t) => t.email),
+        ordenId: ordenId,
+        operador: user.nombre || user.email || "Operador desconocido",
+        state: newState || "Estado desconocido",
+        bodega: ordenData.BodegaSolicitante?.nombre || "No especificada",
+        proveedor: ordenData.Proveedor?.nombre_empresa || ordenData.proveedor?.nombre_empresa || "No especificado",
+        clientNames: allNames,
+        items,
+        totalNeto,
+        iva,
+        totalPago,
+      });
+    } catch (emailError) {
+      console.error("Error enviando correo de notificación:", emailError);
+      }
+  };
+
+  const handleFormChange = (e) => {
+    const { name, value } = e.target;
+    
+    setOrdenData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleBultosChange = (insumoId, newBultos) => {
+    const bCount = parseInt(newBultos) || 0;
+    setOrdenData((prev) => {
+      const updatedInsumos = prev.insumos.map((insumo) => {
+        if (insumo.id_proveedor_materia_prima !== insumoId) return insumo;
+
+        // Distribuir por defecto sobre lo pendiente
+        const expected = Number(insumo.expected_base_units) || 0;
+        const dist = buildDefaultDistribution(expected, bCount);
+        const bultos_detalle = dist.map((u) => ({
+          cantidad_unidades: u,
+          identificador_proveedor: "",
+          loteEdited: false,
+          unitsEdited: false,
+        }));
+
+        return recalcInsumoDerived({
+          ...insumo,
+          bultos: bCount,
+          bultos_detalle,
+        });
+      });
+
+      const hasPartial = updatedInsumos.some(
+        (insumo) => (Number(insumo.cantidad_recibida) || 0) < (Number(insumo.cantidad_solicitada) || 0)
+      );
+      setHasPartialReception(hasPartial);
+
+      return { ...prev, insumos: updatedInsumos };
+    });
+  };
+
+  const handleBultoUnitsChange = (insumoId, idx, value) => {
+    setOrdenData((prev) => ({
+      ...prev,
+      insumos: prev.insumos.map((insumo) => {
+        if (insumo.id_proveedor_materia_prima !== insumoId) return insumo;
+        const detalle = Array.isArray(insumo.bultos_detalle) ? insumo.bultos_detalle : [];
+        const nextDetalle = detalle.map((b) => ({ ...b }));
+
+        // Marca corte en el bulto editado
+        nextDetalle[idx] = {
+          ...nextDetalle[idx],
+          cantidad_unidades: value,
+          unitsEdited: true,
+        };
+
+        // Propagar hacia adelante hasta el siguiente editado manualmente
+        for (let i = idx + 1; i < nextDetalle.length; i++) {
+          if (nextDetalle[i]?.unitsEdited) break;
+          nextDetalle[i] = { ...nextDetalle[i], cantidad_unidades: value };
+        }
+
+        return recalcInsumoDerived({ ...insumo, bultos_detalle: nextDetalle });
+      }),
+    }));
+  };
+
+  const handleLoteChange = (insumoId, idx, value) => {
+    setOrdenData((prev) => ({
+      ...prev,
+      insumos: prev.insumos.map((insumo) => {
+        if (insumo.id_proveedor_materia_prima !== insumoId) return insumo;
+
+        const detalle = Array.isArray(insumo.bultos_detalle) ? insumo.bultos_detalle : [];
+        const next = detalle.map((b, i) => ({ ...b }));
+
+        // Marca corte en el bulto editado
+        next[idx] = { ...next[idx], identificador_proveedor: value, loteEdited: true };
+
+        // Propagar hacia adelante hasta el siguiente editado manualmente
+        for (let i = idx + 1; i < next.length; i++) {
+          if (next[i]?.loteEdited) break;
+          next[i] = { ...next[i], identificador_proveedor: value };
+        }
+
+        return { ...insumo, bultos_detalle: next };
+      }),
+    }));
+  };
+
+  const handleCostoFacturaChange = (insumoId, value) => {
+    setOrdenData((prev) => ({
+      ...prev,
+      insumos: prev.insumos.map((insumo) => {
+        if (insumo.id_proveedor_materia_prima !== insumoId) return insumo;
+        return {
+          ...insumo,
+          total_neto_factura: value,
+          costoEdited: true,
+        };
+      }),
+    }));
+  };
+
+  const validarNumeroFactura = (valor) => {
+    const regexFacturas = /^\d+(,\s*\d+)*$/;
+    return regexFacturas.test(valor);
+  };
+
+  const handleFinalizarRecepcion = async () => {
+    const newErrors = {};
+    if (!ordenData?.id_bodega_recepcion) {
+      newErrors.id_bodega_recepcion = "Debe seleccionar la bodega donde se recepciona.";
+    }
+    if (!ordenData.fecha_recepcion)
+      newErrors.fecha_recepcion = "La fecha de recepción es obligatoria.";
+    if (!ordenData.fecha_documento)
+      newErrors.fecha_documento = "La fecha del documento es obligatoria.";
+    if (new Date(ordenData.fecha_recepcion) < new Date(ordenData.fecha_documento))
+      newErrors.fecha_recepcion = "La fecha de recepción no puede ser anterior a la del documento.";
+    if (!ordenData.numero_factura && !ordenData.guia_despacho) {
+      newErrors.numero_factura = "Debe ingresar número de factura o guía de despacho.";
+      newErrors.guia_despacho = "Debe ingresar número de factura o guía de despacho.";
+    }
+    if (ordenData.numero_factura && ordenData.guia_despacho) {
+      newErrors.numero_factura = "No puede ingresar factura y guía de despacho al mismo tiempo.";
+      newErrors.guia_despacho = "No puede ingresar factura y guía de despacho al mismo tiempo.";
+    }
+    if (
+      ordenData.numero_factura &&
+      !validarNumeroFactura(ordenData.numero_factura)
+    ) {
+      newErrors.numero_factura =
+        "Formato inválido. Use solo números separados por comas (ej: 1234, 1235, 1236).";
+    }
+
+    const tieneRecBulto = ordenData.insumos.some((i) => (Number(i.bultos) || 0) > 0);
+    if (!tieneRecBulto) newErrors.insumos = "Debe recepcionar al menos un bulto.";
+
+    // Validar detalle de bultos + costos
+    for (const insumo of ordenData.insumos) {
+      const b = Number(insumo.bultos) || 0;
+      if (b <= 0) continue;
+
+      const detalle = Array.isArray(insumo.bultos_detalle) ? insumo.bultos_detalle : [];
+      if (detalle.length !== b) {
+        newErrors.insumos = `Faltan bultos por declarar en ${insumo.nombre}.`;
+        break;
+      }
+      for (const d of detalle) {
+        const u = Number(d?.cantidad_unidades);
+        const lote = d?.identificador_proveedor?.toString?.().trim?.() || "";
+        if (!Number.isFinite(u) || u <= 0 || !lote) {
+          newErrors.insumos = `Debes completar unidades y lote en todos los bultos de ${insumo.nombre}.`;
+          break;
+        }
+      }
+      if (newErrors.insumos) break;
+
+      const neto = Number(insumo.total_neto_factura);
+      if (!Number.isFinite(neto) || neto < 0) {
+        newErrors.insumos = `Costo neto factura inválido en ${insumo.nombre}.`;
+        break;
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error("Por favor corrija los errores en el formulario.");
+      return;
+    }
+
+    if (!canWritePurchaseOrder || !canWriteBulk) {
+      toast.permissionError(
+        [ModelType.ORDEN_COMPRA, ScopeType.WRITE],
+        [ModelType.BULTO, ScopeType.WRITE]
+      );
+      return;
+    }
+
+    try {
+      const payload = {
+        pagada: true,
+        id_bodega_recepcion: Number(ordenData.id_bodega_recepcion),
+        fecha_recepcion: ordenData.fecha_recepcion,
+        numero_factura: ordenData.numero_factura,
+        fecha_documento: ordenData.fecha_documento,
+        guia_despacho: ordenData.guia_despacho,
+        materias_primas_recepcionadas: ordenData.insumos.map((insumo) => ({
+          id_proveedor_materia_prima: insumo.id_proveedor_materia_prima,
+          id_materia_prima_orden_de_compra: insumo.mpocId,
+          cantidad_recepcionada: Number(insumo.cantidad_recibida) || 0,
+          cantidad_bultos: insumo.bultos,
+          bultos_detalle: (insumo.bultos_detalle || []).map((b) => ({
+            cantidad_unidades: Number(b.cantidad_unidades),
+            identificador_proveedor: b.identificador_proveedor,
+          })),
+          total_neto_factura: Number(insumo.total_neto_factura) || 0,
+        })),
+      };
+
+      const response = await api(
+        `/proceso-compra/ordenes/${ordenId}/recepcionar`,
+        {
+          method: "PUT",
+          body: JSON.stringify(payload),
+        }
+      );
+      if (!response || response.error) throw new Error("Error al recepcionar");
+
+      setBultosGenerados(response.bultos || []);
+      setShowConfirmation(true);
+      toast.success("Orden recepcionada y bultos declarados correctamente");
+
+      // Descargar etiquetas SOLO de los bultos recién recepcionados
+      try {
+        await downloadEtiquetasForBultos({
+          idsBultos: response.ids_bultos_creados,
+          ordenIdForName: ordenId,
+        });
+        toast.success("Etiquetas descargadas correctamente");
+      } catch (e) {
+        toast.error("Error al descargar etiquetas: " + (e?.message || e));
+      }
+
+      try {
+        await emailSender(ordenId);
+      } catch (emailErr) {
+        toast.error("Error enviando email tras validar orden:" + emailErr);
+      }
+    } catch (error) {
+      toast.error("Error al recepcionar la orden: " + error);
+    }
+  };
+
+  const handleRechazarRecepcion = async () => {
+    const newErrors = {};
+    if (!rejectReason.trim()) {
+      newErrors.rejectReason = "Debe ingresar una razón para el rechazo.";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+
+    if (!canWritePurchaseOrder) {
+      toast.permissionError([ModelType.ORDEN_COMPRA, ScopeType.WRITE]);
+      return;
+    }
+    try {
+      const response = await api(
+        `/proceso-compra/ordenes/${ordenId}/rechazar`,
+        {
+          method: "PUT",
+          body: { motivo_rechazo: rejectReason.trim() }
+        }
+      );
+
+      setShowRejectPopup(false);
+      toast.success("Orden rechazada correctamente");
+      try {
+        await emailSender(ordenId);
+      } catch (emailErr) {
+        toast.error(`Error enviando email tras validar orden: ${emailErr.message}`);
+      }
+      navigate("/Ordenes");
+    } catch (error) {
+      toast.error("No se pudo rechazar la orden." + error);
+    }
+  };
+
+  const columns = [
+    {
+      header: "Insumo",
+      accessor: "nombre",
+      Cell: ({ row }) => {
+        const formato = row.formato?.trim?.() || "";
+        const nombre = row.nombre?.trim?.() || "—";
+        const unidad = row.unidad_medida?.trim?.() || "";
+
+        // Si formato = nombre → mostrar "(unidad) de nombre"
+        if (formato && nombre && formato.toLowerCase() === nombre.toLowerCase()) {
+          return `${unidad ? `${unidad} - ` : ""} ${nombre}`;
+        }
+
+        // Si formato distinto → "(formato) de nombre"
+        return `${formato ? `${formato} - ` : ""} ${nombre}`;
+      },
+    },
+    {
+      header: "Cantidad Solicitada",
+      accessor: "cantidad_solicitada",
+      Cell: ({ row }) => {
+        const sol = Number(row.cantidad_solicitada) || 0;
+        const rec = Number(row.cantidad_recepcionada_acumulada) || 0;
+        const pend = Number(row.cantidad_pendiente) || 0;
+        const fmt = row.formato || "";
+        return (
+          <div className="flex flex-col">
+            <span className="font-medium">{sol.toFixed(2)} {fmt}</span>
+            <span className="text-xs text-gray-600">Ya recepcionado: {rec.toFixed(2)} {fmt}</span>
+            <span className="text-xs text-gray-600">Pendiente: {pend.toFixed(2)} {fmt}</span>
+          </div>
+        );
+      },
+    },
+    { header: "Bultos", accessor: "bultos", Cell: ({ row }) => (
+        <input
+          type="number"
+          min="0"
+          value={row.bultos || ""}
+          placeholder="0"
+          onChange={(e) =>
+            handleBultosChange(row.id_proveedor_materia_prima, e.target.value)
+          }
+          onWheel={handleNumberInputWheel}
+          className="w-24 px-2 py-1 border border-gray-300 rounded-md"
+        />
+      ),
+    },
+    {
+      header: "Recibido",
+      accessor: "total_base_units",
+      Cell: ({ row }) => {
+        const totalBase = Number(row.total_base_units) || 0;
+        const ratio = Number(row.ratio) || 1;
+        const recibidoFormato = ratio > 0 ? (totalBase / ratio) : 0;
+        const fmt = row.formato || "";
+        const baseLabel = row.base_formato?.trim?.() || "un. base";
+
+        const pendienteFmt = Number(row.cantidad_pendiente) || 0;
+        const pendienteBase = pendienteFmt * ratio;
+        const excede = totalBase > 0 && pendienteBase > 0 && totalBase > pendienteBase + 1e-9;
+        return (
+          <div className="flex flex-col">
+            <span className="font-medium">{totalBase.toFixed(2)} {baseLabel}</span>
+            {ratio > 1.01 && (
+              <span className="text-xs text-blue-600">≈ {recibidoFormato.toFixed(2)} {fmt}</span>
+            )}
+            {excede && (
+              <span className="text-xs text-amber-700">Supera lo pendiente</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      header: "Costo Neto Recepción",
+      accessor: "total_neto_factura",
+      Cell: ({ row }) => {
+        const yaFacturado = Number(row?.neto_facturado_prev) || 0;
+
+        return (
+          <div className="flex flex-col">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={row.total_neto_factura ?? ""}
+              onChange={(e) => handleCostoFacturaChange(row.id_proveedor_materia_prima, e.target.value)}
+              onWheel={handleNumberInputWheel}
+              className="w-32 px-2 py-1 border border-gray-300 rounded-md"
+              placeholder="0"
+            />
+            {yaFacturado > 0 && (
+              <span className="text-xs text-gray-600 mt-1">Ya facturado: {formatCLP(yaFacturado, 0)}</span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      header: "Costo Neto OC",
+      accessor: "precio_unitario",
+      Cell: ({ row }) => {
+        const precioUnitario = Number(row?.precio_unitario) || 0;
+        const cantidadSolicitada = Number(row?.cantidad_solicitada) || 0;
+        const total = precioUnitario * cantidadSolicitada;
+
+        return formatCLP(total, 0);
+      },
+    },
+  ];
+
+  if (isLoading || !ordenData) return <PageLoader message="Cargando orden" />;
+
+  return (
+    <div className="p-6 bg-background min-h-screen">
+      <div className="mb-4">
+        <BackButton to="/Ordenes" />
+      </div>
+      <h1 className="text-2xl font-bold text-text mb-4">
+        Recepcionar Orden de Compra
+      </h1>
+
+      <div className="bg-white p-4 rounded-lg shadow mb-6">
+        <div className="grid grid-cols-1 gap-4">
+          {["proveedor", "lugar", "numero", "estado", "condiciones", "fecha"].map(
+            (field) => {
+              let label =
+                field === "fecha"
+                  ? "Fecha de emisión" 
+                  : field.charAt(0).toUpperCase() + field.slice(1);
+
+              let value = ordenData[field];
+
+              if (field === "fecha" && value) {
+                const date = new Date(value);
+                value = date.toLocaleString("es-CL", {
+                  day: "2-digit",
+                  month: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+              }
+
+              return (
+                <div className="flex items-center" key={field}>
+                  <label className="block text-sm font-medium text-gray-700 w-1/3">
+                    {label}
+                  </label>
+                  <input
+                    type="text"
+                    value={value || ""}
+                    disabled
+                    className="w-2/3 px-3 py-2 border border-gray-300 rounded-md bg-gray-50"
+                  />
+                </div>
+              );
+            }
+          )}
+
+          <div className="flex flex-col">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Bodega de recepción
+            </label>
+            <select
+              name="id_bodega_recepcion"
+              value={ordenData?.id_bodega_recepcion ?? ""}
+              onChange={handleFormChange}
+              className="px-3 py-2 border border-gray-300 rounded-md"
+            >
+              <option value="">Seleccione bodega</option>
+              {bodegas.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.nombre}
+                </option>
+              ))}
+            </select>
+            {errors.id_bodega_recepcion && (
+              <p className="text-red-600 text-sm mt-1">{errors.id_bodega_recepcion}</p>
+            )}
+          </div>
+
+          {[
+            "fecha_recepcion",
+            "numero_factura",
+            "fecha_documento",
+            "guia_despacho",
+          ].map((field) => (
+            <div className="flex flex-col" key={field}>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                {field
+                  .replace("_", " ")
+                  .replace("fecha", "Fecha")
+                  .replace("numero", "Número")
+                  .replace("guia", "Guía")}
+              </label>
+              <input
+                type={field.includes("fecha") ? "date" : "text"}
+                name={field}
+                value={ordenData[field]}
+                onChange={handleFormChange}
+                placeholder={
+                  field === "numero_factura"
+                    ? "Si hay más de una factura, sepárelas con coma: 1234, 1235, 1236"
+                    : ""
+                }
+                className="px-3 py-2 border border-gray-300 rounded-md"
+              />
+              {errors[field] && (
+                <p className="text-red-600 text-sm mt-1">{errors[field]}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-6">
+        <h2 className="text-lg text-primary font-medium mb-4">Insumos</h2>
+        {errors.insumos && (
+          <p className="text-red-600 text-sm mb-2">{errors.insumos}</p>
+        )}
+        <Table columns={columns} data={ordenData.insumos} />
+      </div>
+
+      {/* Declaración de bultos directa (mezcla Recepcionar + Declarar) */}
+      <div className="mt-8">
+        <h2 className="text-lg text-primary font-medium mb-4">Declaración de bultos</h2>
+
+        {ordenData.insumos
+          .filter((i) => (Number(i.bultos) || 0) > 0)
+          .map((insumo) => {
+            const expected = Number(insumo.expected_base_units) || 0;
+            const totalBase = Number(insumo.total_base_units) || 0;
+            const ratio = Number(insumo.ratio) || 1;
+            const fmt = insumo.formato || "";
+            const baseLabel = insumo.base_formato?.trim?.() || "un. base";
+            const expectedFmt = ratio > 0 ? (expected / ratio) : 0;
+            const recibidoFmt = ratio > 0 ? (totalBase / ratio) : 0;
+
+            return (
+              <div key={insumo.id_proveedor_materia_prima} className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-800">
+                    {insumo.nombre} <span className="text-sm font-normal text-gray-500">({fmt})</span>
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Esperado: <strong>{expected.toFixed(2)}</strong> {baseLabel}
+                    {ratio > 1.01 && (
+                      <span> (≈ {expectedFmt.toFixed(2)} {fmt})</span>
+                    )}
+                    {" "}· Recibido: <strong>{totalBase.toFixed(2)}</strong> {baseLabel}
+                    {ratio > 1.01 && (
+                      <span> (≈ {recibidoFmt.toFixed(2)} {fmt})</span>
+                    )}
+                  </p>
+                </div>
+
+                <div className="p-4 overflow-x-auto">
+                  <table className="w-full text-sm border border-gray-200">
+                    <thead className="bg-gray-100 text-gray-700">
+                      <tr>
+                        <th className="p-2 border">Bulto</th>
+                        <th className="p-2 border">Cantidad de {baseLabel} en bulto</th>
+                        <th className="p-2 border">Lote proveedor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(insumo.bultos_detalle || []).map((b, idx) => (
+                        <tr key={idx} className="border-t">
+                          <td className="p-2 border text-center">{idx + 1}</td>
+                          <td className="p-2 border text-center">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={b.cantidad_unidades}
+                              onChange={(e) => handleBultoUnitsChange(insumo.id_proveedor_materia_prima, idx, e.target.value)}
+                              onWheel={handleNumberInputWheel}
+                              className="w-32 px-2 py-1 border rounded"
+                              placeholder="0"
+                            />
+                          </td>
+                          <td className="p-2 border">
+                            <input
+                              type="text"
+                              value={b.identificador_proveedor}
+                              onChange={(e) => handleLoteChange(insumo.id_proveedor_materia_prima, idx, e.target.value)}
+                              className="w-48 px-2 py-1 border rounded"
+                              placeholder="Lote proveedor"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+      </div>
+
+      <div className="mt-6 flex justify-end gap-3">
+        <button
+          onClick={() => setShowRejectPopup(true)}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+        >
+          Rechazar Recepción
+        </button>
+        <button
+          onClick={handleFinalizarRecepcion}
+          disabled={!canWritePurchaseOrder || !canWriteBulk}
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+        >
+          Recepcionar
+        </button>
+      </div>
+
+      {showConfirmation && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Recepción completada
+            </h3>
+            <p className="text-sm text-gray-700 mb-4">
+              La orden ha sido recepcionada y los bultos quedaron declarados.
+            </p>
+            <div className="flex justify-end">
+              <button
+                className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
+                onClick={() => navigate("/Ordenes")}
+              >
+                Volver a Ordenes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showRejectPopup && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">
+              Rechazar Recepción
+            </h3>
+            <p className="text-sm text-gray-700 mb-3">
+              Indique las razones del rechazo:
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={4}
+              className="w-full p-2 border border-gray-300 rounded-md mb-4"
+              placeholder="Escriba aquí las razones del rechazo..."
+            />
+            {errors.rejectReason && (
+              <p className="text-red-600 text-sm mb-2">{errors.rejectReason}</p>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowRejectPopup(false)}
+                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRechazarRecepcion}
+                disabled={!canWritePurchaseOrder}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Confirmar rechazo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
