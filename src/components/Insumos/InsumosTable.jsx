@@ -13,6 +13,8 @@ export default function InsumosTable({
   bodegaSolicitanteId,
   initialVisibleRows = 5,
   initialInsumos = null,
+  importInsumos = null,
+  importSignal = 0,
 }) {
   const [articulos, setArticulos] = useState([]);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -24,6 +26,7 @@ export default function InsumosTable({
   const [proveedoraStockMap, setProveedoraStockMap] = useState(new Map());
   const isAddDisabled = disabled || opcionesInsumos.length === 0;
   const lastAddSignal = useRef(addSignal);
+  const lastImportSignal = useRef(importSignal);
   const didInitFromPropsRef = useRef(false);
   const api = useApi();
 
@@ -407,6 +410,37 @@ export default function InsumosTable({
     didInitFromPropsRef.current = true;
   }, [initialInsumos]);
 
+  // Importación dinámica (ej. desde una Orden de Compra): reemplaza filas
+  // de las mismas materias primas y antepone las nuevas.
+  useEffect(() => {
+    if (importSignal === lastImportSignal.current) return;
+    lastImportSignal.current = importSignal;
+
+    const incoming = (Array.isArray(importInsumos) ? importInsumos : [])
+      .map((x) => {
+        const idMateriaPrima = x?.id_materia_prima ?? x?.id_articulo ?? x?.id;
+        if (!idMateriaPrima) return null;
+        return {
+          _rowId: makeRowId(),
+          id_articulo: String(idMateriaPrima),
+          id_formato: '',
+          cantidad_formato: '',
+          comentario: x?.comentario ?? '',
+          _initialCantidadBase: x?.cantidad_solicitada != null ? Number(x.cantidad_solicitada) : null,
+        };
+      })
+      .filter(Boolean);
+
+    if (incoming.length === 0) return;
+
+    setArticulos((prev) => {
+      const incomingIds = new Set(incoming.map((r) => r.id_articulo));
+      const kept = prev.filter((r) => !incomingIds.has(r.id_articulo));
+      return [...incoming, ...kept];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importSignal]);
+
   const validateArticulo = (articulo) => {
     const errors = [];
     if (!articulo.id_articulo) {
@@ -531,8 +565,9 @@ export default function InsumosTable({
     );
     if (!needsInference) return;
 
-    setArticulos((prev) =>
-      prev.map((a) => {
+    setArticulos((prev) => {
+      let changed = false;
+      const next = prev.map((a) => {
         if (a?._initialCantidadBase == null) return a;
         if (a?.id_formato && a?.cantidad_formato) return a;
         const formatos = formatosByMateriaPrimaId?.[String(a.id_articulo)] || [];
@@ -543,15 +578,17 @@ export default function InsumosTable({
           formatos,
         });
         if (!inferred?.id_formato || !inferred?.cantidad_formato) return a;
+        changed = true;
         return {
           ...a,
           id_formato: inferred.id_formato,
           cantidad_formato: inferred.cantidad_formato,
         };
-      })
-    );
+      });
+      return changed ? next : prev;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formatosByMateriaPrimaId]);
+  }, [formatosByMateriaPrimaId, articulos]);
 
   // Informar disponibilidad considerando los ya seleccionados (para deshabilitar el botón externo si no quedan opciones únicas)
   useEffect(() => {

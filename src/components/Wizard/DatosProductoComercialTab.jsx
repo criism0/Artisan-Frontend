@@ -28,7 +28,9 @@ export default function DatosProductoComercialTab({ productoId, productoForm, se
         <FormField
           label="Cantidad por unidad"
           type="number"
-          placeholder="10"
+          step="any"
+          min="0"
+          placeholder="0.15"
           value={productoForm.peso_unitario}
           onChange={(e) => setProductoForm((p) => ({ ...p, peso_unitario: e.target.value }))}
           required

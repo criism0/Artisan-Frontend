@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import * as XLSX from "xlsx";
+import { useGoogleLogin } from "@react-oauth/google";
 import { api, apiBlob } from "../../lib/api";
+import { createAndOpenSheet } from "../../lib/googleSheets";
 import DividirBultoModal from "../../components/Pallets/DividirBultoModal";
 import { toast } from "../../lib/toast";
-import { Download, FileDown, FileSpreadsheet, Pencil, Scissors, X } from "lucide-react";
+import { FileDown, FileSpreadsheet, Pencil, Scissors, X } from "lucide-react";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { Spinner } from "../../components/UI/Spinner.jsx";
@@ -61,6 +62,17 @@ function getClaveCategoria(b) {
   return b?.clave_categoria ?? (b?.es_merma ? "M" : b?.categoria) ?? "";
 }
 
+// Fecha en que el bulto ingresó al sistema (incluye los resultantes de una división), formato DD/MM/YYYY.
+function formatFechaIngreso(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  const dia = String(d.getDate()).padStart(2, "0");
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const ano = d.getFullYear();
+  return `${dia}/${mes}/${ano}`;
+}
+
 function BadgeCategoria({ value }) {
   const v = value || "";
   const base = "inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-semibold";
@@ -98,6 +110,7 @@ export default function InventarioBultos() {
   const [sort, setSort] = useState({ key: "updatedAt", dir: "desc" });
 
   const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [isExporting, setIsExporting] = useState(false);
 
   const canWriteBulk = checkScope(ModelType.BULTO, ScopeType.WRITE);
 
@@ -258,6 +271,8 @@ export default function InventarioBultos() {
           return Number(b?.unidades_disponibles ?? 0) * Number(b?.peso_unitario ?? 0);
         case "costo":
           return Number(b?.costo_unitario ?? 0) * Number(b?.unidades_disponibles ?? 0);
+        case "fecha_ingreso":
+          return new Date(b?.createdAt ?? b?.updatedAt ?? 0).getTime();
         case "updatedAt":
         default:
           return new Date(b?.updatedAt ?? b?.createdAt ?? 0).getTime();
@@ -341,12 +356,12 @@ export default function InventarioBultos() {
     });
   };
 
-  const exportToExcel = (rows, fileName) => {
-    const sheet = XLSX.utils.json_to_sheet(rows);
-    const book = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(book, sheet, "Bultos");
-    XLSX.writeFile(book, fileName);
-  };
+  const HEADERS_BULTOS = [
+    "ID", "Identificador", "Categoría", "Bodega", "Pallet", "Ítem",
+    "Unidad medida", "Peso unitario", "Unidades disponibles", "Cantidad unidades",
+    "Total disponible", "Total cantidad", "Costo unitario", "Costo total", "Última actualización",
+    "Fecha ingreso",
+  ];
 
   const buildExportRows = (list) => {
     return list.map((b) => {
@@ -380,26 +395,42 @@ export default function InventarioBultos() {
         costo_unitario: costoUnit,
         costo_total: costoTot,
         updatedAt: b?.updatedAt ?? "",
+        fecha_ingreso: formatFechaIngreso(b?.createdAt),
       };
     });
   };
 
-  const exportSelected = () => {
-    const sel = bultosOrdenados.filter((b) => selectedIds.has(b.id));
-    if (sel.length === 0) {
-      toast.error("No hay filas seleccionadas");
-      return;
-    }
-    exportToExcel(buildExportRows(sel), `inventario_bultos_seleccionados.xlsx`);
-  };
+  const rowsToValues = (rows) =>
+    rows.map((r) => [
+      r.id, r.identificador, r.clave_categoria, r.bodega, r.pallet, r.item,
+      r.unidad_medida, r.peso_unitario, r.unidades_disponibles, r.cantidad_unidades,
+      r.total_disponible, r.total_cantidad, r.costo_unitario, r.costo_total, r.updatedAt,
+      r.fecha_ingreso,
+    ]);
 
-  const exportFiltered = () => {
-    if (bultosOrdenados.length === 0) {
-      toast.error("No hay datos para exportar");
-      return;
-    }
-    exportToExcel(buildExportRows(bultosOrdenados), `inventario_bultos_filtrados.xlsx`);
-  };
+  const loginAndExport = useGoogleLogin({
+    onSuccess: async ({ access_token }) => {
+      const hasSelection = selectedIds.size > 0;
+      const data = hasSelection
+        ? bultosOrdenados.filter((b) => selectedIds.has(b.id))
+        : bultosOrdenados;
+      if (data.length === 0) { toast.error("No hay datos para exportar"); return; }
+      try {
+        setIsExporting(true);
+        const title = hasSelection
+          ? `Bultos seleccionados ${new Date().toLocaleDateString("es-CL")}`
+          : `Inventario Bultos ${new Date().toLocaleDateString("es-CL")}`;
+        const url = await createAndOpenSheet(access_token, title, [HEADERS_BULTOS, ...rowsToValues(buildExportRows(data))]);
+        toast.link("Hoja creada", url);
+      } catch {
+        toast.error("Error al exportar a Google Sheets");
+      } finally {
+        setIsExporting(false);
+      }
+    },
+    onError: () => toast.error("No se pudo autenticar con Google"),
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+  });
 
   const clearFilters = () => {
     setBusqueda("");
@@ -433,28 +464,27 @@ export default function InventarioBultos() {
       <div className="flex items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold">Inventario de Bultos</h1>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={exportSelected}
-            className="text-gray-500 hover:text-green-700"
-            title="Exportar seleccionados (Excel)"
-          >
-            <FileSpreadsheet className="w-5 h-5" />
-          </button>
-          <button
-            onClick={exportFiltered}
-            className="text-gray-500 hover:text-green-700"
-            title="Exportar filtrados (Excel)"
-          >
-            <Download className="w-5 h-5" />
-          </button>
-          <button
-            onClick={clearFilters}
-            className="text-gray-500 hover:text-red-600"
-            title="Limpiar filtros"
-          >
-            <X className="w-5 h-5" />
-          </button>
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-xs text-gray-400">Exportar a Google Sheets</span>
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <span className="text-xs text-gray-500">
+                {selectedIds.size} seleccionada{selectedIds.size !== 1 ? "s" : ""}
+              </span>
+            )}
+            <button
+              onClick={loginAndExport}
+              disabled={isExporting || bultosOrdenados.length === 0}
+              className="text-gray-500 hover:text-green-700 disabled:opacity-40"
+              title={selectedIds.size > 0
+                ? `Exportar ${selectedIds.size} seleccionada(s) (Google Sheets)`
+                : "Exportar filtrados (Google Sheets)"}
+            >
+              {isExporting
+                ? <span className="text-xs text-gray-500">Exportando…</span>
+                : <FileSpreadsheet className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -491,7 +521,7 @@ export default function InventarioBultos() {
             </select>
           </div>
 
-          <div className="md:col-span-2">
+          <div>
             <label className="block text-sm font-semibold mb-1">Búsqueda</label>
             <input
               type="text"
@@ -501,15 +531,20 @@ export default function InventarioBultos() {
               onChange={(e) => setBusqueda(e.target.value)}
             />
           </div>
+
+          <div className="flex items-end">
+            <button
+              onClick={clearFilters}
+              className="text-gray-400 hover:text-red-500 p-2 rounded"
+              title="Limpiar filtros"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="text-xs text-gray-500 mt-3 flex flex-wrap gap-4">
-          <div>
-            Filas: <span className="font-semibold">{bultosOrdenados.length}</span> / {bultos.length}
-          </div>
-          <div>
-            Seleccionadas: <span className="font-semibold">{selectedIds.size}</span>
-          </div>
+        <div className="text-xs text-gray-500 mt-3">
+          Filas: <span className="font-semibold">{bultosOrdenados.length}</span> / {bultos.length}
         </div>
       </div>
 
@@ -530,10 +565,10 @@ export default function InventarioBultos() {
                 <th className="p-2 border"><SortHeader label="Identificador" sortKey="identificador" /></th>
                 <th className="p-2 border"><SortHeader label="Item" sortKey="item" /></th>
                 <th className="p-2 border"><SortHeader label="Bodega" sortKey="bodega" /></th>
-                <th className="p-2 border"><SortHeader label="Pallet" sortKey="pallet" /></th>
                 <th className="p-2 border"><SortHeader label="Formato" sortKey="peso_unitario" /></th>
                 <th className="p-2 border"><SortHeader label="Disponible" sortKey="disponible" /></th>
                 <th className="p-2 border"><SortHeader label="Costo" sortKey="costo" /></th>
+                <th className="p-2 border"><SortHeader label="Fecha ingreso" sortKey="fecha_ingreso" /></th>
                 <th className="p-2 border w-28 text-center">Acciones</th>
               </tr>
 
@@ -550,7 +585,7 @@ export default function InventarioBultos() {
                 </th>
                 <th className="p-1 border">
                   <input
-                    className="border rounded px-2 py-1 w-52"
+                    className="border rounded px-2 py-1 w-40"
                     placeholder="filtrar"
                     value={filters.identificador}
                     onChange={(e) => setFilters((p) => ({ ...p, identificador: e.target.value }))}
@@ -558,21 +593,13 @@ export default function InventarioBultos() {
                 </th>
                 <th className="p-1 border">
                   <input
-                    className="border rounded px-2 py-1 w-56"
+                    className="border rounded px-2 py-1 w-44"
                     placeholder="filtrar"
                     value={filters.item}
                     onChange={(e) => setFilters((p) => ({ ...p, item: e.target.value }))}
                   />
                 </th>
                 <th className="p-1 border"></th>
-                <th className="p-1 border">
-                  <input
-                    className="border rounded px-2 py-1 w-32"
-                    placeholder="filtrar"
-                    value={filters.pallet}
-                    onChange={(e) => setFilters((p) => ({ ...p, pallet: e.target.value }))}
-                  />
-                </th>
                 <th className="p-1 border">
                   <div className="flex gap-1">
                     <input
@@ -622,6 +649,7 @@ export default function InventarioBultos() {
                   </div>
                 </th>
                 <th className="p-1 border"></th>
+                <th className="p-1 border"></th>
               </tr>
             </thead>
             <tbody>
@@ -637,7 +665,6 @@ export default function InventarioBultos() {
                 const unidad = getUnidadMedida(b);
                 const nombre = getItemNombre(b);
                 const bodegaNombre = getBodegaNombre(b);
-                const palletIdent = getPalletIdentificador(b);
 
                 const cantidadDisponibleNum =
                   Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0);
@@ -664,7 +691,6 @@ export default function InventarioBultos() {
                   <td className="p-2 border font-mono text-xs">{b.identificador}</td>
                   <td className="p-2 border">{nombre}</td>
                   <td className="p-2 border">{bodegaNombre}</td>
-                  <td className="p-2 border">{palletIdent || <span className="text-gray-400">—</span>}</td>
 
                   <td className="p-2 border">
                     {formatNumberCL(b.peso_unitario, 2)} {unidad}
@@ -676,6 +702,7 @@ export default function InventarioBultos() {
                   <td className="p-2 border">
                     <div className="font-medium">{formatCLP(costoTotal, 0)}</div>
                   </td>
+                  <td className="p-2 border whitespace-nowrap">{formatFechaIngreso(b.createdAt)}</td>
                   <td className="p-2 border text-center">
                     <div className="flex items-center justify-center gap-3">
                       <button

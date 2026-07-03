@@ -130,6 +130,33 @@ export default function Solicitudes() {
         </div>
       ),
     },
+    {
+      header: renderHeader("Fecha Solicitud", "createdAt", "center"),
+      accessor: "createdAt",
+      Cell: ({ value }) => (
+        <div className="text-center text-sm text-gray-700">
+          {value ? new Date(value).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"}
+        </div>
+      ),
+    },
+    {
+      header: renderHeader("Fecha Envío", "fecha_envio", "center"),
+      accessor: "fecha_envio",
+      Cell: ({ value }) => (
+        <div className="text-center text-sm text-gray-700">
+          {value ? new Date(value).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"}
+        </div>
+      ),
+    },
+    {
+      header: renderHeader("Fecha Recepción", "fecha_recepcion", "center"),
+      accessor: "fecha_recepcion",
+      Cell: ({ value }) => (
+        <div className="text-center text-sm text-gray-700">
+          {value ? new Date(value).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"}
+        </div>
+      ),
+    },
   ];
 
   useEffect(() => {
@@ -144,6 +171,7 @@ export default function Solicitudes() {
                 bodegaSolicitante: s.bodegaSolicitante,
                 usuarioSolicitante: s.usuarioSolicitante,
                 estado: normalizeEstadoSolicitud(s.estado),
+                createdAt: s.createdAt,
                 fecha_envio: s.fecha_envio,
                 fecha_recepcion: s.fecha_recepcion,
                 numero_guia_despacho: s.numero_guia_despacho,

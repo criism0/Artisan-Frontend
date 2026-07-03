@@ -117,6 +117,7 @@ import LocalClienteDetail from "./pages/Locales/LocalClienteDetail.jsx";
 // ====== Ventas ======
 import VentasDashboard from "./pages/Ventas/VentasDashboard";
 import OrdenesVentaPage from "./pages/Ventas/OrdenesVentaPage";
+import ColaIAPage from "./pages/Ventas/ColaIAPage";
 import AddOrdenVenta from "./pages/Ventas/AddOrdenVenta";
 import EditOrdenVenta from "./pages/Ventas/EditOrdenVenta";
 import OrdenVentaDetail from "./pages/Ventas/OrdenVentaDetail";
@@ -1157,45 +1158,53 @@ function Routing() {
           <Route path="/ventas/bandeja-dte-emitidos" element={<BandejaDTEEmitidos />} />
 
           {/* Ventas */}
-          <Route 
-            path="/ventas/dashboard" 
+          <Route
+            path="/ventas/dashboard"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.READ]]}>
                 <VentasDashboard />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/ventas/ordenes" 
+          <Route
+            path="/ventas/cola-ia"
+            element={
+              <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.WRITE]]}>
+                <ColaIAPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/ventas/ordenes"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.READ]]}>
                 <OrdenesVentaPage />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/ventas/ordenes/:ordenId/asignar" 
+          <Route
+            path="/ventas/ordenes/:ordenId/asignar"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.WRITE]]}>
                 <AsignarVenta />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/ventas/ordenes/:ordenId/resumen-asignacion" 
+          <Route
+            path="/ventas/ordenes/:ordenId/resumen-asignacion"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.READ]]}>
                 <ResumenAsignacionVenta />
               </ProtectedRoute>
             }
           />
-          <Route 
-            path="/ventas/ordenes/add" 
+          <Route
+            path="/ventas/ordenes/add"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.WRITE]]}>
                 <AddOrdenVenta />
               </ProtectedRoute>
-            } 
+            }
           />
           <Route
             path="/ventas/ordenes/:id"

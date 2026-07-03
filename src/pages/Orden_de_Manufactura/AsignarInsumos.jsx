@@ -13,29 +13,15 @@ const handleNumberInputWheel = (e) => {
   e.preventDefault();
 };
 
+// Redondea a 4 decimales (0,0001 kg = 0,1 g), el MISMO criterio que el backend
+// (utils/formatDecimals.ts). Antes el frontend conservaba 2 cifras significativas /
+// 3 decimales, lo que difería del backend y, para insumos dosificados en gramos,
+// dejaba al operario sin un valor válido para asignar ("error al asignar bulto").
 const formatDecimal = (num) => {
   const numValue = Number(num);
-  if (isNaN(numValue)) return num;
-
-  if (numValue === 0) return 0;
-
-  const str = numValue.toString();
-  if (str.includes('e') || str.includes('E')) {
-    return numValue;
-  }
-
-  const parts = str.split('.');
-  if (parts.length === 1) return numValue;
-
-  const decimalPart = parts[1] || '';
-  const firstNonZeroIndex = decimalPart.search(/[1-9]/);
-
-  if (firstNonZeroIndex === -1) return 0;
-
-  if (firstNonZeroIndex <= 1) {
-    return Number(numValue.toFixed(3));
-  }
-  return numValue;
+  if (!Number.isFinite(numValue)) return num;
+  if (numValue <= 0) return numValue;
+  return Math.round(numValue * 10000) / 10000;
 };
 
 const mostrarNumeroExacto = (num) => {
@@ -56,7 +42,9 @@ const mostrarNumeroExacto = (num) => {
 const UNDER_TOL_PCT = 0.05;
 const OVER_TOL_PCT = 0.01;
 const MIN_TOL_ABS = 0.0001;
-const SUM_SCALE = 1000;
+// Escala entera para sumar sin errores de punto flotante. 10000 = 4 decimales,
+// alineado con formatDecimal y el backend (permite dosificar a nivel de gramos).
+const SUM_SCALE = 10000;
 
 const toScaledInt = (v) => {
   const n = Number(v);
@@ -155,6 +143,17 @@ export default function AsignarInsumos() {
     }
   }, [api, hasPasos, id]);
 
+  const buildBultosMapFromList = (registros, allBultos) => {
+    const bultosMap = {};
+    for (const insumo of registros) {
+      const allowedMPs = buildAllowedMateriaPrimas(insumo);
+      const allowedIds = new Set(allowedMPs.map((mp) => Number(mp.id)).filter(Number.isFinite));
+      if (allowedIds.size === 0) continue;
+      bultosMap[insumo.id] = allBultos.filter((b) => allowedIds.has(Number(b.id_materia_prima)));
+    }
+    return bultosMap;
+  };
+
   const cargarInsumosYBultos = async () => {
     if (!canReadManufacture || !canReadSupplyProduction) {
       toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ], [ModelType.REGISTRO_INSUMOS_PRODUCCION, ScopeType.READ]);
@@ -175,26 +174,31 @@ export default function AsignarInsumos() {
 
     const bodega = resOrden.bodega?.id ?? resOrden.id_bodega;
 
-    const bultosMap = {};
+    const allMpIds = [];
     for (const insumo of resInsumos.registros) {
       const allowedMPs = buildAllowedMateriaPrimas(insumo);
-      const allowedIds = allowedMPs.map((mp) => Number(mp.id)).filter(Number.isFinite);
-      if (allowedIds.length === 0) continue;
-
-      try {
-        const resBultos = await api(
-          `/bultos/disponibles?id_bodega=${bodega}&id_materia_prima=${allowedIds.join(",")}`,
-          { method: "GET" }
-        );
-        bultosMap[insumo.id] = Array.isArray(resBultos)
-          ? resBultos
-          : resBultos.bultos || [];
-      } catch {
-        bultosMap[insumo.id] = [];
+      for (const mp of allowedMPs) {
+        const mpId = Number(mp.id);
+        if (Number.isFinite(mpId) && !allMpIds.includes(mpId)) {
+          allMpIds.push(mpId);
+        }
       }
     }
 
-    setBultosPorInsumo(bultosMap);
+    let allBultos = [];
+    if (allMpIds.length > 0) {
+      try {
+        const resBultos = await api(
+          `/bultos/disponibles?id_bodega=${bodega}&id_materia_prima=${allMpIds.join(",")}`,
+          { method: "GET" }
+        );
+        allBultos = Array.isArray(resBultos) ? resBultos : resBultos.bultos || [];
+      } catch {
+        allBultos = [];
+      }
+    }
+
+    setBultosPorInsumo(buildBultosMapFromList(resInsumos.registros, allBultos));
 
     // Inicializar/normalizar selección de MP por registro (preferida por defecto)
     setMpSeleccionadaPorRegistro((prev) => {
@@ -324,12 +328,24 @@ export default function AsignarInsumos() {
     const { registroId, bulto } = revertTarget;
 
     try {
-      await api(`/registros-insumo-produccion/${registroId}/bultos/${bulto.id}`,
-        {
-          method: "DELETE",
-        }
-      );
-      await cargarInsumosYBultos();
+      await api(`/registros-insumo-produccion/${registroId}/bultos/${bulto.id}`, { method: "DELETE" });
+
+      const insumoAfectado = insumos.find((i) => i.id === registroId);
+      const allowedMPs = buildAllowedMateriaPrimas(insumoAfectado);
+      const allowedIds = allowedMPs.map((mp) => Number(mp.id)).filter(Number.isFinite);
+      const bodega = orden?.bodega?.id ?? orden?.id_bodega;
+
+      const [resInsumos, resBultos] = await Promise.all([
+        api(`/registros-insumo-produccion?id_orden_manufactura=${id}`, { method: "GET" }),
+        allowedIds.length > 0
+          ? api(`/bultos/disponibles?id_bodega=${bodega}&id_materia_prima=${allowedIds.join(",")}`, { method: "GET" })
+          : Promise.resolve([]),
+      ]);
+
+      setInsumos(resInsumos.registros);
+      const bultosActualizados = Array.isArray(resBultos) ? resBultos : resBultos.bultos || [];
+      setBultosPorInsumo((prev) => ({ ...prev, [registroId]: bultosActualizados }));
+
       toast.success("Bulto revertido correctamente");
       closeRevertModal();
     } catch (err) {
@@ -394,33 +410,38 @@ export default function AsignarInsumos() {
       const payload = {
         bultos: bultosFormateados,
       };
-      
-      const response = await api(`/registros-insumo-produccion/${idRegistro}`, {
+
+      await api(`/registros-insumo-produccion/${idRegistro}`, {
         method: "PUT",
         body: JSON.stringify(payload),
       });
-      
-      const resInsumos = await api(`/registros-insumo-produccion?id_orden_manufactura=${id}`, {
-        method: "GET",
-      });
-      const insumoRecargado = resInsumos.registros.find(r => r.id === idRegistro);
-      
+
+      const insumoActualizado = insumos.find((i) => i.id === idRegistro);
+      const allowedMPs = buildAllowedMateriaPrimas(insumoActualizado);
+      const allowedIds = allowedMPs.map((mp) => Number(mp.id)).filter(Number.isFinite);
+      const bodega = orden?.bodega?.id ?? orden?.id_bodega;
+
+      const [resInsumos, resOrden, resBultos] = await Promise.all([
+        api(`/registros-insumo-produccion?id_orden_manufactura=${id}`, { method: "GET" }),
+        api(`/ordenes_manufactura/${id}`, { method: "GET" }),
+        allowedIds.length > 0
+          ? api(`/bultos/disponibles?id_bodega=${bodega}&id_materia_prima=${allowedIds.join(",")}`, { method: "GET" })
+          : Promise.resolve([]),
+      ]);
+
       setInsumos(resInsumos.registros);
-      
-      const resOrden = await api(`/ordenes_manufactura/${id}`, {
-        method: "GET",
-      });
       setOrden(resOrden);
-      
+
+      const bultosActualizados = Array.isArray(resBultos) ? resBultos : resBultos.bultos || [];
+      setBultosPorInsumo((prev) => ({ ...prev, [idRegistro]: bultosActualizados }));
+
       setAsignaciones((prev) => {
         const nuevas = { ...prev };
         delete nuevas[idRegistro];
         return nuevas;
       });
-      
-      toast.success("Insumo asignado correctamente");
 
-      await cargarInsumosYBultos();
+      toast.success("Insumo asignado correctamente");
     } catch (err) {
       console.error("Error al asignar bultos:", err);
       toast.error("Error al asignar bultos");
@@ -513,18 +534,14 @@ export default function AsignarInsumos() {
         });
       }
 
-      const resInsumos = await api(`/registros-insumo-produccion?id_orden_manufactura=${id}`, {
-        method: "GET",
-      });
+      const [resInsumos, resOrden] = await Promise.all([
+        api(`/registros-insumo-produccion?id_orden_manufactura=${id}`, { method: "GET" }),
+        api(`/ordenes_manufactura/${id}`, { method: "GET" }),
+      ]);
       setInsumos(resInsumos.registros);
-      
-      const resOrden = await api(`/ordenes_manufactura/${id}`, {
-        method: "GET",
-      });
       setOrden(resOrden);
-      
       setAsignaciones({});
-      
+
       toast.success("Asignación confirmada");
 
       return true;
@@ -698,7 +715,7 @@ export default function AsignarInsumos() {
 
         const unidadMedida = insumo?.ingredienteReceta?.unidad_medida || "";
         const sufijoUnidad = unidadMedida ? ` ${unidadMedida}` : "";
-        const stepInput = unidadMedida === "unidades" ? "1" : "0.001";
+        const stepInput = unidadMedida === "unidades" ? "1" : "0.0001";
 
         const bultosAsignados = insumo?.bultos || insumo?.Bultos || [];
 

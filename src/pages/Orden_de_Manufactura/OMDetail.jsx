@@ -108,6 +108,9 @@ export default function OMDetail() {
   const [analisisSensorialStatus, setAnalisisSensorialStatus] = useState(null);
   const [insumosAsignados, setInsumosAsignados] = useState(false);
   const [tieneRegistrosInsumo, setTieneRegistrosInsumo] = useState(false);
+  const [editandoCantidad, setEditandoCantidad] = useState(false);
+  const [nuevaCantidad, setNuevaCantidad] = useState("");
+  const [guardandoCantidad, setGuardandoCantidad] = useState(false);
   const navigate = useNavigate();
 
   const canReadManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ);
@@ -239,6 +242,35 @@ export default function OMDetail() {
     fetchAnalisisSensorial();
   }, [id, canReadManufacture, canReadSupplyProduction, canReadAddedValueGuideline]);
 
+  const handleGuardarCantidad = async () => {
+    const valor = Number(nuevaCantidad);
+    if (!Number.isFinite(valor) || valor <= 0) {
+      toast.error("Ingresa una cantidad válida mayor a 0.");
+      return;
+    }
+    try {
+      setGuardandoCantidad(true);
+      await api(`/ordenes_manufactura/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ peso_objetivo: valor }),
+      });
+      // Refrescar OM e insumos: cambió el peso necesario de cada ingrediente.
+      const [omRefrescada, insumosRes] = await Promise.all([
+        api(`/ordenes_manufactura/${id}`),
+        api(`/registros-insumo-produccion?id_orden_manufactura=${id}`).catch(() => ({ registros: [] })),
+      ]);
+      setOM(omRefrescada);
+      const registros = insumosRes?.registros || [];
+      setConsumoInsumos(Array.isArray(registros) ? registros : []);
+      setEditandoCantidad(false);
+      toast.success("Cantidad objetivo actualizada.");
+    } catch (err) {
+      toast.error(err?.message || "No se pudo actualizar la cantidad.");
+    } finally {
+      setGuardandoCantidad(false);
+    }
+  };
+
   const descargarEtiquetas = async (ids, filename) => {
     const idsNum = (Array.isArray(ids) ? ids : [ids])
       .map((x) => Number(x))
@@ -352,11 +384,50 @@ export default function OMDetail() {
   const pesoMerma = Number.isFinite(Number(om?.peso_merma))
     ? Number(om?.peso_merma)
     : (pesoObjetivo ? (pesoObjetivo - pesoTotalSalidaRendimiento) : 0);
-  const rendimientoPeso = Number.isFinite(Number(om?.rendimiento_peso))
-    ? Number(om?.rendimiento_peso)
-    : (pesoObjetivo > 0 ? (pesoTotalSalidaRendimiento / pesoObjetivo) : null);
   const costoTotal = Number(om?.costo_total || 0);
   const costoPorKg = pesoObtenido > 0 ? (costoTotal / pesoObtenido) : null;
+
+  // --- Métricas post-cierre extendidas ---
+  // Peso total de entrada = suma de insumos realmente consumidos.
+  // Excluye los costos secos (EMPAQUE) y los insumos contados por unidad, porque
+  // no forman parte del peso de entrada del proceso y distorsionan el rendimiento.
+  // Mismo criterio que el backend (controllers/produccion/orden_manufactura/_helpers.ts).
+  const pesoTotalEntrada = (consumoInsumos || []).reduce((acc, r) => {
+    const tipo = String(r?.tipo || "").toUpperCase();
+    if (tipo === "EMPAQUE") return acc;
+
+    const unidad = String(
+      r?.materiaPrima?.unidad_medida ??
+        r?.ingredienteReceta?.materiaPrima?.unidad_medida ??
+        ""
+    )
+      .trim()
+      .toLowerCase();
+    if (unidad === "unidades" || unidad === "unidad") return acc;
+
+    const peso = Number(r?.peso_utilizado || 0);
+    if (!Number.isFinite(peso) || peso <= 0) return acc;
+
+    return acc + peso;
+  }, 0);
+  // Rendimiento = Peso Obtenido (PIP/PT) / Peso Total entrada
+  const rendimientoPeso = pesoTotalEntrada > 0 ? pesoObtenido / pesoTotalEntrada : null;
+
+  // Determinar si la OM produce PT o PIP
+  const esPIP = Boolean(loteProductoEnProceso);
+  const labelObtenido = esPIP ? "Peso Obtenido (PIP)" : "Peso Obtenido (PT)";
+
+  // Bultos productivos (PT o PIP, excluye merma)
+  const bultosProductivos = (bultosAsociados || []).filter(
+    (b) => getClaveCategoria(b) === "PT" || getClaveCategoria(b) === "PIP"
+  );
+  const cajasObtenidas = bultosProductivos.length;
+  const unidadesObtenidas = bultosProductivos.reduce(
+    (acc, b) => acc + Number(b?.cantidad_unidades || 0),
+    0
+  );
+  const costoPorUnidad = unidadesObtenidas > 0 ? costoTotal / unidadesObtenidas : null;
+  const costoPorCaja = cajasObtenidas > 0 ? costoTotal / cajasObtenidas : null;
 
   const fechaVencimiento = (() => {
     const fromPT = productosFinales?.[0]?.loteProductoFinal?.fecha_vencimiento;
@@ -439,49 +510,86 @@ export default function OMDetail() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {/* Fila 1: Pesos */}
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Peso objetivo</div>
+              <div className="text-xs text-gray-500 font-medium">Peso Objetivo</div>
               <div className="text-lg font-bold text-text">{formatNumberCL(pesoObjetivo, 2)} kg</div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Peso obtenido</div>
+              <div className="text-xs text-gray-500 font-medium">Peso Total entrada</div>
+              <div className="text-lg font-bold text-text">
+                {pesoTotalEntrada > 0 ? `${formatNumberCL(pesoTotalEntrada, 2)} kg` : "—"}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">Suma insumos consumidos</div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">{labelObtenido}</div>
               <div className="text-lg font-bold text-text">{formatNumberCL(pesoObtenido, 2)} kg</div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Subproductos</div>
+              <div className="text-xs text-gray-500 font-medium">Peso Subproductos</div>
               <div className="text-lg font-bold text-text">{formatNumberCL(pesoSubproductos, 2)} kg</div>
             </div>
 
+            {/* Fila 2: Merma y rendimiento */}
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Salida total (rendimiento)</div>
-              <div className="text-lg font-bold text-text">{formatNumberCL(pesoTotalSalidaRendimiento, 2)} kg</div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Merma (no inventariada)</div>
+              <div className="text-xs text-gray-500 font-medium">Peso Merma</div>
               <div className={`text-lg font-bold ${pesoMerma > 0.0001 ? "text-orange-700" : "text-text"}`}>
                 {Number.isFinite(pesoMerma) ? `${formatNumberCL(pesoMerma, 2)} kg` : "—"}
               </div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Rendimiento (peso)</div>
+              <div className="text-xs text-gray-500 font-medium">Rendimiento</div>
               <div className="text-lg font-bold text-text">
                 {rendimientoPeso == null ? "—" : `${formatNumberCL(Number(rendimientoPeso) * 100, 2)}%`}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">Obtenido / Total entrada</div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Unidades Obtenidas</div>
+              <div className="text-lg font-bold text-text">
+                {unidadesObtenidas > 0 ? formatNumberCL(unidadesObtenidas, 2) : "—"}
               </div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Costo total</div>
+              <div className="text-xs text-gray-500 font-medium">Cajas Obtenidas</div>
+              <div className="text-lg font-bold text-text">
+                {cajasObtenidas > 0 ? cajasObtenidas : "—"}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">Bultos PT/PIP</div>
+            </div>
+
+            {/* Fila 3: Costos */}
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Costo Total</div>
               <div className="text-lg font-bold text-text">{formatCLP(costoTotal, 0)}</div>
             </div>
 
             <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Costo por kg (sobre peso obtenido)</div>
+              <div className="text-xs text-gray-500 font-medium">Costo por kg</div>
               <div className="text-lg font-bold text-text">
                 {costoPorKg == null ? "—" : formatCLP(costoPorKg, 2)}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">Sobre peso obtenido</div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Costo por Unidad</div>
+              <div className="text-lg font-bold text-text">
+                {costoPorUnidad == null ? "—" : formatCLP(costoPorUnidad, 2)}
+              </div>
+            </div>
+
+            <div className="bg-gray-50 rounded-lg border border-border p-3">
+              <div className="text-xs text-gray-500 font-medium">Costo por Caja</div>
+              <div className="text-lg font-bold text-text">
+                {costoPorCaja == null ? "—" : formatCLP(costoPorCaja, 2)}
               </div>
             </div>
           </div>
@@ -816,7 +924,47 @@ export default function OMDetail() {
         </table>
       </div>
 
-      <div className="mt-8 flex flex-wrap gap-3">
+      <div className="mt-8 flex flex-wrap gap-3 items-center">
+        {estado === "Borrador" &&
+          (editandoCantidad ? (
+            <div className="flex items-center gap-2 bg-white border border-border rounded-lg px-3 py-2 shadow">
+              <label className="text-sm font-medium text-text">Cantidad objetivo:</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={nuevaCantidad}
+                onChange={(e) => setNuevaCantidad(e.target.value)}
+                className="w-28 border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+              <button
+                className="px-3 py-1 bg-primary text-white rounded hover:bg-hover text-sm font-medium disabled:opacity-60"
+                onClick={handleGuardarCantidad}
+                disabled={guardandoCantidad}
+              >
+                {guardandoCantidad ? "Guardando…" : "Guardar"}
+              </button>
+              <button
+                className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+                onClick={() => setEditandoCantidad(false)}
+                disabled={guardandoCantidad}
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              className="px-4 py-2 bg-white border border-border text-text rounded-lg hover:bg-gray-100 font-medium shadow flex items-center gap-2"
+              onClick={() => {
+                setNuevaCantidad(String(om?.peso_objetivo ?? ""));
+                setEditandoCantidad(true);
+              }}
+            >
+              <Pencil size={16} /> Modificar cantidad
+            </button>
+          ))}
+
         {estado === "Borrador" && !insumosAsignados && tieneRegistrosInsumo && (
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium shadow flex items-center gap-2"

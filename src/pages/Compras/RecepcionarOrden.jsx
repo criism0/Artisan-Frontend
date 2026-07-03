@@ -10,6 +10,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatCLP } from "../../services/formatHelpers";
+import AvanceItems from "../../components/AvanceItems";
 
 // Evita que el scroll cambie el valor del input type="number"
 const handleNumberInputWheel = (e) => {
@@ -207,7 +208,23 @@ export default function RecepcionarOrden() {
         // Ocultar insumos ya totalmente recepcionados (pendiente = 0)
         .filter((i) => (Number(i?.cantidad_pendiente) || 0) > 1e-9);
 
+        // Avance completo de la OC (incluye insumos ya recepcionados al 100%)
+        const avanceItems = fetched.materiasPrimas.map((mp) => {
+          const purchasePmp = pmpById[mp.id_proveedor_materia_prima] || mp.proveedorMateriaPrima;
+          return {
+            id: mp.id,
+            nombre:
+              purchasePmp?.materiaPrima?.nombre ||
+              purchasePmp?.MateriaPrima?.nombre ||
+              `Materia prima #${mp.id_proveedor_materia_prima}`,
+            unidad: purchasePmp?.formato || mp.formato || "",
+            solicitado: Number(mp.cantidad_formato) || 0,
+            completado: Number(mp.cantidad_recepcionada) || 0,
+          };
+        });
+
         setOrdenData({
+          avance_items: avanceItems,
           ...fetched,
           proveedor: fetched.proveedor?.nombre_empresa || fetched.id_proveedor,
           lugar: fetched.BodegaSolicitante?.nombre || "-",
@@ -808,8 +825,26 @@ export default function RecepcionarOrden() {
         </div>
       </div>
 
+      {Array.isArray(ordenData.avance_items) && ordenData.avance_items.length > 0 && (
+        <div className="bg-white p-4 rounded-lg shadow mb-6">
+          <AvanceItems
+            title="Avance de recepción"
+            items={ordenData.avance_items}
+            labels={{
+              solicitado: "Pedido",
+              completado: "Recepcionado",
+              pendiente: "Falta por recepcionar",
+              itemNoun: "insumos",
+            }}
+          />
+        </div>
+      )}
+
       <div className="mt-6">
         <h2 className="text-lg text-primary font-medium mb-4">Insumos</h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Se muestran solo los insumos con cantidades pendientes por recepcionar.
+        </p>
         {errors.insumos && (
           <p className="text-red-600 text-sm mb-2">{errors.insumos}</p>
         )}

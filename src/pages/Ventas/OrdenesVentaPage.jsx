@@ -13,6 +13,7 @@ import {
   Undo2,
   ClipboardList,
 } from "lucide-react";
+import { ViewDetailButton, EditButton, TrashButton } from "../../components/Buttons/ActionButtons";
 import SearchBar from "../../components/UI/SearchBar";
 import RowsPerPageSelector from "../../components/UI/RowsPerPageSelector";
 import Pagination from "../../components/UI/Pagination";
@@ -25,7 +26,6 @@ export default function OrdenesVentaPage() {
   const api = useApi();
   const [ordenes, setOrdenes] = useState([]);
   const [filtered, setFiltered] = useState([]);
-  const [direccionToCliente, setDireccionToCliente] = useState({});
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [page, setPage] = useState(1);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
@@ -47,34 +47,11 @@ export default function OrdenesVentaPage() {
         return;
       }
       try {
-        const [ordRes, clientesRes] = await Promise.all([
-          api("/ordenes-venta"),
-          api("/clientes"),
-        ]);
-
-        const direccionToClienteId = {};
-        const clienteNombre = {};
-        
-        const clientesData = clientesRes.data || clientesRes || [];
-        clientesData.forEach((c) => {
-          clienteNombre[c.id] = c.nombre_empresa;
-          if (Array.isArray(c.direcciones)) {
-            c.direcciones.forEach((direccion) => {
-              direccionToClienteId[direccion.id] = c.id;
-            });
-          }
-        });
-
-        const d2c = {};
-        Object.entries(direccionToClienteId).forEach(([direccionId, clienteId]) => {
-          d2c[direccionId] = clienteNombre[clienteId] || "—";
-        });
-        setDireccionToCliente(d2c);
-
+        const ordRes = await api("/ordenes-venta");
         const ordenesData = ordRes.data || ordRes || [];
-        const data = [...ordenesData].sort(
-          (a, b) => new Date(b.fecha_orden) - new Date(a.fecha_orden)
-        );
+        const data = [...ordenesData]
+          .filter((o) => o.estado !== "PendienteIA")
+          .sort((a, b) => new Date(b.fecha_orden) - new Date(a.fecha_orden));
         setOrdenes(data);
         setFiltered(data);
       } catch (err) {
@@ -85,75 +62,22 @@ export default function OrdenesVentaPage() {
     })();
   }, [api, canReadClients]);
 
-  // === Transiciones de estado ===
-  const estados = ["Pendiente", "Asignado", "Facturado", "Enviado", "Entregado"];
-
-  const avanzarEstado = async (row) => {
-    if (!canWriteSaleOrder) {
-      toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.WRITE]);
-      return;
-    }
-
-    try {
-      const idx = estados.indexOf(row.estado);
-      if (idx === -1 || idx === estados.length - 1) return;
-      const nuevoEstado = estados[idx + 1];
-
-      await api(`/ordenes-venta/${row.id}`, { method: "PUT", body: JSON.stringify({ estado: nuevoEstado }) });
-
-      setOrdenes((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: nuevoEstado } : o))
-      );
-      setFiltered((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: nuevoEstado } : o))
-      );
-      toast.success("Estado actualizado correctamente");
-    } catch (err) {
-      toast.error("No se pudo avanzar el estado");
-    }
-  };
-
-  const retrocederEstado = async (row) => {
-    if (!canWriteSaleOrder) {
-      toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.WRITE]);
-      return;
-    }
-
-    try {
-      const idx = estados.indexOf(row.estado);
-      if (idx <= 0) return;
-      const nuevoEstado = estados[idx - 1];
-
-      await api(`/ordenes-venta/${row.id}`, { method: "PUT", body: JSON.stringify({ estado: nuevoEstado }) });
-
-      setOrdenes((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: nuevoEstado } : o))
-      );
-      setFiltered((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: nuevoEstado } : o))
-      );
-      toast.success("Estado actualizado correctamente");
-    } catch (err) {
-      toast.error("No se pudo retroceder el estado");
-    }
-  };
-
   // === Badges ===
   const getEstadoBadge = (estado) => {
     const base = "px-3 py-1 rounded-full text-xs font-medium";
     switch (estado) {
-      case "Pendiente":
-        return <span className={`${base} bg-gray-200 text-gray-700`}>Pendiente</span>;
-      case "Asignado":
-        return <span className={`${base} bg-blue-100 text-blue-700`}>Asignado</span>;
-      case "Listo-para-despacho":
-        return <span className={`${base} bg-cyan-100 text-cyan-700`}>Listo-para-despacho</span>;
-      case "Facturado":
-        return <span className={`${base} bg-yellow-100 text-yellow-700`}>Facturado</span>;
-      case "Enviado":
-        return <span className={`${base} bg-purple-100 text-purple-700`}>Enviado</span>;
-      case "Entregado":
-        return <span className={`${base} bg-green-100 text-green-700`}>Entregado</span>;
+      case "Creada":
+        return <span className={`${base} bg-gray-200 text-gray-700`}>Creada</span>;
+      case "Validada":
+        return <span className={`${base} bg-blue-100 text-blue-700`}>Validada</span>;
+      case "En picking":
+        return <span className={`${base} bg-indigo-100 text-indigo-700`}>En picking</span>;
+      case "Lista para facturación":
+        return <span className={`${base} bg-cyan-100 text-cyan-700`}>Lista para facturación</span>;
+      case "Facturada":
+        return <span className={`${base} bg-yellow-100 text-yellow-700`}>Facturada</span>;
+      case "Entregada":
+        return <span className={`${base} bg-green-100 text-green-700`}>Entregada</span>;
       default:
         return <span className={`${base} bg-gray-100 text-gray-600`}>{estado}</span>;
     }
@@ -208,140 +132,40 @@ export default function OrdenesVentaPage() {
     );
   };
 
-  // === Botón dinámico según estado ===
-  const BotonEstado = ({ row }) => {
-    switch (row.estado) {
-      case "Pendiente":
-        return (
-          <button
-            onClick={() => navigate(`/ventas/ordenes/${row.id}/asignar`)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary"
-            title="Asignar productos"
-          >
-            <FilePen size={18} strokeWidth={1.5} />
-          </button>
-        );
-
-      case "Asignado":
-        return (
-          <>
-            <button
-              onClick={() => avanzarEstado(row)}
-              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-yellow-600"
-              title="Facturar"
-            >
-              <Receipt size={18} strokeWidth={1.5} />
-            </button>
-            <button
-              onClick={() => retrocederEstado(row)}
-              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-600"
-              title="Volver a Pendiente"
-            >
-              <Undo2 size={18} strokeWidth={1.5} />
-            </button>
-          </>
-        );
-
-      case "Facturado":
-        return (
-          <>
-            <button
-              onClick={() => avanzarEstado(row)}
-              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-purple-600"
-              title="Enviar"
-            >
-              <Truck size={18} strokeWidth={1.5} />
-            </button>
-            <button
-              onClick={() => retrocederEstado(row)}
-              className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-yellow-600"
-              title="Volver a Asignado"
-            >
-              <Undo2 size={18} strokeWidth={1.5} />
-            </button>
-          </>
-        );
-
-      case "Enviado":
-        // No mostrar botones aquí, el botón de entregar se maneja en actions()
-        return null;
-
-      case "Entregado":
-        // No se puede retroceder desde Entregado
-        return null;
-
-      default:
-        return null;
-    }
-  };
-
   // === Acciones por fila ===
   const actions = (row) => {
-    const estadoListoDespacho = row.estado === "Listo-para-despacho";
-    const estadoEnviado = row.estado === "Enviado";
-    const estadoEntregado = row.estado === "Entregado";
-    const puedeEditar = !estadoListoDespacho && !estadoEnviado && !estadoEntregado;
-    const puedeVerResumen = estadoListoDespacho || estadoEnviado || estadoEntregado;
-    
+    const puedeEditar = row.estado === "Creada";
+    const tieneAsignacion = ["En picking", "Lista para facturación", "Facturada", "Entregada"].includes(row.estado);
+
     return (
-      <div className="flex gap-2 justify-center">
-        <button
+      <div className="flex gap-2 justify-center items-center">
+        <ViewDetailButton
           onClick={() => navigate(`/ventas/ordenes/${row.id}`)}
-          className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary"
-          title="Ver Detalle"
-        >
-          <Eye size={18} strokeWidth={1.5} />
-        </button>
+          tooltipText="Ver detalle"
+        />
 
         {puedeEditar && (
-          <button
+          <EditButton
             onClick={() => navigate(`/ventas/ordenes/${row.id}/edit`)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-primary"
-            title="Editar"
-          >
-            <Edit size={18} strokeWidth={1.5} />
-          </button>
+            tooltipText="Editar"
+          />
         )}
 
-        {puedeVerResumen && (
+        {tieneAsignacion && (
           <button
             onClick={() => navigate(`/ventas/ordenes/${row.id}/resumen-asignacion`)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-blue-600"
-            title="Ver Resumen de Asignación"
+            className="text-gray-400 hover:text-blue-500"
+            title="Ver resumen de asignación"
           >
-            <ClipboardList size={18} strokeWidth={1.5} />
+            <ClipboardList className="w-5 h-5" />
           </button>
         )}
 
-        {estadoListoDespacho && (
-          <button
-            onClick={() => handleEnviarOrden(row)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-purple-600"
-            title="Enviar orden"
-          >
-            <Truck size={18} strokeWidth={1.5} />
-          </button>
-        )}
-
-        {(estadoEnviado || estadoListoDespacho) && (
-          <button
-            onClick={() => handleEntregarOrden(row)}
-            className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-green-600"
-            title="Entregar orden"
-          >
-            <CheckCircle size={18} strokeWidth={1.5} />
-          </button>
-        )}
-
-        <BotonEstado row={row} />
-
-        <button
-          onClick={() => handleDelete(row.id)}
-          className="p-1 rounded bg-red-50 hover:bg-red-100 text-red-600"
-          title="Eliminar"
-        >
-          <Trash2 size={18} strokeWidth={1.5} />
-        </button>
+        <TrashButton
+          onConfirmDelete={() => handleDelete(row.id)}
+          tooltipText="Eliminar"
+          entityName={`Orden de Venta #${row.id}`}
+        />
       </div>
     );
   };
@@ -357,7 +181,7 @@ export default function OrdenesVentaPage() {
       [
         String(o.id),
         fmtDate(o.fecha_orden),
-        direccionToCliente[o.id_local],
+        o.cliente?.nombre_empresa,
         fmtMoney(o.ingreso_venta),
         o.estado,
       ]
@@ -368,55 +192,12 @@ export default function OrdenesVentaPage() {
     setPage(1);
   };
 
-  const handleEnviarOrden = async (row) => {
-    if (!canWriteSaleOrder) {
-      toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.WRITE]);
-      return;
-    }
-
-    if (!window.confirm("¿Enviar esta orden de venta?")) return;
-    try {
-      await api(`/ordenes-venta/${row.id}/enviar-orden`, { method: "PUT" });
-      setOrdenes((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: "Enviado" } : o))
-      );
-      setFiltered((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: "Enviado" } : o))
-      );
-      toast.success("Orden enviada correctamente");
-    } catch (err) {
-      toast.error("No se pudo enviar la orden");
-    }
-  };
-
-  const handleEntregarOrden = async (row) => {
-    if (!canWriteSaleOrder) {
-      toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.WRITE]);
-      return;
-    }
-
-    if (!window.confirm("¿Confirmar la entrega exitosa de esta orden de venta?")) return;
-    try {
-      await api(`/ordenes-venta/${row.id}/entregar-orden`, { method: "PUT" });
-      setOrdenes((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: "Entregado" } : o))
-      );
-      setFiltered((prev) =>
-        prev.map((o) => (o.id === row.id ? { ...o, estado: "Entregado" } : o))
-      );
-      toast.success("Orden entregada correctamente");
-    } catch (err) {
-      toast.error("No se pudo entregar la orden");
-    }
-  };
-
   const handleDelete = async (id) => {
     if (!canDeleteSaleOrder) {
       toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.DELETE]);
       return;
     }
 
-    if (!window.confirm("¿Eliminar esta orden de venta?")) return;
     try {
       await api(`/ordenes-venta/${id}`, { method: "DELETE" });
       setOrdenes((prev) => prev.filter((x) => x.id !== id));
@@ -491,7 +272,7 @@ export default function OrdenesVentaPage() {
               <tr key={row.id} className="border-b hover:bg-gray-50">
                 <td className="px-4 py-2">{row.id}</td>
                 <td className="px-4 py-2">{fmtDate(row.fecha_orden)}</td>
-                <td className="px-4 py-2">{direccionToCliente[row.id_local] || "—"}</td>
+                <td className="px-4 py-2">{row.cliente?.nombre_empresa || "—"}</td>
                 <td className="px-4 py-2">{fmtMoney(row.ingreso_venta * 1.19)}</td>
                 <td className="px-4 py-2">{getEstadoBadge(row.estado)}</td>
                 <td className="px-4 py-2 text-center">{actions(row)}</td>

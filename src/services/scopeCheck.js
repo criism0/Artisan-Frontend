@@ -42,6 +42,7 @@ export const ModelType = {
   RECETA: "Receta",
   INGREDIENTE_RECETA: "IngredienteReceta",
   PAUTA_ELABORACION: "PautaElaboracion",
+  VALIDAR_ORDEN_VENTA: "ValidarOrdenVenta",
   PASO_PAUTA_ELABORACION: "PasoPautaElaboracion",
   MATERIA_PRIMA: "MateriaPrima",
   PROVEEDOR_MATERIA_PRIMA: "ProveedorMateriaPrima",

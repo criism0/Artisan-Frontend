@@ -150,7 +150,17 @@ export default function ProductoBaseModal({
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData(prev => {
+      const updated = { ...prev, [name]: value };
+      // Auto-calcular precio_caja cuando cambia precio_unidad
+      if (name === "precio_unidad") {
+        const unidades = Number(prev.unidades_por_caja) || 0;
+        if (value && unidades > 0) {
+          updated.precio_caja = String(Math.round(parseFloat(value) * unidades));
+        }
+      }
+      return updated;
+    });
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: "" }));
     }
@@ -261,12 +271,13 @@ export default function ProductoBaseModal({
               name="precio_unidad"
               value={formData.precio_unidad}
               onChange={handleChange}
-              placeholder="Ej: 1500"
-              step="0.01"
+              placeholder={formData.id_producto_base ? "Ej: 1500" : "Selecciona un producto primero"}
+              step="1"
               min="0"
+              disabled={!formData.id_producto_base}
               className={`border px-3 py-2 w-full rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:outline-none ${
                 errors.precio_unidad ? "border-red-500" : ""
-              }`}
+              } ${!formData.id_producto_base ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
             />
             {errors.precio_unidad && (
               <p className="text-red-500 text-sm mt-1">{errors.precio_unidad}</p>
@@ -283,13 +294,19 @@ export default function ProductoBaseModal({
               name="precio_caja"
               value={formData.precio_caja}
               onChange={handleChange}
-              placeholder="Ej: 18000"
-              step="0.01"
+              placeholder={formData.id_producto_base ? "Ej: 18000" : "Selecciona un producto primero"}
+              step="1"
               min="0"
+              disabled={!formData.id_producto_base}
               className={`border px-3 py-2 w-full rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:outline-none ${
                 errors.precio_caja ? "border-red-500" : ""
-              }`}
+              } ${!formData.id_producto_base ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
             />
+            <p className="text-xs text-gray-500 mt-1">
+              {formData.id_producto_base && Number(formData.unidades_por_caja) > 0
+                ? "Calculado automáticamente (precio unitario × unidades/caja). Puedes editarlo."
+                : "Se calculará automáticamente al ingresar el precio por unidad."}
+            </p>
             {errors.precio_caja && (
               <p className="text-red-500 text-sm mt-1">{errors.precio_caja}</p>
             )}

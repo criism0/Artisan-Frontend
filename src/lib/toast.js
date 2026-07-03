@@ -74,6 +74,7 @@ class ToastManager {
         cursor: pointer;
         padding: 0;
         margin-left: 8px;
+        flex-shrink: 0;
       " onclick="this.parentElement.remove()">×</button>
     `;
 
@@ -131,6 +132,11 @@ class ToastManager {
     return this.createToast(message, 'warning', options.autoClose || 6000);
   }
 
+  link(label, url, options = {}) {
+    const message = `${label}, <a href="${url}" target="_blank" rel="noopener noreferrer" style="color:white;text-decoration:underline;font-weight:600;">Abrir hoja</a>`;
+    return this.createToast(message, 'success', options.autoClose ?? 0);
+  }
+
   dismiss(toastId) {
     this.removeToast(toastId);
   }
@@ -171,11 +177,19 @@ export const toast = {
   warning: (message, options = {}) => toastManager.warning(message, options),
 
   /**
+   * Shows a toast with a clickable link (usado por exportar a Google Sheets)
+   * @param {string} label - Link text
+   * @param {string} url - Link destination
+   * @param {object} [options={}] - Toast configuration options
+   */
+  link: (label, url, options = {}) => toastManager.link(label, url, options),
+
+  /**
    * Dismisses a toast notification
-   * @param {number} toastId - Toast identifier 
+   * @param {number} toastId - Toast identifier
    */
   dismiss: (toastId) => toastManager.dismiss(toastId),
-  
+
   // Se añadio la siguiente funciona para mostrar la falta de permisos
   // Un ejemplo de modo de uso es:
   // toast.permissionError(
