@@ -89,8 +89,8 @@ describe("ModelType y ScopeType", () => {
     expect(ScopeType.DELETE).toBe("Delete");
   });
 
-  it("ModelType tiene exactamente 50 modelos", () => {
-    expect(Object.keys(ModelType)).toHaveLength(50);
+  it("ModelType tiene exactamente 51 modelos", () => {
+    expect(Object.keys(ModelType)).toHaveLength(51);
   });
 
   it("ScopeType tiene exactamente 3 acciones", () => {

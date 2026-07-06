@@ -139,6 +139,8 @@ import AsignarVenta from "./pages/Ventas/AsignarVenta.jsx";
 import ResumenAsignacionVenta from "./pages/Ventas/ResumenAsignacionVenta.jsx";
 
 import InventarioBultos from "./pages/Inventario/InventarioBultos.jsx";
+import SesionesInventariado from "./pages/Inventario/SesionesInventariado.jsx";
+import SesionInventariadoDetail from "./pages/Inventario/SesionInventariadoDetail.jsx";
 import EditarBulto from "./pages/Inventario/EditarBulto.jsx";
 import EnviosDetail from "./pages/Logistica/EnviosDetail.jsx";
 import UsuariosEdit from "./pages/Usuarios/UsuariosEdit.jsx";
@@ -258,6 +260,22 @@ function Routing() {
                 <InventarioBultos />
               </ProtectedRoute>
             } 
+          />
+          <Route
+            path="/Inventario/tomas"
+            element={
+              <ProtectedRoute permissions={[[ModelType.SESION_INVENTARIADO, ScopeType.READ]]}>
+                <SesionesInventariado />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/Inventario/tomas/:id"
+            element={
+              <ProtectedRoute permissions={[[ModelType.SESION_INVENTARIADO, ScopeType.READ]]}>
+                <SesionInventariadoDetail />
+              </ProtectedRoute>
+            }
           />
           <Route 
             path="/Inventario/bultos/editar/:id" 

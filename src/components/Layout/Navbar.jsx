@@ -129,6 +129,7 @@ export default function Navbar() {
               <MenuLink to="/Inventario/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
               <MenuLink to="/Inventario" icon={<Boxes />} label="Inventario" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
               <MenuLink to="/inventario/bultos" icon={<Box />} label="Bultos" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
+              <MenuLink to="/Inventario/tomas" icon={<FaClipboardCheck />} label="Tomas de Inventario" isAllowed={checkScope(ModelType.SESION_INVENTARIADO, ScopeType.READ)} />
             </MenuGroup>
           </Dropdown>
 
