@@ -1,12 +1,26 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
-import { ArrowLeft, ChevronDown, ChevronRight, AlertTriangle, CheckCircle } from "lucide-react";
+import { BackButton } from "../../components/Buttons/ActionButtons";
+import { ChevronDown, ChevronRight, AlertTriangle, CheckCircle } from "lucide-react";
 
 const fmt = (n) => (n == null ? "—" : Number(n).toLocaleString("es-CL", { maximumFractionDigits: 4 }));
+
+function getEstadoBadgeClasses(estado) {
+  switch (estado) {
+    case "Activa":
+      return "border-sky-200 bg-sky-50 text-sky-800";
+    case "Terminada":
+      return "border-amber-200 bg-amber-50 text-amber-800";
+    case "Validada":
+      return "border-green-200 bg-green-50 text-green-800";
+    default:
+      return "border-gray-200 bg-gray-50 text-gray-800";
+  }
+}
 
 function Seccion({ titulo, tono, items, columns, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -70,7 +84,6 @@ const COLS_BASE = [
 export default function SesionInventariadoDetail() {
   const { id } = useParams();
   const api = useApi();
-  const navigate = useNavigate();
   const canWrite = checkScope(ModelType.SESION_INVENTARIADO, ScopeType.WRITE);
 
   const [sesion, setSesion] = useState(null);
@@ -122,30 +135,32 @@ export default function SesionInventariadoDetail() {
   const r = diff?.resumen;
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <button onClick={() => navigate("/Inventario/tomas")} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-3">
-        <ArrowLeft className="w-4 h-4" /> Tomas de Inventario
-      </button>
+    <div className="p-6 bg-background min-h-screen">
+      <div className="max-w-6xl mx-auto">
+      <div className="mb-4">
+        <BackButton to="/Inventario/tomas" />
+      </div>
 
-      <div className="flex items-start justify-between gap-4 mb-5">
+      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Toma de inventario #{sesion.id}</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-bold text-text">Toma de inventario #{sesion.id}</h1>
+            <span className={`px-3 py-1 rounded-full text-xs border ${getEstadoBadgeClasses(sesion.estado)}`}>
+              {sesion.estado === "Terminada" ? "Por validar" : sesion.estado}
+            </span>
+          </div>
           <p className="text-sm text-gray-500 mt-1">
             Bodega <span className="font-medium">{sesion.bodega?.nombre ?? sesion.id_bodega}</span>
-            {" · "}Estado <span className="font-medium">{sesion.estado}</span>
-            {" · "}Creada por {sesion.creador?.nombre ?? "—"}
-            {sesion.usuarios_escaneadores?.length
-              ? ` · Escanearon: ${sesion.usuarios_escaneadores.map((u) => u.nombre).join(", ")}`
-              : ""}
+            {sesion.creador?.nombre ? ` · Iniciada por ${sesion.creador.nombre}` : ""}
             {sesion.validador?.nombre
-              ? ` · Validada por ${sesion.validador.nombre} el ${new Date(sesion.fecha_validacion).toLocaleString("es-CL")}`
+              ? ` · Validada por ${sesion.validador.nombre} el ${new Date(sesion.fecha_validacion).toLocaleDateString("es-CL")}`
               : ""}
           </p>
         </div>
         {sesion.estado === "Terminada" && canWrite && (
           <button
             onClick={() => setConfirmando(true)}
-            className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-hover"
+            className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-violet-700"
           >
             Validar sesión…
           </button>
@@ -202,7 +217,6 @@ export default function SesionInventariadoDetail() {
                   {b.diferencia_unidades > 0 ? "+" : ""}{fmt(b.diferencia_unidades)}
                 </span>
               ) },
-              { key: "por", label: "Escaneado por", render: (b) => b.escaneado_por?.nombre ?? "—" },
             ]}
           />
           <Seccion
@@ -214,7 +228,6 @@ export default function SesionInventariadoDetail() {
               ...COLS_BASE,
               { key: "bod", label: "Bodega registrada", render: (b) => b.id_bodega ?? "—" },
               { key: "cont", label: "Contado", render: (b) => fmt(b.unidades_contadas) },
-              { key: "por", label: "Escaneado por", render: (b) => b.escaneado_por?.nombre ?? "—" },
             ]}
           />
           <Seccion
@@ -225,7 +238,6 @@ export default function SesionInventariadoDetail() {
             columns={[
               ...COLS_BASE,
               { key: "cont", label: "Contado", render: (b) => fmt(b.unidades_contadas) },
-              { key: "por", label: "Escaneado por", render: (b) => b.escaneado_por?.nombre ?? "—" },
             ]}
           />
           <Seccion
@@ -244,7 +256,6 @@ export default function SesionInventariadoDetail() {
             columns={[
               ...COLS_BASE,
               { key: "u", label: "Unidades", render: (b) => fmt(b.unidades_disponibles) },
-              { key: "por", label: "Escaneado por", render: (b) => b.escaneado_por?.nombre ?? "—" },
             ]}
           />
         </>
@@ -309,14 +320,14 @@ export default function SesionInventariadoDetail() {
               <button
                 onClick={() => setConfirmando(false)}
                 disabled={validando}
-                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-md text-sm hover:bg-gray-50"
+                className="px-4 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50"
               >
                 Cancelar
               </button>
               <button
                 onClick={validar}
                 disabled={validando}
-                className="px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-hover disabled:opacity-50"
+                className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
               >
                 {validando ? "Validando…" : "Validar y aplicar"}
               </button>
@@ -324,6 +335,7 @@ export default function SesionInventariadoDetail() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
