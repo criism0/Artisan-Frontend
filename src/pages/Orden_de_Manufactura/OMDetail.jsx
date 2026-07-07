@@ -4,17 +4,13 @@ import { api, apiBlob } from "../../lib/api";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import { downloadBlob } from "../../lib/downloadBlob";
-import { 
-  FileDown, 
+import {
+  FileDown,
   Pencil,
   ArrowRight,
   Play,
   AlertTriangle,
   Check,
-  ClipboardList,
-  Package,
-  Receipt,
-  BadgeDollarSign,
   ClipboardPen,
 } from "lucide-react";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
@@ -22,6 +18,7 @@ import HistorialPasosModal from "../../components/OrdenDeManufactura/HistorialPa
 import HistorialBultosModal from "../../components/OrdenDeManufactura/HistorialBultosModal";
 import HistorialCostosModal from "../../components/OrdenDeManufactura/HistorialCostosModal";
 import ModalAnalisisSensorial from "../../components/AnalisisSensorial/ModalRegistro";
+import TabButton from "../../components/Wizard/TabButton";
 import { useApi } from "../../lib/api";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
@@ -32,6 +29,10 @@ const CATEGORIAS = [
   { value: "PT", label: "PT" },
   { value: "M", label: "Merma (M)" },
 ];
+
+// Máximo de filas de bultos/cajas que se muestran de una (B3): el resto queda
+// tras un "Mostrar los N restantes" para que 100 cajas no desplieguen 100 filas.
+const LIMITE_BULTOS_VISIBLES = 15;
 
 function getBodegaNombre(b) {
   return b?.Bodega?.nombre ?? b?.bodega?.nombre ?? "(sin bodega)";
@@ -100,10 +101,10 @@ export default function OMDetail() {
   const [pautasPVA, setPautasPVA] = useState([]);
   const [loadingPVA, setLoadingPVA] = useState(false);
   const [selectedBultoIds, setSelectedBultoIds] = useState(() => new Set());
-  const [showSubproductos, setShowSubproductos] = useState(false);
-  const [showHistorialPasos, setShowHistorialPasos] = useState(false);
-  const [showHistorialBultos, setShowHistorialBultos] = useState(false);
-  const [showHistorialCostos, setShowHistorialCostos] = useState(false);
+  // Tabs de la vista (B3): datos | bultos | costos | pasos | salidas
+  const [tab, setTab] = useState("datos");
+  const [mostrarTodosBultos, setMostrarTodosBultos] = useState(false);
+  const [verBultosConsumidos, setVerBultosConsumidos] = useState(false);
   const [showModalAnalisisSensorial, setShowModalAnalisisSensorial] = useState(false);
   const [analisisSensorialStatus, setAnalisisSensorialStatus] = useState(null);
   const [insumosAsignados, setInsumosAsignados] = useState(false);
@@ -429,6 +430,10 @@ export default function OMDetail() {
   const costoPorUnidad = unidadesObtenidas > 0 ? costoTotal / unidadesObtenidas : null;
   const costoPorCaja = cajasObtenidas > 0 ? costoTotal / cajasObtenidas : null;
 
+  const bultosVisibles = mostrarTodosBultos
+    ? (bultosAsociados || [])
+    : (bultosAsociados || []).slice(0, LIMITE_BULTOS_VISIBLES);
+
   const fechaVencimiento = (() => {
     const fromPT = productosFinales?.[0]?.loteProductoFinal?.fecha_vencimiento;
     const fromPIP = loteProductoEnProceso?.fecha_vencimiento;
@@ -447,7 +452,7 @@ export default function OMDetail() {
       </div>
 
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-text">Orden de Manufactura: {om.id}</h1>
+        <h1 className="text-2xl font-bold text-text">Orden de Manufactura #{om.id ?? id}</h1>
         <div className="flex items-center gap-3">
           {getEstadoBadge(om.estado)}
         </div>
@@ -500,10 +505,139 @@ export default function OMDetail() {
         </div>
       </div>
 
-      {esPostCierre ? (
-        <div className="bg-white rounded-lg shadow p-4 mb-6">
+      {/* Acciones de la OM (siempre visibles, sobre los tabs) */}
+      <div className="mb-6 flex flex-wrap gap-3 items-center">
+        {estado === "Borrador" &&
+          (editandoCantidad ? (
+            <div className="flex items-center gap-2 bg-white border border-border rounded-lg px-3 py-2 shadow">
+              <label className="text-sm font-medium text-text">Cantidad objetivo:</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                value={nuevaCantidad}
+                onChange={(e) => setNuevaCantidad(e.target.value)}
+                className="w-28 border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                autoFocus
+              />
+              <button
+                className="px-3 py-1 bg-primary text-white rounded hover:bg-hover text-sm font-medium disabled:opacity-60"
+                onClick={handleGuardarCantidad}
+                disabled={guardandoCantidad}
+              >
+                {guardandoCantidad ? "Guardando…" : "Guardar"}
+              </button>
+              <button
+                className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+                onClick={() => setEditandoCantidad(false)}
+                disabled={guardandoCantidad}
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              className="px-4 py-2 bg-white border border-border text-text rounded-lg hover:bg-gray-100 font-medium shadow flex items-center gap-2"
+              onClick={() => {
+                setNuevaCantidad(String(om?.peso_objetivo ?? ""));
+                setEditandoCantidad(true);
+              }}
+            >
+              <Pencil size={16} /> Modificar cantidad
+            </button>
+          ))}
+
+        {estado === "Borrador" && !insumosAsignados && tieneRegistrosInsumo && (
+          <button
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium shadow flex items-center gap-2"
+            onClick={() => navigate(`/Orden_de_Manufactura/${id}/insumos`)}
+          >
+            <ArrowRight className="w-4 h-4" /> Asignar Insumos
+          </button>
+        )}
+
+        {(hasPasos && (insumosAsignados || [
+          "Insumos Asignados",
+          "En ejecución",
+          "Validada",
+          "Completado",
+          "Esperando Salidas",
+        ].includes(estado)) && !["Cerrada", "Esperando PVAs"].includes(estado)) && (
+            <button
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium shadow flex items-center gap-2"
+              onClick={() => navigate(`/Orden_de_Manufactura/${id}/pasos`)}
+            >
+              <Play className="w-4 h-4" /> Ejecutar Pasos
+            </button>
+          )}
+
+        {["Esperando Salidas"].includes(estado) && subproductos.length > 0 && (
+          <button
+            className="px-4 py-2 bg-yellow-400 text-yellow-700 rounded-lg hover:bg-yellow-500 font-medium shadow flex items-center gap-2"
+            onClick={() =>
+              navigate(`/Orden_de_Manufactura/${id}/subproductos-decision`)
+            }
+          >
+            <AlertTriangle className="w-4 h-4" /> Verificar Subproductos
+          </button>
+        )}
+
+        {(
+          ["Completado", "Esperando Salidas"].includes(estado) ||
+          (!hasPasos && estado === "Insumos Asignados")
+        ) && (
+          <button
+            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium shadow flex items-center gap-2"
+            onClick={() =>
+              navigate(`/Orden_de_Manufactura/${id}/produccion-final`)
+            }
+          >
+            <Check className="w-4 h-4" /> Producción Final
+          </button>
+        )}
+
+        {analisisSensorialStatus?.requiere_analisis && puedeMostrarAnalisisSensorialPorEstado && (
+          <button
+            onClick={() => setShowModalAnalisisSensorial(true)}
+            className={`px-4 py-2 rounded-lg font-medium shadow flex items-center gap-2 transition-colors ${
+              analisisSensorialStatus.analisis_completado
+                ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300'
+                : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border border-yellow-300'
+            }`}
+          >
+            <ClipboardPen className="w-4 h-4" /> Análisis de Calidad
+            {!analisisSensorialStatus.analisis_completado && (
+              <span className="ml-2 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
+                Pendiente
+              </span>
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Tabs (mismo patrón que el detalle de producto/PIP) */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-2 flex flex-wrap gap-2 mb-6">
+        <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>Datos generales</TabButton>
+        <TabButton active={tab === "bultos"} onClick={() => setTab("bultos")}>
+          Bultos creados{(bultosAsociados || []).length > 0 ? ` (${bultosAsociados.length})` : ""}
+        </TabButton>
+        <TabButton active={tab === "costos"} onClick={() => setTab("costos")}>Historial de costos</TabButton>
+        <TabButton active={tab === "pasos"} onClick={() => setTab("pasos")}>Pasos</TabButton>
+        <TabButton active={tab === "salidas"} onClick={() => setTab("salidas")}>
+          Subproductos y rendimiento
+        </TabButton>
+      </div>
+
+      {tab === "salidas" && !esPostCierre ? (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6 text-sm text-gray-600">
+          El rendimiento y las salidas se calculan al cerrar la OM (estados Esperando PVAs / Cerrada).
+        </div>
+      ) : null}
+
+      {tab === "salidas" && esPostCierre ? (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
           <div className="flex items-center justify-between gap-3 mb-3">
-            <h2 className="text-base font-semibold text-text">Resumen de cierre</h2>
+            <h2 className="text-base font-semibold text-text">Cierre y rendimiento</h2>
             <div className="text-xs text-gray-500">
               {fechaVencimiento ? `Vence: ${new Date(fechaVencimiento).toLocaleDateString()}` : "—"}
             </div>
@@ -565,33 +699,6 @@ export default function OMDetail() {
               <div className="text-xs text-gray-400 mt-1">Bultos PT/PIP</div>
             </div>
 
-            {/* Fila 3: Costos */}
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Costo Total</div>
-              <div className="text-lg font-bold text-text">{formatCLP(costoTotal, 0)}</div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Costo por kg</div>
-              <div className="text-lg font-bold text-text">
-                {costoPorKg == null ? "—" : formatCLP(costoPorKg, 2)}
-              </div>
-              <div className="text-xs text-gray-400 mt-1">Sobre peso obtenido</div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Costo por Unidad</div>
-              <div className="text-lg font-bold text-text">
-                {costoPorUnidad == null ? "—" : formatCLP(costoPorUnidad, 2)}
-              </div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Costo por Caja</div>
-              <div className="text-lg font-bold text-text">
-                {costoPorCaja == null ? "—" : formatCLP(costoPorCaja, 2)}
-              </div>
-            </div>
           </div>
 
           {Array.isArray(bultosAsociados) && bultosAsociados.length > 0 ? (
@@ -602,8 +709,63 @@ export default function OMDetail() {
         </div>
       ) : null}
 
-      {/* Bultos / Cajas asociados + etiquetas (estilo Inventario, sin filtros) */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
+      {/* Tab: Historial de costos */}
+      {tab === "costos" ? (
+        <div className="space-y-6 mb-6">
+          {esPostCierre ? (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+              <h2 className="text-base font-semibold text-text mb-3">Costos del cierre</h2>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div className="bg-gray-50 rounded-lg border border-border p-3">
+                  <div className="text-xs text-gray-500 font-medium">Costo Total</div>
+                  <div className="text-lg font-bold text-text">{formatCLP(costoTotal, 0)}</div>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg border border-border p-3">
+                  <div className="text-xs text-gray-500 font-medium">Costo por kg</div>
+                  <div className="text-lg font-bold text-text">
+                    {costoPorKg == null ? "—" : formatCLP(costoPorKg, 2)}
+                  </div>
+                  <div className="text-xs text-gray-400 mt-1">Sobre peso obtenido</div>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg border border-border p-3">
+                  <div className="text-xs text-gray-500 font-medium">Costo por Unidad</div>
+                  <div className="text-lg font-bold text-text">
+                    {costoPorUnidad == null ? "—" : formatCLP(costoPorUnidad, 2)}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg border border-border p-3">
+                  <div className="text-xs text-gray-500 font-medium">Costo por Caja</div>
+                  <div className="text-lg font-bold text-text">
+                    {costoPorCaja == null ? "—" : formatCLP(costoPorCaja, 2)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <HistorialCostosModal inline omId={id} />
+        </div>
+      ) : null}
+
+      {/* Tab: Pasos */}
+      {tab === "pasos" ? (
+        hasPasos ? (
+          <div className="mb-6">
+            <HistorialPasosModal inline omId={id} />
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6 text-sm text-gray-600">
+            Esta OM no tiene pasos de producción registrados.
+          </div>
+        )
+      ) : null}
+
+      {/* Tab: Bultos creados (+ etiquetas, estilo Inventario) */}
+      {tab === "bultos" ? (
+      <>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
         <div className="flex items-start justify-between gap-4 mb-3">
           <div>
             <h2 className="text-base font-semibold text-text">Bultos / Cajas generados</h2>
@@ -663,7 +825,7 @@ export default function OMDetail() {
                 </tr>
               </thead>
               <tbody>
-                {(bultosAsociados || []).map((b) => {
+                {bultosVisibles.map((b) => {
                   const clave = getClaveCategoria(b);
                   const nombre = getItemNombre(b);
                   const bodegaNombre = getBodegaNombre(b);
@@ -728,12 +890,48 @@ export default function OMDetail() {
                 })}
               </tbody>
             </table>
+
+            {(bultosAsociados || []).length > LIMITE_BULTOS_VISIBLES ? (
+              <div className="flex justify-center py-2 border-t border-border">
+                <button
+                  type="button"
+                  className="text-sm text-primary hover:underline"
+                  onClick={() => setMostrarTodosBultos((v) => !v)}
+                >
+                  {mostrarTodosBultos
+                    ? "Mostrar menos"
+                    : `Mostrar los ${(bultosAsociados || []).length - LIMITE_BULTOS_VISIBLES} restantes`}
+                </button>
+              </div>
+            ) : null}
           </div>
         )}
+
+        {tieneRegistrosInsumo ? (
+          <div className="mt-4">
+            <button
+              type="button"
+              className="text-sm text-primary hover:underline"
+              onClick={() => setVerBultosConsumidos((v) => !v)}
+            >
+              {verBultosConsumidos
+                ? "Ocultar bultos consumidos (insumos de esta OM)"
+                : "Ver bultos consumidos (insumos de esta OM)"}
+            </button>
+          </div>
+        ) : null}
       </div>
 
-      {/* PVAs (ordenado, acciones directas) */}
-      {loteProductoEnProceso ? (
+      {verBultosConsumidos ? (
+        <div className="mb-6">
+          <HistorialBultosModal inline omId={id} />
+        </div>
+      ) : null}
+      </>
+      ) : null}
+
+      {/* PVAs (ordenado, acciones directas) — tab Datos generales */}
+      {tab === "datos" && loteProductoEnProceso ? (
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <div className="flex items-start justify-between gap-4 mb-3">
             <div>
@@ -864,12 +1062,15 @@ export default function OMDetail() {
         </div>
       ) : null}
 
-      <div className="bg-gray-200 p-4 rounded-lg hidden">
-        <table className="w-full bg-white rounded-lg shadow overflow-hidden">
+      {/* Tab: Datos generales — información de la OM */}
+      {tab === "datos" ? (
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
+        <h2 className="text-base font-semibold text-text mb-3">Información de la OM</h2>
+        <table className="w-full bg-white rounded-lg overflow-hidden border border-gray-200">
           <thead className="bg-gray-100 text-sm text-gray-600">
             <tr>
-              <th className="px-6 py-3 text-xl font-semibold text-left mb-2">INFORMACIÓN</th>
-              <th className="px-6 py-3 text-xl font-semibold text-left mb-2">DATO</th>
+              <th className="px-6 py-3 text-sm font-semibold text-left">Información</th>
+              <th className="px-6 py-3 text-sm font-semibold text-left">Dato</th>
             </tr>
           </thead>
           <tbody>
@@ -923,174 +1124,14 @@ export default function OMDetail() {
           </tbody>
         </table>
       </div>
+      ) : null}
 
-      <div className="mt-8 flex flex-wrap gap-3 items-center">
-        {estado === "Borrador" &&
-          (editandoCantidad ? (
-            <div className="flex items-center gap-2 bg-white border border-border rounded-lg px-3 py-2 shadow">
-              <label className="text-sm font-medium text-text">Cantidad objetivo:</label>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={nuevaCantidad}
-                onChange={(e) => setNuevaCantidad(e.target.value)}
-                className="w-28 border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                autoFocus
-              />
-              <button
-                className="px-3 py-1 bg-primary text-white rounded hover:bg-hover text-sm font-medium disabled:opacity-60"
-                onClick={handleGuardarCantidad}
-                disabled={guardandoCantidad}
-              >
-                {guardandoCantidad ? "Guardando…" : "Guardar"}
-              </button>
-              <button
-                className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
-                onClick={() => setEditandoCantidad(false)}
-                disabled={guardandoCantidad}
-              >
-                Cancelar
-              </button>
-            </div>
-          ) : (
-            <button
-              className="px-4 py-2 bg-white border border-border text-text rounded-lg hover:bg-gray-100 font-medium shadow flex items-center gap-2"
-              onClick={() => {
-                setNuevaCantidad(String(om?.peso_objetivo ?? ""));
-                setEditandoCantidad(true);
-              }}
-            >
-              <Pencil size={16} /> Modificar cantidad
-            </button>
-          ))}
-
-        {estado === "Borrador" && !insumosAsignados && tieneRegistrosInsumo && (
-          <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium shadow flex items-center gap-2"
-            onClick={() => navigate(`/Orden_de_Manufactura/${id}/insumos`)}
-          >
-            <ArrowRight className="w-4 h-4" /> Asignar Insumos
-          </button>
-        )}
-
-        {(hasPasos && (insumosAsignados || [
-          "Insumos Asignados",
-          "En ejecución",
-          "Validada",
-          "Completado",
-          "Esperando Salidas",
-        ].includes(estado)) && !["Cerrada", "Esperando PVAs"].includes(estado)) && (
-            <button
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium shadow flex items-center gap-2"
-              onClick={() => navigate(`/Orden_de_Manufactura/${id}/pasos`)}
-            >
-              <Play className="w-4 h-4" /> Ejecutar Pasos
-            </button>
-          )}
-
-        {["Esperando Salidas"].includes(estado) && subproductos.length > 0 && (
-          <button
-            className="px-4 py-2 bg-yellow-400 text-yellow-700 rounded-lg hover:bg-yellow-500 font-medium shadow flex items-center gap-2"
-            onClick={() =>
-              navigate(`/Orden_de_Manufactura/${id}/subproductos-decision`)
-            }
-          >
-            <AlertTriangle className="w-4 h-4" /> Verificar Subproductos
-          </button>
-        )}
-
-        {(
-          ["Completado", "Esperando Salidas"].includes(estado) ||
-          (!hasPasos && estado === "Insumos Asignados")
-        ) && (
-          <button
-            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium shadow flex items-center gap-2"
-            onClick={() =>
-              navigate(`/Orden_de_Manufactura/${id}/produccion-final`)
-            }
-          >
-            <Check className="w-4 h-4" /> Producción Final
-          </button>
-        )}
-
-        {analisisSensorialStatus?.requiere_analisis && puedeMostrarAnalisisSensorialPorEstado && (
-          <button
-            onClick={() => setShowModalAnalisisSensorial(true)}
-            className={`px-4 py-2 rounded-lg font-medium shadow flex items-center gap-2 transition-colors ${
-              analisisSensorialStatus.analisis_completado
-                ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300'
-                : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border border-yellow-300'
-            }`}
-          >
-            <ClipboardPen className="w-4 h-4" /> Análisis de Calidad
-            {!analisisSensorialStatus.analisis_completado && (
-              <span className="ml-2 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
-                Pendiente
-              </span>
-            )}
-          </button>
-        )}
-
-        {["Cerrada", "Esperando PVAs"].includes(estado) && subproductos.length > 0 && (
-          <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium shadow flex items-center gap-2"
-            onClick={() => setShowSubproductos(true)}
-          >
-            <Package className="w-4 h-4" /> Ver Subproductos
-          </button>
-        )}
-
-        {["Cerrada", "Esperando PVAs"].includes(estado) && (
-          <button
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium shadow flex items-center gap-2"
-            onClick={() => setShowHistorialPasos(true)}
-          >
-            <ClipboardList className="w-4 h-4" /> Historial de Pasos
-          </button>
-        )}
-
-        {tieneRegistrosInsumo && (
-          <button
-            className="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-black font-medium shadow flex items-center gap-2"
-            onClick={() => setShowHistorialBultos(true)}
-          >
-            <Receipt className="w-4 h-4" /> Historial de Bultos
-          </button>
-        )}
-
-        <button
-          className="px-4 py-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 font-medium shadow flex items-center gap-2"
-          onClick={() => setShowHistorialCostos(true)}
-        >
-          <BadgeDollarSign className="w-4 h-4" /> Historial de Costos
-        </button>
-      </div>
-
-      <HistorialPasosModal
-        open={showHistorialPasos}
-        omId={id}
-        onClose={() => setShowHistorialPasos(false)}
-      />
-
-      <HistorialBultosModal
-        open={showHistorialBultos}
-        omId={id}
-        onClose={() => setShowHistorialBultos(false)}
-      />
-
-      <HistorialCostosModal
-        open={showHistorialCostos}
-        omId={id}
-        onClose={() => setShowHistorialCostos(false)}
-      />
-
-      {productosFinales && productosFinales.length > 0 && (
-        <div className="mt-8 bg-gray-200 p-4 rounded-lg">
+      {tab === "datos" && productosFinales && productosFinales.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
           <div className="flex justify-between items-center mb-3">
-            <h2 className="text-lg font-semibold text-text">Productos finales</h2>
+            <h2 className="text-base font-semibold text-text">Productos finales</h2>
           </div>
-          <table className="w-full bg-white rounded-lg shadow overflow-hidden">
+          <table className="w-full bg-white rounded-lg overflow-hidden border border-gray-200">
             <thead className="bg-gray-100 text-sm text-gray-600">
               <tr>
                 <th className="text-left px-4 py-3 text-sm font-medium text-text">
@@ -1137,19 +1178,12 @@ export default function OMDetail() {
         </div>
       )}
 
-      {/* Subproductos Modal */}
-      {showSubproductos && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      {/* Subproductos registrados — tab Subproductos y rendimiento */}
+      {tab === "salidas" && esPostCierre && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm mb-6">
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Subproductos Registrados</h2>
-                <button
-                  onClick={() => setShowSubproductos(false)}
-                  className="text-gray-500 hover:text-gray-700 text-2xl"
-                >
-                  ×
-                </button>
+                <h2 className="text-base font-semibold text-text">Subproductos Registrados</h2>
               </div>
 
               {subproductos.length === 0 ? (
@@ -1251,7 +1285,6 @@ export default function OMDetail() {
                 </div>
               )}
             </div>
-          </div>
         </div>
       )}
 

@@ -63,6 +63,9 @@ export default function ProduccionFinal() {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  // Colapsado del detalle de salida (B3): 100 cajas no deben desplegar 100 filas de una.
+  const LIMITE_DETALLE_SALIDA = 10;
+  const [mostrarTodoDetalleSalida, setMostrarTodoDetalleSalida] = useState(false);
   const [consumoInsumos, setConsumoInsumos] = useState([]);
   const [pesosPorUnidad, setPesosPorUnidad] = useState([]);
   const [pesosPorUnidadTocados, setPesosPorUnidadTocados] = useState(false);
@@ -504,6 +507,7 @@ export default function ProduccionFinal() {
         body: JSON.stringify(payload),
       });
       setPreview(data);
+      setMostrarTodoDetalleSalida(false);
     } catch (err) {
       toast.error(err.message || "No se pudo previsualizar el cierre.");
     } finally {
@@ -1278,7 +1282,15 @@ export default function ProduccionFinal() {
 
               {Array.isArray(preview.items_salida) && preview.items_salida.length > 0 ? (
                 <div className="mt-4 bg-white border border-blue-200 rounded p-3">
-                  <div className="text-sm font-semibold text-text mb-2">Detalle de salida</div>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="text-sm font-semibold text-text">Detalle de salida</div>
+                    <div className="text-xs text-gray-600">
+                      {preview.items_salida.length} ítem(s)
+                      {!mostrarTodoDetalleSalida && preview.items_salida.length > LIMITE_DETALLE_SALIDA
+                        ? ` · mostrando ${LIMITE_DETALLE_SALIDA}`
+                        : ""}
+                    </div>
+                  </div>
                   <div className="overflow-x-auto border border-border rounded">
                     <table className="min-w-full text-sm">
                       <thead className="bg-gray-100">
@@ -1291,7 +1303,10 @@ export default function ProduccionFinal() {
                         </tr>
                       </thead>
                       <tbody>
-                        {preview.items_salida.map((it, idx) => (
+                        {(mostrarTodoDetalleSalida
+                          ? preview.items_salida
+                          : preview.items_salida.slice(0, LIMITE_DETALLE_SALIDA)
+                        ).map((it, idx) => (
                           <tr key={idx} className="border-t border-border">
                             <td className="p-2">
                               {it.tipo === "CAJA_PT" ? (
@@ -1313,6 +1328,19 @@ export default function ProduccionFinal() {
                       </tbody>
                     </table>
                   </div>
+                  {preview.items_salida.length > LIMITE_DETALLE_SALIDA ? (
+                    <div className="flex justify-center pt-2">
+                      <button
+                        type="button"
+                        className="text-sm text-primary hover:underline"
+                        onClick={() => setMostrarTodoDetalleSalida((v) => !v)}
+                      >
+                        {mostrarTodoDetalleSalida
+                          ? "Mostrar menos"
+                          : `Mostrar los ${preview.items_salida.length - LIMITE_DETALLE_SALIDA} restantes`}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
