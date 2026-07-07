@@ -83,10 +83,10 @@ export default function LogisticaDashboard() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => navigate("/Envios")}
+              onClick={() => navigate("/Solicitudes")}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
             >
-              Ver envíos
+              Ver solicitudes
             </button>
             <button
               onClick={() => navigate("/Pallets")}
@@ -188,7 +188,7 @@ function DashboardContent({ data, navigate }) {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-text">Alertas y pendientes</h2>
             <button
-              onClick={() => navigate("/Envios")}
+              onClick={() => navigate("/Solicitudes")}
               className="text-sm text-primary hover:underline"
             >
               Ver todo →
@@ -211,7 +211,7 @@ function DashboardContent({ data, navigate }) {
                   key={`${a.tipo}-${a.id}`}
                   onClick={() =>
                     a.tipo === "envio"
-                      ? navigate(`/envios/${a.id}`)
+                      ? navigate(`/Solicitudes/${a.id}`)
                       : navigate(`/Pallets`)
                   }
                   className="w-full text-left flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50"

@@ -131,7 +131,6 @@ import LoteProductoFinalDetail from "./pages/Lotes/LoteProductoFinalDetail.jsx";
 import CostoMarginalList from "./pages/CostoMarginal/CostoMarginalList";
 import CostoMarginalDetail from "./pages/CostoMarginal/CostoMarginalDetail";
 
-import Envios from "./pages/Logistica/Envios";
 import Pallets from "./pages/Logistica/Pallets";
 import Rutas from "./pages/Logistica/Rutas";
 import LogisticaDashboard from "./pages/Logistica/LogisticaDashboard";
@@ -142,7 +141,6 @@ import InventarioBultos from "./pages/Inventario/InventarioBultos.jsx";
 import SesionesInventariado from "./pages/Inventario/SesionesInventariado.jsx";
 import SesionInventariadoDetail from "./pages/Inventario/SesionInventariadoDetail.jsx";
 import EditarBulto from "./pages/Inventario/EditarBulto.jsx";
-import EnviosDetail from "./pages/Logistica/EnviosDetail.jsx";
 import UsuariosEdit from "./pages/Usuarios/UsuariosEdit.jsx";
 import CambiarContrasena from "./pages/Usuarios/CambiarContrasena.jsx";
 
@@ -531,24 +529,6 @@ function Routing() {
           />
 
           <Route
-            path="/Envios"
-            element={
-              <ProtectedRoute permissions={[[ModelType.SOLICITUD_MERCADERIA, ScopeType.READ]]}>
-                <Envios />
-              </ProtectedRoute>
-            }
-          />
-          <Route 
-            path="/envios/:id" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.SOLICITUD_MERCADERIA, ScopeType.READ]]}>
-                <EnviosDetail />
-              </ProtectedRoute>
-            } 
-          />
-
-
-          <Route
             path="/Rutas"
             element={<Rutas />}
           />
@@ -581,13 +561,13 @@ function Routing() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/Logistica" 
+          <Route
+            path="/Logistica"
             element={
-              <ProtectedRoute permissions={[[ModelType.SOLICITUD_MERCADERIA, ScopeType.READ]]}>
-                <Navigate to="/Envios" replace />
+              <ProtectedRoute permissions={[[ModelType.INVENTARIO, ScopeType.READ]]}>
+                <Navigate to="/Logistica/dashboard" replace />
               </ProtectedRoute>
-            } 
+            }
           />
 
 

@@ -10,7 +10,7 @@ import { Dropdown, MenuGroup, MenuLink, ClockCompact } from "./NavbarFunction";
 import {
   Box, Tag, Users, Clipboard,
   CheckCircle, AlertTriangle, LayoutGrid, FileText,
-  ClipboardList, Inbox, Factory, Layers, Send, Package, Boxes,
+  ClipboardList, Inbox, Factory, Layers, Package, Boxes,
   ShoppingCart, Receipt,
   ShieldCheck,
   ShieldUser,
@@ -113,7 +113,6 @@ export default function Navbar() {
             <MenuGroup label="Logística" icon={<Box />}>
               <MenuLink to="/Logistica/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
               <MenuLink to="/Solicitudes" icon={<Inbox />} label="Solicitudes" isAllowed={checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.READ)} />
-              <MenuLink to="/Envios" icon={<Send />} label="Envíos" isAllowed={checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.READ)}/>
               <MenuLink to="/Pallets" icon={<Package />} label="Pallets" isAllowed={checkScope(ModelType.PALLET, ScopeType.READ)}/>
             </MenuGroup>
           </Dropdown>
