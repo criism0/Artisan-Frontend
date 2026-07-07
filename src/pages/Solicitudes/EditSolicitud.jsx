@@ -6,6 +6,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import MultiSelectInput from "../../components/Forms/MultiSelectInput";
 import InsumosTable from "../../components/Insumos/InsumosTable";
+import ProductosTerminadosTable from "../../components/Solicitudes/ProductosTerminadosTable";
 import Selector from "../../components/Forms/Selector";
 import { useApi } from "../../lib/api";
 import { Spinner } from "../../components/UI/Spinner.jsx";
@@ -27,6 +28,7 @@ export default function EditSolicitud() {
   const [bodegas, setBodegas] = useState([]);
 
   const [insumosSeleccionados, setInsumosSeleccionados] = useState([]);
+  const [productosSeleccionados, setProductosSeleccionados] = useState([]);
   const [showErrors, setShowErrors] = useState(false);
   const [loading, setLoading] = useState(false);
   const [addSignal, setAddSignal] = useState(0);
@@ -45,6 +47,17 @@ export default function EditSolicitud() {
         comentario: d?.comentario ?? "",
       }))
       .filter((x) => x?.id_materia_prima);
+  }, [solicitud]);
+
+  const initialProductos = useMemo(() => {
+    const detalles = Array.isArray(solicitud?.detalles) ? solicitud.detalles : [];
+    return detalles
+      .map((d) => ({
+        id_producto_base: d?.productoBase?.id,
+        cantidad_solicitada: d?.cantidad_solicitada,
+        comentario: d?.comentario ?? "",
+      }))
+      .filter((x) => x?.id_producto_base);
   }, [solicitud]);
 
   const fetchUsers = async () => {
@@ -143,8 +156,8 @@ export default function EditSolicitud() {
     if (!selectedDestino) newErrors.destino = "Debe seleccionar una bodega de destino";
     else if (selectedOrigen === selectedDestino)
       newErrors.destino = "La bodega de destino debe ser diferente a la de origen";
-    if (!insumosSeleccionados || insumosSeleccionados.length === 0)
-      newErrors.insumos = "Debe agregar al menos un insumo";
+    if ((insumosSeleccionados?.length ?? 0) === 0 && (productosSeleccionados?.length ?? 0) === 0)
+      newErrors.insumos = "Debe agregar al menos un insumo o producto terminado";
     if (selectedUsers.length === 0)
       newErrors.usuarios = "Debe seleccionar al menos un usuario para notificar";
     return newErrors;
@@ -152,7 +165,7 @@ export default function EditSolicitud() {
 
   const errors = useMemo(
     () => computeErrors(),
-    [selectedOrigen, selectedDestino, insumosSeleccionados, selectedUsers]
+    [selectedOrigen, selectedDestino, insumosSeleccionados, productosSeleccionados, selectedUsers]
   );
   const isFormReady = useMemo(() => Object.keys(errors).length === 0, [errors]);
 
@@ -181,11 +194,19 @@ export default function EditSolicitud() {
       const solicitudData = {
         id_bodega_proveedora: parseInt(selectedOrigen),
         id_bodega_solicitante: parseInt(selectedDestino),
-        materias_primas: insumosSeleccionados.map((insumo) => ({
-          id_materia_prima: parseInt(insumo.id_articulo),
-          cantidad_solicitada: Number(insumo.cantidad_solicitada),
-          comentario: insumo.comentario || "",
-        })),
+        // Insumos (id_materia_prima) + productos terminados (id_producto_base); B4.
+        materias_primas: [
+          ...insumosSeleccionados.map((insumo) => ({
+            id_materia_prima: parseInt(insumo.id_articulo),
+            cantidad_solicitada: Number(insumo.cantidad_solicitada),
+            comentario: insumo.comentario || "",
+          })),
+          ...productosSeleccionados.map((p) => ({
+            id_producto_base: p.id_producto_base,
+            cantidad_solicitada: Number(p.cantidad_solicitada),
+            comentario: p.comentario || "",
+          })),
+        ],
         notificaciones: selectedUsers.map((u) => u.email),
       };
 
@@ -384,6 +405,18 @@ export default function EditSolicitud() {
             {selectedOrigen && selectedDestino && showErrors && errors.insumos && (
               <p className="mt-2 text-sm text-red-500">{errors.insumos}</p>
             )}
+          </div>
+
+          {/* Productos terminados (B4) */}
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold mb-4">Productos Terminados a Solicitar</h3>
+            <ProductosTerminadosTable
+              key={`edit_pt_${selectedOrigen}`}
+              bodegaId={selectedOrigen}
+              disabled={loading || !solicitudEditable || !selectedOrigen || !selectedDestino}
+              onChange={setProductosSeleccionados}
+              initialProductos={initialProductos}
+            />
           </div>
 
           {/* Botón */}

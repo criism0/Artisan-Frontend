@@ -64,7 +64,13 @@ export default function RecepcionarSolicitud() {
     setCantidades({ ...cantidades, [id]: Number(value) });
   };
 
-  const getMateriaPrima = (row) => row?.materiaPrima ?? row?.MateriaPrima ?? null;
+  // El ítem de un bulto puede ser materia prima (insumos/PIP) o producto terminado (B4)
+  const getMateriaPrima = (row) =>
+    row?.materiaPrima ??
+    row?.MateriaPrima ??
+    (row?.loteProductoFinal?.productoBase
+      ? { ...row.loteProductoFinal.productoBase, nombre: `${row.loteProductoFinal.productoBase.nombre} (PT)` }
+      : null);
   const getUnidadMedida = (row) => {
     const mp = getMateriaPrima(row);
     const u = mp?.unidad_medida;

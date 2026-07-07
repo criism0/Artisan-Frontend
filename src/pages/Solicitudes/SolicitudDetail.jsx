@@ -203,12 +203,16 @@ export default function SolicitudDetail() {
         const cantRecep = detalle?.cantidad_recepcionada ?? 0;
         return {
           id: detalle?.id,
-          nombre: detalle?.materiaPrima?.nombre ?? "—",
+          nombre:
+            detalle?.materiaPrima?.nombre ??
+            (detalle?.productoBase ? `${detalle.productoBase.nombre} (PT)` : "—"),
           cantidad_solicitada: cantSolicitada,
           cantidad_despachada:
             detalle?.cantidad_despachada == null ? "—" : detalle.cantidad_despachada,
           cantidad_recepcionada: detalle?.cantidad_recepcionada == null ? "—" : cantRecep,
-          unidad_medida: detalle?.materiaPrima?.unidad_medida ?? "—",
+          unidad_medida:
+            detalle?.materiaPrima?.unidad_medida ??
+            (detalle?.productoBase ? "Unidades" : "—"),
           comentario: getComentarioText(detalle),
           costo_unitario: costoUnitario,
           costo_despachado: costoUnitario * (Number(cantSolicitada) || 0),
@@ -1002,7 +1006,9 @@ export default function SolicitudDetail() {
                     materia_prima:
                       b?.MateriaPrima?.nombre ??
                       b?.materiaPrima?.nombre ??
-                      "—",
+                      (b?.loteProductoFinal?.productoBase
+                        ? `${b.loteProductoFinal.productoBase.nombre} (PT)`
+                        : "—"),
                     unidades_disponibles: b?.unidades_disponibles ?? "—",
                     cantidad_un: cantidadUn,
                   };

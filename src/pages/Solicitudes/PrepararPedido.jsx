@@ -26,7 +26,8 @@ export default function PrepararPedido() {
   const [showBultosFor, setShowBultosFor] = useState(null);
   const [bultos, setBultos] = useState([]);
   const [disponibles, setDisponibles] = useState([]);
-  const [selects, setSelects] = useState({ id_materia_prima: "" });
+  // Ítem seleccionado: "mp-<id>" (materia prima) o "pb-<id>" (producto terminado, B4)
+  const [selects, setSelects] = useState({ item: "" });
   const [pesosAsignados, setPesosAsignados] = useState({});
   const api = useApi();
 
@@ -53,7 +54,7 @@ export default function PrepararPedido() {
     setShowBultosFor(palletId);
     setBultos([]);
     setDisponibles([]);
-    setSelects({ id_materia_prima: "" });
+    setSelects({ item: "" });
     setPesosAsignados({});
     fetchBultos(palletId);
   };
@@ -68,17 +69,15 @@ export default function PrepararPedido() {
   };
 
   const handleBuscarDisponibles = async () => {
-    if (!selects.id_materia_prima) {
-      toast.error("Selecciona una materia prima");
+    if (!selects.item) {
+      toast.error("Selecciona un ítem");
       return;
     }
     try {
-      const params = {
-        id_bodega: solicitud.bodegaProveedora.id,
-        id_materia_prima: selects.id_materia_prima,
-      };
-      const data = await api(`/bultos/disponibles?id_bodega=${params.id_bodega}&id_materia_prima=${params.id_materia_prima}`);
-      setDisponibles(data);
+      const [tipo, id] = selects.item.split("-");
+      const filtro = tipo === "pb" ? `id_producto_base=${id}` : `id_materia_prima=${id}`;
+      const data = await api(`/bultos/disponibles?id_bodega=${solicitud.bodegaProveedora.id}&${filtro}`);
+      setDisponibles(Array.isArray(data) ? data.filter((b) => !b.id_pallet) : []);
     } catch {
       toast.error("Error buscando bultos disponibles");
     }
@@ -273,10 +272,12 @@ export default function PrepararPedido() {
 
   if (!solicitud) return <PageLoader message="Cargando solicitud" />;
 
-  const materiasPrimas = solicitud.detalles.map((d) => ({
-    id: d.materiaPrima.id,
-    nombre: d.materiaPrima.nombre,
-  }));
+  // Ítems solicitados: materias primas (insumos/PIP) o productos terminados (B4)
+  const itemsSolicitados = solicitud.detalles.map((d) =>
+    d.materiaPrima
+      ? { key: `mp-${d.materiaPrima.id}`, nombre: d.materiaPrima.nombre }
+      : { key: `pb-${d.productoBase?.id}`, nombre: `${d.productoBase?.nombre ?? "Producto"} (PT)` }
+  );
 
   const pallets = solicitud.pallets || [];
   const palletsData = pallets.map((p) => ({
@@ -376,16 +377,16 @@ export default function PrepararPedido() {
               <h3 className="text-lg font-semibold mb-2">Asignar Nuevos Bultos</h3>
               <div className="flex gap-4 mb-4">
                 <select
-                  value={selects.id_materia_prima}
+                  value={selects.item}
                   onChange={(e) =>
-                    setSelects({ ...selects, id_materia_prima: e.target.value })
+                    setSelects({ ...selects, item: e.target.value })
                   }
                   className="border px-4 py-2 rounded-md w-full"
                 >
-                  <option value="">Selecciona Materia Prima</option>
-                  {materiasPrimas.map((mp) => (
-                    <option key={mp.id} value={mp.id}>
-                      {mp.nombre}
+                  <option value="">Selecciona un ítem solicitado</option>
+                  {itemsSolicitados.map((it) => (
+                    <option key={it.key} value={it.key}>
+                      {it.nombre}
                     </option>
                   ))}
                 </select>
@@ -404,7 +405,10 @@ export default function PrepararPedido() {
                 >
                   <div className="flex-1 font-medium">
                     Bulto {b.identificador} –{" "}
-                    {b.unidades_disponibles.toFixed(2)} {b.materiaPrima.unidad_medida} disponibles
+                    {b.unidades_disponibles.toFixed(2)}{" "}
+                    {b.materiaPrima?.unidad_medida ??
+                      (b.loteProductoFinal?.productoBase ? "un." : "")}{" "}
+                    disponibles
                   </div>
                   <input
                     type="number"

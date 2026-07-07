@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import MultiSelectInput from '../../components/Forms/MultiSelectInput';
 import InsumosTable from '../../components/Insumos/InsumosTable';
+import ProductosTerminadosTable from '../../components/Solicitudes/ProductosTerminadosTable';
 import ImportarDesdeOCModal from '../../components/ImportarDesdeOCModal';
 import Selector from '../../components/Forms/Selector';
 import { ArrowRight } from 'lucide-react';
@@ -21,6 +22,7 @@ export default function AddSolicitud() {
   const [selectedOrigen, setSelectedOrigen] = useState('');
   const [bodegas, setBodegas] = useState([]);
   const [insumosSeleccionados, setInsumosSeleccionados] = useState([]);
+  const [productosSeleccionados, setProductosSeleccionados] = useState([]);
   const [showErrors, setShowErrors] = useState(false);
   const [loading, setLoading] = useState(false);
   const [addSignal, setAddSignal] = useState(0);
@@ -33,9 +35,10 @@ export default function AddSolicitud() {
 
   const canWriteMerchRequest = checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE);
 
-  // Limpiar insumos al cambiar la bodega de origen
+  // Limpiar insumos/productos al cambiar la bodega de origen
   useEffect(() => {
     setInsumosSeleccionados([]);
+    setProductosSeleccionados([]);
   }, [selectedOrigen]);
 
   useEffect(() => {
@@ -99,12 +102,13 @@ export default function AddSolicitud() {
     if (!selectedOrigen) newErrors.origen = 'Debe seleccionar una bodega de origen';
     if (!selectedDestino) newErrors.destino = 'Debe seleccionar una bodega de destino';
     else if (selectedOrigen === selectedDestino) newErrors.destino = 'La bodega de destino debe ser diferente a la de origen';
-    if (!insumosSeleccionados || insumosSeleccionados.length === 0) newErrors.insumos = 'Debe agregar al menos un insumo';
+    if ((insumosSeleccionados?.length ?? 0) === 0 && (productosSeleccionados?.length ?? 0) === 0)
+      newErrors.insumos = 'Debe agregar al menos un insumo o producto terminado';
     if (selectedUsers.length === 0) newErrors.usuarios = 'Debe seleccionar al menos un usuario para notificar';
     return newErrors;
   };
 
-  const errors = useMemo(() => computeErrors(), [selectedOrigen, selectedDestino, insumosSeleccionados, selectedUsers]);
+  const errors = useMemo(() => computeErrors(), [selectedOrigen, selectedDestino, insumosSeleccionados, productosSeleccionados, selectedUsers]);
   const isFormReady = useMemo(() => Object.keys(errors).length === 0, [errors]);
 
   const validateForm = () => {
@@ -129,11 +133,20 @@ export default function AddSolicitud() {
       const solicitudData = {
         id_bodega_proveedora: parseInt(selectedOrigen),
         id_bodega_solicitante: parseInt(selectedDestino),
-        materias_primas: insumosSeleccionados.map(insumo => ({
-          id_materia_prima: parseInt(insumo.id_articulo),
-          cantidad_solicitada: Number(insumo.cantidad_solicitada),
-          comentario: insumo.comentario || ''
-        })),
+        // El array combina insumos (id_materia_prima) y productos terminados
+        // (id_producto_base); el backend valida que cada ítem tenga solo uno (B4).
+        materias_primas: [
+          ...insumosSeleccionados.map(insumo => ({
+            id_materia_prima: parseInt(insumo.id_articulo),
+            cantidad_solicitada: Number(insumo.cantidad_solicitada),
+            comentario: insumo.comentario || ''
+          })),
+          ...productosSeleccionados.map(p => ({
+            id_producto_base: p.id_producto_base,
+            cantidad_solicitada: Number(p.cantidad_solicitada),
+            comentario: p.comentario || ''
+          })),
+        ],
         notificaciones: selectedUsers.map(user => user.email)
       };
 
@@ -295,6 +308,21 @@ export default function AddSolicitud() {
             {selectedOrigen && selectedDestino && showErrors && errors.insumos && (
               <p className="mt-2 text-sm text-red-500">{errors.insumos}</p>
             )}
+          </div>
+
+          {/* Productos terminados (B4) */}
+          <div className="mt-8">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold">Productos Terminados a Solicitar</h3>
+              {(!selectedOrigen || !selectedDestino) && (
+                <p className="mt-1 text-sm text-gray-500">Selecciona ambas bodegas para agregar productos.</p>
+              )}
+            </div>
+            <ProductosTerminadosTable
+              bodegaId={selectedOrigen}
+              disabled={!selectedOrigen || !selectedDestino}
+              onChange={setProductosSeleccionados}
+            />
           </div>
 
           {/* Botón */}
