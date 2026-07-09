@@ -3,16 +3,11 @@ import {
   EditButton,
   TrashButton,
 } from "../../components/Buttons/ActionButtons";
-import Table from "../../components/Tables/Table";
-import SearchBar from "../../components/UI/SearchBar";
-import RowsPerPageSelector from "../../components/UI/RowsPerPageSelector";
-import Pagination from "../../components/UI/Pagination";
+import DataTable from "../../components/Tables/DataTable";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
-import { Spinner } from "../../components/UI/Spinner.jsx";
 import { toast } from "../../lib/toast";
-import { useAuth } from "../../auth/AuthContext";
 import { Lock, Unlock } from "lucide-react";
 import { checkScope, ModelType, ScopeType, isAdminOrSuperAdmin } from "../../services/scopeCheck.js";
 
@@ -23,63 +18,51 @@ function formatDateTime(value) {
   return d.toLocaleString("es-CL");
 }
 
+const toBoolIsActive = (value) =>
+  value === true || value === "true" || value === 1 || value === "1";
+
 function pautaToSearchText(p) {
-  const estado =
-    p?.is_active === true || p?.is_active === 1 || p?.is_active === "true" || p?.is_active === "1"
-      ? "activo"
-      : "inactivo";
-  return [p?.id, p?.name, p?.description, estado]
-    .filter((v) => v != null)
-    .map((v) => String(v).toLowerCase())
-    .join(" ");
+  const estado = toBoolIsActive(p?.is_active) ? "activo" : "inactivo";
+  return [p?.id, p?.name, p?.description, estado].filter((v) => v != null).map((v) => String(v)).join(" ");
+}
+
+function EstadoChip({ activo }) {
+  return (
+    <span className={`px-2 py-1 rounded-full text-xs font-medium ${activo ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+      {activo ? "Activo" : "Inactivo"}
+    </span>
+  );
 }
 
 export default function PautasElaboracionPage() {
   const navigate = useNavigate();
   const api = useApi();
-  const { user } = useAuth();
   const [pautas, setPautas] = useState([]);
-  const [filteredPautas, setFilteredPautas] = useState([]);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [togglingId, setTogglingId] = useState(null);
 
-  const isAdmin =  isAdminOrSuperAdmin();
-
+  const isAdmin = isAdminOrSuperAdmin();
   const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
   const canWriteElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.WRITE);
   const canDeleteElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.DELETE);
 
-  const toBoolIsActive = (value) =>
-    value === true || value === "true" || value === 1 || value === "1";
-
-  const patchLocalPauta = (idPauta, patch) => {
+  const patchLocalPauta = (idPauta, patch) =>
     setPautas((prev) => prev.map((p) => (p.id === idPauta ? { ...p, ...patch } : p)));
-    setFilteredPautas((prev) => prev.map((p) => (p.id === idPauta ? { ...p, ...patch } : p)));
-  };
 
   useEffect(() => {
     const fetchPautas = async () => {
       if (!canReadElaborationGuideline) {
-        toast.permissionError([ModelType.PAUTA_ELABORACION, ScopeType.READ])
+        toast.permissionError([ModelType.PAUTA_ELABORACION, ScopeType.READ]);
         setIsLoading(false);
-        setError(null);
         return;
       }
-
       setIsLoading(true);
-      setError(null);
       try {
         const response = await api(`/pautas-elaboracion`, { method: "GET" });
-        const sorted = response.sort((a, b) => a.id - b.id);
-        setPautas(sorted);
-        setFilteredPautas(sorted);
+        setPautas(Array.isArray(response) ? response : []);
       } catch (err) {
         console.error("Error fetching pautas:", err);
         toast.error("No se pudo conectar al servidor. Verifica la conexión.");
-        setError("No se pudieron cargar las pautas.");
       } finally {
         setIsLoading(false);
       }
@@ -88,78 +71,44 @@ export default function PautasElaboracionPage() {
   }, [api, canReadElaborationGuideline]);
 
   const columns = [
-    { header: "ID", accessor: "id" },
     {
       header: "Pauta",
       accessor: "name",
-      Cell: ({ value }) => (
-        <div className="max-w-[320px] truncate" title={value || ""}>
-          {value || "—"}
-        </div>
-      ),
+      sortable: true,
+      Cell: ({ value }) => <div className="max-w-[320px] truncate" title={value || ""}>{value || "—"}</div>,
     },
     {
       header: "Descripción",
       accessor: "description",
-      Cell: ({ value }) => (
-        <div className="max-w-[420px] truncate text-gray-600" title={value || ""}>
-          {value || "—"}
-        </div>
-      ),
+      Cell: ({ value }) => <div className="max-w-[420px] truncate text-gray-600" title={value || ""}>{value || "—"}</div>,
     },
     {
       header: "Estado",
       accessor: "is_active",
-      Cell: ({ value }) => {
-        const isActive = toBoolIsActive(value);
-        return (
-          <span
-            className={`px-2 py-1 rounded-full text-xs ${
-              isActive
-                ? "bg-green-100 text-green-800"
-                : "bg-red-100 text-red-800"
-            }`}
-          >
-            {isActive ? "Activo" : "Inactivo"}
-          </span>
-        );
-      },
+      sortable: true,
+      align: "center",
+      sortValue: (row) => (toBoolIsActive(row.is_active) ? 1 : 0),
+      Cell: ({ row }) => <div className="flex justify-center"><EstadoChip activo={toBoolIsActive(row.is_active)} /></div>,
     },
     {
       header: "Actualizada",
       accessor: "updatedAt",
-      Cell: ({ value }) => (
-        <span className="text-gray-600">{formatDateTime(value)}</span>
-      ),
+      sortable: true,
+      Cell: ({ value }) => <span className="text-gray-600">{formatDateTime(value)}</span>,
     },
   ];
-
-  const handleSearch = (query) => {
-    const lower = query.toLowerCase();
-    const filtered = pautas.filter((p) => pautaToSearchText(p).includes(lower));
-    setFilteredPautas(filtered);
-    setCurrentPage(1);
-  };
 
   const handleToggleActive = async (row) => {
     const idPauta = row?.id;
     if (!idPauta) return;
-
-    const current = toBoolIsActive(row?.is_active);
-    const next = !current;
-
     if (!canWriteElaborationGuideline) {
       toast.permissionError([ModelType.PAUTA_ELABORACION, ScopeType.WRITE]);
       return;
     }
-
+    const next = !toBoolIsActive(row?.is_active);
     setTogglingId(idPauta);
     try {
-      await api(`/pautas-elaboracion/${idPauta}`, {
-        method: "PUT",
-        body: JSON.stringify({ is_active: next }),
-      });
-
+      await api(`/pautas-elaboracion/${idPauta}`, { method: "PUT", body: JSON.stringify({ is_active: next }) });
       patchLocalPauta(idPauta, { is_active: next });
       toast.success(next ? "Pauta activada." : "Pauta desactivada.");
     } catch (err) {
@@ -178,132 +127,52 @@ export default function PautasElaboracionPage() {
     try {
       await api(`/pautas-elaboracion/${idPauta}`, { method: "DELETE" });
       setPautas((prev) => prev.filter((p) => p.id !== idPauta));
-      setFilteredPautas((prev) => prev.filter((p) => p.id !== idPauta));
       toast.success("Pauta de elaboración eliminada correctamente.");
     } catch (err) {
       console.error("Error deleting pauta:", err);
-      const msg =
-        err?.message ||
-        "Ocurrió un error al eliminar la pauta de elaboración.";
-      toast.error(msg);
+      toast.error(err?.message || "Ocurrió un error al eliminar la pauta de elaboración.");
     }
   };
 
   const actions = (row) => (
     <div className="flex gap-2 items-center">
-      <ViewDetailButton
-        onClick={() => navigate(`/PautasElaboracion/${row.id}`)}
-        tooltipText="Ver detalle"
-      />
-      <EditButton
-        onClick={() => navigate(`/PautasElaboracion/${row.id}/edit`)}
-        tooltipText="Editar Pauta"
-      />
-
+      <ViewDetailButton onClick={() => navigate(`/PautasElaboracion/${row.id}`)} tooltipText="Ver detalle" />
+      <EditButton onClick={() => navigate(`/PautasElaboracion/${row.id}/edit`)} tooltipText="Editar Pauta" />
       <button
         type="button"
         onClick={() => void handleToggleActive(row)}
         disabled={togglingId === row.id}
-        className={`${
-          toBoolIsActive(row?.is_active)
-            ? "text-yellow-600 hover:text-yellow-700"
-            : "text-green-600 hover:text-green-700"
-        } ${togglingId === row.id ? "opacity-60 cursor-not-allowed" : ""}`}
-        title={
-          togglingId === row.id
-            ? "Actualizando..."
-            : toBoolIsActive(row?.is_active)
-              ? "Desactivar pauta"
-              : "Activar pauta"
-        }
-        aria-label={
-          togglingId === row.id
-            ? "Actualizando pauta"
-            : toBoolIsActive(row?.is_active)
-              ? "Desactivar pauta"
-              : "Activar pauta"
-        }
+        className={`${toBoolIsActive(row?.is_active) ? "text-yellow-600 hover:text-yellow-700" : "text-green-600 hover:text-green-700"} ${togglingId === row.id ? "opacity-60 cursor-not-allowed" : ""}`}
+        title={togglingId === row.id ? "Actualizando..." : toBoolIsActive(row?.is_active) ? "Desactivar pauta" : "Activar pauta"}
+        aria-label={toBoolIsActive(row?.is_active) ? "Desactivar pauta" : "Activar pauta"}
       >
-        {toBoolIsActive(row?.is_active) ? (
-          <Lock className="w-5 h-5" />
-        ) : (
-          <Unlock className="w-5 h-5" />
-        )}
+        {toBoolIsActive(row?.is_active) ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
       </button>
-
       {isAdmin ? (
-        <TrashButton
-          onConfirmDelete={() => handleDelete(row.id)}
-          tooltipText="Eliminar Pauta"
-          entityName="pauta de elaboración"
-        />
+        <TrashButton onConfirmDelete={() => handleDelete(row.id)} tooltipText="Eliminar Pauta" entityName="pauta de elaboración" />
       ) : null}
     </div>
   );
 
-  const totalPages = Math.ceil(filteredPautas.length / rowsPerPage);
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedData = filteredPautas.slice(
-    startIndex,
-    startIndex + rowsPerPage
-  );
-
   return (
-    <div className="p-6 bg-background min-h-screen">
-      <div className="w-full">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-text">Pautas de Elaboración</h1>
-          <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
-            onClick={() => navigate("/PautasElaboracion/add")}
-          >
-            Añadir Pauta
-          </button>
-        </div>
-
-        {isLoading && (
-          <div className="flex justify-center items-center mb-6">
-            <Spinner size="md" />
-          </div>
-        )}
-
-        {error && (
-          <div className="p-4 mb-6 text-red-700 bg-red-100 rounded-lg">
-            {error}
-          </div>
-        )}
-
-        {!isLoading && !error && (
-          <>
-            <div className="flex justify-between items-center mb-6">
-              <RowsPerPageSelector
-                onRowsChange={(value) => {
-                  setRowsPerPage(value);
-                  setCurrentPage(1);
-                }}
-                defaultRows={25}
-                options={[25, 50, 100]}
-              />
-              <SearchBar onSearch={handleSearch} placeholder="Buscar pauta..." />
-            </div>
-
-            <Table
-              columns={columns}
-              data={paginatedData}
-              actions={actions}
-              actionHeader="OPCIONES"
-            />
-
-            <div className="mt-6 flex justify-end">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-              />
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+    <DataTable
+      title="Pautas de Elaboración"
+      data={pautas}
+      columns={columns}
+      actions={actions}
+      filterFn={(row, q) => pautaToSearchText(row).toLowerCase().includes(q.toLowerCase())}
+      loading={isLoading}
+      loadingMessage="Cargando pautas de elaboración"
+      defaultRowsPerPage={25}
+      emptyMessage="No hay pautas de elaboración registradas."
+      headerActions={
+        <button
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+          onClick={() => navigate("/PautasElaboracion/add")}
+        >
+          Añadir Pauta
+        </button>
+      }
+    />
   );
 }

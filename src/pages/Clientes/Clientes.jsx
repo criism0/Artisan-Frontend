@@ -1,27 +1,18 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { ViewDetailButton, EditButton } from "../../components/Buttons/ActionButtons";
-import Table from "../../components/Tables/Table";
-import SearchBar from "../../components/UI/SearchBar";
-import RowsPerPageSelector from "../../components/UI/RowsPerPageSelector";
-import Pagination from "../../components/UI/Pagination";
+import DataTable from "../../components/Tables/DataTable";
 import Selector from "../../components/Forms/Selector";
 import { api } from "../../lib/api.js";
-import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import toast from "../../lib/toast.js";
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState([]);
-  const [filtered, setFiltered] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [page, setPage] = useState(1);
-  const [searchQuery, setSearchQuery] = useState("");
   const [filtroCanal, setFiltroCanal] = useState("Todos");
   const [filtroListaPrecio, setFiltroListaPrecio] = useState("Todas");
   const [filtroFormatoCompra, setFiltroFormatoCompra] = useState("Todos");
-  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
   const [canales, setCanales] = useState([]);
   const [showCanalesModal, setShowCanalesModal] = useState(false);
   const [newCanalName, setNewCanalName] = useState("");
@@ -56,18 +47,13 @@ export default function ClientesPage() {
   }, [showCanalesModal]);
 
   const columns = [
-    { header: "ID", accessor: "id" },
-    { header: "Nombre Comercial", accessor: "nombre_empresa" },
-    { header: "Canal", accessor: "canalInfo", Cell: ({ value }) => value?.nombre || "—" },
-    { header: "Lista de Precio", accessor: "listaPrecio", Cell: ({ value }) => value?.nombre || "—" },
-    { header: "Contacto Comercial", accessor: "contacto_comercial" },
-    { header: "E-mail Comercial", accessor: "email_comercial" },
-    { header: "Teléfono", accessor: "telefono_comercial" },
-    { header: "Opciones", accessor: "acciones" },
+    { header: "Nombre Comercial", accessor: "nombre_empresa", sortable: true },
+    { header: "Canal", accessor: "canalInfo", sortable: true, sortValue: (r) => r.canalInfo?.nombre || "", Cell: ({ value }) => value?.nombre || "—" },
+    { header: "Lista de Precio", accessor: "listaPrecio", sortable: true, sortValue: (r) => r.listaPrecio?.nombre || "", Cell: ({ value }) => value?.nombre || "—" },
+    { header: "Contacto Comercial", accessor: "contacto_comercial", Cell: ({ value }) => value || "—" },
+    { header: "E-mail Comercial", accessor: "email_comercial", Cell: ({ value }) => value || "—" },
+    { header: "Teléfono", accessor: "telefono_comercial", Cell: ({ value }) => value || "—" },
   ];
-
-  const normalize = (text) =>
-    (text ?? "").toString().toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
 
   const canalOptions = useMemo(() => {
     const map = new Map();
@@ -94,26 +80,19 @@ export default function ClientesPage() {
     return [{ value: "Todos", label: "Todos" }, ...formatos.map((f) => ({ value: f, label: f }))];
   }, [clientes]);
 
-  useEffect(() => {
-    let list = [...clientes];
-    const q = normalize(searchQuery);
-    if (q) {
-      list = list.filter((c) =>
-        normalize(JSON.stringify([
-          c.id, c.nombre_empresa, c.canalInfo?.nombre, c.listaPrecio?.nombre,
-          c.contacto_comercial, c.email_comercial, c.telefono_comercial, c.formato_compra_predeterminado,
-        ])).includes(q)
-      );
-    }
+  // Filtros de negocio (canal / lista de precio / formato); la búsqueda,
+  // orden y paginación las resuelve DataTable.
+  const data = useMemo(() => {
+    let list = clientes;
     if (filtroCanal !== "Todos") list = list.filter((c) => String(c.canalInfo?.id) === String(filtroCanal));
     if (filtroListaPrecio !== "Todas") list = list.filter((c) => String(c.listaPrecio?.id) === String(filtroListaPrecio));
     if (filtroFormatoCompra !== "Todos") list = list.filter((c) => c.formato_compra_predeterminado === filtroFormatoCompra);
-    setFiltered(list);
-    setPage(1);
-  }, [clientes, searchQuery, filtroCanal, filtroListaPrecio, filtroFormatoCompra]);
+    return list;
+  }, [clientes, filtroCanal, filtroListaPrecio, filtroFormatoCompra]);
 
-  const totalPages = Math.ceil(filtered.length / rowsPerPage);
-  const slice = filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage);
+  const getSearchText = (c) =>
+    [c.nombre_empresa, c.canalInfo?.nombre, c.listaPrecio?.nombre, c.contacto_comercial,
+     c.email_comercial, c.telefono_comercial, c.formato_compra_predeterminado].join(" ");
 
   const actions = (row) => (
     <div className="flex gap-2 justify-center">
@@ -176,93 +155,57 @@ export default function ClientesPage() {
     setFiltroFormatoCompra("Todos");
   };
 
-  if (isLoading) return <PageLoader message="Cargando clientes" />;
+  const filtrosPanel = (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Canal</label>
+        <Selector options={canalOptions} selectedValue={filtroCanal} onSelect={setFiltroCanal} className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Lista de Precio</label>
+        <Selector options={listaPrecioOptions} selectedValue={filtroListaPrecio} onSelect={setFiltroListaPrecio} className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Formato de Compra</label>
+        <Selector options={formatoCompraOptions} selectedValue={filtroFormatoCompra} onSelect={setFiltroFormatoCompra} className="px-3 py-2 border border-gray-300 rounded-lg text-sm" />
+      </div>
+      <div className="md:col-span-3 flex justify-end">
+        <button type="button" className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors" onClick={clearFiltros}>
+          Limpiar filtros
+        </button>
+      </div>
+    </div>
+  );
 
   return (
-    <div className="p-6 bg-background min-h-screen">
-
-      {/* ── Header ── */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-text">Clientes</h1>
-        <div className="flex gap-2">
-          <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover transition-colors text-sm font-medium"
-            onClick={() => navigate("/clientes/add")}
-          >
-            Añadir Cliente
-          </button>
-          <button
-            className="px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
-            onClick={() => setShowCanalesModal(true)}
-          >
-            Ver Canales
-          </button>
-        </div>
-      </div>
-
-      {/* ── Filtros ── */}
-      <div className="flex flex-col gap-3 mb-6">
-        <div className="flex justify-between items-center gap-3">
-          <RowsPerPageSelector onRowsChange={(v) => { setRowsPerPage(v); setPage(1); }} />
-          <div className="flex items-center gap-2">
+    <>
+      <DataTable
+        title="Clientes"
+        data={data}
+        columns={columns}
+        actions={actions}
+        getSearchText={getSearchText}
+        filters={filtrosPanel}
+        loading={isLoading}
+        loadingMessage="Cargando clientes"
+        emptyMessage="No hay clientes registrados."
+        headerActions={
+          <>
             <button
-              type="button"
-              className="px-3 py-2 border border-primary/20 bg-primary/10 text-primary rounded-lg text-sm hover:bg-primary/20 transition-colors"
-              onClick={() => setFiltrosAbiertos((v) => !v)}
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover transition-colors text-sm font-medium"
+              onClick={() => navigate("/clientes/add")}
             >
-              {filtrosAbiertos ? "Ocultar filtros" : "Filtros"}
+              Añadir Cliente
             </button>
-            <SearchBar onSearch={setSearchQuery} />
-          </div>
-        </div>
-
-        {filtrosAbiertos && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Canal</label>
-              <Selector
-                options={canalOptions}
-                selectedValue={filtroCanal}
-                onSelect={setFiltroCanal}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Lista de Precio</label>
-              <Selector
-                options={listaPrecioOptions}
-                selectedValue={filtroListaPrecio}
-                onSelect={setFiltroListaPrecio}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Formato de Compra</label>
-              <Selector
-                options={formatoCompraOptions}
-                selectedValue={filtroFormatoCompra}
-                onSelect={setFiltroFormatoCompra}
-                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-              />
-            </div>
-            <div className="md:col-span-3 flex justify-end">
-              <button
-                type="button"
-                className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
-                onClick={clearFiltros}
-              >
-                Limpiar filtros
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <Table columns={columns} data={slice.map((c) => ({ ...c, acciones: actions(c) }))} />
-
-      <div className="mt-6 flex justify-end">
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
-      </div>
+            <button
+              className="px-4 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+              onClick={() => setShowCanalesModal(true)}
+            >
+              Ver Canales
+            </button>
+          </>
+        }
+      />
 
       {/* ── Modal: Gestión de Canales ── */}
       {showCanalesModal && (
@@ -381,6 +324,6 @@ export default function ClientesPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
