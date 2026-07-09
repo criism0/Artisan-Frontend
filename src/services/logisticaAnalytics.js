@@ -1,7 +1,7 @@
 import { checkScope, ModelType, ScopeType } from "./scopeCheck";
 import toast from "../lib/toast";
 
-const ESTADOS_ENVIO = [
+const ESTADOS_SOLICITUD = [
   "Creada",
   "Pendiente",
   "Validada",
@@ -24,7 +24,7 @@ const ESTADOS_ACTIVOS = new Set([
   "En tránsito",
 ]);
 
-const COLOR_POR_ESTADO_ENVIO = {
+const COLOR_POR_ESTADO_SOLICITUD = {
   "Creada": "bg-gray-400",
   "Pendiente": "bg-orange-400",
   "Validada": "bg-sky-500",
@@ -38,16 +38,8 @@ const COLOR_POR_ESTADO_ENVIO = {
   "Cancelada": "bg-rose-500",
 };
 
-export function colorEstadoEnvio(estado) {
-  return COLOR_POR_ESTADO_ENVIO[estado] || "bg-gray-300";
-}
-
-export function estadoActivoEnvio(estado) {
-  return ESTADOS_ACTIVOS.has(estado);
-}
-
-export function estadosEnvioConocidos() {
-  return ESTADOS_ENVIO.slice();
+export function colorEstadoSolicitud(estado) {
+  return COLOR_POR_ESTADO_SOLICITUD[estado] || "bg-gray-300";
 }
 
 function normalizeEstadoSolicitud(estado) {
@@ -69,18 +61,18 @@ export async function cargarDatosLogistica(api) {
     toast.error("No tienes permisos para ver logística");
     return null;
   }
-  const [enviosRes, palletsRes] = await Promise.all([
+  const [solicitudesRes, palletsRes] = await Promise.all([
     api(`/solicitudes-mercaderia`, { method: "GET" }).catch(() => []),
     api(`/pallets`, { method: "GET" }).catch(() => []),
   ]);
 
-  const envios = (Array.isArray(enviosRes) ? enviosRes : []).map((s) => ({
+  const solicitudes = (Array.isArray(solicitudesRes) ? solicitudesRes : []).map((s) => ({
     ...s,
     estado: normalizeEstadoSolicitud(s.estado),
   }));
   const pallets = Array.isArray(palletsRes) ? palletsRes : [];
 
-  return { envios, pallets };
+  return { solicitudes, pallets };
 }
 
 function parseFecha(o, ...keys) {
@@ -108,18 +100,18 @@ function palletAbierto(p) {
   return e !== "completado" && e !== "cerrado" && e !== "enviado";
 }
 
-export function calcularKpisLogistica(envios, pallets) {
+export function calcularKpisLogistica(solicitudes, pallets) {
   let activos = 0;
   let enTransito = 0;
   let pendientesDespacho = 0;
   let completados = 0;
 
-  for (const e of envios) {
-    if (e.estado === "En tránsito") enTransito += 1;
-    if (e.estado === "Lista para despacho" || e.estado === "Validada")
+  for (const s of solicitudes) {
+    if (s.estado === "En tránsito") enTransito += 1;
+    if (s.estado === "Lista para despacho" || s.estado === "Validada")
       pendientesDespacho += 1;
-    if (ESTADOS_ACTIVOS.has(e.estado)) activos += 1;
-    if (e.estado === "Recepción Completa" || e.estado === "Recepción Completa con Pérdida")
+    if (ESTADOS_ACTIVOS.has(s.estado)) activos += 1;
+    if (s.estado === "Recepción Completa" || s.estado === "Recepción Completa con Pérdida")
       completados += 1;
   }
 
@@ -127,7 +119,7 @@ export function calcularKpisLogistica(envios, pallets) {
   const bultosEnPallets = pallets.reduce((acc, p) => acc + bultosDePallet(p), 0);
 
   return {
-    total_envios: envios.length,
+    total_solicitudes: solicitudes.length,
     activos,
     en_transito: enTransito,
     pendientes_despacho: pendientesDespacho,
@@ -138,18 +130,18 @@ export function calcularKpisLogistica(envios, pallets) {
   };
 }
 
-export function enviosPorEstado(envios) {
+export function solicitudesPorEstado(solicitudes) {
   const conteo = new Map();
-  for (const est of ESTADOS_ENVIO) conteo.set(est, { estado: est, cantidad: 0 });
-  for (const e of envios) {
-    const est = e.estado || "Otro";
+  for (const est of ESTADOS_SOLICITUD) conteo.set(est, { estado: est, cantidad: 0 });
+  for (const s of solicitudes) {
+    const est = s.estado || "Otro";
     const ref = conteo.get(est) || conteo.set(est, { estado: est, cantidad: 0 }).get(est);
     ref.cantidad += 1;
   }
   return Array.from(conteo.values());
 }
 
-export function tendenciaEnvios(envios, meses = 6) {
+export function tendenciaSolicitudes(solicitudes, meses = 6) {
   const ahora = new Date();
   const buckets = [];
   for (let i = meses - 1; i >= 0; i--) {
@@ -161,10 +153,10 @@ export function tendenciaEnvios(envios, meses = 6) {
     });
   }
   const indexByKey = new Map(buckets.map((b, idx) => [b.key, idx]));
-  for (const e of envios) {
+  for (const s of solicitudes) {
     const f =
-      parseFecha(e, "fecha_envio", "createdAt", "created_at") ||
-      parseFecha(e, "fecha_recepcion");
+      parseFecha(s, "fecha_envio", "createdAt", "created_at") ||
+      parseFecha(s, "fecha_recepcion");
     if (!f) continue;
     const key = `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, "0")}`;
     const idx = indexByKey.get(key);
@@ -174,11 +166,11 @@ export function tendenciaEnvios(envios, meses = 6) {
   return buckets;
 }
 
-export function topRutas(envios, limit = 5) {
+export function topRutas(solicitudes, limit = 5) {
   const map = new Map();
-  for (const e of envios) {
-    const origen = e.bodegaProveedora?.nombre || "Origen desconocido";
-    const destino = e.bodegaSolicitante?.nombre || "Destino desconocido";
+  for (const s of solicitudes) {
+    const origen = s.bodegaProveedora?.nombre || "Origen desconocido";
+    const destino = s.bodegaSolicitante?.nombre || "Destino desconocido";
     const key = `${origen}→${destino}`;
     const ref = map.get(key) || map.set(key, { origen, destino, cantidad: 0 }).get(key);
     ref.cantidad += 1;
@@ -188,22 +180,22 @@ export function topRutas(envios, limit = 5) {
     .slice(0, limit);
 }
 
-export function alertasLogistica(envios, pallets, limit = 8) {
+export function alertasLogistica(solicitudes, pallets, limit = 8) {
   const ahora = new Date();
   const items = [];
 
-  for (const e of envios) {
-    if (!ESTADOS_ACTIVOS.has(e.estado)) continue;
+  for (const s of solicitudes) {
+    if (!ESTADOS_ACTIVOS.has(s.estado)) continue;
     const f =
-      parseFecha(e, "fecha_envio", "createdAt", "created_at") ||
-      parseFecha(e, "fecha_recepcion");
+      parseFecha(s, "fecha_envio", "createdAt", "created_at") ||
+      parseFecha(s, "fecha_recepcion");
     const dias = diasDesde(f, ahora);
     items.push({
-      tipo: "envio",
-      id: e.id,
-      titulo: `Envío SM${e.id}`,
-      subtitulo: `${e.bodegaProveedora?.nombre || "?"} → ${e.bodegaSolicitante?.nombre || "?"}`,
-      estado: e.estado,
+      tipo: "solicitud",
+      id: s.id,
+      titulo: `Solicitud SM${s.id}`,
+      subtitulo: `${s.bodegaProveedora?.nombre || "?"} → ${s.bodegaSolicitante?.nombre || "?"}`,
+      estado: s.estado,
       dias_antiguedad: dias,
     });
   }

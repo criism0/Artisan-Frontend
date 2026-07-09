@@ -15,11 +15,11 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import {
   cargarDatosLogistica,
   calcularKpisLogistica,
-  enviosPorEstado,
-  tendenciaEnvios,
+  solicitudesPorEstado,
+  tendenciaSolicitudes,
   topRutas,
   alertasLogistica,
-  colorEstadoEnvio,
+  colorEstadoSolicitud,
 } from "../../services/logisticaAnalytics";
 
 const formatNumCL = (num) =>
@@ -46,15 +46,15 @@ export default function LogisticaDashboard() {
     cargarDatosLogistica(api)
       .then((d) => {
         if (cancelled || !d) return;
-        const { envios, pallets } = d;
+        const { solicitudes, pallets } = d;
         setData({
-          envios,
+          solicitudes,
           pallets,
-          kpis: calcularKpisLogistica(envios, pallets),
-          porEstado: enviosPorEstado(envios),
-          tendencia: tendenciaEnvios(envios, 6),
-          rutas: topRutas(envios, 5),
-          alertas: alertasLogistica(envios, pallets, 8),
+          kpis: calcularKpisLogistica(solicitudes, pallets),
+          porEstado: solicitudesPorEstado(solicitudes),
+          tendencia: tendenciaSolicitudes(solicitudes, 6),
+          rutas: topRutas(solicitudes, 5),
+          alertas: alertasLogistica(solicitudes, pallets, 8),
         });
       })
       .catch((err) => {
@@ -119,9 +119,9 @@ function DashboardContent({ data, navigate }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <KpiCard
           icon={<Send className="text-blue-600" size={22} />}
-          label="Envíos totales"
-          value={kpis.total_envios}
-          subtitle={`${kpis.activos} activos · ${kpis.completados} completados`}
+          label="Solicitudes totales"
+          value={kpis.total_solicitudes}
+          subtitle={`${kpis.activos} activas · ${kpis.completados} completadas`}
           accent="blue"
         />
         <KpiCard
@@ -149,10 +149,10 @@ function DashboardContent({ data, navigate }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         
-        <GraficoTendenciaEnvios tendencia={tendencia} />
+        <GraficoTendenciaSolicitudes tendencia={tendencia} />
 
         <div className="bg-white p-6 rounded-lg shadow space-y-4">
-          <h2 className="text-lg font-semibold text-text">Envíos por estado</h2>
+          <h2 className="text-lg font-semibold text-text">Solicitudes por estado</h2>
           <div className="space-y-3">
             {porEstado
               .filter((e) => e.cantidad > 0)
@@ -169,7 +169,7 @@ function DashboardContent({ data, navigate }) {
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2">
                       <div
-                        className={`${colorEstadoEnvio(e.estado)} h-2 rounded-full`}
+                        className={`${colorEstadoSolicitud(e.estado)} h-2 rounded-full`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -177,7 +177,7 @@ function DashboardContent({ data, navigate }) {
                 );
               })}
             {porEstado.every((e) => e.cantidad === 0) && (
-              <p className="text-sm text-gray-500">Sin envíos registrados.</p>
+              <p className="text-sm text-gray-500">Sin solicitudes registradas.</p>
             )}
           </div>
         </div>
@@ -200,7 +200,7 @@ function DashboardContent({ data, navigate }) {
               <div>
                 <p className="text-sm font-medium text-green-800">Sin alertas</p>
                 <p className="text-xs text-green-700 mt-0.5">
-                  No hay envíos activos ni pallets abiertos.
+                  No hay solicitudes activas ni pallets abiertos.
                 </p>
               </div>
             </div>
@@ -210,7 +210,7 @@ function DashboardContent({ data, navigate }) {
                 <button
                   key={`${a.tipo}-${a.id}`}
                   onClick={() =>
-                    a.tipo === "envio"
+                    a.tipo === "solicitud"
                       ? navigate(`/Solicitudes/${a.id}`)
                       : navigate(`/Pallets`)
                   }
@@ -246,7 +246,7 @@ function DashboardContent({ data, navigate }) {
         <div className="bg-white p-6 rounded-lg shadow space-y-4">
           <h2 className="text-lg font-semibold text-text">Top rutas</h2>
           {rutas.length === 0 ? (
-            <p className="text-sm text-gray-500">Sin envíos registrados.</p>
+            <p className="text-sm text-gray-500">Sin solicitudes registradas.</p>
           ) : (
             <div className="space-y-3">
               {rutas.map((r, i) => {
@@ -281,7 +281,7 @@ function DashboardContent({ data, navigate }) {
   );
 }
 
-function GraficoTendenciaEnvios({ tendencia }) {
+function GraficoTendenciaSolicitudes({ tendencia }) {
   const hayDatos = tendencia.some((t) => t.cantidad > 0);
   const maxCantidad = hayDatos ? Math.max(...tendencia.map((t) => t.cantidad)) : 0;
 
@@ -301,7 +301,7 @@ function GraficoTendenciaEnvios({ tendencia }) {
   return (
     <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-text">Tendencia mensual de envíos</h2>
+        <h2 className="text-lg font-semibold text-text">Tendencia mensual de solicitudes</h2>
         <span className="text-xs text-gray-500">Últimos 6 meses</span>
       </div>
       <div className="flex gap-2">
@@ -331,7 +331,7 @@ function GraficoTendenciaEnvios({ tendencia }) {
                         {b.cantidad > 0 ? b.cantidad : ""}
                       </div>
                       <div
-                        title={`${b.label}: ${b.cantidad} envíos`}
+                        title={`${b.label}: ${b.cantidad} solicitudes`}
                         className="w-full bg-primary hover:bg-primary-dark rounded-t transition-colors"
                         style={{ height: `${h}%`, minHeight: b.cantidad > 0 ? "4px" : "0" }}
                       />
@@ -353,7 +353,7 @@ function GraficoTendenciaEnvios({ tendencia }) {
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 border-t text-xs text-gray-600">
         <div className="flex items-center gap-2">
           <span className="inline-block w-3 h-3 rounded-sm bg-primary" />
-          <span>Altura: cantidad de envíos en el mes</span>
+          <span>Altura: cantidad de solicitudes en el mes</span>
         </div>
       </div>
     </div>
