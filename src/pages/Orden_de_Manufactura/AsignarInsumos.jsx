@@ -89,6 +89,12 @@ export default function AsignarInsumos() {
   // Para ingredientes variables: MP seleccionada para filtrar bultos visibles
   const [mpSeleccionadaPorRegistro, setMpSeleccionadaPorRegistro] = useState({});
 
+  // Búsqueda y colapso de la lista de bultos disponibles por registro
+  // (con muchos bultos la tabla completa satura la vista)
+  const [busquedaPorRegistro, setBusquedaPorRegistro] = useState({});
+  const [mostrarTodosPorRegistro, setMostrarTodosPorRegistro] = useState({});
+  const BULTOS_VISIBLES = 10;
+
   const buildAllowedMateriaPrimas = (insumo) => {
     const preferida = insumo?.ingredienteReceta?.materiaPrima || null;
     const equivalentes = Array.isArray(insumo?.ingredienteReceta?.materiasPrimasEquivalentes)
@@ -137,9 +143,10 @@ export default function AsignarInsumos() {
       setHasPasos(computed);
       return computed;
     } catch {
-      // Si no podemos validar, preferimos ser conservadores y pedir confirmación.
-      setHasPasos(false);
-      return false;
+      // No se pudo verificar: no cacheamos el resultado (se reintenta en la
+      // próxima acción) y avisamos con un texto neutro, sin afirmar que la
+      // receta no tiene pasos.
+      return null;
     }
   }, [api, hasPasos, id]);
 
@@ -264,11 +271,19 @@ export default function AsignarInsumos() {
       return;
     }
 
-    setNoPasosConfirmTitle("Esta receta no tiene pasos");
-    setNoPasosConfirmDescription(
-      `Al ${label}, la OM avanzará automáticamente a "Esperando salidas".\n\n` +
-        `¿Deseas continuar? Si necesitas revertir asignaciones, es mejor cancelar y revisar antes.`
-    );
+    if (computedHasPasos === null) {
+      setNoPasosConfirmTitle("No se pudo verificar los pasos de la receta");
+      setNoPasosConfirmDescription(
+        `Si la receta no tiene pasos, al ${label} la OM avanzará automáticamente a "Esperando salidas".\n\n` +
+          `¿Deseas continuar?`
+      );
+    } else {
+      setNoPasosConfirmTitle("Esta receta no tiene pasos");
+      setNoPasosConfirmDescription(
+        `Al ${label}, la OM avanzará automáticamente a "Esperando salidas".\n\n` +
+          `¿Deseas continuar? Si necesitas revertir asignaciones, es mejor cancelar y revisar antes.`
+      );
+    }
     setPendingAction(() => action);
     setNoPasosConfirmOpen(true);
   };
@@ -636,6 +651,12 @@ export default function AsignarInsumos() {
 
   if (isLoading) return <PageLoader message="Cargando insumos" />;
 
+  const idsPendientes = insumos
+    .filter((i) => !isAsignacionSuficiente(i.peso_utilizado, i.peso_necesario))
+    .map((i) => i.id);
+  const insumosCompletos = insumos.length - idsPendientes.length;
+  const todoAsignado = idsPendientes.length === 0;
+
   return (
     <div className="p-6 bg-background min-h-screen">
       <ConfirmActionModal
@@ -697,8 +718,20 @@ export default function AsignarInsumos() {
         <BackButton to={`/Orden_de_Manufactura/${id}`} />
       </div>
 
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-text">Asignar insumos · OM #{id}</h1>
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-text">Asignar insumos · OM #{id}</h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Selecciona bultos y cantidades para cubrir el requerimiento de cada insumo.
+          </p>
+        </div>
+        <span
+          className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+            todoAsignado ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+          }`}
+        >
+          {insumosCompletos} de {insumos.length} insumos completos
+        </span>
       </div>
 
       {insumos.map((insumo) => {
@@ -719,21 +752,77 @@ export default function AsignarInsumos() {
 
         const bultosAsignados = insumo?.bultos || insumo?.Bultos || [];
 
-        return (
-          <div key={insumo.id} className="mb-6 bg-white shadow rounded-xl p-4">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
-              <h2 className="text-lg font-semibold text-text">
-                {insumo.ingredienteReceta.materiaPrima.nombre}
-              </h2>
+        const necesario = formatDecimal(Number(insumo.peso_necesario || 0));
+        const utilizado = formatDecimal(Number(insumo.peso_utilizado || 0));
+        const faltante = formatDecimal(Math.max(0, necesario - utilizado));
+        const progresoPct = necesario > 0 ? Math.min(100, (utilizado / necesario) * 100) : 100;
+        const ingresadoAhora = sumScaled(
+          (asignaciones[insumo.id] || []).map((b) => b.peso_utilizado).filter((p) => Number(p) > 0)
+        );
 
-              <div className="text-sm text-gray-700">
-                <span className="font-medium">Asignado:</span> {mostrarNumeroExacto(insumo.peso_utilizado)} / {mostrarNumeroExacto(insumo.peso_necesario)}{sufijoUnidad}
-                {yaAsignado && (
-                  objetivoCubierto ? (
-                    <span className="ml-2 px-2 py-1 rounded bg-green-100 text-green-700 text-xs font-medium">OK</span>
-                  ) : (
-                    <span className="ml-2 px-2 py-1 rounded bg-yellow-100 text-yellow-700 text-xs font-medium">OK (tol.)</span>
-                  )
+        const estadoChip = yaAsignado
+          ? objetivoCubierto
+            ? { label: "Completo", cls: "bg-green-100 text-green-800" }
+            : { label: "Completo (tolerancia)", cls: "bg-yellow-100 text-yellow-800" }
+          : utilizado > 0
+            ? { label: "Parcial", cls: "bg-yellow-100 text-yellow-800" }
+            : { label: "Pendiente", cls: "bg-gray-100 text-gray-700" };
+
+        const busqueda = String(busquedaPorRegistro[insumo.id] || "").trim().toLowerCase();
+        const bultosFiltrados = busqueda
+          ? bultos.filter((b) =>
+              String(b.identificador || b.id).toLowerCase().includes(busqueda)
+            )
+          : bultos;
+        // Con búsqueda activa se muestran todas las coincidencias; sin búsqueda,
+        // se colapsa a las primeras filas para no saturar la vista.
+        const mostrarTodos = !!mostrarTodosPorRegistro[insumo.id] || !!busqueda;
+        const bultosVisibles = mostrarTodos
+          ? bultosFiltrados
+          : bultosFiltrados.slice(0, BULTOS_VISIBLES);
+        const bultosOcultos = bultosFiltrados.length - bultosVisibles.length;
+
+        // La advertencia de "sin pasos" solo aplica cuando la acción puede dejar
+        // todos los insumos asignados (y con eso avanzar la OM automáticamente).
+        const esUltimoPendiente = idsPendientes.length === 1 && idsPendientes[0] === insumo.id;
+
+        return (
+          <div key={insumo.id} className="mb-6 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-lg font-semibold text-text">
+                    {insumo.ingredienteReceta.materiaPrima.nombre}
+                  </h2>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${estadoChip.cls}`}>
+                    {estadoChip.label}
+                  </span>
+                </div>
+                <div className="mt-2 flex items-center gap-3">
+                  <div className="w-48 h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${yaAsignado ? "bg-green-500" : "bg-primary"}`}
+                      style={{ width: `${progresoPct}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-500">{Math.round(progresoPct)}%</span>
+                </div>
+              </div>
+
+              <div className="text-sm text-gray-700 text-left md:text-right shrink-0">
+                <div>
+                  <span className="font-medium">Asignado:</span>{" "}
+                  {mostrarNumeroExacto(utilizado)} de {mostrarNumeroExacto(necesario)}{sufijoUnidad}
+                </div>
+                {!yaAsignado && (
+                  <div className="text-red-600 font-medium">
+                    Faltan {mostrarNumeroExacto(faltante)}{sufijoUnidad}
+                  </div>
+                )}
+                {!yaAsignado && ingresadoAhora > 0 && (
+                  <div className="text-xs text-gray-500">
+                    Ingresado en esta pantalla (sin asignar): {mostrarNumeroExacto(formatDecimal(ingresadoAhora))}{sufijoUnidad}
+                  </div>
                 )}
               </div>
             </div>
@@ -812,7 +901,29 @@ export default function AsignarInsumos() {
                   </div>
                 )}
 
-                <div className="text-sm font-semibold text-gray-700 mb-2">Bultos disponibles</div>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <div className="text-sm font-semibold text-gray-700">
+                    Bultos disponibles
+                    <span className="ml-2 text-xs font-normal text-gray-500">
+                      {bultosFiltrados.length}
+                      {busqueda ? ` de ${bultos.length}` : ""} bulto(s)
+                    </span>
+                  </div>
+                  {bultos.length > BULTOS_VISIBLES && (
+                    <input
+                      type="text"
+                      value={busquedaPorRegistro[insumo.id] || ""}
+                      onChange={(e) =>
+                        setBusquedaPorRegistro((prev) => ({
+                          ...prev,
+                          [insumo.id]: e.target.value,
+                        }))
+                      }
+                      placeholder="Buscar bulto por identificador…"
+                      className="px-3 py-1.5 border border-border rounded-lg text-sm w-64"
+                    />
+                  )}
+                </div>
 
                 <div className="bg-white rounded-lg border border-border overflow-hidden">
                   <div className="w-full overflow-x-auto">
@@ -828,7 +939,7 @@ export default function AsignarInsumos() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
-                        {bultos.map((b) => {
+                        {bultosVisibles.map((b) => {
                           const equivalente = Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0);
                           const currentAssigned = asignaciones?.[insumo.id]?.find((x) => x.id_bulto === b.id);
                           const currentValue = currentAssigned?.peso_utilizado;
@@ -877,68 +988,93 @@ export default function AsignarInsumos() {
                   </div>
                 </div>
 
+                {bultosOcultos > 0 && (
+                  <button
+                    type="button"
+                    className="text-sm text-primary hover:underline"
+                    onClick={() =>
+                      setMostrarTodosPorRegistro((prev) => ({
+                        ...prev,
+                        [insumo.id]: true,
+                      }))
+                    }
+                  >
+                    Mostrar los {bultosOcultos} restantes
+                  </button>
+                )}
+
                 {bultos.length === 0 && (
                   <p className="text-sm text-red-600">
                     No hay bultos disponibles para este insumo.
                   </p>
                 )}
+                {bultos.length > 0 && bultosFiltrados.length === 0 && (
+                  <p className="text-sm text-gray-500">
+                    Ningún bulto coincide con la búsqueda.
+                  </p>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={() => {
+                      const action = handleAsignar(insumo.id, insumo.peso_necesario, unidadMedida);
+                      if (esUltimoPendiente) {
+                        void runWithNoPasosConfirmation(action, "asignar insumos");
+                      } else {
+                        void action();
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-hover"
+                  >
+                    Asignar insumo
+                  </button>
+                </div>
               </div>
             )}
-
-            <button
-              onClick={() =>
-                void runWithNoPasosConfirmation(
-                  handleAsignar(insumo.id, insumo.peso_necesario, unidadMedida),
-                  "asignar insumos"
-                )
-              }
-              disabled={yaAsignado}
-              className={`mt-4 px-4 py-2 rounded ${yaAsignado
-                ? "bg-gray-300 cursor-not-allowed"
-                : "bg-primary text-white hover:bg-hover"
-                }`}
-            >
-              {yaAsignado ? "Asignado" : "Asignar Insumo"}
-            </button>
           </div>
         );
       })}
 
-      <div className="mt-10 flex justify-center">
-        <button
-          onClick={() =>
-            void runWithNoPasosConfirmation(
-              handleConfirmarAsignacion,
-              "confirmar la asignación"
-            )
-          }
-          className="px-6 py-3 bg-primary text-white rounded-lg text-lg hover:bg-hover shadow"
-        >
-          Confirmar Asignación
-        </button>
-      </div>
+      {/* Barra de acciones */}
+      <div className="mt-8 bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-gray-600">
+          {todoAsignado
+            ? "Todos los insumos están asignados."
+            : `${insumosCompletos} de ${insumos.length} insumos completos. Confirma cuando todos tengan sus bultos.`}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {orden && (() => {
+            const estado = orden.estado;
+            const puedeEjecutar = [
+              "Insumos Asignados",
+              "En Ejecución",
+              "Validada",
+              "Completado",
+              "Esperando Salidas"
+            ].includes(estado) && estado !== "Cerrada";
 
-      {orden && (() => {
-        const estado = orden.estado;
-        const puedeEjecutar = [
-          "Insumos Asignados",
-          "En Ejecución",
-          "Validada",
-          "Completado",
-          "Esperando Salidas"
-        ].includes(estado) && estado !== "Cerrada";
-        
-        return puedeEjecutar ? (
-          <div className="mt-8 flex justify-center">
-            <button
-              onClick={() => navigate(`/Orden_de_Manufactura/${id}/pasos`)}
-              className="px-6 py-3 bg-primary text-white rounded-lg text-lg hover:bg-hover shadow"
-            >
-              Ejecutar Pasos de Producción
-            </button>
-          </div>
-        ) : null;
-      })()}
+            return puedeEjecutar ? (
+              <button
+                onClick={() => navigate(`/Orden_de_Manufactura/${id}/pasos`)}
+                className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10"
+              >
+                Ejecutar pasos de producción
+              </button>
+            ) : null;
+          })()}
+          <button
+            onClick={() =>
+              void runWithNoPasosConfirmation(
+                handleConfirmarAsignacion,
+                "confirmar la asignación"
+              )
+            }
+            className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-hover shadow-sm"
+          >
+            Confirmar asignación
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
