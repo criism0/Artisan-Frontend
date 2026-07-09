@@ -36,6 +36,7 @@ export default function DataTable({
   initialSort = { key: null, direction: null },
   defaultRowsPerPage = 10,
   emptyMessage = "No hay elementos para mostrar.",
+  stickyActions = false,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortConfig, setSortConfig] = useState(initialSort);
@@ -180,7 +181,7 @@ export default function DataTable({
           {searchQuery ? "No hay resultados para la búsqueda." : emptyMessage}
         </div>
       ) : (
-        <Table columns={renderedColumns} data={pageRows} actions={actions} />
+        <Table columns={renderedColumns} data={pageRows} actions={actions} stickyActions={stickyActions} />
       )}
 
       {/* Paginación */}

@@ -1,8 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import Table from '../../components/Tables/Table';
-import SearchBar from '../../components/UI/SearchBar';
-import RowsPerPageSelector from '../../components/UI/RowsPerPageSelector';
-import Pagination from '../../components/UI/Pagination';
+import DataTable from '../../components/Tables/DataTable';
 import { ViewDetailButton, EditButton } from '../../components/Buttons/ActionButtons';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useApi } from '../../lib/api';
@@ -70,10 +67,7 @@ export default function RolManagement() {
   const [isRolesLoading, setIsRolesLoading] = useState(true);
   const [isScopesLoading, setIsScopesLoading] = useState(true);
   const [roles, setRoles] = useState([]);
-  const [filteredRoles, setFilteredRoles] = useState([]);
   const [scopes, setScopes] = useState([]);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editingRole, setEditingRole] = useState(null);
   const [modalClosed, setModalClosed] = useState(false);
@@ -92,10 +86,9 @@ export default function RolManagement() {
   const canWriteRoles = checkScope(ModelType.ROLE, ScopeType.READ);
 
   const columns = [
-    { header: "ID", accessor: "id" },
-    { header: "Nombre", accessor: "name" },
-    { 
-      header: "Scopes", 
+    { header: "Nombre", accessor: "name", sortable: true },
+    {
+      header: "Scopes",
       accessor: "scopes",
       Cell: ({ value }) => <ScopesBadges scopes={value} />
     },
@@ -118,7 +111,6 @@ export default function RolManagement() {
           scopes: rol.scopes || []
         })) : [];
         setRoles(rolesData);
-        setFilteredRoles(rolesData);
       } catch (error) {
         toast.error(`Error fetching roles: ${error.message}`);
         console.error("Error fetching roles:", error);
@@ -208,30 +200,8 @@ export default function RolManagement() {
     }
   }, [roles]);
 
-  const handleSearch = (query) => {
-    const lowercasedQuery = query.toLowerCase();
-    if (!lowercasedQuery) {
-      setFilteredRoles(roles);
-      return;
-    }
-    const filtered = roles.filter(rol => 
-      Object.values(rol).some(value =>
-        value !== null && value !== undefined
-          ? String(value).toLowerCase().includes(lowercasedQuery)
-          : false
-      )
-    );
-    setFilteredRoles(filtered);
-  };
-
-  const handleRowsChange = (value) => {
-    setRowsPerPage(value);
-    setCurrentPage(1);
-  };
-
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-  };
+  const getSearchText = (rol) =>
+    [rol.name, ...(rol.scopes || []).map((s) => s.model_type)].join(" ");
 
   const handleScopeToggle = (scopeId) => {
     setFormData(prev => ({
@@ -302,18 +272,12 @@ export default function RolManagement() {
     navigate('/Roles');
   };
 
-  const totalPages = Math.ceil(filteredRoles.length / rowsPerPage);
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedData = filteredRoles.slice(startIndex, startIndex + rowsPerPage);
-
   const actions = (row) => (
     <div className="flex gap-2">
       <ViewDetailButton onClick={() => navigate(`/Roles/${row.id}`)} tooltipText="Ver detalle" />
       <EditButton onClick={() => navigate(`/Roles/${row.id}/edit`)} tooltipText="Editar Rol" />
     </div>
   );
-
-  if (isRolesLoading || isScopesLoading) return <PageLoader message="Cargando Roles" />;
 
   const normalize = (str) => str.replace(/\s+/g, '').toLowerCase();
 
@@ -329,37 +293,32 @@ export default function RolManagement() {
     .map(mt => [mt, groupedScopes[mt]]);
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <>
       {isLoading && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
           <Spinner/>
         </div>
       )}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-text">Gestión de Roles</h1>
-      </div>
 
-      <div className="flex justify-between items-center mb-6">
-        <RowsPerPageSelector onRowsChange={handleRowsChange} value={rowsPerPage} />
-        <SearchBar onSearch={handleSearch} />
-      </div>
-
-      <Table columns={columns} data={paginatedData} actions={actions} stickyActions={true}/>
-
-      <div className="mt-6 flex justify-between items-center">
-        <button
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
-          onClick={() => navigate('/Roles/add')}
-        >
-          Añadir Rol
-        </button>
-
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-        />
-      </div>
+      <DataTable
+        title="Gestión de Roles"
+        data={roles}
+        columns={columns}
+        actions={actions}
+        stickyActions
+        getSearchText={getSearchText}
+        loading={isRolesLoading || isScopesLoading}
+        loadingMessage="Cargando Roles"
+        emptyMessage="No hay roles registrados."
+        headerActions={
+          <button
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            onClick={() => navigate('/Roles/add')}
+          >
+            Añadir Rol
+          </button>
+        }
+      />
 
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -452,6 +411,6 @@ export default function RolManagement() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useApi } from "../../lib/api";
 import { useNavigate } from "react-router-dom";
-import { TrashButton } from "../../components/Buttons/ActionButtons";
+import { ViewDetailButton, TrashButton } from "../../components/Buttons/ActionButtons";
+import DataTable from "../../components/Tables/DataTable";
 import { toast } from "../../lib/toast";
-import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function PVAPorProducto() {
@@ -37,7 +37,6 @@ export default function PVAPorProducto() {
           api(`/materias-primas`, { method: "GET" }),
           api(`/productos-base`, { method: "GET" }),
         ]);
-
         setRelaciones(relRes || []);
         setProcesos(procRes || []);
         setMateriasPrimas(matRes || []);
@@ -73,7 +72,6 @@ export default function PVAPorProducto() {
       toast.permissionError([ModelType.PVA_PRODUCTO, ScopeType.DELETE]);
       return;
     }
-    if (!window.confirm("¿Seguro que deseas eliminar esta relación PVA-Producto?")) return;
     try {
       await api(`/pva-por-producto/${id}`, { method: "DELETE" });
       setRelaciones((prev) => prev.filter((r) => r.id !== id));
@@ -83,58 +81,37 @@ export default function PVAPorProducto() {
     }
   };
 
-  if (isLoading) return <PageLoader message="Cargando PVA por producto" />;
+  const columns = [
+    { header: "Proceso", accessor: "id_proceso", sortable: true, sortValue: (r) => getProcesoNombre(r.id_proceso), Cell: ({ row }) => getProcesoNombre(row.id_proceso) },
+    { header: "Producto Asociado", accessor: "producto", sortable: true, sortValue: (r) => getNombreProducto(r), Cell: ({ row }) => getNombreProducto(row) },
+    { header: "Orden del PVA", accessor: "orden", sortable: true, align: "center", Cell: ({ row }) => <div className="text-center">{row.orden}</div> },
+  ];
+
+  const actions = (row) => (
+    <div className="flex gap-2 justify-center">
+      <ViewDetailButton onClick={() => navigate(`/PVAPorProducto/${row.id}`)} tooltipText="Ver Detalle" />
+      <TrashButton onConfirmDelete={() => handleDelete(row.id)} tooltipText="Eliminar relación" entityName="PVA por producto" />
+    </div>
+  );
 
   return (
-    <div className="p-6 bg-background min-h-screen">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-text">Relaciones PVA por Producto</h1>
+    <DataTable
+      title="Relaciones PVA por Producto"
+      data={relaciones}
+      columns={columns}
+      actions={actions}
+      getSearchText={(r) => [getProcesoNombre(r.id_proceso), getNombreProducto(r), r.orden].join(" ")}
+      loading={isLoading}
+      loadingMessage="Cargando PVA por producto"
+      emptyMessage="No hay relaciones PVA-Producto registradas."
+      headerActions={
         <button
           onClick={() => navigate("/PVAPorProducto/agregar")}
-          className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded"
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
         >
           + Añadir Relación
         </button>
-      </div>
-
-      {relaciones.length === 0 ? (
-        <p className="text-gray-600">No hay relaciones PVA-Producto registradas.</p>
-      ) : (
-        <table className="min-w-full bg-white rounded-lg shadow border border-gray-200">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="px-4 py-2 text-left">ID</th>
-              <th className="px-4 py-2 text-left">Proceso</th>
-              <th className="px-4 py-2 text-left">Producto Asociado</th>
-              <th className="px-4 py-2 text-left">Orden del PVA</th>
-              <th className="px-4 py-2 text-center">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {relaciones.map((r) => (
-              <tr key={r.id} className="hover:bg-gray-50">
-                <td className="px-4 py-2 border-b">{r.id}</td>
-                <td className="px-4 py-2 border-b">{getProcesoNombre(r.id_proceso)}</td>
-                <td className="px-4 py-2 border-b">{getNombreProducto(r)}</td>
-                <td className="px-4 py-2 border-b">{r.orden}</td>
-                <td className="px-4 py-2 border-b text-center flex justify-center gap-2">
-                  <button
-                    onClick={() => navigate(`/PVAPorProducto/${r.id}`)}
-                    className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
-                  >
-                    Ver Detalle
-                  </button>
-                  <TrashButton
-                    onConfirmDelete={() => handleDelete(r.id)}
-                    tooltipText="Eliminar relación"
-                    entityName="PVA por producto"
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
+      }
+    />
   );
 }
