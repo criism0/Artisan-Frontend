@@ -1,9 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import Table from "../../components/Tables/Table";
-import SearchBar from "../../components/UI/SearchBar";
-import RowsPerPageSelector from "../../components/UI/RowsPerPageSelector";
-import Pagination from "../../components/UI/Pagination";
+import DataTable from "../../components/Tables/DataTable";
 import {
   ViewDetailButton,
   UndoButton,
@@ -26,20 +23,15 @@ export default function Ordenes() {
   const api = useApi();
   const navigate = useNavigate();
   const [ordenes, setOrdenes] = useState([]);
-  const [filteredOrdenes, setFilteredOrdenes] = useState([]);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
   const [expandedRows, setExpandedRows] = useState({});
   const [deleteId, setDeleteId] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
   const [showRetrocederModal, setShowRetrocederModal] = useState(false);
   const [selectedOrdenId, setSelectedOrdenId] = useState(null);
   const [retrocederPreview, setRetrocederPreview] = useState(null);
   const [loadingRetrocederPreview, setLoadingRetrocederPreview] = useState(false);
   const [showValidarModal, setShowValidarModal] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
   const [isCompactView, setIsCompactView] = useState(false);
 
   const canWritePurchaseOrder = checkScope(ModelType.ORDEN_COMPRA, ScopeType.WRITE);
@@ -56,11 +48,11 @@ export default function Ordenes() {
         `/proceso-compra/ordenes/${selectedOrdenId}`
       );
       const { items, totalNeto, iva, totalPago } = buildOcEmailItemsFromOrden(ordenData);
-      
+
       // Obtener usuarios con rol Super Admin
       const superAdmins = await api(`/usuarios?role=Super Admin`);
       const adminsArray = Array.isArray(superAdmins) ? superAdmins : [];
-      
+
       // Obtener encargados de la bodega
       const bodegaId = ordenData.BodegaSolicitante?.id;
       let encargados = [];
@@ -68,18 +60,18 @@ export default function Ordenes() {
         const bodegaData = await api(`/bodegas/${bodegaId}`);
         encargados = Array.isArray(bodegaData?.Encargados) ? bodegaData.Encargados : [];
       }
-      
+
       // Combinar ambos grupos de destinatarios
       const adminEmails = adminsArray.map((admin) => admin?.email).filter(Boolean);
       const encargadoEmails = encargados.map((e) => e?.usuario?.email).filter(Boolean);
       const allEmails = [...new Set([...adminEmails, ...encargadoEmails])];
-      
+
       const to = allEmails.map((email) => ({ email }));
-      
+
       const adminsNames = adminsArray.map((admin) => admin?.nombre).filter(Boolean).join(", ");
       const encargadosNames = encargados.map((e) => e?.usuario?.nombre).filter(Boolean).join(", ");
       const allNames = [adminsNames, encargadosNames].filter(Boolean).join(", ") || "Sin destinatarios";
-      
+
       // Enviar correo de notificación
       await notifyOrderChange({
         emails: to.map((t) => t.email),
@@ -188,30 +180,6 @@ export default function Ordenes() {
     }
   };
 
-  const handleSort = (key) => {
-    let direction = "asc";
-    if (sortConfig.key === key) {
-      direction = sortConfig.direction === "asc" ? "desc" : "asc";
-    }
-    setSortConfig({ key, direction });
-    const sortedData = [...filteredOrdenes].sort((a, b) => {
-      const aVal = a[key];
-      const bVal = b[key];
-      if (aVal == null) return 1;
-      if (bVal == null) return -1;
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        return direction === "asc" ? aVal - bVal : bVal - aVal;
-      }
-      const aStr = aVal.toString().toLowerCase();
-      const bStr = bVal.toString().toLowerCase();
-      return direction === "asc"
-        ? aStr.localeCompare(bStr)
-        : bStr.localeCompare(aStr);
-    });
-    setFilteredOrdenes(sortedData);
-    setCurrentPage(1);
-  };
-
   const getEstadoChip = (estado) => {
     const base = "px-3 py-1 rounded-full text-xs font-medium";
 
@@ -239,6 +207,78 @@ export default function Ordenes() {
     }
   };
 
+  const renderAcciones = (row) => {
+    const estado = row?.estado?.toLowerCase();
+    return (
+      <>
+        <ViewDetailButton
+          onClick={() => navigate(`/Ordenes/${row.id}`)}
+          tooltipText="Detalle"
+        />
+
+        {estado === "creada" && (
+          <ValidarButton
+            onClick={() => confirmValidarOrden(row.id)}
+            tooltipText="Validar"
+          />
+        )}
+
+        {estado === "validada" && (
+          <ValidarButton
+            onClick={() => navigate(`/Ordenes/recepcionar/${row.id}`)}
+            tooltipText="Recepcionar"
+          />
+        )}
+
+        {estado === "parcialmente recepcionada" && (
+          <AddButton
+            onClick={() => navigate(`/Ordenes/recepcionar/${row.id}`)}
+            tooltipText="Completar recepción"
+          />
+        )}
+
+        {estado !== "creada" && (
+          <UndoButton
+            onClick={() => confirmRetrocederOrden(row.id)}
+            tooltipText="Retroceder estado"
+          />
+        )}
+
+        <PagarButton
+          onConfirm={() => (row.pagada ? revertirPagoOrden(row.id) : pagarOrden(row.id))}
+          tooltipText={row.pagada ? "Revertir pago" : "Pagar orden"}
+          confirmTitle={
+            row.pagada
+              ? "¿Estás seguro de que quieres revertir el pago de esta orden?"
+              : "¿Estás seguro de que quieres pagar esta orden?"
+          }
+          confirmButtonText={row.pagada ? "Confirmar Reversión" : "Confirmar Pago"}
+          confirmButtonClassName={
+            row.pagada
+              ? "bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded"
+              : undefined
+          }
+          buttonClassName={
+            row.pagada
+              ? "text-green-600 hover:text-green-700"
+              : "text-gray-400 hover:text-blue-500"
+          }
+        />
+
+        <button
+          className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded"
+          title="Eliminar orden"
+          onClick={() => {
+            setDeleteId(row.id);
+            setShowDeleteModal(true);
+          }}
+        >
+          <Trash2 />
+        </button>
+      </>
+    );
+  };
+
   const columns = [
     ...(isCompactView ? [{
       header: "",
@@ -253,12 +293,17 @@ export default function Ordenes() {
       ),
     },] : []),
     { header: "N°", accessor: "id", sortable: true },
-    { header: "Fecha de Emisión", accessor: "fecha", sortable: true },
+    {
+      header: "Fecha de Emisión",
+      accessor: "fecha",
+      sortable: true,
+      sortValue: (row) => row.fecha_raw || "",
+    },
     { header: "Proveedor", accessor: "id_proveedor", sortable: true },
-    { header: "Insumos", accessor: "materiasPrimas", sortable: true, 
+    { header: "Insumos", accessor: "materiasPrimas",
       Cell: ({ value }) => (
         <div className="max-w-[20vw] overflow-hidden text-sm break-words whitespace-normal leading-tight">
-           
+
           {Array.isArray(value) && value.length > 0 ? (
             value.map((insumo, index) => {
               const nombre =
@@ -268,7 +313,7 @@ export default function Ordenes() {
 
               const cantidad =
                 insumo.cantidad_formato ?? insumo.cantidad ?? "—";
-              
+
               const formato =
                 insumo.proveedorMateriaPrima?.formato ||
                 insumo.formato ||
@@ -286,110 +331,29 @@ export default function Ordenes() {
         </div>
       ),
     },
-    { header: "Total Neto", accessor: "total_neto", sortable: true },
+    {
+      header: "Total Neto",
+      accessor: "total_neto",
+      sortable: true,
+      sortValue: (row) => row.total_neto_raw ?? 0,
+    },
     { header: "Estado", accessor: "estado", sortable: true, Cell: ({ value }) => getEstadoChip(value) },
     ...(!isCompactView ? [
-      { header: "Opciones", accessor: "opciones", Cell: ({ row }) => {
-        const estado = row?.estado?.toLowerCase();
-        return (
-          <div className="hidden lg:flex gap-2">
-            <ViewDetailButton
-              onClick={() => navigate(`/Ordenes/${row.id}`)}
-              tooltipText="Detalle"
+      { header: "Opciones", accessor: "opciones", Cell: ({ row }) => (
+        <div className="hidden lg:flex gap-2">
+          {renderAcciones(row)}
+          {(row.hayDescuadre || (row.descuadre != null && Math.abs(Number(row.descuadre)) > 0)) && (
+            <AlertTriangle
+              size={22}
+              className="text-amber-500 flex-shrink-0"
+              title="Esta orden tiene un descuadre registrado en la factura recibida"
             />
-
-            {estado === "creada" && (
-              <ValidarButton
-                onClick={() => confirmValidarOrden(row.id)}
-                tooltipText="Validar"
-              />
-            )}
-
-            {estado === "validada" && (
-              <ValidarButton
-                onClick={() => navigate(`/Ordenes/recepcionar/${row.id}`)}
-                tooltipText="Recepcionar"
-              />
-            )}
-
-            {estado === "parcialmente recepcionada" && (
-              <AddButton
-                onClick={() => navigate(`/Ordenes/recepcionar/${row.id}`)}
-                tooltipText="Completar recepción"
-              />
-            )}
-
-            {estado !== "creada" && (
-              <UndoButton
-                onClick={() => confirmRetrocederOrden(row.id)}
-                tooltipText="Retroceder estado"
-              />
-            )}
-
-            <PagarButton
-              onConfirm={() => (row.pagada ? revertirPagoOrden(row.id) : pagarOrden(row.id))}
-              tooltipText={row.pagada ? "Revertir pago" : "Pagar orden"}
-              confirmTitle={
-                row.pagada
-                  ? "¿Estás seguro de que quieres revertir el pago de esta orden?"
-                  : "¿Estás seguro de que quieres pagar esta orden?"
-              }
-              confirmButtonText={row.pagada ? "Confirmar Reversión" : "Confirmar Pago"}
-              confirmButtonClassName={
-                row.pagada
-                  ? "bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded"
-                  : undefined
-              }
-              buttonClassName={
-                row.pagada
-                  ? "text-green-600 hover:text-green-700"
-                  : "text-gray-400 hover:text-blue-500"
-              }
-            />
-
-            {(row.hayDescuadre || (row.descuadre != null && Math.abs(Number(row.descuadre)) > 0)) && (
-              <AlertTriangle
-                size={22}
-                className="text-amber-500 flex-shrink-0"
-                title="Esta orden tiene un descuadre registrado en la factura recibida"
-              />
-            )}
-
-            <button
-              className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded"
-              title="Eliminar orden"
-              onClick={() => {
-                setDeleteId(row.id);
-                setShowDeleteModal(true);
-              }}
-            >
-              <Trash2 />
-            </button>
-          </div>
-        );
-      },
+          )}
+        </div>
+      ),
     },] : []),
 
   ];
-
-  const renderHeader = (col) => {
-    if (!col.sortable) return col.header;
-    const isActive = sortConfig.key === col.accessor;
-    const ascActive = isActive && sortConfig.direction === "asc";
-    const descActive = isActive && sortConfig.direction === "desc";
-    return (
-      <div
-        className="flex items-center gap-1 cursor-pointer select-none"
-        onClick={() => handleSort(col.accessor)}
-      >
-        <span>{col.header}</span>
-        <div className="flex flex-col leading-none text-xs ml-1">
-          <span className={ascActive ? "text-gray-900" : "text-gray-300"}>▲</span>
-          <span className={descActive ? "text-gray-900" : "text-gray-300"}>▼</span>
-        </div>
-      </div>
-    );
-  };
 
   const fetchOrdenes = async () => {
     try {
@@ -403,19 +367,24 @@ export default function Ordenes() {
               id_proveedor:
                 orden.proveedor?.nombre_empresa || orden.id_proveedor,
               fecha: new Date(orden.fecha).toLocaleDateString(),
+              fecha_raw: orden.fecha,
               total_neto: formatCLP(orden.total_neto, 0),
+              total_neto_raw: Number(orden.total_neto) || 0,
               iva: formatCLP(orden.iva, 0),
               total_pago: formatCLP(orden.total_pago, 0),
               estado: orden.estado,
               pagada: orden.pagada,
               materiasPrimas: orden.materiasPrimas,
+              hayDescuadre: orden.hayDescuadre,
+              descuadre: orden.descuadre,
             }))
             .sort((a, b) => b.id - a.id)
         : [];
       setOrdenes(ordenesData);
-      setFilteredOrdenes(ordenesData);
     } catch (error) {
       toast.error(`Error fetching órdenes: ${error.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -488,104 +457,16 @@ export default function Ordenes() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  const handleSearch = (query) => {
-    const lower = query.toLowerCase();
-    if (!lower) {
-      setFilteredOrdenes(ordenes);
-      return;
-    }
-    const filtered = ordenes.filter((orden) =>
-      Object.values(orden).some((value) =>
-        value?.toString().toLowerCase().includes(lower)
-      )
-    );
-    setFilteredOrdenes(filtered);
-    setCurrentPage(1);
-  };
-
-  const handleRowsChange = (value) => setRowsPerPage(value);
-  const handlePageChange = (page) => setCurrentPage(page);
-  const totalPages = Math.ceil(filteredOrdenes.length / rowsPerPage);
-  const paginatedOrdenes = filteredOrdenes.slice(
-    (currentPage - 1) * rowsPerPage,
-    currentPage * rowsPerPage
-  );
-  const totalColumns = columns.length + 1;
-
-  const renderExpandedRow = (row, colSpan) => {
+  const renderExpandedRow = (row) => {
     if (!expandedRows[row.id]) return null;
-    const estado = row.estado?.toLowerCase();
     return (
       <tr className="bg-gray-50" key={`expanded-${row.id}`}>
-        <td colSpan={colSpan} className="px-6 py-4">
+        <td colSpan={columns.length + 1} className="px-6 py-4">
           <div>
             <p><strong>Total Neto:</strong> {row.total_neto}</p>
             <p><strong>Estado:</strong> {row.estado}</p>
             <div className="mt-2 flex gap-2">
-              <ViewDetailButton
-                onClick={() => navigate(`/Ordenes/${row.id}`)}
-                tooltipText="Detalle"
-              />
-
-              {estado === "creada" && (
-                <ValidarButton
-                  onClick={() => confirmValidarOrden(row.id)}
-                  tooltipText="Validar"
-                />
-              )}
-
-              {estado === "validada" && (
-                <ValidarButton
-                  onClick={() => navigate(`/Ordenes/recepcionar/${row.id}`)}
-                  tooltipText="Recepcionar"
-                />
-              )}
-
-              {estado === "parcialmente recepcionada" && (
-                <AddButton
-                  onClick={() => navigate(`/Ordenes/recepcionar/${row.id}`)}
-                  tooltipText="Completar recepción"
-                />
-              )}
-
-              {estado !== "creada" && (
-                <UndoButton
-                  onClick={() => confirmRetrocederOrden(row.id)}
-                  tooltipText="Retroceder estado"
-                />
-              )}
-
-              <PagarButton
-                onConfirm={() => (row.pagada ? revertirPagoOrden(row.id) : pagarOrden(row.id))}
-                tooltipText={row.pagada ? "Revertir pago" : "Pagar orden"}
-                confirmTitle={
-                  row.pagada
-                    ? "¿Estás seguro de que quieres revertir el pago de esta orden?"
-                    : "¿Estás seguro de que quieres pagar esta orden?"
-                }
-                confirmButtonText={row.pagada ? "Confirmar Reversión" : "Confirmar Pago"}
-                confirmButtonClassName={
-                  row.pagada
-                    ? "bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded"
-                    : undefined
-                }
-                buttonClassName={
-                  row.pagada
-                    ? "text-green-600 hover:text-green-700"
-                    : "text-gray-400 hover:text-blue-500"
-                }
-              />
-
-              <button
-                className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded"
-                title="Eliminar orden"
-                onClick={() => {
-                  setDeleteId(row.id);
-                  setShowDeleteModal(true);
-                }}
-              >
-                <Trash2 />
-              </button>
+              {renderAcciones(row)}
             </div>
           </div>
         </td>
@@ -606,53 +487,31 @@ export default function Ordenes() {
     setShowDeleteModal(false);
   };
 
+  const getSearchText = (row) =>
+    [row?.id, row?.fecha, row?.id_proveedor, row?.total_neto, row?.estado]
+      .filter((v) => v != null)
+      .join(" ");
+
   return (
-    <div className="p-6 bg-background min-h-screen">
-      {successMessage && (
-        <div className="mb-4 px-4 py-2 bg-green-100 text-green-800 rounded border border-green-300 animate-fade-in">
-          {successMessage}
-        </div>
-      )}
-      {errorMessage && (
-        <div className="mb-4 px-4 py-2 bg-red-100 text-red-800 rounded border border-red-300 animate-fade-in">
-          {errorMessage}
-        </div>
-      )}
-
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-text">Órdenes de Compra</h1>
-      </div>
-
-      <div className="mt-6 flex justify-between items-center">
-        <button
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-          onClick={() => navigate("/Ordenes/add")}
-        >
-          Añadir Orden
-        </button>
-      </div>
-
-      <div className="flex justify-between items-center mb-6">
-        <RowsPerPageSelector onRowsChange={handleRowsChange} />
-        <SearchBar onSearch={handleSearch} />
-      </div>
-
-      <Table
-        columns={columns.map((col) => ({
-          ...col,
-          header: renderHeader(col),
-        }))}
-        data={paginatedOrdenes}
-        renderExpandedRow={(row) => renderExpandedRow(row, totalColumns)}
+    <>
+      <DataTable
+        title="Órdenes de Compra"
+        data={ordenes}
+        columns={columns}
+        getSearchText={getSearchText}
+        loading={isLoading}
+        loadingMessage="Cargando órdenes de compra"
+        emptyMessage="No hay órdenes de compra registradas."
+        renderExpandedRow={isCompactView ? renderExpandedRow : undefined}
+        headerActions={
+          <button
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            onClick={() => navigate("/Ordenes/add")}
+          >
+            Añadir Orden
+          </button>
+        }
       />
-
-      <div className="mt-6 flex justify-between items-center">
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-        />
-      </div>
 
       <ConfirmModal
         open={showDeleteModal}
@@ -749,6 +608,6 @@ export default function Ordenes() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
