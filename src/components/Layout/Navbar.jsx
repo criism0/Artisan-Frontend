@@ -182,11 +182,8 @@ export default function Navbar() {
               <MenuLink to="/InsumosPIPProductos" icon={<Tag />} label="Insumos / PIP / Productos" isAllowed={checkScope(ModelType.MATERIA_PRIMA, ScopeType.READ) || checkScope(ModelType.PRODUCTO_BASE, ScopeType.READ)} />
               <MenuLink to="/CostosIndirectos" icon={<MdEqualizer />} label="Costos Indirectos" isAllowed={checkScope(ModelType.COSTO_INDIRECTO, ScopeType.READ)} />
               <MenuLink to="/PautasElaboracion" icon={<Clipboard />} label="Pautas de Elaboración" isAllowed={checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ)} />
-              <MenuLink to="/Recetas" icon={<Clipboard />} label="Recetas" isAllowed={checkScope(ModelType.RECETA, ScopeType.READ)} />
               <MenuLink to="/Bodegas" icon={<FaWarehouse />} label="Bodegas" isAllowed={checkScope(ModelType.BODEGA, ScopeType.READ)} />
-              <MenuLink to="/CostoMarginal" icon={<MdEqualizer />} label="Costo Marginal" isAllowed={checkScope(ModelType.COSTO_MARGINAL, ScopeType.READ)} />
               <MenuLink to="/ProcesosValorAgregado" icon={<FaBroom />} label="Procesos Valor Agregado" isAllowed={checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ)} />
-              <MenuLink to="/PVAPorProducto" icon={<Tag />} label="PVA por Producto" isAllowed={checkScope(ModelType.PVA_PRODUCTO, ScopeType.READ)} />
             </MenuGroup>
 
             <div role="separator" className="my-2 border-t border-gray-200" />
