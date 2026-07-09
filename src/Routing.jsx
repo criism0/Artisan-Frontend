@@ -13,7 +13,6 @@ import HomePage from "./pages/HomePage";
 import Login from "./pages/Login.jsx";
 
 // PAGINA DEMO
-import HelloWorld from "./pages/HelloWorld/HelloWorld.jsx";
 
 // ====== Proveedores ======
 import Proveedores from "./pages/Proveedores/Proveedores";
@@ -132,7 +131,6 @@ import CostoMarginalList from "./pages/CostoMarginal/CostoMarginalList";
 import CostoMarginalDetail from "./pages/CostoMarginal/CostoMarginalDetail";
 
 import Pallets from "./pages/Logistica/Pallets";
-import Rutas from "./pages/Logistica/Rutas";
 import LogisticaDashboard from "./pages/Logistica/LogisticaDashboard";
 import AsignarVenta from "./pages/Ventas/AsignarVenta.jsx";
 import ResumenAsignacionVenta from "./pages/Ventas/ResumenAsignacionVenta.jsx";
@@ -214,9 +212,6 @@ function Routing() {
         <Route path="/reset-code" element={<VerifyResetCode />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
-
-        {/* DEMO */}
-        <Route path="/demo12345" element={<HelloWorld />} />
 
         {/* PRIVADAS: dentro de Layout y RequireAuth */}
         <Route
@@ -526,11 +521,6 @@ function Routing() {
                 <BodegaEdit />
               </ProtectedRoute>
             }
-          />
-
-          <Route
-            path="/Rutas"
-            element={<Rutas />}
           />
 
           <Route
