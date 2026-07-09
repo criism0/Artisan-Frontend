@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { formatRutDisplay, toTitle, formatPhone, formatEmail, fmt, formatNumberCL } from "../../services/formatHelpers";
-import { BackButton, ModifyButton, ToggleActiveButton } from "../../components/Buttons/ActionButtons";
+import { BackButton, EditButton, ToggleActiveButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 
@@ -13,9 +13,9 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 function InfoTable({ title, rows }) {
   return (
-    <div className="bg-gray-200 p-4 rounded-lg">
-      <table className="w-full bg-white rounded-lg shadow overflow-hidden">
-        <thead className="bg-gray-100 text-sm text-gray-600">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <table className="w-full">
+        <thead className="bg-gray-50 text-sm text-gray-600">
           <tr>
             <th className="px-6 py-3 text-base font-semibold text-left">{title}</th>
             <th className="px-6 py-3 text-base font-semibold text-left">Dato</th>
@@ -386,8 +386,8 @@ function ProveedorInsumos({ proveedorId }) {
   };
 
   return (
-    <div className="bg-gray-200 p-4 rounded-lg">
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="text-sm font-semibold text-gray-800">Insumos asociados</div>
@@ -653,18 +653,22 @@ export default function ProveedorDetail() {
 
   return (
     <div className="p-6 bg-background min-h-screen">
-      <div className="flex items-center justify-between mb-6 w-full">
+      <div className="mb-4">
+        <BackButton to="/Proveedores" />
+      </div>
+
+      <div className="flex items-center justify-between mb-4 w-full">
         <h1 className="text-2xl font-bold text-text">Detalle de Proveedor</h1>
-        <div className="flex gap-2">
-          <BackButton to="/Proveedores" />
-          <ModifyButton onClick={() => navigate(`/Proveedores/${id}/edit`)} />
+        <div className="flex gap-2 items-center">
+          <EditButton
+            onClick={() => navigate(`/Proveedores/${id}/edit`)}
+            tooltipText="Editar Proveedor"
+          />
           <ToggleActiveButton
             isActive={activo}
             entityName={"proveedor " + razon}
             onToggleActive={handleToggleStatus}
           />
-
-
         </div>
       </div>
     

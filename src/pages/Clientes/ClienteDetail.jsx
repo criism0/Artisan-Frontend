@@ -2,7 +2,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import {
   BackButton,
   EditButton,
-  DeleteButton
+  TrashButton
 } from "../../components/Buttons/ActionButtons";
 import { useState, useEffect } from "react";
 import DireccionesManager from "../../components/Direcciones/DireccionesManager";
@@ -182,16 +182,16 @@ export default function ClienteDetail() {
             onClick={() => navigate(`/clientes/${clienteId}/edit`)}
             tooltipText="Editar Cliente"
           />
-          <DeleteButton
+          <TrashButton
             onConfirmDelete={handleDeleteCliente}
             tooltipText="Eliminar Cliente"
-            entityName="cliente"
+            entityName={`cliente ${cliente.nombre_empresa || ""}`}
           />
         </div>
       </div>
 
       {/* Sección 1: Clasificación Comercial */}
-      <div className="bg-white shadow rounded-xl border border-border p-6 mb-6">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
         <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
           <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">1</span>
           Clasificación Comercial
@@ -213,7 +213,7 @@ export default function ClienteDetail() {
       </div>
 
       {/* Sección 2: Información Fiscal y de Facturación */}
-      <div className="bg-white shadow rounded-xl border border-border p-6 mb-6">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
         <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
           <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">2</span>
           Información Fiscal y de Facturación
@@ -243,7 +243,7 @@ export default function ClienteDetail() {
       </div>
 
       {/* Sección 3: Puntos de Contacto */}
-      <div className="bg-white shadow rounded-xl border border-border p-6 mb-6">
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
         <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
           <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">3</span>
           Puntos de Contacto

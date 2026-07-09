@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { BackButton } from "../../components/Buttons/ActionButtons";
+import { BackButton, EditButton, TrashButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
@@ -77,13 +77,19 @@ export default function BodegaDetail() {
 
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-text">Detalle de la Bodega</h1>
-          <button
-          onClick={handleDeleteBodega}
-          disabled={!canDeleteWarehouse}
-          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
-          >
-            Eliminar Bodega
-          </button>
+        <div className="flex gap-2 items-center">
+          <EditButton
+            onClick={() => navigate(`/Bodegas/${id}/edit`)}
+            tooltipText="Editar Bodega"
+          />
+          {canDeleteWarehouse ? (
+            <TrashButton
+              onConfirmDelete={handleDeleteBodega}
+              tooltipText="Eliminar Bodega"
+              entityName={`bodega ${bodega.nombre || ""}`}
+            />
+          ) : null}
+        </div>
       </div>
 
       {error && (
@@ -92,83 +98,61 @@ export default function BodegaDetail() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* INFORMACIÓN DE LA BODEGA */}
-        <div className="bg-white p-6 rounded-lg shadow space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold text-text mb-4">Información de la Bodega</h2>
-            <table className="w-full text-sm border-collapse">
-              <tbody>
-                <tr className="border-b">
-                  <td className="py-2 font-medium text-gray-700 w-1/3">ID</td>
-                  <td className="py-2">{bodega.id}</td>
-                </tr>
-                <tr className="border-b">
-                  <td className="py-2 font-medium text-gray-700">Nombre</td>
-                  <td className="py-2">{bodega.nombre}</td>
-                </tr>
-                <tr className="border-b">
-                  <td className="py-2 font-medium text-gray-700">Región</td>
-                  <td className="py-2">{bodega.region}</td>
-                </tr>
-                <tr className="border-b">
-                  <td className="py-2 font-medium text-gray-700">Comuna</td>
-                  <td className="py-2">{bodega.comuna}</td>
-                </tr>
-                <tr>
-                  <td className="py-2 font-medium text-gray-700">Dirección</td>
-                  <td className="py-2">{bodega.direccion}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-4">
-            <button
-              onClick={() => navigate(`/Bodegas/${id}/edit`)}
-              className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded w-full"
-            >
-              Modificar Información Bodega
-            </button>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <h2 className="text-lg font-semibold text-text mb-4">Información de la Bodega</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-gray-500 text-sm mb-1">Nombre</p>
+              <p className="font-medium">{bodega.nombre || "—"}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-sm mb-1">Región</p>
+              <p className="font-medium">{bodega.region || "—"}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-sm mb-1">Comuna</p>
+              <p className="font-medium">{bodega.comuna || "—"}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-sm mb-1">Dirección</p>
+              <p className="font-medium">{bodega.direccion || "—"}</p>
+            </div>
           </div>
         </div>
 
         {/* ENCARGADOS */}
-        <div className="bg-white p-6 rounded-lg shadow space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold text-text mb-4">Encargados de la Bodega</h2>
-            {encargados.length > 0 ? (
-              <table className="w-full text-sm border-collapse">
-                <thead className="bg-gray-100 text-gray-700">
-                  <tr>
-                    <th className="text-left py-2 px-3">ID</th>
-                    <th className="text-left py-2 px-3">Nombre</th>
-                    <th className="text-left py-2 px-3">Correo</th>
-                    <th className="text-left py-2 px-3">Rol</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {encargados.map((e) => (
-                    <tr key={e.id} className="border-b">
-                      <td className="py-2 px-3">{e.usuario?.id}</td>
-                      <td className="py-2 px-3">{e.usuario?.nombre}</td>
-                      <td className="py-2 px-3">{e.usuario?.email}</td>
-                      <td className="py-2 px-3 capitalize">{e.usuario?.rol}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="text-gray-500 text-sm">No hay encargados asignados.</p>
-            )}
-          </div>
-
-          <div className="mt-4">
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+            <h2 className="text-lg font-semibold text-text">Encargados de la Bodega</h2>
             <button
               onClick={() => navigate(`/Bodegas/${id}/encargados`)}
-              className="bg-secondary hover:bg-secondary-dark text-white px-4 py-2 rounded w-full"
+              className="px-3 py-2 border rounded-lg hover:bg-gray-50 text-sm"
             >
-              Modificar Encargados
+              Modificar encargados
             </button>
           </div>
+          {encargados.length > 0 ? (
+            <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+              <thead className="bg-gray-50 text-gray-700">
+                <tr>
+                  <th className="text-left py-2 px-3">Nombre</th>
+                  <th className="text-left py-2 px-3">Correo</th>
+                  <th className="text-left py-2 px-3">Rol</th>
+                </tr>
+              </thead>
+              <tbody>
+                {encargados.map((e) => (
+                  <tr key={e.id} className="border-t">
+                    <td className="py-2 px-3">{e.usuario?.nombre}</td>
+                    <td className="py-2 px-3">{e.usuario?.email}</td>
+                    <td className="py-2 px-3 capitalize">{e.usuario?.rol}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-gray-500 text-sm">No hay encargados asignados.</p>
+          )}
         </div>
       </div>
     </div>

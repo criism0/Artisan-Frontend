@@ -56,43 +56,41 @@ export default function RolDetail() {
 
   return (
     <div className="p-6 bg-background min-h-screen">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-4">
+        <BackButton to="/Roles" />
+      </div>
+
+      <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-2xl font-bold text-text">Detalle del Rol</h1>
-          <p className="text-gray-600 mt-1">Información completa del rol y sus permisos</p>
+          <p className="text-sm text-gray-600 mt-1">Información completa del rol y sus permisos</p>
         </div>
         <div className="flex gap-2">
-          <EditButton 
-            onClick={() => navigate(`/Roles/${id}/edit`)} 
-            tooltipText="Editar Rol" 
+          <EditButton
+            onClick={() => navigate(`/Roles/${id}/edit`)}
+            tooltipText="Editar Rol"
           />
         </div>
       </div>
 
-      {/* Back button */}
-      <div className="mb-6">
-        <BackButton to="/Roles" label="Volver a Roles" />
-      </div>
-
       {/* Role Information */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Información del Rol</h2>
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
+        <h2 className="text-lg font-semibold text-text mb-4">Información del Rol</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">ID</label>
-            <p className="mt-1 text-sm text-gray-900">{role.id}</p>
+            <p className="text-gray-500 text-sm mb-1">Nombre</p>
+            <p className="font-medium">{role.name}</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Nombre</label>
-            <p className="mt-1 text-sm text-gray-900">{role.name}</p>
+            <p className="text-gray-500 text-sm mb-1">Scopes asignados</p>
+            <p className="font-medium">{role.scopes?.length ?? 0}</p>
           </div>
         </div>
       </div>
 
       {/* Scopes */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Scopes Asignados</h2>
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <h2 className="text-lg font-semibold text-text mb-4">Scopes Asignados</h2>
         {role.scopes && role.scopes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {role.scopes.map((scope) => (
