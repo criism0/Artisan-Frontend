@@ -21,8 +21,6 @@ const buildQuery = (params = {}) => {
   return `?${qs.toString()}`;
 };
 
-export const ESTADOS_RESPUESTA = ["conforme", "desvio", "no-conforme"];
-
 // El backend persiste `respuestas` (JSONB) verbatim pero NO guarda estado ni
 // detalle como columnas propias. Para no perder el estado de conformidad
 // declarado por el usuario, se embeben dentro del propio JSONB bajo estas
@@ -81,23 +79,6 @@ export const listarRespuestas = async (idFormulario, { estado } = {}) => {
   for (let page = 2; page <= totalPages; page++) {
     const next = await api(
       `/calidad/formularios/${idFormulario}/respuestas${buildQuery({ estado, limit: 100, page })}`
-    );
-    if (Array.isArray(next?.data)) rows.push(...next.data);
-  }
-  return rows;
-}
-
-// Endpoint global agregado al backend: GET /calidad/respuestas
-export const listarTodasRespuestas = async ({ estado } = {}) => {
-  const first = await api(`/calidad/respuestas${buildQuery({ estado, limit: 100 })}`);
-  if (!first || typeof first !== "object" || Array.isArray(first)) {
-    return unwrapList(first);
-  }
-  const rows = Array.isArray(first.data) ? [...first.data] : [];
-  const totalPages = first.meta?.totalPages ?? 1;
-  for (let page = 2; page <= totalPages; page++) {
-    const next = await api(
-      `/calidad/respuestas${buildQuery({ estado, limit: 100, page })}`
     );
     if (Array.isArray(next?.data)) rows.push(...next.data);
   }

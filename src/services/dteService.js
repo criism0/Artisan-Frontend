@@ -27,7 +27,7 @@ function nombreArchivo(dte) {
  * Mapea un DocumentoTributario del backend al formato que usa el frontend.
  * Backend usa snake_case; el frontend usa camelCase.
  */
-export function mapDte(d) {
+function mapDte(d) {
   if (!d) return null;
   return {
     id:           d.id,

@@ -30,14 +30,6 @@ export function colorEstadoOM(estado) {
   return COLOR_POR_ESTADO_OM[estado] || "bg-gray-300";
 }
 
-export function estadoActivoOM(estado) {
-  return ESTADOS_ACTIVOS.has(estado);
-}
-
-export function estadosOMConocidos() {
-  return ESTADOS_OM.slice();
-}
-
 function toNum(v) {
   if (v == null) return 0;
   const n = Number(v);

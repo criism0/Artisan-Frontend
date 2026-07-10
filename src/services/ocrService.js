@@ -27,7 +27,7 @@ export function esImagen(file) {
   );
 }
 
-export function esPDF(file) {
+function esPDF(file) {
   return file?.type === 'application/pdf' || /\.pdf$/i.test(file?.name ?? '');
 }
 

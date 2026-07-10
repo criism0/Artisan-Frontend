@@ -23,10 +23,6 @@ export function colorEstadoVenta(estado) {
   return COLOR_POR_ESTADO[estado] || "bg-gray-300";
 }
 
-export function estadosVentaConocidos() {
-  return ESTADOS.slice();
-}
-
 export async function cargarDatosVentas(api) {
   if (!checkScope(ModelType.ORDEN_VENTA, ScopeType.READ)) {
     toast.error("No tienes permisos para ver las órdenes de venta");
