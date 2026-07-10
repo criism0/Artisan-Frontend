@@ -65,6 +65,7 @@ export const ModelType = {
   LISTA_PRECIO: "ListaPrecio",
   PRODUCTO_BASE_LISTA_PRECIO: "ProductoBaseListaPrecio",
   PRODUCTO_BASE: "ProductoBase",
+  NOMBRE_FACTURACION: "NombreFacturacion",
   PREDICCION: "Prediccion", // RUTA: /predicciones
   POES: "Poes",
   OCR_FACTURA: "OCRFactura",
