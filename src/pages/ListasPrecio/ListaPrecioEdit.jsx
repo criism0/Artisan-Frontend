@@ -143,7 +143,7 @@ export default function ListaPrecioEdit() {
       />
 
       {/* Productos asociados: editar/eliminar usando el manager */}
-      <div className="mt-8">
+      <div className="mt-8 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
         <ProductosBaseManager
           listaPrecioId={id}
           productosBase={productosBase}

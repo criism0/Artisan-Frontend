@@ -182,8 +182,8 @@ export default function AddListaPrecio() {
         </div>
 
         {/* SECCIÓN DE PRODUCTOS BASE */}
-        <div className="mt-8 mb-6">
-          <ProductosBaseManager 
+        <div className="mt-8 mb-6 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <ProductosBaseManager
             listaPrecioId={listaPrecioId}
             productosBase={productosBase}
             onProductosBaseChange={setProductosBase}

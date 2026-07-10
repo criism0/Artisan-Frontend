@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import ProductoBaseModal from "./ProductoBaseModal";
+import { EditButton, TrashButton } from "../Buttons/ActionButtons";
 import { api } from "../../lib/api";
 import toast from "../../lib/toast";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
@@ -134,10 +135,6 @@ export default function ProductosBaseManager({
       return;
     }
 
-    if (!window.confirm("¿Estás seguro de que deseas eliminar este producto de la lista?")) {
-      return;
-    }
-
     setLoading(true);
     try {
       if (listaPrecioId && !productoId.toString().startsWith('temp-')) {
@@ -160,15 +157,20 @@ export default function ProductosBaseManager({
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h3 className="text-lg font-semibold text-gray-700">Productos en la Lista</h3>
+        <h3 className="text-lg font-semibold text-text">
+          Productos en la Lista
+          <span className="ml-2 text-sm font-normal text-gray-500">
+            {productosList.length} producto(s)
+          </span>
+        </h3>
         {isEditing && (
           <button
             type="button"
             onClick={handleAddProducto}
             disabled={loading}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            + Añadir Producto
+            Añadir Producto
           </button>
         )}
       </div>
@@ -181,52 +183,54 @@ export default function ProductosBaseManager({
           )}
         </div>
       ) : (
-        <div className="space-y-3">
-          {productosList.map((producto) => (
-            <div
-              key={producto.id}
-              className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-2">
-                    <span className="text-lg">📦</span>
-                    <span className="font-medium text-gray-900">
-                      {producto.nombre_producto || producto.productoBase?.nombre || `Producto #${producto.id_producto_base}`}
-                    </span>
-                  </div>
-                  
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p><strong>Unidades por caja:</strong> {producto.unidades_por_caja}</p>
-                    <p><strong>Precio por unidad:</strong> ${producto.precio_unidad?.toLocaleString('es-CL') || '0'}</p>
-                    <p><strong>Precio por caja:</strong> ${producto.precio_caja?.toLocaleString('es-CL') || '0'}</p>
-                  </div>
-                </div>
-
+        <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+          <thead className="bg-gray-50 text-gray-700">
+            <tr>
+              <th className="px-3 py-2 text-left">Producto</th>
+              <th className="px-3 py-2 text-right">Unidades por caja</th>
+              <th className="px-3 py-2 text-right">Precio por unidad</th>
+              <th className="px-3 py-2 text-right">Precio por caja</th>
+              {isEditing && <th className="px-3 py-2 text-right">Acciones</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {productosList.map((producto) => (
+              <tr key={producto.id} className="border-t">
+                <td className="px-3 py-2 font-medium">
+                  {producto.nombre_producto || producto.productoBase?.nombre || `Producto #${producto.id_producto_base}`}
+                </td>
+                <td className="px-3 py-2 text-right">{producto.unidades_por_caja ?? "—"}</td>
+                <td className="px-3 py-2 text-right">
+                  ${producto.precio_unidad?.toLocaleString('es-CL') || '0'}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  ${producto.precio_caja?.toLocaleString('es-CL') || '0'}
+                </td>
                 {isEditing && (
-                  <div className="flex space-x-2 ml-4">
-                    <button
-                      type="button"
-                      onClick={() => handleEditProducto(producto)}
-                      disabled={loading}
-                      className="px-3 py-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded text-sm disabled:opacity-50"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteProducto(producto.id)}
-                      disabled={loading || !canDeleteBaseProductPriceList}
-                      className="px-3 py-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded text-sm disabled:opacity-50"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-2 justify-end">
+                      <EditButton
+                        onClick={() => handleEditProducto(producto)}
+                        tooltipText="Editar producto"
+                      />
+                      {canDeleteBaseProductPriceList && (
+                        <TrashButton
+                          onConfirmDelete={() => handleDeleteProducto(producto.id)}
+                          tooltipText="Eliminar producto de la lista"
+                          entityName={
+                            producto.nombre_producto ||
+                            producto.productoBase?.nombre ||
+                            `Producto #${producto.id_producto_base}`
+                          }
+                        />
+                      )}
+                    </div>
+                  </td>
                 )}
-              </div>
-            </div>
-          ))}
-        </div>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
 
       <ProductoBaseModal
