@@ -99,16 +99,21 @@ export default function DTEPreviewModal({ ordenId, tipo = 'factura', onConfirm, 
                     <tbody className="divide-y divide-gray-100">
                       {detalle.map((item, idx) => (
                         <tr key={idx}>
-                          <td className="px-3 py-2 text-gray-800">{item.NmbItem}</td>
-                          <td className="px-3 py-2 text-right text-gray-700">{item.QtyItem}</td>
+                          <td className="px-3 py-2 text-gray-800">{item.nombre}</td>
                           <td className="px-3 py-2 text-right text-gray-700">
-                            {formatCLP(Number(item.PrcItem || 0), 0)}
-                            {item.DescuentoPct ? (
-                              <span className="text-xs text-gray-400"> (−{item.DescuentoPct}%)</span>
+                            {item.cantidad}
+                            {item.unidad_medida ? (
+                              <span className="text-xs text-gray-400"> {item.unidad_medida}</span>
+                            ) : null}
+                          </td>
+                          <td className="px-3 py-2 text-right text-gray-700">
+                            {formatCLP(Number(item.precio_unitario || 0), 0)}
+                            {item.descuento_porcentaje ? (
+                              <span className="text-xs text-gray-400"> (−{item.descuento_porcentaje}%)</span>
                             ) : null}
                           </td>
                           <td className="px-3 py-2 text-right font-medium text-gray-800">
-                            {formatCLP(Number(item.MontoItem || 0), 0)}
+                            {formatCLP(Number(item.monto_item || 0), 0)}
                           </td>
                         </tr>
                       ))}
