@@ -1,8 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import Table from "../../components/Tables/Table";
-import Pagination from "../../components/UI/Pagination";
-import RowsPerPageSelector from "../../components/UI/RowsPerPageSelector";
+import DataTable from "../../components/Tables/DataTable";
 import {
   BackButton,
   ViewDetailButton,
@@ -14,7 +12,6 @@ import {
   eliminarRespuesta,
 } from "../../services/calidad";
 import { toast } from "../../lib/toast";
-import { Spinner } from "../../components/UI/Spinner";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 const formatoFecha = (iso) => {
@@ -32,8 +29,6 @@ export default function RespuestasList() {
   const [formulario, setFormulario] = useState(null);
   const [respuestas, setRespuestas] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
 
   const canReadForms = checkScope(ModelType.FORMULARIO_CALIDAD, ScopeType.READ);
   const canReadResponses = checkScope(ModelType.RESPUESTA_FORMULARIO_CALIDAD, ScopeType.READ);
@@ -41,7 +36,10 @@ export default function RespuestasList() {
 
   const cargar = async () => {
     if (!canReadForms || !canReadResponses) {
-      toast.permissionError([ModelType.FORMULARIO_CALIDAD, ScopeType.READ], [ModelType.RESPUESTA_FORMULARIO_CALIDAD, ScopeType.READ]);
+      toast.permissionError(
+        [ModelType.FORMULARIO_CALIDAD, ScopeType.READ],
+        [ModelType.RESPUESTA_FORMULARIO_CALIDAD, ScopeType.READ]
+      );
       setLoading(false);
       return;
     }
@@ -80,28 +78,26 @@ export default function RespuestasList() {
     }
   };
 
-  const totalPages = Math.max(1, Math.ceil(respuestas.length / rowsPerPage));
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginated = useMemo(
-    () => respuestas.slice(startIndex, startIndex + rowsPerPage),
-    [respuestas, startIndex, rowsPerPage]
-  );
-
   const columns = [
-    { header: "ID", accessor: "id" },
+    { header: "ID", accessor: "id", sortable: true },
     {
       header: "Usuario",
       accessor: "id_usuario",
+      sortable: true,
       Cell: ({ value }) => value ?? "—",
     },
     {
       header: "Completado en",
       accessor: "completado_en",
+      sortable: true,
+      sortValue: (row) => (row.completado_en ? new Date(row.completado_en).getTime() : 0),
       Cell: ({ value }) => formatoFecha(value),
     },
     {
       header: "Creado en",
       accessor: "created_at",
+      sortable: true,
+      sortValue: (row) => (row.created_at ? new Date(row.created_at).getTime() : 0),
       Cell: ({ value }) => formatoFecha(value),
     },
   ];
@@ -121,64 +117,34 @@ export default function RespuestasList() {
   );
 
   return (
-    <div className="p-6 bg-background min-h-screen">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between gap-4 mb-4">
+    <DataTable
+      title={`Respuestas${formulario ? ` · ${formulario.nombre}` : ""}`}
+      data={respuestas}
+      columns={columns}
+      actions={actions}
+      getSearchText={(r) => [r.id, r.id_usuario, r.completado_en, r.created_at].filter(Boolean).join(" ")}
+      loading={loading}
+      loadingMessage="Cargando respuestas"
+      initialSort={{ key: "created_at", direction: "desc" }}
+      emptyMessage="Este formulario aún no tiene respuestas registradas."
+      headerActions={
+        <>
           <BackButton to="/calidad/formularios" />
           <button
             onClick={() => navigate(`/calidad/formularios/${id}/completar`)}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm"
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm"
           >
             Nuevo registro
           </button>
-        </div>
-
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-text">
-            Respuestas {formulario ? `· ${formulario.nombre}` : ""}
-          </h1>
-          {formulario && (
-            <p className="text-sm text-gray-500 mt-1">
-              {formulario.codigo} · v{formulario.version}
-            </p>
-          )}
-        </div>
-
-        <div className="flex justify-between items-center mb-4">
-          <RowsPerPageSelector
-            onRowsChange={(v) => {
-              setRowsPerPage(v);
-              setCurrentPage(1);
-            }}
-          />
-          <p className="text-sm text-gray-500">
-            Total: {respuestas.length} respuesta{respuestas.length === 1 ? "" : "s"}
-          </p>
-        </div>
-
-        {loading ? (
-          <div className="bg-white p-8 rounded-lg shadow flex justify-center">
-            <Spinner size="md"/>
-          </div>
-        ) : respuestas.length === 0 ? (
-          <div className="bg-white p-8 rounded-lg shadow text-center">
-            <p className="text-gray-500 text-sm">
-              Este formulario aún no tiene respuestas registradas.
-            </p>
-          </div>
-        ) : (
-          <>
-            <Table columns={columns} data={paginated} actions={actions} />
-            <div className="mt-6 flex justify-end">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-              />
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+        </>
+      }
+      toolbarStart={
+        formulario ? (
+          <span className="text-sm text-gray-500">
+            {formulario.codigo} · v{formulario.version} · {respuestas.length} respuesta{respuestas.length === 1 ? "" : "s"}
+          </span>
+        ) : null
+      }
+    />
   );
 }

@@ -1,17 +1,12 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import Table from "../../components/Tables/Table";
-import Pagination from "../../components/UI/Pagination";
-import RowsPerPageSelector from "../../components/UI/RowsPerPageSelector";
-import SearchBar from "../../components/UI/SearchBar";
+import DataTable from "../../components/Tables/DataTable";
 import {
   BackButton,
   ViewDetailButton,
 } from "../../components/Buttons/ActionButtons";
-import { fuzzyMatch } from "../../services/fuzzyMatch";
 import { listarFormularios } from "../../services/calidad";
 import { toast } from "../../lib/toast";
-import { Spinner } from "../../components/UI/Spinner";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 const formatoFecha = (iso) => {
@@ -19,19 +14,10 @@ const formatoFecha = (iso) => {
   return new Date(iso).toLocaleString("es-CL", { dateStyle: "short" });
 };
 
-const toSearchText = (f) =>
-  [f.codigo, f.nombre, f.descripcion, f.frecuencia_esperada]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
 export default function AprobacionFormularios() {
   const navigate = useNavigate();
   const [formularios, setFormularios] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
 
   const canReadForms = checkScope(ModelType.FORMULARIO_CALIDAD, ScopeType.READ);
 
@@ -46,9 +32,7 @@ export default function AprobacionFormularios() {
     listarFormularios()
       .then((data) => {
         if (cancelled) return;
-        const pendientes = (Array.isArray(data) ? data : []).filter(
-          (f) => !f.aprobado
-        );
+        const pendientes = (Array.isArray(data) ? data : []).filter((f) => !f.aprobado);
         setFormularios(pendientes);
       })
       .catch((err) => {
@@ -58,23 +42,16 @@ export default function AprobacionFormularios() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return formularios;
-    return formularios.filter((f) => fuzzyMatch(toSearchText(f), searchQuery));
-  }, [formularios, searchQuery]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginated = filtered.slice(startIndex, startIndex + rowsPerPage);
-
   const columns = [
-    { header: "Código", accessor: "codigo" },
-    { header: "Nombre", accessor: "nombre" },
+    { header: "Código", accessor: "codigo", sortable: true },
+    { header: "Nombre", accessor: "nombre", sortable: true },
     {
       header: "Versión",
       accessor: "version",
+      sortable: true,
       Cell: ({ value }) => `v${value}`,
     },
     {
@@ -85,6 +62,8 @@ export default function AprobacionFormularios() {
     {
       header: "Creado",
       accessor: "created_at",
+      sortable: true,
+      sortValue: (row) => (row.created_at ? new Date(row.created_at).getTime() : 0),
       Cell: ({ value }) => formatoFecha(value),
     },
   ];
@@ -98,63 +77,26 @@ export default function AprobacionFormularios() {
     </div>
   );
 
+  const getSearchText = (f) =>
+    [f.codigo, f.nombre, f.descripcion, f.frecuencia_esperada].filter(Boolean).join(" ");
+
   return (
-    <div className="p-6 bg-background min-h-screen">
-      <div className="max-w-5xl mx-auto">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <BackButton to="/calidad/formularios" />
-        </div>
-
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-text">
-            Aprobación de Formularios
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Formularios pendientes de revisión. Revisa cada uno y apruébalo o
-            recházalo.
-          </p>
-        </div>
-
-        <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
-          <RowsPerPageSelector
-            onRowsChange={(v) => {
-              setRowsPerPage(v);
-              setCurrentPage(1);
-            }}
-          />
-          <SearchBar
-            onSearch={(q) => {
-              setSearchQuery(q);
-              setCurrentPage(1);
-            }}
-          />
-        </div>
-
-        {loading ? (
-          <div className="bg-white p-8 rounded-lg shadow flex justify-center">
-            <Spinner size="md"/>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="bg-white p-8 rounded-lg shadow text-center">
-            <p className="text-gray-500 text-sm">
-              {formularios.length === 0
-                ? "No hay formularios pendientes de aprobación."
-                : "No se encontraron formularios que coincidan con la búsqueda."}
-            </p>
-          </div>
-        ) : (
-          <>
-            <Table columns={columns} data={paginated} actions={actions} />
-            <div className="mt-6 flex justify-end">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-              />
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+    <DataTable
+      title="Aprobación de Formularios"
+      data={formularios}
+      columns={columns}
+      actions={actions}
+      getSearchText={getSearchText}
+      loading={loading}
+      loadingMessage="Cargando formularios"
+      initialSort={{ key: "created_at", direction: "desc" }}
+      emptyMessage="No hay formularios pendientes de aprobación."
+      headerActions={<BackButton to="/calidad/formularios" />}
+      toolbarStart={
+        <span className="text-sm text-gray-500">
+          Pendientes de revisión: apruébalos o recházalos desde el detalle.
+        </span>
+      }
+    />
   );
 }

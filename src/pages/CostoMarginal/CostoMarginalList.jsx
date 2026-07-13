@@ -1,185 +1,169 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
-import Table from "../../components/Tables/Table";
-import SearchBar from "../../components/UI/SearchBar";
-import RowsPerPageSelector from "../../components/UI/RowsPerPageSelector";
-import Pagination from "../../components/UI/Pagination";
+import DataTable from "../../components/Tables/DataTable";
 import { ViewDetailButton } from "../../components/Buttons/ActionButtons";
 import Selector from "../../components/Forms/Selector";
-import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { formatCLP } from "../../services/formatHelpers";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import toast from "../../lib/toast.js";
 
 export default function CostoMarginalList() {
-    const api = useApi();
-    const navigate = useNavigate();
-    const [bodegas, setBodegas] = useState([]);
-    const [bodegaFilter, setBodegaFilter] = useState(0);
-    const [items, setItems] = useState([]);
-    const [filtered, setFiltered] = useState([]);
-    const [query, setQuery] = useState("");
-    const [rowsPerPage, setRowsPerPage] = useState(10);
-    const [page, setPage] = useState(1);
-    const [tipoFilter, setTipoFilter] = useState("todos");
-    const [isLoading, setIsLoading] = useState(true);
+  const api = useApi();
+  const navigate = useNavigate();
+  const [bodegas, setBodegas] = useState([]);
+  const [bodegaFilter, setBodegaFilter] = useState(0);
+  const [tipoFilter, setTipoFilter] = useState("todos");
+  const [items, setItems] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-    const canReadMarginalCost = checkScope(ModelType.COSTO_MARGINAL, ScopeType.READ);
+  const canReadMarginalCost = checkScope(ModelType.COSTO_MARGINAL, ScopeType.READ);
 
-    useEffect(() => {
-        const fetchAll = async () => {
-            if (!canReadMarginalCost) {
-                toast.permissionError([ModelType.COSTO_MARGINAL, ScopeType.READ]);
-                return;
-            }
-            try {
-                const res = await api(`/costo-marginal`);
-                setItems(Array.isArray(res) ? res : []);
-                setFiltered(Array.isArray(res) ? res : []);
-            } catch (err) {
-                console.error("Error fetching costo marginal:", err);
-            }
-        };
+  useEffect(() => {
+    const fetchBodegas = async () => {
+      try {
+        const b = await api("/bodegas");
+        const list = Array.isArray(b?.bodegas) ? b.bodegas : Array.isArray(b) ? b : [];
+        setBodegas(list);
+      } catch {
+        setBodegas([]);
+      }
+    };
+    fetchBodegas();
+     
+  }, [api]);
 
-        const fetchBodegas = async () => {
-            try {
-                const b = await api('/bodegas');
-                const list = Array.isArray(b?.bodegas) ? b.bodegas : Array.isArray(b) ? b : [];
-                setBodegas(list);
-            } catch (e) {
-                setBodegas([]);
-            }
-        };
+  // Los filtros de tipo/bodega se resuelven en el server
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!canReadMarginalCost) {
+        toast.permissionError([ModelType.COSTO_MARGINAL, ScopeType.READ]);
+        setIsLoading(false);
+        return;
+      }
+      try {
+        setIsLoading(true);
+        const params = new URLSearchParams();
+        if (bodegaFilter && +bodegaFilter > 0) params.set("id_bodega", bodegaFilter);
+        if (tipoFilter && tipoFilter !== "todos") params.set("tipo", tipoFilter);
+        const qs = params.toString() ? `?${params}` : "";
+        const res = await api(`/costo-marginal${qs}`);
+        setItems(Array.isArray(res) ? res : []);
+      } catch (err) {
+        console.error("Error fetching costo marginal:", err);
+        toast.error("No se pudo cargar el costo marginal");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [bodegaFilter, tipoFilter, api, canReadMarginalCost]);
 
-        Promise.all([fetchAll(), fetchBodegas()]).finally(() => setIsLoading(false));
-    }, [api, canReadMarginalCost]);
+  const columns = [
+    {
+      header: "Lote - Tipo",
+      accessor: "lote_tipo",
+      sortable: true,
+      sortValue: (row) => `${row.lote ?? row.id ?? ""}`,
+      Cell: ({ row }) => `${row.lote ?? row.id ?? "-"} - ${row.tipo ?? "-"}`,
+    },
+    {
+      header: "Nombre",
+      accessor: "nombre_producto",
+      sortable: true,
+      sortValue: (row) => row.productoBase?.nombre || row.materiaPrima?.nombre || "",
+      Cell: ({ row }) => row.productoBase?.nombre || row.materiaPrima?.nombre || "-",
+    },
+    {
+      header: "Bodega",
+      accessor: "bodega",
+      sortable: true,
+      sortValue: (row) => {
+        const idB = row?.orden?.id_bodega ?? row.id_bodega ?? row.idBodega ?? null;
+        const b = bodegas.find((x) => String(x.id) === String(idB));
+        return b?.nombre || "";
+      },
+      Cell: ({ row }) => {
+        const idB = row?.orden?.id_bodega ?? row.id_bodega ?? row.idBodega ?? null;
+        const b = bodegas.find((x) => (x.id ?? x._id) === idB || String(x.id) === String(idB));
+        return b ? b.nombre : (idB ? `#${idB}` : "-");
+      },
+    },
+    {
+      header: "Costo total",
+      accessor: "costo",
+      sortable: true,
+      align: "right",
+      Cell: ({ value }) => (value == null ? "-" : formatCLP(Number(value), 0)),
+    },
+  ];
 
-    useEffect(() => {
-        const apply = async () => {
-            if (!canReadMarginalCost) {
-                toast.permissionError([ModelType.COSTO_MARGINAL, ScopeType.READ]);
-                return;
-            }
-            try {
-                let data = items;
+  const actions = (row) => (
+    <ViewDetailButton
+      onClick={() => navigate(`/CostoMarginal/${row.tipo}/${row.id}`)}
+      tooltipText="Ver detalle"
+    />
+  );
 
-                if (bodegaFilter && +bodegaFilter > 0) {
-                    const qTipo = tipoFilter && tipoFilter !== 'todos' ? `&tipo=${encodeURIComponent(tipoFilter)}` : '';
-                    const res = await api(`/costo-marginal?id_bodega=${encodeURIComponent(bodegaFilter)}${qTipo}`);
-                    data = Array.isArray(res) ? res : [];
-                } else if (tipoFilter && tipoFilter !== 'todos') {
-                    const res = await api(`/costo-marginal?tipo=${encodeURIComponent(tipoFilter)}`);
-                    data = Array.isArray(res) ? res : [];
-                }
+  const tipoOptions = useMemo(
+    () => [
+      { value: "todos", label: "Todos" },
+      { value: "ProductoFinal", label: "Producto Final" },
+      { value: "ProductoEnProceso", label: "Producto en Proceso (PIP)" },
+    ],
+    []
+  );
 
-                if (query && query.trim()) {
-                    const q = query.toLowerCase();
-                    data = data.filter((d) =>
-                        (d.productoBase?.nombre || d.materiaPrima?.nombre || '').toString().toLowerCase().includes(q) 
-                    );
-                }
-                setFiltered(data);
-                setPage(1);
-            } catch (err) {
-                console.error(err);
-            }
-        };
-        apply();
-    }, [bodegaFilter, tipoFilter, query, items, api, canReadMarginalCost]);
+  const bodegaOptions = useMemo(() => {
+    const base = [{ value: 0, label: "Todas" }];
+    const opts = bodegas
+      .filter((b) => (b.nombre || "").toLowerCase() !== "en tránsito")
+      .map((b) => ({ value: b.id ?? b._id, label: b.nombre }));
+    return base.concat(opts);
+  }, [bodegas]);
 
+  const getSearchText = (row) =>
+    [
+      row.lote ?? row.id,
+      row.tipo,
+      row.productoBase?.nombre,
+      row.materiaPrima?.nombre,
+    ]
+      .filter(Boolean)
+      .join(" ");
 
-    const columns = useMemo(() => [
-        { header: "Lote - Tipo", accessor: "lote_tipo", Cell: ({ row }) => `${row.lote ?? row.id ?? '-'} - ${row.tipo ?? '-'}` },
-        { header: "Nombre", accessor: "nombre_producto", Cell: ({ row }) => row.productoBase?.nombre || row.materiaPrima?.nombre || "-" },
-        { header: "Bodega", accessor: "bodega", Cell: ({ row }) => {
-            const idB = row?.orden?.id_bodega ?? row.id_bodega ?? row.idBodega ?? null;
-            const b = bodegas.find(x => (x.id ?? x._id) === idB || String(x.id) === String(idB));
-            return b ? b.nombre : (idB ? `#${idB}` : '-');
-        } },
-        { header: "Costo total", accessor: "costo", Cell: ({ row }) => {
-            const v = row.costo ?? null;
-            if (v == null) return "-";
-            try { return Number(v).toLocaleString('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}); } catch { return `${v}`; }
-        }},
-        { header: "Acciones", accessor: "actions", Cell: ({ row }) => {
-            const tipo = row.tipo;
-            const id = row.id;
-            return (
-                <ViewDetailButton
-                    onClick={() => navigate(`/CostoMarginal/${tipo}/${id}`)}
-                    tooltipText="Ver detalle"
-                />
-            );
-        }}
-    ], [bodegas]);
-
-    const tipoOptions = useMemo(() => [
-        { value: 'todos', label: 'Todos' },
-        { value: 'ProductoFinal', label: 'Producto Final' },
-        { value: 'ProductoEnProceso', label: 'Producto en Proceso (PIP)' }
-    ], []);
-
-    const bodegaOptions = useMemo(() => {
-        const base = [{ value: 0, label: 'Todas' }];
-        const opts = bodegas
-            // Harcodeado, ver como arreglar en general para omitir la bodega "en tránsito"
-            .filter(b => b.nombre.toLowerCase() !== 'en tránsito')
-            .map(b => ({ value: b.id ?? b._id, label: b.nombre }));
-        return base.concat(opts);
-    }, [bodegas]);
-
-    const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
-    const start = (page - 1) * rowsPerPage;
-    const pageData = filtered.slice(start, start + rowsPerPage);
-
-    if (isLoading) return <PageLoader message="Cargando costo marginal" />;
-
-    return (
-        <div className="p-6 bg-background min-h-screen">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold">Costo Marginal</h1>
-            </div>
-
-            <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Tipo</label>
-                    <Selector
-                        options={tipoOptions}
-                        selectedValue={tipoFilter}
-                        onSelect={(v) => setTipoFilter(v)}
-                        className="px-3 py-2 border border-gray-200 rounded-lg"
-                    />
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Bodega</label>
-                    <Selector
-                        options={bodegaOptions}
-                        selectedValue={String(bodegaFilter)}
-                        onSelect={(v) => setBodegaFilter(v)}
-                        className="px-3 py-2 border border-gray-200 rounded-lg"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Buscar</label>
-                    <SearchBar onSearch={(q) => setQuery(q)} />
-                </div>
-                <div className="flex items-end justify-center">
-                    <RowsPerPageSelector onRowsChange={(v) => { setRowsPerPage(v); setPage(1); }} />
-                </div>
-            </div>
-
-            <div className="overflow-x-auto bg-white rounded shadow">
-                {filtered.length === 0 ? (
-                    <div className="p-6 text-center text-gray-500">No hay valores que cumplan con esos filtros.</div>
-                ) : (
-                    <Table columns={columns} data={pageData} />
-                )}
-            </div>
-
-            <div className="mt-6 flex justify-end">
-                <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
-            </div>
+  return (
+    <DataTable
+      title="Costo Marginal"
+      data={items}
+      columns={columns}
+      actions={actions}
+      getSearchText={getSearchText}
+      loading={isLoading}
+      loadingMessage="Cargando costo marginal"
+      emptyMessage="No hay valores que cumplan con esos filtros."
+      filters={
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+            <Selector
+              options={tipoOptions}
+              selectedValue={tipoFilter}
+              onSelect={(v) => setTipoFilter(v)}
+              className="px-3 py-2 border border-gray-200 rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Bodega</label>
+            <Selector
+              options={bodegaOptions}
+              selectedValue={String(bodegaFilter)}
+              onSelect={(v) => setBodegaFilter(v)}
+              className="px-3 py-2 border border-gray-200 rounded-lg"
+            />
+          </div>
         </div>
-    );
+      }
+    />
+  );
 }
