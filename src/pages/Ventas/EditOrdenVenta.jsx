@@ -17,7 +17,8 @@ export default function EditOrdenVenta() {
   const [loading, setLoading] = useState(true);
   const [orden, setOrden] = useState(null);
   const [bodegas, setBodegas] = useState([]);
-  const [productos, setProductos] = useState([]);
+  // La OV se pide por nombre de facturación (agrupa productos físicos equivalentes)
+  const [nombres, setNombres] = useState([]);
   const [preciosLista, setPreciosLista] = useState([]);
   const [clienteConfig, setClienteConfig] = useState(null);
   const [productosAgregados, setProductosAgregados] = useState([]);
@@ -33,7 +34,7 @@ export default function EditOrdenVenta() {
   });
 
   const [productoForm, setProductoForm] = useState({
-    id_producto: "",
+    id_nombre_facturacion: "",
     cantidad: "",
     precio_unitario: "",
   });
@@ -42,9 +43,9 @@ export default function EditOrdenVenta() {
   useEffect(() => {
     (async () => {
       try {
-        const [ordRes, prodRes, bodRes] = await Promise.all([
+        const [ordRes, nombresRes, bodRes] = await Promise.all([
           api(`/ordenes-venta/${id}/info`),
-          api("/productos-base"),
+          api("/nombres-facturacion"),
           api("/bodegas"),
         ]);
 
@@ -57,8 +58,8 @@ export default function EditOrdenVenta() {
           es_referencial: ord.es_referencial ?? false,
         });
 
-        const productosData = prodRes?.data || prodRes || [];
-        setProductos(productosData);
+        const nombresData = Array.isArray(nombresRes) ? nombresRes : nombresRes?.data || [];
+        setNombres(nombresData);
 
         const bodegasData = Array.isArray(bodRes?.bodegas)
           ? bodRes.bodegas
@@ -93,16 +94,24 @@ export default function EditOrdenVenta() {
           }
         }
 
-        // Cargar productos existentes de la orden
+        // Cargar productos existentes de la orden (líneas por nombre de facturación;
+        // legacy sin nombre se muestran por su descripción/producto)
         try {
           const prodOrdenRes = await api(`/ordenes-venta/${id}/productos`);
           const prodOrden = prodOrdenRes?.data || prodOrdenRes || [];
           setProductosAgregados(
             prodOrden.map((item) => {
-              const prod = productosData.find((p) => p.id === item.id_producto);
+              const nombreFact = nombresData.find((n) => n.id === item.id_nombre_facturacion);
+              const nombreProducto = nombresData
+                .flatMap((n) => n.productos || [])
+                .find((p) => p.id === item.id_producto)?.nombre;
               return {
-                id_producto: item.id_producto,
-                nombre: prod?.nombre || `Producto #${item.id_producto}`,
+                id_nombre_facturacion: item.id_nombre_facturacion ?? null,
+                nombre:
+                  nombreFact?.nombre ||
+                  nombreProducto ||
+                  item.descripcion_original ||
+                  `Línea #${item.id}`,
                 cantidad: item.cantidad,
                 precio_unitario: item.precio_venta,
                 formato_linea: "UNIDADES",
@@ -123,11 +132,23 @@ export default function EditOrdenVenta() {
   }, [id, api]);
 
   // ── Producto form helpers ──
-  const calcularPrecio = (prodId) => {
-    if (!prodId || !clienteConfig) return "";
-    const precioLista = preciosLista.find((x) => x.id_producto_base === prodId);
-    const productoBase = productos.find((p) => p.id === prodId);
-    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || productoBase?.unidades_por_caja || 0) || 0;
+  // Busca la entrada de la lista de precios para un nombre de facturación
+  // (entradas nuevas van por id_nombre_facturacion; las legacy por producto del grupo)
+  const buscarPrecioLista = (nombreId) => {
+    const nombreFact = nombres.find((n) => n.id === nombreId);
+    const idsProductos = (nombreFact?.productos || []).map((p) => p.id);
+    return preciosLista.find(
+      (x) =>
+        Number(x.id_nombre_facturacion) === nombreId ||
+        (x.id_producto_base != null && idsProductos.includes(x.id_producto_base))
+    );
+  };
+
+  const calcularPrecio = (nombreId) => {
+    if (!nombreId || !clienteConfig) return "";
+    const precioLista = buscarPrecioLista(nombreId);
+    const nombreFact = nombres.find((n) => n.id === nombreId);
+    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
     const precioCaja = precioLista?.precio_caja;
     const precioUnidad = precioLista?.precio_unidad;
     const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
@@ -144,7 +165,7 @@ export default function EditOrdenVenta() {
   const handleProductoChange = (e) => {
     const { name, value } = e.target;
     let updated = { ...productoForm, [name]: value };
-    if (name === "id_producto") {
+    if (name === "id_nombre_facturacion") {
       setProductErrors({});
       updated.precio_unitario = calcularPrecio(Number(value));
     }
@@ -153,7 +174,7 @@ export default function EditOrdenVenta() {
 
   const validateProducto = () => {
     const errs = {};
-    if (!productoForm.id_producto) errs.id_producto = "Debes seleccionar un producto.";
+    if (!productoForm.id_nombre_facturacion) errs.id_nombre_facturacion = "Debes seleccionar un producto.";
     if (!productoForm.cantidad || Number(productoForm.cantidad) <= 0) errs.cantidad = "Cantidad debe ser mayor a 0.";
     if (!productoForm.precio_unitario || Number(productoForm.precio_unitario) <= 0) errs.precio_unitario = "Precio debe ser mayor a 0.";
     setProductErrors(errs);
@@ -162,21 +183,21 @@ export default function EditOrdenVenta() {
 
   const handleAddProduct = () => {
     if (!validateProducto()) return;
-    const productoId = Number(productoForm.id_producto);
-    if (productosAgregados.some((p) => p.id_producto === productoId)) {
-      setProductErrors({ id_producto: "Este producto ya está agregado." });
+    const nombreId = Number(productoForm.id_nombre_facturacion);
+    if (productosAgregados.some((p) => p.id_nombre_facturacion === nombreId)) {
+      setProductErrors({ id_nombre_facturacion: "Este producto ya está agregado." });
       return;
     }
-    const prod = productos.find((p) => p.id === productoId);
-    const precioLista = preciosLista.find((x) => x.id_producto_base === prod.id);
-    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || prod.unidades_por_caja || 0) || 0;
+    const nombreFact = nombres.find((n) => n.id === nombreId);
+    const precioLista = buscarPrecioLista(nombreId);
+    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
     const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
     const cantidadFormato = Number(productoForm.cantidad);
     const cantidadUnidades = esCajas && unidadesPorCaja ? cantidadFormato * unidadesPorCaja : cantidadFormato;
     setProductosAgregados((prev) => [
       {
-        id_producto: prod.id,
-        nombre: prod.nombre,
+        id_nombre_facturacion: nombreId,
+        nombre: nombreFact?.nombre || `Nombre #${nombreId}`,
         cantidad: cantidadUnidades,
         precio_unitario: Number(productoForm.precio_unitario),
         formato_linea: esCajas ? "CAJAS" : "UNIDADES",
@@ -185,16 +206,18 @@ export default function EditOrdenVenta() {
       },
       ...prev,
     ]);
-    setProductoForm({ id_producto: "", cantidad: "", precio_unitario: "" });
+    setProductoForm({ id_nombre_facturacion: "", cantidad: "", precio_unitario: "" });
     setProductErrors({});
   };
 
-  const handleDeleteProduct = (prodId) => {
-    setProductosAgregados((prev) => prev.filter((p) => p.id_producto !== prodId));
+  const rowKey = (p) => p.dbId ?? `nf-${p.id_nombre_facturacion}`;
+
+  const handleDeleteProduct = (key) => {
+    setProductosAgregados((prev) => prev.filter((p) => rowKey(p) !== key));
   };
 
   const handleStartEdit = (prod) => {
-    setEditingProdId(prod.id_producto);
+    setEditingProdId(rowKey(prod));
     setEditingCantidad(String(prod.cantidad));
   };
 
@@ -206,7 +229,7 @@ export default function EditOrdenVenta() {
     }
     setProductosAgregados((prev) =>
       prev.map((p) =>
-        p.id_producto === editingProdId
+        rowKey(p) === editingProdId
           ? { ...p, cantidad: nuevaCantidad, total_linea: p.precio_unitario * nuevaCantidad }
           : p
       )
@@ -241,27 +264,26 @@ export default function EditOrdenVenta() {
         }),
       });
 
-      // Sincronizar productos
+      // Sincronizar productos (las líneas existentes se matchean por su id de BD)
       const prodExisRes = await api(`/ordenes-venta/${id}/productos`);
       const prodExistentes = prodExisRes?.data || prodExisRes || [];
 
       for (const prod of productosAgregados) {
-        const existente = prodExistentes.find((p) => p.id_producto === prod.id_producto);
-        if (existente) {
-          await api(`/ordenes-venta/${id}/productos/${existente.id}`, {
+        if (prod.dbId != null) {
+          await api(`/ordenes-venta/${id}/productos/${prod.dbId}`, {
             method: "PUT",
             body: JSON.stringify({ cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: 0 }),
           });
         } else {
           await api(`/ordenes-venta/${id}/productos`, {
             method: "POST",
-            body: JSON.stringify({ id_orden: Number(id), id_producto: prod.id_producto, cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: 0 }),
+            body: JSON.stringify({ id_orden: Number(id), id_nombre_facturacion: prod.id_nombre_facturacion, cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: 0 }),
           });
         }
       }
 
       for (const existente of prodExistentes) {
-        if (!productosAgregados.some((p) => p.id_producto === existente.id_producto)) {
+        if (!productosAgregados.some((p) => p.dbId === existente.id)) {
           await api(`/ordenes-venta/${id}/productos/${existente.id}`, { method: "DELETE" });
         }
       }
@@ -390,21 +412,21 @@ export default function EditOrdenVenta() {
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium text-gray-700">Producto *</span>
               <select
-                name="id_producto"
-                value={productoForm.id_producto}
+                name="id_nombre_facturacion"
+                value={productoForm.id_nombre_facturacion}
                 onChange={handleProductoChange}
                 className={`border px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
-                  productErrors.id_producto ? "border-red-500" : "border-gray-300"
+                  productErrors.id_nombre_facturacion ? "border-red-500" : "border-gray-300"
                 }`}
               >
                 <option value="">Seleccionar producto…</option>
-                {productos
-                  .filter((p) => !productosAgregados.some((pa) => pa.id_producto === p.id))
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                {nombres
+                  .filter((n) => !productosAgregados.some((pa) => pa.id_nombre_facturacion === n.id))
+                  .map((n) => (
+                    <option key={n.id} value={n.id}>{n.nombre}</option>
                   ))}
               </select>
-              {productErrors.id_producto && <span className="text-red-500 text-xs">{productErrors.id_producto}</span>}
+              {productErrors.id_nombre_facturacion && <span className="text-red-500 text-xs">{productErrors.id_nombre_facturacion}</span>}
             </label>
 
             <label className="flex flex-col gap-1">
@@ -468,9 +490,9 @@ export default function EditOrdenVenta() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {productosAgregados.map((p) => {
-                    const isEditing = editingProdId === p.id_producto;
+                    const isEditing = editingProdId === rowKey(p);
                     return (
-                    <tr key={p.id_producto} className={`transition-colors ${isEditing ? "bg-blue-50" : "hover:bg-gray-50"}`}>
+                    <tr key={rowKey(p)} className={`transition-colors ${isEditing ? "bg-blue-50" : "hover:bg-gray-50"}`}>
                       <td className="px-4 py-2.5 text-sm text-gray-800">{p.nombre}</td>
                       <td className="px-4 py-2.5 text-sm text-gray-700">
                         {isEditing ? (
@@ -530,7 +552,7 @@ export default function EditOrdenVenta() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDeleteProduct(p.id_producto)}
+                              onClick={() => handleDeleteProduct(rowKey(p))}
                               aria-label="Eliminar producto"
                               className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
                               title="Eliminar"

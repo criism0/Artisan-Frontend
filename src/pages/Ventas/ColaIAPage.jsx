@@ -87,6 +87,7 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
 
   const sinMatch    = !prod.id_producto;
   const nombre      = prod.ProductoBase?.nombre ?? null;
+  const nombreFact  = prod.NombreFacturacion?.nombre ?? null;
   const sugerido    = prod.ProductoSugerido ?? null;
   const simPct      = sugerido && prod.similitud_sugerencia != null
     ? Math.round(prod.similitud_sugerencia * 100)
@@ -221,6 +222,12 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
             {nombre && prod.descripcion_original && (
               <span className="text-xs text-gray-400 truncate italic">
                 «{prod.descripcion_original}»
+              </span>
+            )}
+            {/* Nombre de facturación del grupo (si difiere del producto físico) */}
+            {nombre && nombreFact && nombreFact !== nombre && (
+              <span className="text-xs text-[#7A5AF8] truncate">
+                Factura como: {nombreFact}
               </span>
             )}
           </div>

@@ -14,7 +14,6 @@ export default function AsignarVenta() {
 
   const [orden, setOrden] = useState(null);
   const [pallets, setPallets] = useState([]);
-  const [productosBase, setProductosBase] = useState([]);
   const [productosAgregados, setProductosAgregados] = useState({});
   const [productosDisponibles, setProductosDisponibles] = useState([]);
   const [resumenProductos, setResumenProductos] = useState([]);
@@ -32,6 +31,38 @@ export default function AsignarVenta() {
 
   const canWriteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
   const canWriteBulk = checkScope(ModelType.BULTO, ScopeType.WRITE);
+
+  // Resumen por línea de la orden. Las líneas van por nombre de facturación:
+  // el picking admite cualquier producto físico del grupo, y added-products
+  // viene agrupado por id_nombre_facturacion.
+  const construirResumen = (ordenData, productosAgregadosData) => {
+    if (!ordenData?.productos || !Array.isArray(ordenData.productos)) return [];
+    return ordenData.productos.map((productoOrden) => {
+      const idNombre = productoOrden.id_nombre_facturacion;
+      const cantidadRequerida = productoOrden.cantidad || 0;
+
+      const bultosAsignados = productosAgregadosData[idNombre] || [];
+      const cantidadAsignada = Array.isArray(bultosAsignados)
+        ? bultosAsignados.reduce((sum, bulto) => sum + (bulto.cantidad_unidades || 0), 0)
+        : 0;
+
+      const cantidadFaltante = Math.max(0, cantidadRequerida - cantidadAsignada);
+
+      return {
+        id: productoOrden.id,
+        idNombre,
+        nombreProducto:
+          productoOrden.NombreFacturacion?.nombre ||
+          productoOrden.ProductoBase?.nombre ||
+          productoOrden.descripcion_original ||
+          `Línea #${productoOrden.id}`,
+        cantidadRequerida,
+        cantidadAsignada,
+        cantidadFaltante,
+        estado: cantidadFaltante === 0 ? "completo" : "pendiente",
+      };
+    });
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -60,14 +91,8 @@ export default function AsignarVenta() {
         const productosAgregadosData = resProductosAgregados.data || resProductosAgregados || {};
         setProductosAgregados(productosAgregadosData);
 
-        // Cargar productos base para obtener los nombres
-        const productosBaseRes = await api(`/productos-base`);
-        const productosBaseList = Array.isArray(productosBaseRes) 
-          ? productosBaseRes 
-          : productosBaseRes.data || [];
-        setProductosBase(productosBaseList);
-
         // Cargar productos disponibles para asignación
+        // (nueva forma: nombres de facturación con productos[] anidados)
         const resProductosDisponibles = await api(`/ordenes-venta/productos-disponibles`);
         const productosDisponiblesData = Array.isArray(resProductosDisponibles)
           ? resProductosDisponibles
@@ -75,32 +100,7 @@ export default function AsignarVenta() {
         setProductosDisponibles(productosDisponiblesData);
 
         // Calcular resumen de productos
-        if (ordenData.productos && Array.isArray(ordenData.productos)) {
-          const resumen = ordenData.productos.map((productoOrden) => {
-            const idProducto = productoOrden.id_producto;
-            const cantidadRequerida = productoOrden.cantidad || 0;
-
-            // Obtener bultos ya asignados a este producto
-            const bultosAsignados = productosAgregadosData[idProducto] || [];
-            const cantidadAsignada = Array.isArray(bultosAsignados)
-              ? bultosAsignados.reduce((sum, bulto) => sum + (bulto.cantidad_unidades || 0), 0)
-              : 0;
-
-            const cantidadFaltante = Math.max(0, cantidadRequerida - cantidadAsignada);
-            const productoBase = productosBaseList.find(p => p.id == idProducto);
-
-            return {
-              id: productoOrden.id,
-              idProducto,
-              nombreProducto: productoBase?.nombre || `Producto #${idProducto}`,
-              cantidadRequerida,
-              cantidadAsignada,
-              cantidadFaltante,
-              estado: cantidadFaltante === 0 ? 'completo' : 'pendiente'
-            };
-          });
-          setResumenProductos(resumen);
-        }
+        setResumenProductos(construirResumen(ordenData, productosAgregadosData));
       } catch (err) {
         toast.error("Error al cargar los datos de la orden");
       } finally {
@@ -141,48 +141,49 @@ export default function AsignarVenta() {
     );
   };
 
-  const obtenerBultosDisponiblesPorProducto = (idProducto) => {
+  // Bultos disponibles para una línea (nombre de facturación): cualquier bulto
+  // de cualquier producto físico del grupo sirve. Se etiqueta cada bulto con su
+  // producto para el desglose.
+  const obtenerBultosDisponiblesPorNombre = (idNombre) => {
     const bultosDisponibles = [];
     // Intentar obtener id de bodega de la orden (puede venir como bodega_id o como objeto bodega)
     const bodegaOrdenId = orden?.bodega_id ?? orden?.bodega?.id;
 
-    // Obtener bultos sin orden desde productosDisponibles
-    const producto = productosDisponibles.find(p => p.id == idProducto);
-    if (producto && producto.lotesProductoFinal && Array.isArray(producto.lotesProductoFinal)) {
-      for (const lote of producto.lotesProductoFinal) {
-        if (lote.LoteProductoFinalBultos && Array.isArray(lote.LoteProductoFinalBultos)) {
-          for (const bulto of lote.LoteProductoFinalBultos) {
-            // Filtro por bodega: si conocemos la bodega de la orden, exigir coincidencia
-            if (bodegaOrdenId != null && bulto.id_bodega != bodegaOrdenId) {
-              // Este bulto no pertenece a la bodega desde la que se hace la orden
-              continue;
-            }
-
-            // Filtro por pallet/orden: si el bulto tiene id_pallet pero el include 'pallet' vino como null,
-            // significa que ese pallet no cumple el where (p. ej. pertenece a otra orden). Excluir.
-            if (bulto.id_pallet && !bulto.pallet) {
-              continue;
-            }
-
-            // Si el pallet está incluido, doble chequeo: si tiene id_orden_de_venta distinto a la actual, excluir
-            if (bulto.pallet && bulto.pallet.id_orden_de_venta && bulto.pallet.id_orden_de_venta !== parseInt(ordenId)) {
-              continue;
-            }
-
-            bultosDisponibles.push({
-              id: bulto.id,
-              identificador: bulto.identificador,
-              cantidad_unidades: bulto.cantidad_unidades,
-              unidades_disponibles: bulto.unidades_disponibles || bulto.cantidad_unidades,
-              id_bodega: bulto.id_bodega,
-            });
+    // Obtener bultos sin orden desde productosDisponibles (nombres → productos → lotes → bultos)
+    const nombreFact = productosDisponibles.find((n) => n.id == idNombre);
+    for (const producto of nombreFact?.productos || []) {
+      for (const lote of producto.lotesProductoFinal || []) {
+        for (const bulto of lote.LoteProductoFinalBultos || []) {
+          // Filtro por bodega: si conocemos la bodega de la orden, exigir coincidencia
+          if (bodegaOrdenId != null && bulto.id_bodega != bodegaOrdenId) {
+            continue;
           }
+
+          // Filtro por pallet/orden: si el bulto tiene id_pallet pero el include 'pallet' vino como null,
+          // significa que ese pallet no cumple el where (p. ej. pertenece a otra orden). Excluir.
+          if (bulto.id_pallet && !bulto.pallet) {
+            continue;
+          }
+
+          // Si el pallet está incluido, doble chequeo: si tiene id_orden_de_venta distinto a la actual, excluir
+          if (bulto.pallet && bulto.pallet.id_orden_de_venta && bulto.pallet.id_orden_de_venta !== parseInt(ordenId)) {
+            continue;
+          }
+
+          bultosDisponibles.push({
+            id: bulto.id,
+            identificador: bulto.identificador,
+            cantidad_unidades: bulto.cantidad_unidades,
+            unidades_disponibles: bulto.unidades_disponibles || bulto.cantidad_unidades,
+            id_bodega: bulto.id_bodega,
+            producto_nombre: producto.nombre,
+          });
         }
       }
     }
 
     // Incluir también bultos que ya están en la orden actual (productosAgregados)
-    const bultosEnOrden = productosAgregados[idProducto] || [];
+    const bultosEnOrden = productosAgregados[idNombre] || [];
     for (const b of bultosEnOrden) {
       const bultoId = b.identificador || b.id;
       // Evitar duplicados comparando por identificador/id
@@ -194,6 +195,7 @@ export default function AsignarVenta() {
           cantidad_unidades: b.cantidad_unidades,
           unidades_disponibles: b.unidades_disponibles || b.cantidad_unidades,
           id_bodega: b.id_bodega,
+          producto_nombre: b.producto_nombre,
         });
       }
     }
@@ -259,31 +261,7 @@ export default function AsignarVenta() {
       }
 
       // Recalcular resumen de productos
-      if (ordenActualizada.productos && Array.isArray(ordenActualizada.productos)) {
-        const resumen = ordenActualizada.productos.map((productoOrden) => {
-          const idProducto = productoOrden.id_producto;
-          const cantidadRequerida = productoOrden.cantidad || 0;
-          
-          const bultosAsignados = productosAgregadosData[idProducto] || [];
-          const cantidadAsignada = Array.isArray(bultosAsignados)
-            ? bultosAsignados.reduce((sum, bulto) => sum + (bulto.cantidad_unidades || 0), 0)
-            : 0;
-          
-          const cantidadFaltante = Math.max(0, cantidadRequerida - cantidadAsignada);
-          const productoBase = productosBase.find(p => p.id == idProducto);
-
-          return {
-            id: productoOrden.id,
-            idProducto,
-            nombreProducto: productoBase?.nombre || `Producto #${idProducto}`,
-            cantidadRequerida,
-            cantidadAsignada,
-            cantidadFaltante,
-            estado: cantidadFaltante === 0 ? 'completo' : 'pendiente'
-          };
-        });
-        setResumenProductos(resumen);
-      }
+      setResumenProductos(construirResumen(ordenActualizada, productosAgregadosData));
 
       // Limpiar estado
       setUnidadesADesasociar({});
@@ -347,31 +325,7 @@ export default function AsignarVenta() {
       setProductosAgregados(productosAgregadosData);
 
       // Recalcular resumen de productos
-      if (ordenActualizada.productos && Array.isArray(ordenActualizada.productos)) {
-        const resumen = ordenActualizada.productos.map((productoOrden) => {
-          const idProducto = productoOrden.id_producto;
-          const cantidadRequerida = productoOrden.cantidad || 0;
-          
-          const bultosAsignados = productosAgregadosData[idProducto] || [];
-          const cantidadAsignada = Array.isArray(bultosAsignados)
-            ? bultosAsignados.reduce((sum, bulto) => sum + (bulto.cantidad_unidades || 0), 0)
-            : 0;
-          
-          const cantidadFaltante = Math.max(0, cantidadRequerida - cantidadAsignada);
-          const productoBase = productosBase.find(p => p.id == idProducto);
-
-          return {
-            id: productoOrden.id,
-            idProducto,
-            nombreProducto: productoBase?.nombre || `Producto #${idProducto}`,
-            cantidadRequerida,
-            cantidadAsignada,
-            cantidadFaltante,
-            estado: cantidadFaltante === 0 ? 'completo' : 'pendiente'
-          };
-        });
-        setResumenProductos(resumen);
-      }
+      setResumenProductos(construirResumen(ordenActualizada, productosAgregadosData));
 
       // Limpiar asignaciones pendientes
       setAsignacionesPendientes((prev) => {
@@ -437,31 +391,7 @@ export default function AsignarVenta() {
       setProductosAgregados(productosAgregadosData);
 
       // Recalcular resumen de productos
-      if (ordenActualizada.productos && Array.isArray(ordenActualizada.productos)) {
-        const resumen = ordenActualizada.productos.map((productoOrden) => {
-          const idProducto = productoOrden.id_producto;
-          const cantidadRequerida = productoOrden.cantidad || 0;
-          
-          const bultosAsignados = productosAgregadosData[idProducto] || [];
-          const cantidadAsignada = Array.isArray(bultosAsignados)
-            ? bultosAsignados.reduce((sum, bulto) => sum + (bulto.cantidad_unidades || 0), 0)
-            : 0;
-          
-          const cantidadFaltante = Math.max(0, cantidadRequerida - cantidadAsignada);
-          const productoBase = productosBase.find(p => p.id == idProducto);
-
-          return {
-            id: productoOrden.id,
-            idProducto,
-            nombreProducto: productoBase?.nombre || `Producto #${idProducto}`,
-            cantidadRequerida,
-            cantidadAsignada,
-            cantidadFaltante,
-            estado: cantidadFaltante === 0 ? 'completo' : 'pendiente'
-          };
-        });
-        setResumenProductos(resumen);
-      }
+      setResumenProductos(construirResumen(ordenActualizada, productosAgregadosData));
 
       // Limpiar estado
       setPalletEnEdicion(null);
@@ -525,31 +455,7 @@ export default function AsignarVenta() {
       setProductosAgregados(productosAgregadosData);
 
       // Recalcular resumen de productos
-      if (ordenActualizada.productos && Array.isArray(ordenActualizada.productos)) {
-        const resumen = ordenActualizada.productos.map((productoOrden) => {
-          const idProducto = productoOrden.id_producto;
-          const cantidadRequerida = productoOrden.cantidad || 0;
-          
-          const bultosAsignados = productosAgregadosData[idProducto] || [];
-          const cantidadAsignada = Array.isArray(bultosAsignados)
-            ? bultosAsignados.reduce((sum, bulto) => sum + (bulto.cantidad_unidades || 0), 0)
-            : 0;
-          
-          const cantidadFaltante = Math.max(0, cantidadRequerida - cantidadAsignada);
-          const productoBase = productosBase.find(p => p.id == idProducto);
-
-          return {
-            id: productoOrden.id,
-            idProducto,
-            nombreProducto: productoBase?.nombre || `Producto #${idProducto}`,
-            cantidadRequerida,
-            cantidadAsignada,
-            cantidadFaltante,
-            estado: cantidadFaltante === 0 ? 'completo' : 'pendiente'
-          };
-        });
-        setResumenProductos(resumen);
-      }
+      setResumenProductos(construirResumen(ordenActualizada, productosAgregadosData));
 
       // Limpiar estado
       setUnidadesADesasociar({});
@@ -783,8 +689,8 @@ export default function AsignarVenta() {
                     <p className="text-sm font-medium text-blue-900 mb-2">Asignar Bultos Disponibles a Este Pallet</p>
                     <div className="space-y-2">
                       {resumenProductos.map((resumen) => {
-                        const bultosDisponibles = obtenerBultosDisponiblesPorProducto(resumen.idProducto);
-                        const asignacionesProducto = asignacionesPendientes[resumen.idProducto] || [];
+                        const bultosDisponibles = obtenerBultosDisponiblesPorNombre(resumen.idNombre);
+                        const asignacionesProducto = asignacionesPendientes[resumen.idNombre] || [];
                         
                         return (
                           <div key={resumen.id} className="bg-white rounded p-2">
@@ -798,7 +704,7 @@ export default function AsignarVenta() {
                             ) : (
                               <div className="space-y-1 ml-2">
                                 {(() => {
-                                  const currentPage = productosDisponiblesPage[resumen.idProducto] || 0;
+                                  const currentPage = productosDisponiblesPage[resumen.idNombre] || 0;
                                   const total = bultosDisponibles.length;
                                   const start = currentPage * PAGE_SIZE;
                                   const end = Math.min(start + PAGE_SIZE, total);
@@ -822,12 +728,15 @@ export default function AsignarVenta() {
                                                 placeholder={`Máx: ${unidadesDisponibles}`}
                                                 value={asignacionActual?.unidades_a_mover || ""}
                                                 onChange={(e) =>
-                                                  handleUnidadesChange(resumen.idProducto, bultoId, e.target.value)
+                                                  handleUnidadesChange(resumen.idNombre, bultoId, e.target.value)
                                                 }
                                                 className="p-1 border rounded w-20 text-xs"
                                               />
                                               <span className="text-xs text-gray-600">
                                                 Bulto {bultoId} ({unidadesDisponibles} disponibles)
+                                                {bulto.producto_nombre ? (
+                                                  <span className="text-gray-400"> · {bulto.producto_nombre}</span>
+                                                ) : null}
                                               </span>
                                             </div>
                                           );
@@ -844,7 +753,7 @@ export default function AsignarVenta() {
                                               onClick={() =>
                                                 setProductosDisponiblesPage((prev) => ({
                                                   ...prev,
-                                                  [resumen.idProducto]: Math.max(0, currentPage - 1),
+                                                  [resumen.idNombre]: Math.max(0, currentPage - 1),
                                                 }))
                                               }
                                               disabled={currentPage === 0}
@@ -856,7 +765,7 @@ export default function AsignarVenta() {
                                               onClick={() =>
                                                 setProductosDisponiblesPage((prev) => ({
                                                   ...prev,
-                                                  [resumen.idProducto]: Math.min(currentPage + 1, Math.floor((total - 1) / PAGE_SIZE)),
+                                                  [resumen.idNombre]: Math.min(currentPage + 1, Math.floor((total - 1) / PAGE_SIZE)),
                                                 }))
                                               }
                                               disabled={end >= total}
@@ -879,10 +788,10 @@ export default function AsignarVenta() {
                       <button
                         onClick={() => {
                           const productoConBultos = resumenProductos.find(
-                            (p) => (asignacionesPendientes[p.idProducto] || []).length > 0
+                            (p) => (asignacionesPendientes[p.idNombre] || []).length > 0
                           );
                           if (productoConBultos) {
-                            handleAsignarBultoAPallet(pallet.identificador, productoConBultos.idProducto);
+                            handleAsignarBultoAPallet(pallet.identificador, productoConBultos.idNombre);
                           } else {
                             toast.error("Debes seleccionar bultos para asignar");
                           }

@@ -18,7 +18,8 @@ export default function AddOrdenVenta() {
   const api = useApi();
   const [clients, setClients] = useState([]);
   const [direcciones, setDirecciones] = useState([]);
-  const [productos, setProductos] = useState([]);
+  // La OV se pide por nombre de facturación (agrupa productos físicos equivalentes)
+  const [nombres, setNombres] = useState([]);
   const [bodegas, setBodegas] = useState([]);
   const [clienteConfig, setClienteConfig] = useState(null);
   const [preciosLista, setPreciosLista] = useState([]);
@@ -39,7 +40,7 @@ export default function AddOrdenVenta() {
   });
 
   const [productoForm, setProductoForm] = useState({
-    id_producto: "",
+    id_nombre_facturacion: "",
     cantidad: "",
     precio_unitario: "",
   });
@@ -50,10 +51,10 @@ export default function AddOrdenVenta() {
       setIsLoading(false);
       return;
     }
-    Promise.all([api("/clientes"), api("/productos-base"), api("/bodegas")])
-      .then(([clientesRes, productosRes, bodegasRes]) => {
+    Promise.all([api("/clientes"), api("/nombres-facturacion"), api("/bodegas")])
+      .then(([clientesRes, nombresRes, bodegasRes]) => {
         setClients(clientesRes.data || clientesRes);
-        setProductos(productosRes.data || productosRes);
+        setNombres(Array.isArray(nombresRes) ? nombresRes : nombresRes?.data || []);
         const bodegasData = Array.isArray(bodegasRes?.bodegas)
           ? bodegasRes.bodegas
           : Array.isArray(bodegasRes?.data)
@@ -66,12 +67,24 @@ export default function AddOrdenVenta() {
       .finally(() => setIsLoading(false));
   }, [api, canReadClients]);
 
-  const calcularPrecioProducto = (productoId, preciosListaActual, clienteConfigActual) => {
-    if (!clienteConfigActual || !productoId) return "";
-    const precioLista = preciosListaActual.find((x) => x.id_producto_base === productoId);
-    const productoBase = productos.find((p) => p.id === productoId);
+  // Busca la entrada de la lista de precios para un nombre de facturación
+  // (entradas nuevas van por id_nombre_facturacion; las legacy por producto del grupo)
+  const buscarPrecioLista = (nombreId, preciosListaActual) => {
+    const nombreFact = nombres.find((n) => n.id === nombreId);
+    const idsProductos = (nombreFact?.productos || []).map((p) => p.id);
+    return preciosListaActual.find(
+      (x) =>
+        Number(x.id_nombre_facturacion) === nombreId ||
+        (x.id_producto_base != null && idsProductos.includes(x.id_producto_base))
+    );
+  };
+
+  const calcularPrecioProducto = (nombreId, preciosListaActual, clienteConfigActual) => {
+    if (!clienteConfigActual || !nombreId) return "";
+    const precioLista = buscarPrecioLista(nombreId, preciosListaActual);
+    const nombreFact = nombres.find((n) => n.id === nombreId);
     const unidadesPorCaja = Number(
-      precioLista?.unidades_por_caja || productoBase?.unidades_por_caja || 0
+      precioLista?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0
     ) || 0;
     const precioCaja = precioLista?.precio_caja;
     const precioUnidad = precioLista?.precio_unidad;
@@ -91,11 +104,11 @@ export default function AddOrdenVenta() {
     const formato = (clienteConfigActual?.formato || "UNIDADES").toUpperCase();
     const esCajas = formato.includes("CAJA");
     return productosActuales.map((prod) => {
-      const nuevoPrecio = calcularPrecioProducto(prod.id_producto, preciosListaActual, clienteConfigActual);
-      const precioLista = preciosListaActual.find((x) => x.id_producto_base === prod.id_producto);
-      const productoBase = productos.find((p) => p.id === prod.id_producto);
+      const nuevoPrecio = calcularPrecioProducto(prod.id_nombre_facturacion, preciosListaActual, clienteConfigActual);
+      const precioLista = buscarPrecioLista(prod.id_nombre_facturacion, preciosListaActual);
+      const nombreFact = nombres.find((n) => n.id === prod.id_nombre_facturacion);
       const unidadesPorCaja = Number(
-        precioLista?.unidades_por_caja || productoBase?.unidades_por_caja || prod.unidades_por_caja || 0
+        precioLista?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || prod.unidades_por_caja || 0
       ) || 0;
       return {
         ...prod,
@@ -115,7 +128,7 @@ export default function AddOrdenVenta() {
     setPreciosLista([]);
     setCondicionPagoCliente(null);
     if (!id_cliente) {
-      setProductoForm({ id_producto: "", cantidad: "", precio_unitario: "" });
+      setProductoForm({ id_nombre_facturacion: "", cantidad: "", precio_unitario: "" });
       setForm(prev => ({ ...prev, id_cliente: "" }));
       return;
     }
@@ -147,11 +160,11 @@ export default function AddOrdenVenta() {
       if (productosAgregados.length > 0) {
         setProductosAgregados(recalcularPreciosProductos(productosAgregados, productosLista, nuevoClienteConfig));
       }
-      if (productoForm.id_producto) {
-        const nuevoPrecio = calcularPrecioProducto(Number(productoForm.id_producto), productosLista, nuevoClienteConfig);
+      if (productoForm.id_nombre_facturacion) {
+        const nuevoPrecio = calcularPrecioProducto(Number(productoForm.id_nombre_facturacion), productosLista, nuevoClienteConfig);
         setProductoForm((prev) => ({ ...prev, precio_unitario: nuevoPrecio }));
       }
-      if (productosAgregados.length > 0 || productoForm.id_producto) {
+      if (productosAgregados.length > 0 || productoForm.id_nombre_facturacion) {
         toast.success("Precios y formatos actualizados según la lista del cliente seleccionado");
       }
     } catch {
@@ -166,8 +179,8 @@ export default function AddOrdenVenta() {
 
   const setProductoField = (name, value) => {
     let updatedForm = { ...productoForm, [name]: value };
-    if (name === "id_producto") setProductErrors({});
-    if (name === "id_producto" && form.id_cliente) {
+    if (name === "id_nombre_facturacion") setProductErrors({});
+    if (name === "id_nombre_facturacion" && form.id_cliente) {
       updatedForm.precio_unitario = calcularPrecioProducto(Number(value), preciosLista, clienteConfig);
     }
     setProductoForm(updatedForm);
@@ -189,7 +202,7 @@ export default function AddOrdenVenta() {
 
   const validateProducto = () => {
     const prodErrors = {};
-    if (!productoForm.id_producto) prodErrors.id_producto = "Debes seleccionar un producto.";
+    if (!productoForm.id_nombre_facturacion) prodErrors.id_nombre_facturacion = "Debes seleccionar un producto.";
     if (!productoForm.cantidad || productoForm.cantidad <= 0) prodErrors.cantidad = "Cantidad debe ser mayor a 0.";
     if (!productoForm.precio_unitario || productoForm.precio_unitario <= 0) prodErrors.precio_unitario = "Precio debe ser mayor a 0.";
     setProductErrors(prodErrors);
@@ -199,20 +212,20 @@ export default function AddOrdenVenta() {
   const handleAddProduct = () => {
     if (!form.id_cliente) { toast.error("Debes seleccionar un cliente antes de agregar productos"); return; }
     if (!validateProducto()) return;
-    const productoId = Number(productoForm.id_producto);
-    if (productosAgregados.some(p => p.id_producto === productoId)) {
-      setProductErrors({ id_producto: "Este producto ya está agregado a la orden." });
+    const nombreId = Number(productoForm.id_nombre_facturacion);
+    if (productosAgregados.some(p => p.id_nombre_facturacion === nombreId)) {
+      setProductErrors({ id_nombre_facturacion: "Este producto ya está agregado a la orden." });
       return;
     }
-    const prod = productos.find((p) => p.id === productoId);
+    const nombreFact = nombres.find((n) => n.id === nombreId);
     const formato = (clienteConfig?.formato || "UNIDADES").toUpperCase();
-    const precioLista = preciosLista.find((x) => x.id_producto_base === prod.id);
-    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || prod.unidades_por_caja || 0) || 0;
+    const precioLista = buscarPrecioLista(nombreId, preciosLista);
+    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
     const cantidad = Number(productoForm.cantidad);
     setProductosAgregados((prev) => [
       {
-        id_producto: prod.id,
-        nombre: prod.nombre,
+        id_nombre_facturacion: nombreId,
+        nombre: nombreFact?.nombre || `Nombre #${nombreId}`,
         precio_unitario: Number(productoForm.precio_unitario),
         cantidad,
         formato_linea: formato.includes("CAJA") ? "CAJAS" : "UNIDADES",
@@ -222,16 +235,16 @@ export default function AddOrdenVenta() {
       ...prev,
     ]);
     setIsProductosExpanded(false);
-    setProductoForm({ id_producto: "", cantidad: "", precio_unitario: "" });
+    setProductoForm({ id_nombre_facturacion: "", cantidad: "", precio_unitario: "" });
     setProductErrors({});
   };
 
   const handleDeleteProduct = (id) => {
-    setProductosAgregados((prev) => prev.filter((p) => p.id_producto !== id));
+    setProductosAgregados((prev) => prev.filter((p) => p.id_nombre_facturacion !== id));
   };
 
   const handleStartEdit = (prod) => {
-    setEditingProdId(prod.id_producto);
+    setEditingProdId(prod.id_nombre_facturacion);
     setEditingCantidad(String(prod.cantidad));
   };
 
@@ -243,7 +256,7 @@ export default function AddOrdenVenta() {
     }
     setProductosAgregados((prev) =>
       prev.map((p) =>
-        p.id_producto === editingProdId
+        p.id_nombre_facturacion === editingProdId
           ? { ...p, cantidad: nuevaCantidad, total_linea: p.precio_unitario * nuevaCantidad }
           : p
       )
@@ -284,7 +297,7 @@ export default function AddOrdenVenta() {
         const cantidadEnUnidades = esCajas && p.unidades_por_caja ? p.cantidad * p.unidades_por_caja : p.cantidad;
         await api(`/ordenes-venta/${id_orden}/productos`, {
           method: "POST",
-          body: JSON.stringify({ id_orden, id_producto: p.id_producto, cantidad: cantidadEnUnidades, precio_venta: p.precio_unitario, porcentaje_descuento: 0 }),
+          body: JSON.stringify({ id_orden, id_nombre_facturacion: p.id_nombre_facturacion, cantidad: cantidadEnUnidades, precio_venta: p.precio_unitario, porcentaje_descuento: 0 }),
         });
       }
       toast.success("Orden creada correctamente.");
@@ -432,21 +445,25 @@ export default function AddOrdenVenta() {
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium text-gray-700">Producto *</span>
               <Selector
-                options={productos
-                  .filter((p) => !productosAgregados.some((pa) => pa.id_producto === p.id))
-                  .map((p) => ({ value: String(p.id), label: p.nombre, searchText: p.nombre }))}
-                selectedValue={productoForm.id_producto}
-                onSelect={(value) => setProductoField("id_producto", value)}
+                options={nombres
+                  .filter((n) => !productosAgregados.some((pa) => pa.id_nombre_facturacion === n.id))
+                  .map((n) => ({
+                    value: String(n.id),
+                    label: n.nombre,
+                    searchText: [n.nombre, ...(n.productos || []).map((p) => p.nombre)].join(" "),
+                  }))}
+                selectedValue={productoForm.id_nombre_facturacion}
+                onSelect={(value) => setProductoField("id_nombre_facturacion", value)}
                 disabled={!form.id_cliente}
                 useFuzzy
                 className={`w-full px-3 py-2 border ${
-                  productErrors.id_producto ? "border-red-500" : "border-gray-300"
+                  productErrors.id_nombre_facturacion ? "border-red-500" : "border-gray-300"
                 } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
                   !form.id_cliente ? "bg-gray-100 cursor-not-allowed" : "bg-white"
                 }`}
               />
-              {productErrors.id_producto && (
-                <span className="text-red-500 text-xs">{productErrors.id_producto}</span>
+              {productErrors.id_nombre_facturacion && (
+                <span className="text-red-500 text-xs">{productErrors.id_nombre_facturacion}</span>
               )}
             </label>
 
@@ -521,9 +538,9 @@ export default function AddOrdenVenta() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {(isProductosExpanded ? productosAgregados : productosAgregados.slice(0, 5)).map((p) => {
-                    const isEditing = editingProdId === p.id_producto;
+                    const isEditing = editingProdId === p.id_nombre_facturacion;
                     return (
-                    <tr key={p.id_producto} className={`transition-colors ${isEditing ? "bg-blue-50" : "hover:bg-gray-50"}`}>
+                    <tr key={p.id_nombre_facturacion} className={`transition-colors ${isEditing ? "bg-blue-50" : "hover:bg-gray-50"}`}>
                       <td className="px-4 py-2.5 text-sm text-gray-800">{p.nombre}</td>
                       <td className="px-4 py-2.5 text-sm text-gray-700">
                         {isEditing ? (
@@ -583,7 +600,7 @@ export default function AddOrdenVenta() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleDeleteProduct(p.id_producto)}
+                              onClick={() => handleDeleteProduct(p.id_nombre_facturacion)}
                               aria-label="Eliminar producto"
                               className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-600 transition-colors"
                               title="Eliminar"

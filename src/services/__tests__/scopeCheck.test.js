@@ -77,6 +77,7 @@ describe("ModelType y ScopeType", () => {
     expect(ModelType.PRODUCTO_BASE).toBe("ProductoBase");
     expect(ModelType.PREDICCION).toBe("Prediccion");
     expect(ModelType.OCR_FACTURA).toBe("OCRFactura");
+    expect(ModelType.NOMBRE_FACTURACION).toBe("NombreFacturacion");
   });
 
   it("ScopeType contiene las 3 acciones CRUD", () => {
@@ -89,8 +90,8 @@ describe("ModelType y ScopeType", () => {
     expect(ScopeType.DELETE).toBe("Delete");
   });
 
-  it("ModelType tiene exactamente 51 modelos", () => {
-    expect(Object.keys(ModelType)).toHaveLength(51);
+  it("ModelType tiene exactamente 52 modelos", () => {
+    expect(Object.keys(ModelType)).toHaveLength(52);
   });
 
   it("ScopeType tiene exactamente 3 acciones", () => {

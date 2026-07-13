@@ -240,6 +240,8 @@ export default function OrdenVentaDetail() {
     [orden]
   );
 
+  // El progreso viene agrupado por nombre de facturación (el desglose por
+  // producto físico va en cada bulto asignado como producto_nombre)
   const progresoRows = useMemo(() => {
     const items = Array.isArray(progresoData?.progreso) ? progresoData.progreso : [];
     return items.map((p) => {
@@ -248,9 +250,10 @@ export default function OrdenVentaDetail() {
       const faltante = Number(p?.faltante_unidades ?? Math.max(0, requerido - asignado));
       const exceso = Number(p?.exceso_unidades ?? Math.max(0, asignado - requerido));
       return {
-        id: p?.id_producto,
-        id_producto: p?.id_producto,
-        producto_nombre: p?.ProductoBase?.nombre || `Producto #${p?.id_producto ?? "—"}`,
+        id: p?.id_nombre_facturacion ?? p?.id_producto,
+        id_nombre_facturacion: p?.id_nombre_facturacion,
+        producto_nombre:
+          p?.nombre || p?.ProductoBase?.nombre || `Línea #${p?.id_nombre_facturacion ?? "—"}`,
         requerido_unidades: requerido,
         asignado_unidades: asignado,
         faltante_unidades: faltante,
@@ -266,8 +269,9 @@ export default function OrdenVentaDetail() {
       const bultos = Array.isArray(p?.bultos_asignados) ? p.bultos_asignados : [];
       bultos.forEach((b, idx) => {
         rows.push({
-          key: `${p?.id_producto ?? "p"}-${b?.id_pick ?? b?.id_bulto ?? b?.identificador ?? idx}`,
+          key: `${p?.id ?? "p"}-${b?.id_pick ?? b?.id_bulto ?? b?.identificador ?? idx}`,
           producto: p?.producto_nombre || "—",
+          producto_fisico: b?.producto_nombre || "—",
           bulto: b?.identificador || b?.id_bulto || "—",
           pallet: b?.pallet_identificador || "—",
           unidades_pickeadas: Number(b?.unidades_pickeadas ?? 0),
@@ -428,7 +432,8 @@ export default function OrdenVentaDetail() {
     });
 
     const tableBody = orderItems.map((it) => {
-      const productoNombre = it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`;
+      const productoNombre =
+        it?.NombreFacturacion?.nombre || it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`;
       const subtotal =
         Number(it?.cantidad || 0) *
         Number(it?.precio_venta || 0) *
@@ -782,6 +787,7 @@ export default function OrdenVentaDetail() {
                     <thead>
                       <tr className="bg-gray-50">
                         <th className="border border-gray-300 px-4 py-2 text-left">Producto</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Producto físico</th>
                         <th className="border border-gray-300 px-4 py-2 text-left">Bulto</th>
                         <th className="border border-gray-300 px-4 py-2 text-left">Pallet</th>
                         <th className="border border-gray-300 px-4 py-2 text-right">Unidades pickeadas</th>
@@ -791,6 +797,7 @@ export default function OrdenVentaDetail() {
                       {filasExtraccion.map((row) => (
                         <tr key={row.key} className="hover:bg-gray-50">
                           <td className="border border-gray-300 px-4 py-2 whitespace-normal break-words">{row.producto}</td>
+                          <td className="border border-gray-300 px-4 py-2 whitespace-normal break-words text-gray-600">{row.producto_fisico}</td>
                           <td className="border border-gray-300 px-4 py-2">{row.bulto}</td>
                           <td className="border border-gray-300 px-4 py-2">{row.pallet}</td>
                           <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(row.unidades_pickeadas)}</td>
@@ -825,7 +832,8 @@ export default function OrdenVentaDetail() {
               (1 - (Number(it?.porcentaje_descuento || 0) || 0) / 100);
             return {
               id: it?.id,
-              producto_nombre: it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`,
+              producto_nombre:
+                it?.NombreFacturacion?.nombre || it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`,
               cantidad: Number(it?.cantidad || 0),
               precio_venta: Number(it?.precio_venta || 0),
               porcentaje_descuento: Number(it?.porcentaje_descuento || 0),

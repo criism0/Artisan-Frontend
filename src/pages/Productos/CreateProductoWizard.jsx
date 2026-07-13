@@ -50,6 +50,7 @@ export default function CreateProductoWizard() {
     codigo_ean: "",
     codigo_sap: "",
     codigo_dun14: "",
+    id_nombre_facturacion: "",
   });
 
   const [recetaForm, setRecetaForm] = useState({
@@ -205,6 +206,9 @@ export default function CreateProductoWizard() {
         codigo_ean: productoForm.codigo_ean.trim(),
         codigo_sap: productoForm.codigo_sap.trim() || null,
         codigo_dun14: productoForm.codigo_dun14.trim() || null,
+        id_nombre_facturacion: productoForm.id_nombre_facturacion
+          ? Number(productoForm.id_nombre_facturacion)
+          : null,
       };
 
       if (productoId) {

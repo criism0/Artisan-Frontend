@@ -19,6 +19,7 @@ import { DTEStatusBadge } from './DTEStatusBadge.jsx';
 import NotaCreditoModal from './NotaCreditoModal.jsx';
 import NotaDebitoModal from './NotaDebitoModal.jsx';
 import DTEDetallesModal from './DTEDetallesModal.jsx';
+import DTEPreviewModal from './DTEPreviewModal.jsx';
 import { useDTE } from '../../hooks/useDTE.js';
 import { dteService } from '../../services/dteService.js';
 import { formatCLP } from '../../services/formatHelpers.js';
@@ -42,6 +43,7 @@ export default function DTEPanel({ orden }) {
   const [modalDetalles, setModalDetalles] = useState(null);
   const [modalRechazo,  setModalRechazo]  = useState(null);
   const [preEmitiendo,  setPreEmitiendo]  = useState(false);
+  const [showPreview,   setShowPreview]   = useState(false);
 
   if (!orden) return null;
 
@@ -252,7 +254,7 @@ export default function DTEPanel({ orden }) {
 
         {puedeEmitirFactura && (
           <button
-            onClick={emitirFactura}
+            onClick={() => setShowPreview(true)}
             disabled={loading}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
@@ -290,6 +292,20 @@ export default function DTEPanel({ orden }) {
           </p>
         )}
       </div>
+
+      {/* Modal preview de factura antes de emitir */}
+      {showPreview && (
+        <DTEPreviewModal
+          ordenId={orden.id}
+          tipo="factura"
+          emitting={loading}
+          onClose={() => setShowPreview(false)}
+          onConfirm={async () => {
+            const fac = await emitirFactura();
+            if (fac) setShowPreview(false);
+          }}
+        />
+      )}
 
       {/* Modal NC */}
       {modalNC && (

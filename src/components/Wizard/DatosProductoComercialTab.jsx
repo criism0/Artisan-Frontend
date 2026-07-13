@@ -1,4 +1,5 @@
 import FormField from "../Forms/FormField";
+import NombreFacturacionSelector from "../Forms/NombreFacturacionSelector";
 
 export default function DatosProductoComercialTab({ productoId, productoForm, setProductoForm, onGuardarProducto }) {
   return (
@@ -13,6 +14,11 @@ export default function DatosProductoComercialTab({ productoId, productoForm, se
         value={productoForm.nombre}
         onChange={(e) => setProductoForm((p) => ({ ...p, nombre: e.target.value }))}
         required
+      />
+
+      <NombreFacturacionSelector
+        value={productoForm.id_nombre_facturacion}
+        onChange={(v) => setProductoForm((p) => ({ ...p, id_nombre_facturacion: v }))}
       />
 
       <FormField

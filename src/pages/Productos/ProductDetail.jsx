@@ -203,6 +203,12 @@ export default function ProductDetail() {
                 <td className="px-6 py-4 text-sm text-text">{producto.nombre}</td>
               </tr>
               <tr className="border-b border-border">
+                <td className="px-6 py-4 text-sm font-medium text-text">Nombre de facturación</td>
+                <td className="px-6 py-4 text-sm text-text">
+                  {producto.nombreFacturacion?.nombre || "—"}
+                </td>
+              </tr>
+              <tr className="border-b border-border">
                 <td className="px-6 py-4 text-sm font-medium text-text">Cantidad</td>
                 <td className="px-6 py-4 text-sm text-text">
                   {producto.peso_unitario} {producto.unidad_medida}

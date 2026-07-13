@@ -177,6 +177,7 @@ import InsumosPipProductosHub from "./pages/Admin/InsumosPipProductosHub.jsx";
 import CreatePipWizard from "./pages/PIP/CreatePipWizard.jsx";
 import CreateProductoWizard from "./pages/Productos/CreateProductoWizard.jsx";
 import CostosIndirectos from "./pages/CostosIndirectos/CostosIndirectos.jsx";
+import NombresFacturacion from "./pages/NombresFacturacion/NombresFacturacion.jsx";
 
 // ====== Calidad ======
 import CalidadDashboard from "./pages/calidad/CalidadDashboard.jsx";
@@ -676,13 +677,23 @@ function Routing() {
           />
 
           {/* Costos Indirectos (admin) */}
-          <Route 
-            path="/CostosIndirectos" 
+          <Route
+            path="/CostosIndirectos"
             element={
               <ProtectedRoute permissions={[[ModelType.COSTO_INDIRECTO, ScopeType.READ]]}>
                 <CostosIndirectos />
               </ProtectedRoute>
-            } 
+            }
+          />
+
+          {/* Nombres de Facturación (admin) */}
+          <Route
+            path="/NombresFacturacion"
+            element={
+              <ProtectedRoute permissions={[[ModelType.NOMBRE_FACTURACION, ScopeType.READ]]}>
+                <NombresFacturacion />
+              </ProtectedRoute>
+            }
           />
 
           {/* Productos (admin) */}

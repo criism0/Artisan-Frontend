@@ -55,6 +55,15 @@ export const dteService = {
     return (res?.data ?? res ?? []).map(mapDte);
   },
 
+  /**
+   * Vista previa del DTE (factura/boleta) de una OV sin emitir:
+   * líneas fusionadas por nombre de facturación + totales + receptor.
+   */
+  previewVenta: async (idOrdenVenta, tipo = 'factura') => {
+    const res = await api(`/facturacion/ordenes-venta/${idOrdenVenta}/preview?tipo=${tipo}`);
+    return res?.data ?? res;
+  },
+
   emitirFactura: async (idOrdenVenta) => {
     const res = await api('/facturacion/emitir-factura', {
       method: 'POST',

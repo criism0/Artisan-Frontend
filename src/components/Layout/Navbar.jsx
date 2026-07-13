@@ -174,6 +174,7 @@ export default function Navbar() {
               <MenuLink to="/Proveedores" icon={<Users />} label="Proveedores" isAllowed={checkScope(ModelType.PROVEEDOR, ScopeType.READ)} />
               <MenuLink to="/clientes" icon={<FaRegSmile />} label="Clientes" isAllowed={checkScope(ModelType.CLIENTE, ScopeType.READ)} />
               <MenuLink to="/lista-precio" icon={<FaList />} label="Listas de Precio" isAllowed={checkScope(ModelType.LISTA_PRECIO, ScopeType.READ)} />
+              <MenuLink to="/NombresFacturacion" icon={<Receipt />} label="Nombres de Facturación" isAllowed={checkScope(ModelType.NOMBRE_FACTURACION, ScopeType.READ)} />
             </MenuGroup>
 
             <div role="separator" className="my-2 border-t border-gray-200" />

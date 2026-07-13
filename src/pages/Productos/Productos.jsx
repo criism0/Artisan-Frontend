@@ -79,6 +79,11 @@ export default function Productos() {
   const columns = [
     { header: renderHeader("Nombre", "nombre"), accessor: "nombre" },
     {
+      header: "Nombre de Facturación",
+      accessor: "nombreFacturacion",
+      Cell: ({ value }) => value?.nombre || "—",
+    },
+    {
       header: renderHeader("Cantidad", "peso_unitario"),
       accessor: "peso_unitario",
       Cell: ({ row }) => {

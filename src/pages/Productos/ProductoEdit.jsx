@@ -39,6 +39,7 @@ export default function ProductoEdit() {
     codigo_ean: "",
     codigo_sap: "",
     codigo_dun14: "",
+    id_nombre_facturacion: "",
   });
 
   const [recetaForm, setRecetaForm] = useState({
@@ -120,6 +121,8 @@ export default function ProductoEdit() {
           codigo_ean: productoRes?.codigo_ean || "",
           codigo_sap: productoRes?.codigo_sap || "",
           codigo_dun14: productoRes?.codigo_dun14 || "",
+          id_nombre_facturacion:
+            productoRes?.id_nombre_facturacion != null ? String(productoRes.id_nombre_facturacion) : "",
         });
 
         const recetasList = Array.isArray(recetasRes) ? recetasRes : [];
@@ -277,6 +280,9 @@ export default function ProductoEdit() {
         codigo_ean: productoForm.codigo_ean.trim(),
         codigo_sap: productoForm.codigo_sap.trim() || null,
         codigo_dun14: productoForm.codigo_dun14.trim() || null,
+        id_nombre_facturacion: productoForm.id_nombre_facturacion
+          ? Number(productoForm.id_nombre_facturacion)
+          : null,
       };
 
       await api(`/productos-base/${productoId}`, { method: "PUT", body: JSON.stringify(payload) });
