@@ -4,10 +4,11 @@ import { toast } from "../../lib/toast";
 import DataTable from "../../components/Tables/DataTable";
 import { EditButton, TrashButton } from "../../components/Buttons/ActionButtons";
 import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmModal";
+import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatNumberCL } from "../../services/formatHelpers";
-import { Merge, ChevronDown, ChevronRight } from "lucide-react";
+import { Merge, ChevronDown, ChevronRight, X } from "lucide-react";
 
 function normalize(text) {
   return String(text ?? "").trim();
@@ -166,6 +167,10 @@ export default function NombresFacturacion() {
   const pendingSimilarActionRef = useRef(null);
   const [similarModal, setSimilarModal] = useState({ open: false, inputName: "", matches: [] });
 
+  // Quitar producto del grupo (inverso del merge)
+  const [quitarTarget, setQuitarTarget] = useState(null); // { grupo, producto }
+  const [isQuitando, setIsQuitando] = useState(false);
+
   // Fusión
   const [mergeOpen, setMergeOpen] = useState(false);
   const [mergeDestinoId, setMergeDestinoId] = useState(null);
@@ -319,6 +324,29 @@ export default function NombresFacturacion() {
       console.error(e);
       // 409: tiene productos asociados — el backend explica qué hacer
       toast.error(e?.message || "No se pudo eliminar el nombre de facturación");
+    }
+  };
+
+  // ── Quitar producto del grupo ──
+  const handleQuitarProducto = async () => {
+    if (!quitarTarget) return;
+    const { grupo, producto } = quitarTarget;
+    try {
+      setIsQuitando(true);
+      const res = await api(`/nombres-facturacion/${grupo.id}/quitar-producto`, {
+        method: "POST",
+        body: JSON.stringify({ id_producto: producto.id }),
+      });
+      toast.success(
+        `"${producto.nombre}" volverá a facturarse como "${res?.nombre_destino?.nombre ?? producto.nombre}"`
+      );
+      setQuitarTarget(null);
+      await fetchAll();
+    } catch (e) {
+      console.error(e);
+      toast.error(e?.message || "No se pudo quitar el producto del grupo");
+    } finally {
+      setIsQuitando(false);
     }
   };
 
@@ -509,7 +537,10 @@ export default function NombresFacturacion() {
           ) : (
             <div className="flex flex-wrap gap-2">
               {productos.map((p) => (
-                <span key={p.id} className="px-2 py-1 bg-white border border-gray-200 text-gray-800 text-xs rounded-full">
+                <span
+                  key={p.id}
+                  className="pl-2 pr-1 py-1 bg-white border border-gray-200 text-gray-800 text-xs rounded-full inline-flex items-center gap-1"
+                >
                   {p.nombre}
                   {p.peso_unitario != null && p.unidad_medida ? (
                     <span className="text-gray-500">
@@ -518,6 +549,16 @@ export default function NombresFacturacion() {
                       {{ Kilogramos: "kg", Litros: "L", Unidades: "unid." }[p.unidad_medida] || ""}
                     </span>
                   ) : null}
+                  {canWrite && (
+                    <button
+                      type="button"
+                      onClick={() => setQuitarTarget({ grupo: row, producto: p })}
+                      className="p-0.5 rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50"
+                      title="Quitar del grupo (vuelve a facturarse con su propio nombre)"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </span>
               ))}
             </div>
@@ -578,6 +619,21 @@ export default function NombresFacturacion() {
             </button>
           </>
         }
+      />
+
+      {/* Confirmación: quitar producto del grupo (inverso del merge) */}
+      <ConfirmActionModal
+        isOpen={!!quitarTarget}
+        onClose={() => { if (!isQuitando) setQuitarTarget(null); }}
+        onConfirm={handleQuitarProducto}
+        title="Quitar producto del grupo"
+        description={
+          quitarTarget
+            ? `"${quitarTarget.producto.nombre}" saldrá de "${quitarTarget.grupo.nombre}" y volverá a facturarse con su propio nombre. Los precios definidos para el grupo NO lo acompañan: si corresponde, configura su precio aparte.`
+            : ""
+        }
+        confirmText={isQuitando ? "Quitando..." : "Quitar del grupo"}
+        cancelText="Cancelar"
       />
 
       <SimilarNameConfirmModal
