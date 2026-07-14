@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef} from "react";
+import { useState, useRef} from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
-import { useApi } from "../../lib/api";
 import logo from "../../assets/logo.png";
 import { RiAdminFill } from "react-icons/ri";
 import { MdEqualizer } from "react-icons/md";
@@ -24,25 +23,6 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
-  const apiFetch = useApi();
-
-  // Aqui se setean las bodegas, pero no se usan para nada en este componente
-  // Tampoco se puede acceder a este valor al importar Navbar
-  // Por lo que este bloque de código es completamente inutil actualmente
-  const [bodegas, setBodegas] = useState([]);
-  useEffect(() => {
-    const fetchBodegas = async () => {
-      try {
-        const resp = await apiFetch("/bodegas");
-        const lista = Array.isArray(resp?.bodegas) ? resp.bodegas : Array.isArray(resp) ? resp : [];
-        const ordenadas = lista.sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
-        setBodegas(ordenadas);
-      } catch (error) {
-        console.error("Error fetching bodegas:", error);
-      }
-    };
-    if (user) fetchBodegas();
-  }, [apiFetch, user]);
 
   const leaveTimer = useRef();
 
@@ -127,7 +107,7 @@ export default function Navbar() {
             <MenuGroup label="Inventario" icon={<Box />}>
               <MenuLink to="/Inventario/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
               <MenuLink to="/Inventario" icon={<Boxes />} label="Inventario" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
-              <MenuLink to="/inventario/bultos" icon={<Box />} label="Bultos" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
+              <MenuLink to="/Inventario/bultos" icon={<Box />} label="Bultos" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
               <MenuLink to="/Inventario/tomas" icon={<FaClipboardCheck />} label="Tomas de Inventario" isAllowed={checkScope(ModelType.SESION_INVENTARIADO, ScopeType.READ)} />
             </MenuGroup>
           </Dropdown>

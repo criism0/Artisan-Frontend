@@ -94,7 +94,7 @@ export default function InventarioDashboard() {
               Ver inventario
             </button>
             <button
-              onClick={() => navigate("/inventario/bultos")}
+              onClick={() => navigate("/Inventario/bultos")}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
             >
               Ver bultos
