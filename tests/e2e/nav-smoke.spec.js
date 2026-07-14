@@ -18,7 +18,6 @@ const RUTAS = [
   "/Logistica", "/Logistica/dashboard", "/Pallets", "/Pallets/dashboard",
   // Inventario
   "/Inventario", "/Inventario/dashboard", "/Inventario/bultos", "/Inventario/tomas",
-  "/productos-terminados",
   // Ventas
   "/ventas/dashboard", "/ventas/cola-ia", "/ventas/ordenes", "/ventas/ordenes/add",
   "/ventas/facturas", "/ventas/bandeja-sii", "/ventas/bandeja-dte-emitidos",
@@ -28,21 +27,20 @@ const RUTAS = [
   // Administración · Gestión comercial
   "/clientes", "/clientes/add", "/lista-precio", "/lista-precio/add", "/NombresFacturacion",
   // Administración · Catálogos y productos
-  "/InsumosPIPProductos",
   "/Insumos", "/Insumos/add", "/Insumos/asociar", "/Insumos/Categorias", "/Insumos/Categorias/add",
   "/PIP", "/PIP/crear",
   "/Productos", "/Productos/crear",
-  "/CostosIndirectos", "/CostoMarginal",
+  "/CostosIndirectos",
   "/PautasElaboracion", "/PautasElaboracion/add",
   "/Recetas", "/Recetas/add",
   "/Bodegas", "/Bodegas/add",
   "/ProcesosValorAgregado", "/ProcesosValorAgregado/add",
-  "/PautasValorAgregado", "/PautasValorAgregado/add",
+  "/PautasValorAgregado",
   "/PVAPorProducto", "/PVAPorProducto/agregar",
   // Administración · Seguridad y acceso
   "/Usuarios", "/Usuarios/add", "/Roles", "/Roles/add", "/AsignarRoles", "/GenerarQR",
   // Integraciones / otros
-  "/Excel/products", "/jumpseller/products", "/admin/bultos/cambiar-bodega",
+  "/Excel/products", "/jumpseller/products",
 ];
 
 for (const ruta of RUTAS) {

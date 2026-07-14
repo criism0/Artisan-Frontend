@@ -143,7 +143,7 @@ export default function PIPList() {
       emptyMessage="No hay PIPs registrados."
       headerActions={
         <>
-          <BackButton to={`/InsumosPIPProductos`} />
+          <BackButton to="/Home" />
           <button
             className="text-primary border border-primary hover:bg-gray-100 font-medium text-sm flex items-center gap-2 px-4 py-2 rounded-md transition"
             onClick={() => navigate("/Insumos")}

@@ -83,7 +83,6 @@ import AsignarRoles from "./pages/Roles/AsignarRoles";
 import Inventario from "./pages/Inventario/Inventario";
 import InventarioDashboard from "./pages/Inventario/InventarioDashboard";
 import InventarioInsumos from "./pages/Inventario_Insumos/InventarioInsumos.jsx";
-import InventarioProductosTerminados from "./pages/Orden_de_Manufactura/InventarioProductosTerminados";
 
 
 // ====== Solicitudes ======
@@ -126,9 +125,6 @@ import ListaPrecioDetail from "./pages/ListasPrecio/ListaPrecioDetail";
 import ListaPrecioEdit from "./pages/ListasPrecio/ListaPrecioEdit";
 import LotesList from "./pages/Lotes/LotesList.jsx";
 import LoteDetail from "./pages/Lotes/LotesDetail.jsx";
-import LoteProductoFinalDetail from "./pages/Lotes/LoteProductoFinalDetail.jsx";
-import CostoMarginalList from "./pages/CostoMarginal/CostoMarginalList";
-import CostoMarginalDetail from "./pages/CostoMarginal/CostoMarginalDetail";
 
 import Pallets from "./pages/Logistica/Pallets";
 import LogisticaDashboard from "./pages/Logistica/LogisticaDashboard";
@@ -157,23 +153,17 @@ import ProcesosValorAgregado from "./pages/ProcesosValorAgregado/ProcesosValorAg
 import DetailProcesoValorAgregado from "./pages/ProcesosValorAgregado/DetailProcesoValorAgregado.jsx";
 import EditProcesoValorAgregado from "./pages/ProcesosValorAgregado/EditProcesoValorAgregado.jsx";
 import DeleteProcesoValorAgregado from "./pages/ProcesosValorAgregado/DeleteProcesoValorAgregado.jsx";
-import AddPautaValorAgregado from "./pages/PautasValorAgregado/AddPautaValorAgregado.jsx";
 import PautasValorAgregado from "./pages/PautasValorAgregado/PautasValorAgregado.jsx";
 import DetailPautaValorAgregado from "./pages/PautasValorAgregado/DetailPautaValorAgregado.jsx";
-import EditPautaValorAgregado from "./pages/PautasValorAgregado/EditPautaValorAgregado.jsx";
-import DeletePautaValorAgregado from "./pages/PautasValorAgregado/DeletePautaValorAgregado.jsx";
 import PVAPorProducto from "./pages/PVAProducto/PVAPorProducto.jsx";
 import AddPVAPorProducto from "./pages/PVAProducto/AddPVAPorProducto.jsx";
 import EditPVAPorProducto from "./pages/PVAProducto/EditPVAPorProducto.jsx";
-import DeletePVAPorProducto from "./pages/PVAProducto/DeletePVAPorProducto.jsx";
 import EjecutarPasosPVA from "./pages/Orden_de_Manufactura/EjecutarPasosPVA.jsx";
 import DetailPVAPorProducto from "./pages/PVAProducto/DetailPVAPorProducto.jsx";
 import GenerarQR from "./pages/GenerarQR/GenerarQR.jsx";
 import PalletsDashboard from "./pages/Logistica/PalletsDashboard";
-import CambiarBodegaBulto from "./pages/Admin/CambiarBodegaBulto.jsx";
 
-// ====== Hub + Wizards (admin) ======
-import InsumosPipProductosHub from "./pages/Admin/InsumosPipProductosHub.jsx";
+// ====== Wizards (admin) ======
 import CreatePipWizard from "./pages/PIP/CreatePipWizard.jsx";
 import CreateProductoWizard from "./pages/Productos/CreateProductoWizard.jsx";
 import CostosIndirectos from "./pages/CostosIndirectos/CostosIndirectos.jsx";
@@ -283,35 +273,8 @@ function Routing() {
             } 
           />
 
-          {/* Admin tools */}
-          <Route 
-            path="/admin/bultos/cambiar-bodega" 
-            element={
-              <ProtectedRoute permissions={[
-                [ModelType.BULTO, ScopeType.READ],
-                [ModelType.BODEGA, ScopeType.READ]
-              ]}>
-                <CambiarBodegaBulto />
-              </ProtectedRoute>
-            } 
-          />
-
-          {/* Hub central de creación (admin) */}
-          <Route 
-            path="/InsumosPIPProductos" element={
-              <ProtectedRoute permissions={[
-                [ModelType.PAUTA_ELABORACION, ScopeType.READ],
-                [ModelType.RECETA, ScopeType.READ],
-                [ModelType.COSTO_INDIRECTO, ScopeType.READ],
-                [ModelType.COSTO_MARGINAL, ScopeType.READ]
-              ]}>
-                <InsumosPipProductosHub />
-              </ProtectedRoute>
-            } 
-          />
-
-          <Route 
-            path="/Inventario/:id_bodega" 
+          <Route
+            path="/Inventario/:id_bodega"
             element={
               <ProtectedRoute permissions={[
                 [ModelType.INVENTARIO, ScopeType.READ],
@@ -321,19 +284,6 @@ function Routing() {
               </ProtectedRoute>
             } 
           />
-
-          <Route
-            path="/InventarioProductosTerminados/:idBodega"
-            element={
-              <ProtectedRoute permissions={[
-                [ModelType.INVENTARIO, ScopeType.READ],
-                [ModelType.BODEGA, ScopeType.READ]
-              ]}>
-                <InventarioProductosTerminados />
-              </ProtectedRoute>
-          }
-          />
-
 
           {/* Compras / Órdenes */}
           <Route 
@@ -697,14 +647,6 @@ function Routing() {
           />
 
           {/* Productos (admin) */}
-          <Route 
-            path="/productos-terminados" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.BODEGA, ScopeType.READ]]}>
-                <InventarioProductosTerminados />
-              </ProtectedRoute>
-            } 
-          />
           <Route
             path="/Productos"
             element={
@@ -882,32 +824,6 @@ function Routing() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/lotes-producto-final/:id" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.LOTE_PRODUCTO_FINAL, ScopeType.READ]]}>
-                <LoteProductoFinalDetail />
-              </ProtectedRoute>
-            } 
-          />
-
-          <Route 
-            path="/CostoMarginal" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.COSTO_MARGINAL, ScopeType.READ]]}>
-                <CostoMarginalList />
-              </ProtectedRoute>
-            }
-          />
-          <Route 
-            path="/CostoMarginal/:tipo/:id" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.COSTO_MARGINAL, ScopeType.READ]]}>
-                <CostoMarginalDetail />
-              </ProtectedRoute>
-            }
-          />
-
           {/* Usuarios / Roles (admin) */}
           <Route
             path="/Usuarios"
@@ -1297,45 +1213,21 @@ function Routing() {
           />
 
           {/* Pauta PVA (admin) */}
-          <Route 
-            path="/PautasValorAgregado/add" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.PAUTA_VALOR_AGREGADO, ScopeType.WRITE]]}>
-                <AddPautaValorAgregado />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/PautasValorAgregado" 
+          <Route
+            path="/PautasValorAgregado"
             element={
               <ProtectedRoute permissions={[[ModelType.PAUTA_VALOR_AGREGADO, ScopeType.READ]]}>
                 <PautasValorAgregado />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/PautasValorAgregado/:id" 
+          <Route
+            path="/PautasValorAgregado/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.PAUTA_VALOR_AGREGADO, ScopeType.READ]]}>
                 <DetailPautaValorAgregado />
               </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/PautasValorAgregado/:id/edit" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.PAUTA_VALOR_AGREGADO, ScopeType.WRITE]]}>
-                <EditPautaValorAgregado />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/PautasValorAgregado/:id/delete" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.PAUTA_VALOR_AGREGADO, ScopeType.DELETE]]}>
-                <DeletePautaValorAgregado />
-              </ProtectedRoute>
-            } 
+            }
           />
 
           {/* Pauta PVA a productos */}
@@ -1355,21 +1247,13 @@ function Routing() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/PVAPorProducto/editar/:id" 
+          <Route
+            path="/PVAPorProducto/editar/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.PVA_PRODUCTO, ScopeType.WRITE]]}>
                 <EditPVAPorProducto />
               </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/PVAPorProducto/:id/delete" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.PVA_PRODUCTO, ScopeType.DELETE]]}>
-                <DeletePVAPorProducto/>
-              </ProtectedRoute>
-            } 
+            }
           />
 
           <Route

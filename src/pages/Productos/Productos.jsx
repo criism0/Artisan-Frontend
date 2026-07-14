@@ -110,7 +110,7 @@ export default function Productos() {
       emptyMessage="No hay productos registrados."
       headerActions={
         <>
-          <BackButton to="/InsumosPIPProductos" />
+          <BackButton to="/Home" />
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
             onClick={() => navigate("/Productos/crear")}
