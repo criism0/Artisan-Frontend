@@ -1,48 +1,43 @@
 import { useState, useEffect } from 'react';
-import Table from '../../components/Tables/Table';
-import SearchBar from '../../components/UI/SearchBar';
-import RowsPerPageSelector from '../../components/UI/RowsPerPageSelector';
-import Pagination from '../../components/UI/Pagination';
-import { useNavigate } from 'react-router-dom';
+import DataTable from '../../components/Tables/DataTable';
 import { useApi } from '../../lib/api';
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from '../../services/scopeCheck.js';
 
 export default function AsignarRoles() {
+  const [isFetching, setIsFetching] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [usuarios, setUsuarios] = useState([]);
-  const [filteredUsuarios, setFilteredUsuarios] = useState([]);
   const [roles, setRoles] = useState([]);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
   const [tempRoleChanges, setTempRoleChanges] = useState({}); // Para guardar cambios temporales
-  const navigate = useNavigate();
   const apiFetch = useApi();
 
   const canReadRoles = checkScope(ModelType.ROLE, ScopeType.READ);
 
+  const roleNameFor = (roleId) => {
+    const currentRole = roles.find(role => role.id === roleId);
+    return currentRole ? currentRole.name : 'Sin rol asignado';
+  };
+
   const columns = [
-    { header: "ID", accessor: "id" },
-    { header: "Nombre", accessor: "nombre" },
-    { header: "Email", accessor: "email" },
-    { 
-      header: "Rol Actual", 
+    { header: "Nombre", accessor: "nombre", sortable: true },
+    { header: "Email", accessor: "email", sortable: true },
+    {
+      header: "Rol Actual",
       accessor: "rol_nombre",
-      Cell: ({ row }) => {
-        const currentRole = roles.find(role => role.id === row.role_id);
-        const roleName = currentRole ? currentRole.name : 'Sin rol asignado';
-        return (
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-            row.role_id ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
-          }`}>
-            {roleName}
-          </span>
-        );
-      }
+      sortable: true,
+      sortValue: (row) => roleNameFor(row.role_id),
+      Cell: ({ row }) => (
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+          row.role_id ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+        }`}>
+          {roleNameFor(row.role_id)}
+        </span>
+      )
     },
-    { 
-      header: "Cambiar Rol", 
+    {
+      header: "Cambiar Rol",
       accessor: "role_id",
       Cell: ({ row }) => (
         <div className="flex gap-2 items-center">
@@ -76,11 +71,11 @@ export default function AsignarRoles() {
         toast.permissionError(
           [ModelType.ROLE, ScopeType.READ]
         );
-        setIsLoading(false);
+        setIsFetching(false);
         return;
       }
       try {
-        setIsLoading(true);
+        setIsFetching(true);
         // Fetch usuarios
         const usuariosResponse = await apiFetch(`/usuarios`);
         const usuariosData = Array.isArray(usuariosResponse) ? usuariosResponse.map(usuario => ({
@@ -95,12 +90,11 @@ export default function AsignarRoles() {
         const rolesData = Array.isArray(rolesResponse) ? rolesResponse : [];
 
         setUsuarios(usuariosData);
-        setFilteredUsuarios(usuariosData);
         setRoles(rolesData);
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
-        setIsLoading(false);
+        setIsFetching(false);
       }
     };
 
@@ -122,7 +116,7 @@ export default function AsignarRoles() {
       setIsLoading(true);
       const newRoleId = tempRoleChanges[usuarioId];
       const roleId = newRoleId ? parseInt(newRoleId) : null;
-      
+
       await apiFetch(`/usuarios/${usuarioId}`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -131,14 +125,8 @@ export default function AsignarRoles() {
       });
 
       // Update local state
-      setUsuarios(prev => prev.map(usuario => 
-        usuario.id === usuarioId 
-          ? { ...usuario, role_id: roleId }
-          : usuario
-      ));
-
-      setFilteredUsuarios(prev => prev.map(usuario => 
-        usuario.id === usuarioId 
+      setUsuarios(prev => prev.map(usuario =>
+        usuario.id === usuarioId
           ? { ...usuario, role_id: roleId }
           : usuario
       ));
@@ -160,66 +148,26 @@ export default function AsignarRoles() {
     }
   };
 
-  const handleSearch = (query) => {
-    const lowercasedQuery = query.toLowerCase();
-    if (!lowercasedQuery) {
-      setFilteredUsuarios(usuarios);
-      return;
-    }
-    const filtered = usuarios.filter(usuario => {
-      return Object.values(usuario).some(value => {
-        if (value !== null && value !== undefined) {
-          return String(value).toLowerCase().includes(lowercasedQuery);
-        }
-        return false;
-      });
-    });
-    setFilteredUsuarios(filtered);
-  };
-
-  const handleRowsChange = (value) => {
-    setRowsPerPage(value);
-    setCurrentPage(1);
-  };
-
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-  };
-
-  const totalPages = Math.ceil(filteredUsuarios.length / rowsPerPage);
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedData = filteredUsuarios.slice(startIndex, startIndex + rowsPerPage);
+  const getSearchText = (usuario) =>
+    [usuario.nombre, usuario.email, roleNameFor(usuario.role_id)].join(" ");
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <>
       {isLoading && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-30 z-50">
           <Spinner/>
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-text">Asignar Roles a Usuarios</h1>
-      </div>
-
-      {/* Barra de búsqueda y selector */}
-      <div className="flex justify-between items-center mb-6">
-        <RowsPerPageSelector onRowsChange={handleRowsChange} value={rowsPerPage} />
-        <SearchBar onSearch={handleSearch} />
-      </div>
-
-      {/* Tabla */}
-      <Table columns={columns} data={paginatedData} />
-
-      {/* Paginación */}
-      <div className="mt-6 flex justify-end">
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-        />
-      </div>
-    </div>
+      <DataTable
+        title="Asignar Roles a Usuarios"
+        data={usuarios}
+        columns={columns}
+        getSearchText={getSearchText}
+        loading={isFetching}
+        loadingMessage="Cargando usuarios"
+        emptyMessage="No hay usuarios registrados."
+      />
+    </>
   );
 }

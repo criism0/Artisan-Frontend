@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Table from "../../components/Tables/Table";
-import SearchBar from "../../components/UI/SearchBar";
-import RowsPerPageSelector from "../../components/UI/RowsPerPageSelector";
-import Pagination from "../../components/UI/Pagination";
+import DataTable from "../../components/Tables/DataTable";
 import { fuzzyMatch } from "../../services/fuzzyMatch";
 import { cargarDatosCalidad } from "../../services/calidadAnalytics";
 import { toast } from "../../lib/toast";
-import { Spinner } from "../../components/UI/Spinner";
 
 const ESTADO_CONFIG = {
   "no-conforme": {
@@ -53,13 +49,8 @@ export default function NoConformidades() {
 
   const [tab, setTab] = useState(TAB.ESTADO);
 
-  // Filtros compartidos
-  const [searchQuery, setSearchQuery] = useState("");
+  // Filtros específicos por tab + filtro de formulario compartido
   const [formularioFilter, setFormularioFilter] = useState("");
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
-
-  // Filtros específicos por tab
   const [estadoFilter, setEstadoFilter] = useState("");
   const [severidadFilter, setSeveridadFilter] = useState("");
 
@@ -81,11 +72,6 @@ export default function NoConformidades() {
       cancelled = true;
     };
   }, []);
-
-  // Cambiar de tab reinicia paginación pero conserva búsqueda y filtro de formulario.
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [tab]);
 
   const formulariosPorId = useMemo(
     () => new Map(formularios.map((f) => [f.id, f])),
@@ -140,30 +126,6 @@ export default function NoConformidades() {
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [tab, itemsEstado, alertas]);
 
-  const filteredEstado = useMemo(() => {
-    let result = itemsEstado;
-    if (estadoFilter) result = result.filter((i) => i.estado === estadoFilter);
-    if (formularioFilter)
-      result = result.filter((i) => i.formulario_codigo === formularioFilter);
-    if (searchQuery.trim()) {
-      result = result.filter((i) =>
-        fuzzyMatch(
-          [
-            i.formulario_codigo,
-            i.formulario_nombre,
-            i.detalle,
-            i.estado,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase(),
-          searchQuery
-        )
-      );
-    }
-    return result;
-  }, [itemsEstado, estadoFilter, formularioFilter, searchQuery]);
-
   // --- Tab 2: alertas por valor fuera de rango (legado) ---
   const kpisRangos = useMemo(() => {
     const criticas = alertas.filter((a) => a.severidad === "critica").length;
@@ -175,37 +137,39 @@ export default function NoConformidades() {
     return { total: alertas.length, criticas, medias, ultimas24h };
   }, [alertas]);
 
-  const filteredRangos = useMemo(() => {
+  // Datos del tab activo tras aplicar los filtros de negocio (estado/severidad + formulario).
+  // La búsqueda difusa y la paginación las maneja DataTable.
+  const dataActual = useMemo(() => {
+    if (tab === TAB.ESTADO) {
+      let result = itemsEstado;
+      if (estadoFilter) result = result.filter((i) => i.estado === estadoFilter);
+      if (formularioFilter) result = result.filter((i) => i.formulario_codigo === formularioFilter);
+      return result;
+    }
     let result = alertas;
-    if (severidadFilter)
-      result = result.filter((a) => a.severidad === severidadFilter);
-    if (formularioFilter)
-      result = result.filter((a) => a.formulario_codigo === formularioFilter);
-    if (searchQuery.trim()) {
-      result = result.filter((a) =>
-        fuzzyMatch(
-          [
-            a.formulario_codigo,
-            a.formulario_nombre,
-            a.seccion_titulo,
-            a.campo_etiqueta,
-            String(a.valor),
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase(),
-          searchQuery
-        )
+    if (severidadFilter) result = result.filter((a) => a.severidad === severidadFilter);
+    if (formularioFilter) result = result.filter((a) => a.formulario_codigo === formularioFilter);
+    return result;
+  }, [tab, itemsEstado, alertas, estadoFilter, severidadFilter, formularioFilter]);
+
+  const filterFn = (row, query) => {
+    if (tab === TAB.ESTADO) {
+      return fuzzyMatch(
+        [row.formulario_codigo, row.formulario_nombre, row.detalle, row.estado]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase(),
+        query
       );
     }
-    return result;
-  }, [alertas, severidadFilter, formularioFilter, searchQuery]);
-
-  const filtered = tab === TAB.ESTADO ? filteredEstado : filteredRangos;
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / rowsPerPage));
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginated = filtered.slice(startIndex, startIndex + rowsPerPage);
+    return fuzzyMatch(
+      [row.formulario_codigo, row.formulario_nombre, row.seccion_titulo, row.campo_etiqueta, String(row.valor)]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase(),
+      query
+    );
+  };
 
   const columnasEstado = [
     {
@@ -333,179 +297,151 @@ export default function NoConformidades() {
       ? "Sin alertas. Todos los valores numéricos registrados están dentro de rango."
       : "No se encontraron alertas con los filtros actuales.";
 
-  return (
-    <div className="p-6 bg-background min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-2 flex-wrap gap-4">
-          <h1 className="text-2xl font-bold text-text">
-            No conformidades y desvíos
-          </h1>
-          <button
-            onClick={() => navigate("/calidad/dashboard")}
-            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
-          >
-            ← Volver al Dashboard
-          </button>
-        </div>
-        <p className="text-sm text-gray-500 mb-6">
-          Registros marcados como desvío o no conforme al completar el formulario,
-          junto con valores numéricos fuera del rango definido en las validaciones.
-        </p>
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-gray-200">
-          <TabButton
-            active={tab === TAB.ESTADO}
-            onClick={() => setTab(TAB.ESTADO)}
-            label="Estado del registro"
-            badge={kpisEstado.total}
-          />
-          <TabButton
-            active={tab === TAB.RANGOS}
-            onClick={() => setTab(TAB.RANGOS)}
-            label="Valores fuera de rango"
-            badge={kpisRangos.total}
-          />
-        </div>
-
-        {/* KPIs por tab */}
-        {tab === TAB.ESTADO ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <MiniKpi
-              label="Total"
-              value={kpisEstado.total}
-              borderClass="border-l-gray-400"
-              valueClass="text-gray-800"
-            />
-            <MiniKpi
-              label="No conformes"
-              value={kpisEstado.noConformes}
-              borderClass="border-l-red-500"
-              valueClass="text-red-700"
-            />
-            <MiniKpi
-              label="Desvíos"
-              value={kpisEstado.desvios}
-              borderClass="border-l-yellow-500"
-              valueClass="text-yellow-700"
-            />
-            <MiniKpi
-              label="Últimas 24h"
-              value={kpisEstado.ultimas24h}
-              borderClass="border-l-blue-500"
-              valueClass="text-gray-800"
-            />
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <MiniKpi
-              label="Total alertas"
-              value={kpisRangos.total}
-              borderClass="border-l-gray-400"
-              valueClass="text-gray-800"
-            />
-            <MiniKpi
-              label="Críticas"
-              value={kpisRangos.criticas}
-              borderClass="border-l-red-500"
-              valueClass="text-red-700"
-            />
-            <MiniKpi
-              label="Medias"
-              value={kpisRangos.medias}
-              borderClass="border-l-yellow-500"
-              valueClass="text-gray-800"
-            />
-            <MiniKpi
-              label="Últimas 24h"
-              value={kpisRangos.ultimas24h}
-              borderClass="border-l-blue-500"
-              valueClass="text-gray-800"
-            />
-          </div>
-        )}
-
-        <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
-          <div className="flex items-center gap-3 flex-wrap">
-            <RowsPerPageSelector
-              onRowsChange={(v) => {
-                setRowsPerPage(v);
-                setCurrentPage(1);
-              }}
-            />
-            {tab === TAB.ESTADO ? (
-              <select
-                value={estadoFilter}
-                onChange={(e) => {
-                  setEstadoFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="border border-gray-300 rounded px-3 py-2 bg-white text-sm"
-              >
-                <option value="">Todos los estados</option>
-                <option value="no-conforme">No conformes</option>
-                <option value="desvio">Desvíos</option>
-              </select>
-            ) : (
-              <select
-                value={severidadFilter}
-                onChange={(e) => {
-                  setSeveridadFilter(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="border border-gray-300 rounded px-3 py-2 bg-white text-sm"
-              >
-                <option value="">Todas las severidades</option>
-                <option value="critica">Críticas</option>
-                <option value="media">Medias</option>
-              </select>
-            )}
-            <select
-              value={formularioFilter}
-              onChange={(e) => {
-                setFormularioFilter(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="border border-gray-300 rounded px-3 py-2 bg-white text-sm"
-            >
-              <option value="">Todos los formularios</option>
-              {formulariosDisponibles.map(([codigo, nombre]) => (
-                <option key={codigo} value={codigo}>
-                  {codigo} — {nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-          <SearchBar
-            onSearch={(q) => {
-              setSearchQuery(q);
-              setCurrentPage(1);
-            }}
-          />
-        </div>
-
-        {loading ? (
-          <div className="bg-white p-8 rounded-lg shadow flex justify-center">
-            <Spinner size="lg" />
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="bg-white p-8 rounded-lg shadow text-center">
-            <p className="text-gray-500 text-sm">{emptyMessage}</p>
-          </div>
-        ) : (
-          <>
-            <Table columns={columns} data={paginated} actions={actions} />
-            <div className="mt-6 flex justify-end">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-              />
-            </div>
-          </>
-        )}
+  const headerExtra = (
+    <>
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-gray-200">
+        <TabButton
+          active={tab === TAB.ESTADO}
+          onClick={() => setTab(TAB.ESTADO)}
+          label="Estado del registro"
+          badge={kpisEstado.total}
+        />
+        <TabButton
+          active={tab === TAB.RANGOS}
+          onClick={() => setTab(TAB.RANGOS)}
+          label="Valores fuera de rango"
+          badge={kpisRangos.total}
+        />
       </div>
+
+      {/* KPIs por tab */}
+      {tab === TAB.ESTADO ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <MiniKpi
+            label="Total"
+            value={kpisEstado.total}
+            borderClass="border-l-gray-400"
+            valueClass="text-gray-800"
+          />
+          <MiniKpi
+            label="No conformes"
+            value={kpisEstado.noConformes}
+            borderClass="border-l-red-500"
+            valueClass="text-red-700"
+          />
+          <MiniKpi
+            label="Desvíos"
+            value={kpisEstado.desvios}
+            borderClass="border-l-yellow-500"
+            valueClass="text-yellow-700"
+          />
+          <MiniKpi
+            label="Últimas 24h"
+            value={kpisEstado.ultimas24h}
+            borderClass="border-l-blue-500"
+            valueClass="text-gray-800"
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <MiniKpi
+            label="Total alertas"
+            value={kpisRangos.total}
+            borderClass="border-l-gray-400"
+            valueClass="text-gray-800"
+          />
+          <MiniKpi
+            label="Críticas"
+            value={kpisRangos.criticas}
+            borderClass="border-l-red-500"
+            valueClass="text-red-700"
+          />
+          <MiniKpi
+            label="Medias"
+            value={kpisRangos.medias}
+            borderClass="border-l-yellow-500"
+            valueClass="text-gray-800"
+          />
+          <MiniKpi
+            label="Últimas 24h"
+            value={kpisRangos.ultimas24h}
+            borderClass="border-l-blue-500"
+            valueClass="text-gray-800"
+          />
+        </div>
+      )}
+    </>
+  );
+
+  const toolbarStart = (
+    <div className="flex items-center gap-3 flex-wrap">
+      {tab === TAB.ESTADO ? (
+        <select
+          value={estadoFilter}
+          onChange={(e) => setEstadoFilter(e.target.value)}
+          className="border border-gray-300 rounded px-3 py-2 bg-white text-sm"
+        >
+          <option value="">Todos los estados</option>
+          <option value="no-conforme">No conformes</option>
+          <option value="desvio">Desvíos</option>
+        </select>
+      ) : (
+        <select
+          value={severidadFilter}
+          onChange={(e) => setSeveridadFilter(e.target.value)}
+          className="border border-gray-300 rounded px-3 py-2 bg-white text-sm"
+        >
+          <option value="">Todas las severidades</option>
+          <option value="critica">Críticas</option>
+          <option value="media">Medias</option>
+        </select>
+      )}
+      <select
+        value={formularioFilter}
+        onChange={(e) => setFormularioFilter(e.target.value)}
+        className="border border-gray-300 rounded px-3 py-2 bg-white text-sm"
+      >
+        <option value="">Todos los formularios</option>
+        {formulariosDisponibles.map(([codigo, nombre]) => (
+          <option key={codigo} value={codigo}>
+            {codigo} — {nombre}
+          </option>
+        ))}
+      </select>
     </div>
+  );
+
+  return (
+    <DataTable
+      title={
+        <span>
+          No conformidades y desvíos
+          <span className="block text-sm font-normal text-gray-500 mt-1">
+            Registros marcados como desvío o no conforme al completar el formulario,
+            junto con valores numéricos fuera del rango definido en las validaciones.
+          </span>
+        </span>
+      }
+      headerActions={
+        <button
+          onClick={() => navigate("/calidad/dashboard")}
+          className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
+        >
+          ← Volver al Dashboard
+        </button>
+      }
+      headerExtra={headerExtra}
+      toolbarStart={toolbarStart}
+      data={dataActual}
+      columns={columns}
+      actions={actions}
+      filterFn={filterFn}
+      loading={loading}
+      loadingMessage="Cargando datos de calidad"
+      emptyMessage={emptyMessage}
+      defaultRowsPerPage={10}
+    />
   );
 }
 

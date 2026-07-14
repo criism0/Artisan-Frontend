@@ -29,6 +29,7 @@ export default function DataTable({
   getSearchText,
   filterFn,
   headerActions = null,
+  headerExtra = null,
   toolbarStart = null,
   filters = null,
   loading = false,
@@ -144,6 +145,9 @@ export default function DataTable({
         <h1 className="text-2xl font-bold text-text">{title}</h1>
         {headerActions && <div className="flex flex-wrap gap-2">{headerActions}</div>}
       </div>
+
+      {/* Contenido extra bajo el header (p. ej. tabs + KPIs) */}
+      {headerExtra}
 
       {/* Toolbar */}
       <div className="flex flex-col gap-3 mb-6">

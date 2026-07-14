@@ -2,11 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { PageLoader } from "../../components/UI/PageLoader.jsx";
-import Table from "../../components/Tables/Table";
-import SearchBar from "../../components/UI/SearchBar";
-import RowsPerPageSelector from "../../components/UI/RowsPerPageSelector";
-import Pagination from "../../components/UI/Pagination";
+import DataTable from "../../components/Tables/DataTable";
 import Selector from "../../components/Forms/Selector";
 import { ViewDetailButton } from "../../components/Buttons/ActionButtons";
 
@@ -32,13 +28,8 @@ export default function SesionesInventariado() {
 
   const [sesiones, setSesiones] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("Todos");
   const [filtroBodega, setFiltroBodega] = useState("Todas");
-  const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: "createdAt", direction: "desc" });
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     (async () => {
@@ -55,50 +46,6 @@ export default function SesionesInventariado() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const normalize = (text) =>
-    (text ?? "")
-      .toString()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/\p{Diacritic}/gu, "");
-
-  const SORT_ACCESSORS = {
-    id: (s) => Number(s.id) || 0,
-    bodega: (s) => s?.bodega?.nombre ?? "",
-    estado: (s) => s?.estado ?? "",
-    cantidad_bultos: (s) => Number(s?.cantidad_bultos) || 0,
-    creador: (s) => s?.creador?.nombre ?? "",
-    createdAt: (s) => s?.createdAt ?? "",
-    validador: (s) => s?.validador?.nombre ?? "",
-  };
-
-  const handleSort = (key) => {
-    let direction = "asc";
-    if (sortConfig.key === key) {
-      direction = sortConfig.direction === "asc" ? "desc" : "asc";
-    }
-    setSortConfig({ key, direction });
-    setCurrentPage(1);
-  };
-
-  const renderHeader = (label, accessor, align = "left") => {
-    const isActive = sortConfig.key === accessor;
-    const ascActive = isActive && sortConfig.direction === "asc";
-    const descActive = isActive && sortConfig.direction === "desc";
-    return (
-      <div
-        className={`flex items-center gap-1 cursor-pointer select-none ${align === "center" ? "justify-center" : ""}`}
-        onClick={() => handleSort(accessor)}
-      >
-        <span>{label}</span>
-        <div className="flex flex-col leading-none text-xs ml-1">
-          <span className={ascActive ? "text-gray-900" : "text-gray-300"}>▲</span>
-          <span className={descActive ? "text-gray-900" : "text-gray-300"}>▼</span>
-        </div>
-      </div>
-    );
-  };
-
   const bodegaOptions = useMemo(() => {
     const map = new Map();
     sesiones.forEach((s) => {
@@ -108,69 +55,58 @@ export default function SesionesInventariado() {
     return [{ value: "Todas", label: "Todas" }, ...Array.from(map, ([value, label]) => ({ value, label }))];
   }, [sesiones]);
 
+  // Filtros de negocio (estado + bodega) sobre la data; la búsqueda, el orden y la
+  // paginación las maneja DataTable.
   const filtradas = useMemo(() => {
-    let list = [...sesiones];
-
-    const q = normalize(searchQuery);
-    if (q) {
-      list = list.filter((s) =>
-        normalize(
-          [s.id, s.bodega?.nombre, s.estado, s.creador?.nombre, s.validador?.nombre].join(" ")
-        ).includes(q)
-      );
-    }
+    let list = sesiones;
     if (filtroEstado !== "Todos") list = list.filter((s) => s.estado === filtroEstado);
     if (filtroBodega !== "Todas") list = list.filter((s) => String(s.bodega?.id ?? s.id_bodega) === String(filtroBodega));
-
-    if (sortConfig.key) {
-      const { key, direction } = sortConfig;
-      const accessor = SORT_ACCESSORS[key] ?? ((s) => s?.[key] ?? "");
-      list.sort((a, b) => {
-        const aVal = accessor(a);
-        const bVal = accessor(b);
-        if (typeof aVal === "number" && typeof bVal === "number") {
-          return direction === "asc" ? aVal - bVal : bVal - aVal;
-        }
-        const aStr = (aVal ?? "").toString().toLowerCase();
-        const bStr = (bVal ?? "").toString().toLowerCase();
-        return direction === "asc" ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
-      });
-    }
     return list;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sesiones, searchQuery, filtroEstado, filtroBodega, sortConfig]);
-
-  useEffect(() => { setCurrentPage(1); }, [searchQuery, filtroEstado, filtroBodega]);
-
-  const totalPages = Math.max(1, Math.ceil(filtradas.length / rowsPerPage));
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedData = filtradas.slice(startIndex, startIndex + rowsPerPage);
+  }, [sesiones, filtroEstado, filtroBodega]);
 
   const columns = [
-    { header: renderHeader("ID", "id"), accessor: "id" },
     {
-      header: renderHeader("Bodega", "bodega"),
+      header: "ID",
+      accessor: "id",
+      sortable: true,
+      sortValue: (s) => Number(s.id) || 0,
+    },
+    {
+      header: "Bodega",
       accessor: "bodega",
+      sortable: true,
+      sortValue: (s) => s?.bodega?.nombre ?? "",
       Cell: ({ row }) => row.bodega?.nombre ?? row.id_bodega ?? "—",
     },
     {
-      header: renderHeader("Estado", "estado", "center"),
+      header: "Estado",
       accessor: "estado",
+      align: "center",
+      sortable: true,
+      sortValue: (s) => s?.estado ?? "",
       Cell: ({ value }) => <div className="flex justify-center">{getEstadoChip(value)}</div>,
     },
     {
-      header: renderHeader("Bultos escaneados", "cantidad_bultos", "center"),
+      header: "Bultos escaneados",
       accessor: "cantidad_bultos",
+      align: "center",
+      sortable: true,
+      sortValue: (s) => Number(s?.cantidad_bultos) || 0,
       Cell: ({ value }) => <div className="text-center">{value ?? "—"}</div>,
     },
     {
-      header: renderHeader("Iniciada por", "creador"),
+      header: "Iniciada por",
       accessor: "creador",
+      sortable: true,
+      sortValue: (s) => s?.creador?.nombre ?? "",
       Cell: ({ row }) => row.creador?.nombre ?? "—",
     },
     {
-      header: renderHeader("Fecha", "createdAt", "center"),
+      header: "Fecha",
       accessor: "createdAt",
+      align: "center",
+      sortable: true,
+      sortValue: (s) => s?.createdAt ?? "",
       Cell: ({ value }) => (
         <div className="text-center text-sm text-gray-700">
           {value ? new Date(value).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—"}
@@ -178,8 +114,10 @@ export default function SesionesInventariado() {
       ),
     },
     {
-      header: renderHeader("Validada por", "validador"),
+      header: "Validada por",
       accessor: "validador",
+      sortable: true,
+      sortValue: (s) => s?.validador?.nombre ?? "",
       Cell: ({ row }) =>
         row.validador?.nombre
           ? `${row.validador.nombre} (${new Date(row.fecha_validacion).toLocaleDateString("es-CL")})`
@@ -188,7 +126,7 @@ export default function SesionesInventariado() {
   ];
 
   const actions = (row) => (
-    <div className="flex gap-2 justify-center">
+    <div className="flex gap-2">
       <ViewDetailButton
         onClick={() => navigate(`/Inventario/tomas/${row.id}`)}
         tooltipText="Ver detalle"
@@ -196,102 +134,80 @@ export default function SesionesInventariado() {
     </div>
   );
 
-  if (isLoading) return <PageLoader message="Cargando sesiones de inventariado" />;
+  const getSearchText = (s) =>
+    [s.id, s.bodega?.nombre, s.estado, s.creador?.nombre, s.validador?.nombre].join(" ");
 
-  return (
-    <div className="px-5 py-1 bg-background min-h-screen">
-      <div className="flex justify-between items-center m-3">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Tomas de Inventario</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Las sesiones se crean y escanean desde la app móvil; al validar una sesión terminada,
-            los conteos se aplican a la bodega.
-          </p>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-3 m-3">
-        <div className="flex justify-between items-center gap-3">
-          <RowsPerPageSelector onRowsChange={(v) => { setRowsPerPage(v); setCurrentPage(1); }} />
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="px-3 py-2 border border-primary/20 bg-primary/10 text-primary rounded-lg text-sm hover:bg-primary/20 transition-colors"
-              onClick={() => setFiltrosAbiertos((v) => !v)}
-            >
-              {filtrosAbiertos ? "Ocultar filtros" : "Filtros"}
-            </button>
-            <SearchBar onSearch={setSearchQuery} />
-          </div>
-        </div>
-
-        {filtrosAbiertos && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-white p-3 rounded-lg border border-border">
-            <div className="flex flex-col gap-1 justify-center">
-              <label className="text-sm text-gray-600 p-1">Estado</label>
-              <div className="flex flex-wrap gap-2 px-1">
-                {["Todos", "Activa", "Terminada", "Validada"].map((opt) => {
-                  const isActive = filtroEstado === opt;
-                  const style =
-                    opt === "Todos"
-                      ? { bg: "bg-gray-100", text: "text-gray-700", label: "Todos" }
-                      : (ESTADO_STYLES[opt] ?? { bg: "bg-gray-100", text: "text-gray-700", label: opt });
-                  return (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setFiltroEstado(opt)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${style.bg} ${style.text} ${
-                        isActive ? "ring-2 ring-offset-1 ring-primary" : "opacity-80 hover:opacity-100"
-                      }`}
-                      aria-pressed={isActive}
-                    >
-                      {style.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="flex flex-col gap-1 justify-center">
-              <label className="text-sm text-gray-600">Bodega</label>
-              <Selector
-                options={bodegaOptions}
-                selectedValue={filtroBodega}
-                onSelect={setFiltroBodega}
-                className="px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div className="md:col-span-2 flex justify-end">
+  const filtros = (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="flex flex-col gap-1 justify-center">
+        <label className="text-sm text-gray-600 p-1">Estado</label>
+        <div className="flex flex-wrap gap-2 px-1">
+          {["Todos", "Activa", "Terminada", "Validada"].map((opt) => {
+            const isActive = filtroEstado === opt;
+            const style =
+              opt === "Todos"
+                ? { bg: "bg-gray-100", text: "text-gray-700", label: "Todos" }
+                : (ESTADO_STYLES[opt] ?? { bg: "bg-gray-100", text: "text-gray-700", label: opt });
+            return (
               <button
+                key={opt}
                 type="button"
-                className="px-3 py-2 text-sm text-gray-700 hover:text-purple-600"
-                onClick={() => {
-                  setFiltroEstado("Todos");
-                  setFiltroBodega("Todas");
-                }}
+                onClick={() => setFiltroEstado(opt)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${style.bg} ${style.text} ${
+                  isActive ? "ring-2 ring-offset-1 ring-primary" : "opacity-80 hover:opacity-100"
+                }`}
+                aria-pressed={isActive}
               >
-                Limpiar filtros
+                {style.label}
               </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {paginatedData.length === 0 ? (
-        <div className="bg-white rounded-lg shadow px-6 py-10 text-center text-gray-400 m-3">
-          No hay sesiones {filtroEstado !== "Todos" || filtroBodega !== "Todas" || searchQuery ? "para los filtros actuales" : "registradas"}.
+            );
+          })}
         </div>
-      ) : (
-        <Table columns={columns} data={paginatedData} actions={actions} />
-      )}
-
-      <div className="mt-6 flex justify-end">
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
+      </div>
+      <div className="flex flex-col gap-1 justify-center">
+        <label className="text-sm text-gray-600">Bodega</label>
+        <Selector
+          options={bodegaOptions}
+          selectedValue={filtroBodega}
+          onSelect={setFiltroBodega}
+          className="px-3 py-2 border border-gray-300 rounded-lg"
         />
       </div>
+      <div className="md:col-span-2 flex justify-end">
+        <button
+          type="button"
+          className="px-3 py-2 text-sm text-gray-700 hover:text-purple-600"
+          onClick={() => {
+            setFiltroEstado("Todos");
+            setFiltroBodega("Todas");
+          }}
+        >
+          Limpiar filtros
+        </button>
+      </div>
     </div>
+  );
+
+  return (
+    <DataTable
+      title={
+        <span>
+          Tomas de Inventario
+          <span className="block text-sm font-normal text-gray-500 mt-1">
+            Las sesiones se crean y escanean desde la app móvil; al validar una sesión terminada,
+            los conteos se aplican a la bodega.
+          </span>
+        </span>
+      }
+      data={filtradas}
+      columns={columns}
+      actions={actions}
+      getSearchText={getSearchText}
+      filters={filtros}
+      initialSort={{ key: "createdAt", direction: "desc" }}
+      loading={isLoading}
+      loadingMessage="Cargando sesiones de inventariado"
+      emptyMessage="No hay sesiones registradas."
+    />
   );
 }
