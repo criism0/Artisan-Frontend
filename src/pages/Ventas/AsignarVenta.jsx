@@ -8,6 +8,10 @@ import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
+// Sin búsqueda, la lista de bultos disponibles se colapsa a estas filas para no
+// saturar la vista; con búsqueda activa se muestran todas las coincidencias.
+const BULTOS_VISIBLES = 8;
+
 export default function AsignarVenta() {
   const { ordenId } = useParams();
   const navigate = useNavigate();
@@ -27,9 +31,9 @@ export default function AsignarVenta() {
   const [isRemovingBulto, setIsRemovingBulto] = useState(false);
   const [isRemovingPallet, setIsRemovingPallet] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  // Paginación client-side para bultos disponibles por producto
-  const [productosDisponiblesPage, setProductosDisponiblesPage] = useState({});
-  const PAGE_SIZE = 8; // items por página (ajustable)
+  // Búsqueda + colapso de bultos disponibles por línea (nombre de facturación)
+  const [busquedaPorNombre, setBusquedaPorNombre] = useState({});
+  const [mostrarTodosPorNombre, setMostrarTodosPorNombre] = useState({});
 
   const canWriteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
   const canWriteBulk = checkScope(ModelType.BULTO, ScopeType.WRITE);
@@ -61,7 +65,12 @@ export default function AsignarVenta() {
         cantidadRequerida,
         cantidadAsignada,
         cantidadFaltante,
-        estado: cantidadFaltante === 0 ? "completo" : "pendiente",
+        estado:
+          cantidadFaltante === 0
+            ? "completo"
+            : cantidadAsignada > 0
+              ? "parcial"
+              : "pendiente",
       };
     });
   };
@@ -503,6 +512,10 @@ export default function AsignarVenta() {
 
   if (isLoading) return <PageLoader message="Cargando orden" />;
 
+  const totalLineas = resumenProductos.length;
+  const lineasCompletas = resumenProductos.filter((r) => r.estado === "completo").length;
+  const todoAsignado = totalLineas > 0 && lineasCompletas === totalLineas;
+
   return (
     <div className="p-6 bg-background min-h-screen">
       {(isSaving || isCreatingPallet || isRemovingBulto || isRemovingPallet) && (
@@ -517,14 +530,30 @@ export default function AsignarVenta() {
         <ArrowLeft size={18} className="mr-1" /> Volver
       </button>
 
-      <h1 className="text-2xl font-bold mb-6 text-text">
-        Asignar Bultos a la Orden #{ordenId}
-      </h1>
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-text">
+            Asignar Bultos a la Orden #{ordenId}
+          </h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Crea pallets y asígnales bultos para cubrir cada línea de la orden.
+          </p>
+        </div>
+        {totalLineas > 0 && (
+          <span
+            className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+              todoAsignado ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+            }`}
+          >
+            {lineasCompletas} de {totalLineas} líneas completas
+          </span>
+        )}
+      </div>
 
       {/* SECCIÓN DE RESUMEN DE PRODUCTOS */}
       <div className="mb-8">
         <h2 className="text-xl font-bold mb-4 text-text">Resumen de Productos</h2>
-        
+
         {resumenProductos.length === 0 ? (
           <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
             <p className="text-gray-700">
@@ -533,75 +562,60 @@ export default function AsignarVenta() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            {resumenProductos.map((resumen) => (
-              <div 
-                key={resumen.id} 
-                className={`border rounded-lg p-4 ${
-                  resumen.estado === 'completo'
-                    ? 'bg-green-50 border-green-200'
-                    : 'bg-yellow-50 border-yellow-200'
-                }`}
-              >
-                <h3 className={`text-lg font-semibold mb-3 ${
-                  resumen.estado === 'completo'
-                    ? 'text-green-900'
-                    : 'text-yellow-900'
-                }`}>
-                  {resumen.nombreProducto}
-                </h3>
-                
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className={`text-sm font-medium ${
-                      resumen.estado === 'completo' ? 'text-green-700' : 'text-yellow-700'
-                    }`}>
-                      Cantidad Requerida:
+            {resumenProductos.map((resumen) => {
+              const chip =
+                resumen.estado === "completo"
+                  ? { label: "Completo", cls: "bg-green-100 text-green-800" }
+                  : resumen.estado === "parcial"
+                    ? { label: "Parcial", cls: "bg-yellow-100 text-yellow-800" }
+                    : { label: "Pendiente", cls: "bg-gray-100 text-gray-700" };
+              const progresoPct =
+                resumen.cantidadRequerida > 0
+                  ? Math.min(100, (resumen.cantidadAsignada / resumen.cantidadRequerida) * 100)
+                  : 100;
+              return (
+                <div
+                  key={resumen.id}
+                  className="bg-white p-4 rounded-xl shadow-sm border border-gray-200"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <h3 className="text-base font-semibold text-text min-w-0">
+                      {resumen.nombreProducto}
+                    </h3>
+                    <span className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${chip.cls}`}>
+                      {chip.label}
                     </span>
-                    <span className={`text-sm font-bold ${
-                      resumen.estado === 'completo' ? 'text-green-900' : 'text-yellow-900'
-                    }`}>
+                  </div>
+
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          resumen.estado === "completo" ? "bg-green-500" : "bg-primary"
+                        }`}
+                        style={{ width: `${progresoPct}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-500 shrink-0">
+                      {Math.round(progresoPct)}%
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600">
+                      Asignado:{" "}
+                      <span className="font-semibold text-text">{resumen.cantidadAsignada}</span> de{" "}
                       {resumen.cantidadRequerida}
                     </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span className={`text-sm font-medium ${
-                      resumen.estado === 'completo' ? 'text-green-700' : 'text-yellow-700'
-                    }`}>
-                      Cantidad Asignada:
-                    </span>
-                    <span className={`text-sm font-bold ${
-                      resumen.estado === 'completo' ? 'text-green-900' : 'text-yellow-900'
-                    }`}>
-                      {resumen.cantidadAsignada}
-                    </span>
-                  </div>
-
-                  <div className="border-t pt-2">
-                    <div className="flex justify-between">
-                      <span className={`text-sm font-bold ${
-                        resumen.estado === 'completo' ? 'text-green-700' : 'text-red-700'
-                      }`}>
-                        Cantidad Faltante:
+                    {resumen.cantidadFaltante > 0 && (
+                      <span className="text-red-600 font-medium">
+                        Faltan {resumen.cantidadFaltante}
                       </span>
-                      <span className={`text-sm font-bold px-2 py-1 rounded ${
-                        resumen.estado === 'completo'
-                          ? 'bg-green-200 text-green-900'
-                          : 'bg-red-200 text-red-900'
-                      }`}>
-                        {resumen.cantidadFaltante}
-                      </span>
-                    </div>
+                    )}
                   </div>
-
-                  {resumen.estado === 'completo' && (
-                    <div className="mt-2 text-xs text-green-600 font-medium">
-                      ✓ Este producto está completamente asignado
-                    </div>
-                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -696,94 +710,100 @@ export default function AsignarVenta() {
                       {resumenProductos.map((resumen) => {
                         const bultosDisponibles = obtenerBultosDisponiblesPorNombre(resumen.idNombre);
                         const asignacionesProducto = asignacionesPendientes[resumen.idNombre] || [];
-                        
+
+                        const busqueda = String(busquedaPorNombre[resumen.idNombre] || "").trim().toLowerCase();
+                        const bultosFiltrados = busqueda
+                          ? bultosDisponibles.filter((b) =>
+                              String(b.identificador || b.id).toLowerCase().includes(busqueda)
+                            )
+                          : bultosDisponibles;
+                        // Con búsqueda activa se muestran todas las coincidencias; sin
+                        // búsqueda, se colapsa a las primeras filas para no saturar.
+                        const mostrarTodos = !!mostrarTodosPorNombre[resumen.idNombre] || !!busqueda;
+                        const bultosVisibles = mostrarTodos
+                          ? bultosFiltrados
+                          : bultosFiltrados.slice(0, BULTOS_VISIBLES);
+                        const bultosOcultos = bultosFiltrados.length - bultosVisibles.length;
+
                         return (
-                          <div key={resumen.id} className="bg-white rounded p-2">
-                            <p className="text-sm font-medium text-blue-800 mb-1">
-                              {resumen.nombreProducto}
-                            </p>
+                          <div key={resumen.id} className="bg-white rounded-lg border border-gray-200 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                              <p className="text-sm font-medium text-gray-800">
+                                {resumen.nombreProducto}
+                                <span className="ml-2 text-xs font-normal text-gray-500">
+                                  {bultosFiltrados.length}
+                                  {busqueda ? ` de ${bultosDisponibles.length}` : ""} bulto(s)
+                                </span>
+                              </p>
+                              {bultosDisponibles.length > BULTOS_VISIBLES && (
+                                <input
+                                  type="text"
+                                  value={busquedaPorNombre[resumen.idNombre] || ""}
+                                  onChange={(e) =>
+                                    setBusquedaPorNombre((prev) => ({
+                                      ...prev,
+                                      [resumen.idNombre]: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="Buscar bulto por identificador…"
+                                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs w-56"
+                                />
+                              )}
+                            </div>
                             {bultosDisponibles.length === 0 ? (
-                              <p className="text-xs text-gray-500 ml-2 italic">
+                              <p className="text-xs text-gray-500 ml-1 italic">
                                 No hay bultos disponibles para este producto
                               </p>
                             ) : (
-                              <div className="space-y-1 ml-2">
-                                {(() => {
-                                  const currentPage = productosDisponiblesPage[resumen.idNombre] || 0;
-                                  const total = bultosDisponibles.length;
-                                  const start = currentPage * PAGE_SIZE;
-                                  const end = Math.min(start + PAGE_SIZE, total);
-                                  const paged = bultosDisponibles.slice(start, end);
+                              <div className="space-y-1">
+                                {bultosVisibles.map((bulto) => {
+                                  const bultoId = bulto.identificador || bulto.id;
+                                  const asignacionActual = asignacionesProducto?.find((a) => a.bulto_id === bultoId);
+                                  const unidadesDisponibles = bulto.unidades_disponibles ?? bulto.cantidad_unidades ?? 0;
 
                                   return (
-                                    <>
-                                      <div className="space-y-1">
-                                        {paged.map((bulto) => {
-                                          const bultoId = bulto.identificador || bulto.id;
-                                          const asignacionActual = asignacionesProducto?.find((a) => a.bulto_id === bultoId);
-                                          const unidadesDisponibles = bulto.unidades_disponibles ?? bulto.cantidad_unidades ?? 0;
-
-                                          return (
-                                            <div key={bultoId} className="flex items-center gap-2">
-                                              <input
-                                                type="number"
-                                                min="0"
-                                                max={unidadesDisponibles}
-                                                step="1"
-                                                placeholder={`Máx: ${unidadesDisponibles}`}
-                                                value={asignacionActual?.unidades_a_mover || ""}
-                                                onChange={(e) =>
-                                                  handleUnidadesChange(resumen.idNombre, bultoId, e.target.value)
-                                                }
-                                                className="p-1 border rounded w-20 text-xs"
-                                              />
-                                              <span className="text-xs text-gray-600">
-                                                Bulto {bultoId} ({unidadesDisponibles} disponibles)
-                                                {bulto.producto_nombre ? (
-                                                  <span className="text-gray-400"> · {bulto.producto_nombre}</span>
-                                                ) : null}
-                                              </span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-
-                                      {total > PAGE_SIZE && (
-                                        <div className="flex items-center justify-between mt-2 text-xs text-gray-600">
-                                          <div>
-                                            Mostrando {start + 1}-{end} de {total}
-                                          </div>
-                                          <div className="flex items-center gap-2">
-                                            <button
-                                              onClick={() =>
-                                                setProductosDisponiblesPage((prev) => ({
-                                                  ...prev,
-                                                  [resumen.idNombre]: Math.max(0, currentPage - 1),
-                                                }))
-                                              }
-                                              disabled={currentPage === 0}
-                                              className={`px-2 py-1 rounded ${currentPage === 0 ? 'bg-gray-200 text-gray-400' : 'bg-white border'}`}
-                                            >
-                                              Prev
-                                            </button>
-                                            <button
-                                              onClick={() =>
-                                                setProductosDisponiblesPage((prev) => ({
-                                                  ...prev,
-                                                  [resumen.idNombre]: Math.min(currentPage + 1, Math.floor((total - 1) / PAGE_SIZE)),
-                                                }))
-                                              }
-                                              disabled={end >= total}
-                                              className={`px-2 py-1 rounded ${end >= total ? 'bg-gray-200 text-gray-400' : 'bg-white border'}`}
-                                            >
-                                              Next
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </>
+                                    <div key={bultoId} className="flex items-center gap-2">
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max={unidadesDisponibles}
+                                        step="1"
+                                        placeholder={`Máx: ${unidadesDisponibles}`}
+                                        value={asignacionActual?.unidades_a_mover || ""}
+                                        onChange={(e) =>
+                                          handleUnidadesChange(resumen.idNombre, bultoId, e.target.value)
+                                        }
+                                        className="p-1 border border-gray-300 rounded w-20 text-xs"
+                                      />
+                                      <span className="text-xs text-gray-600">
+                                        Bulto {bultoId} ({unidadesDisponibles} disponibles)
+                                        {bulto.producto_nombre ? (
+                                          <span className="text-gray-400"> · {bulto.producto_nombre}</span>
+                                        ) : null}
+                                      </span>
+                                    </div>
                                   );
-                                })()}
+                                })}
+
+                                {bultosOcultos > 0 && (
+                                  <button
+                                    type="button"
+                                    className="text-xs text-primary hover:underline mt-1"
+                                    onClick={() =>
+                                      setMostrarTodosPorNombre((prev) => ({
+                                        ...prev,
+                                        [resumen.idNombre]: true,
+                                      }))
+                                    }
+                                  >
+                                    Mostrar los {bultosOcultos} restantes
+                                  </button>
+                                )}
+                                {busqueda && bultosFiltrados.length === 0 && (
+                                  <p className="text-xs text-gray-500 italic">
+                                    Ningún bulto coincide con la búsqueda.
+                                  </p>
+                                )}
                               </div>
                             )}
                           </div>
@@ -801,7 +821,7 @@ export default function AsignarVenta() {
                             toast.error("Debes seleccionar bultos para asignar");
                           }
                         }}
-                        className="mt-2 px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 w-full"
+                        className="mt-2 px-3 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary-dark w-full"
                       >
                         Asignar Bultos a Este Pallet
                       </button>
@@ -818,8 +838,8 @@ export default function AsignarVenta() {
           disabled={isCreatingPallet}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
             isCreatingPallet
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-blue-600 text-white hover:bg-blue-700"
+              ? "bg-gray-400 cursor-not-allowed text-white"
+              : "bg-primary text-white hover:bg-primary-dark"
           }`}
         >
           <Plus size={20} />
@@ -827,31 +847,34 @@ export default function AsignarVenta() {
         </button>
       </div>
 
-      {/* SECCIÓN DE ASIGNACIÓN DE BULTOS */}
-      <div className="mb-8">
-        <h2 className="text-xl font-bold mb-4 text-text">Acciones de la Orden</h2>
-
-        <button
-          onClick={handleMarcarListoParaDespacho}
-          disabled={isSaving || pallets.length === 0}
-          className={`px-6 py-3 rounded-lg text-lg shadow ${
-            isSaving || pallets.length === 0
-              ? "bg-gray-400 cursor-not-allowed"
-              : "bg-green-600 text-white hover:bg-green-700"
-          }`}
-        >
-          {isSaving ? "Procesando..." : "Marcar como Listo para Despacho"}
-        </button>
-      </div>
-
-      {/* BOTÓN PARA VOLVER */}
-      <div className="mt-8">
-        <button
-          onClick={() => navigate(`/ventas/ordenes/${ordenId}`)}
-          className="px-4 py-2 bg-gray-300 hover:bg-gray-400 rounded"
-        >
-          Volver al detalle
-        </button>
+      {/* BARRA DE ACCIONES */}
+      <div className="mt-8 bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-gray-600">
+          {pallets.length === 0
+            ? "Crea al menos un pallet y asígnale bultos para poder despachar."
+            : todoAsignado
+              ? "Todas las líneas están completas. Puedes marcar la orden como lista para despacho."
+              : `${lineasCompletas} de ${totalLineas} líneas completas.`}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => navigate(`/ventas/ordenes/${ordenId}`)}
+            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            Volver al detalle
+          </button>
+          <button
+            onClick={handleMarcarListoParaDespacho}
+            disabled={isSaving || pallets.length === 0}
+            className={`px-6 py-2 rounded-lg shadow ${
+              isSaving || pallets.length === 0
+                ? "bg-gray-400 cursor-not-allowed text-white"
+                : "bg-primary text-white hover:bg-primary-dark"
+            }`}
+          >
+            {isSaving ? "Procesando..." : "Marcar como Listo para Despacho"}
+          </button>
+        </div>
       </div>
     </div>
   );
