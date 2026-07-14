@@ -6,11 +6,13 @@ import { ArrowLeft, Plus } from "lucide-react";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 export default function AsignarVenta() {
   const { ordenId } = useParams();
   const navigate = useNavigate();
   const api = useApi();
+  const confirm = useConfirm();
 
   const [orden, setOrden] = useState(null);
   const [pallets, setPallets] = useState([]);
@@ -350,10 +352,13 @@ export default function AsignarVenta() {
     }
     
     // Confirmar la acción
-    const confirmDelete = window.confirm(
-      `¿Estás seguro de que deseas desasociar el pallet ${palletId}? Si tiene bultos, permanecerán en el inventario.`
-    );
-    
+    const confirmDelete = await confirm({
+      title: "¿Desasociar pallet?",
+      message: `El pallet ${palletId} se desasociará de la orden. Si tiene bultos, permanecerán en el inventario.`,
+      confirmText: "Desasociar",
+      danger: true,
+    });
+
     if (!confirmDelete) return;
 
     setIsRemovingPallet(true);

@@ -5,12 +5,14 @@ import { toast } from "../../lib/toast";
 import { ArrowLeft } from "lucide-react";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 export default function ResumenAsignacionVenta() {
   const { ordenId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const api = useApi();
+  const confirm = useConfirm();
 
   const [orden, setOrden] = useState(null);
   const [resumenAsignaciones, setResumenAsignaciones] = useState(null);
@@ -125,7 +127,11 @@ export default function ResumenAsignacionVenta() {
       return;
     }
 
-    if (!window.confirm("¿Estás seguro de volver esta orden a estado Pendiente? Esto eliminará el pallet actual y creará uno nuevo vacío.")) {
+    if (!(await confirm({
+      title: "¿Volver la orden a Pendiente?",
+      message: "Esto eliminará el pallet actual y creará uno nuevo vacío.",
+      confirmText: "Volver a Pendiente",
+    }))) {
       return;
     }
 

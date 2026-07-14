@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import FormField from "../Forms/FormField";
 import Selector from "../Forms/Selector";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import { useConfirm } from "../Modals/ConfirmProvider.jsx";
 
 function parseMaybeNumber(v) {
   if (v === "" || v == null) return null;
@@ -27,6 +28,7 @@ function normalizeInsumosFromFormato(formato) {
 }
 
 export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext }) {
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(false);
   const [formatos, setFormatos] = useState([]);
 
@@ -169,9 +171,12 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
       return;
     }
 
-    const ok = window.confirm(
-      "¿Eliminar este Formato de Empaque? Esta acción no se puede deshacer."
-    );
+    const ok = await confirm({
+      title: "¿Eliminar formato de empaque?",
+      message: "Esta acción no se puede deshacer.",
+      confirmText: "Eliminar",
+      danger: true,
+    });
     if (!ok) return;
 
     setLoading(true);

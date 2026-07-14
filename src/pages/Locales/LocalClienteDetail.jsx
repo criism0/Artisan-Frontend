@@ -4,6 +4,7 @@ import { BackButton, ModifyButton, DeleteButton } from "../../components/Buttons
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 export default function LocalClienteDetail() {
   const { clienteId, id } = useParams();
@@ -11,6 +12,7 @@ export default function LocalClienteDetail() {
   const [local, setLocal] = useState(null);
   const [cliente, setCliente] = useState(null);
   const api = useApi();
+  const confirm = useConfirm();
 
   const canReadClients = checkScope(ModelType.CLIENTE, ScopeType.READ);
   const canDeleteLocalClient = checkScope(ModelType.LOCAL_CLIENTE, ScopeType.DELETE);
@@ -36,7 +38,7 @@ export default function LocalClienteDetail() {
       toast.permissionError([ModelType.LOCAL_CLIENTE, ScopeType.DELETE]);
       return;
     }
-    if (!window.confirm("¿Eliminar este local?")) return;
+    if (!(await confirm({ title: "¿Eliminar local?", message: "Esta acción no se puede deshacer.", confirmText: "Eliminar", danger: true }))) return;
     try {
       await api(`/locales-cliente/${id}`, { method: "DELETE" });
       navigate(`/clientes/${clienteId}`);

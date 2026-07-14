@@ -16,6 +16,7 @@ import { fuzzyMatch } from "../../services/fuzzyMatch";
 import { uploadToS3 } from "../../lib/uploadToS3";
 import { api, buildApiUrl } from "../../lib/api";
 import { toast } from "../../lib/toast";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 const formatoFecha = (iso) => {
   if (!iso) return "—";
@@ -453,6 +454,7 @@ function PreviewPOEModal({ doc, onClose, onChanged, onSwitchDoc }) {
   const [mutating, setMutating] = useState(false);
   const [versionesOpen, setVersionesOpen] = useState(false);
   const [nuevaVersionOpen, setNuevaVersionOpen] = useState(false);
+  const confirm = useConfirm();
 
   const original_name = doc.documento?.original_name;
   const mime_type = doc.documento?.mime_type;
@@ -503,7 +505,12 @@ function PreviewPOEModal({ doc, onClose, onChanged, onSwitchDoc }) {
 
   const handleDelete = async () => {
     if (mutating) return;
-    if (!window.confirm(`¿Eliminar el POE "${doc.codigo} v${doc.version}"? Esta acción no se puede deshacer.`)) {
+    if (!(await confirm({
+      title: "¿Eliminar POE?",
+      message: `El POE "${doc.codigo} v${doc.version}" se eliminará permanentemente. Esta acción no se puede deshacer.`,
+      confirmText: "Eliminar",
+      danger: true,
+    }))) {
       return;
     }
     setMutating(true);

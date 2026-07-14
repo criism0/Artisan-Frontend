@@ -3,6 +3,7 @@ import DireccionModal from "./DireccionModal";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { useConfirm } from "../Modals/ConfirmProvider.jsx";
 
 export default function DireccionesManager({ 
   clienteId, 
@@ -14,6 +15,7 @@ export default function DireccionesManager({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDireccion, setEditingDireccion] = useState(null);
   const [loading, setLoading] = useState(false);
+  const confirm = useConfirm();
 
   const canWriteAddress = checkScope(ModelType.DIRECCION, ScopeType.WRITE);
   const canDeleteAddress = checkScope(ModelType.DIRECCION, ScopeType.DELETE);
@@ -131,7 +133,7 @@ export default function DireccionesManager({
       return;
     }
 
-    if (!window.confirm("¿Estás seguro de que deseas eliminar esta dirección?")) {
+    if (!(await confirm({ title: "¿Eliminar dirección?", message: "Esta acción no se puede deshacer.", confirmText: "Eliminar", danger: true }))) {
       return;
     }
 

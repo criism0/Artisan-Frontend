@@ -246,7 +246,6 @@ export default function RolManagement() {
         scopes: rol.scopes || []
       })) : [];
       setRoles(rolesData);
-      setFilteredRoles(rolesData);
 
       setModalClosed(true);
       setShowModal(false);

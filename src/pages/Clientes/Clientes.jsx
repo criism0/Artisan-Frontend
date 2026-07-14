@@ -6,6 +6,7 @@ import Selector from "../../components/Forms/Selector";
 import { api } from "../../lib/api.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import toast from "../../lib/toast.js";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 export default function ClientesPage() {
   const [clientes, setClientes] = useState([]);
@@ -19,6 +20,7 @@ export default function ClientesPage() {
   const [editingCanalId, setEditingCanalId] = useState(null);
   const [editingCanalName, setEditingCanalName] = useState("");
   const navigate = useNavigate();
+  const confirm = useConfirm();
 
   const canReadClients = checkScope(ModelType.CLIENTE, ScopeType.READ);
   const canWriteChannel = checkScope(ModelType.CANAL, ScopeType.WRITE);
@@ -140,12 +142,12 @@ export default function ClientesPage() {
       .catch(console.error);
   };
 
-  const deleteCanal = (id) => {
+  const deleteCanal = async (id) => {
     if (!canDeleteChannel) {
       toast.permissionError([ModelType.CANAL, ScopeType.DELETE]);
       return;
     }
-    if (!window.confirm("¿Eliminar canal?")) return;
+    if (!(await confirm({ title: "¿Eliminar canal?", confirmText: "Eliminar", danger: true }))) return;
     api(`/canales/${id}`, { method: "DELETE" }).then(loadCanales).catch(console.error);
   };
 

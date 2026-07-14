@@ -4,6 +4,7 @@ import { toast } from "../../lib/toast";
 import { insumoToSearchText } from "../../services/fuzzyMatch";
 import Selector from "../Forms/Selector";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import { useConfirm } from "../Modals/ConfirmProvider.jsx";
 
 function toPosInt(value) {
   const n = Number(value);
@@ -18,6 +19,7 @@ export default function PVAsTab({
   onNext,
 }) {
   const api = useApi();
+  const confirm = useConfirm();
 
   const targetProductoBaseId = toPosInt(productoBaseId);
   const targetMateriaPrimaId = toPosInt(materiaPrimaId);
@@ -292,7 +294,7 @@ export default function PVAsTab({
       return;
     }
 
-    const ok = window.confirm("¿Eliminar este PVA del producto? Esto reordena automáticamente.");
+    const ok = await confirm({ title: "¿Eliminar PVA?", message: "Se eliminará este PVA del producto y los demás se reordenan automáticamente.", confirmText: "Eliminar", danger: true });
     if (!ok) return;
 
     setLoading(true);
@@ -470,7 +472,7 @@ export default function PVAsTab({
       return;
     }
 
-    const ok = window.confirm("¿Eliminar este insumo del PVA?");
+    const ok = await confirm({ title: "¿Eliminar insumo del PVA?", confirmText: "Eliminar", danger: true });
     if (!ok) return;
 
     const idNum = toPosInt(insumoId);

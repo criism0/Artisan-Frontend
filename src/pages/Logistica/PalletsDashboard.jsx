@@ -3,6 +3,7 @@ import Table from "../../components/Tables/Table";
 import { toast } from "../../lib/toast";
 import { useApi, apiBlob } from "../../lib/api";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 const PAGE_SIZE = 50;
 
@@ -23,6 +24,7 @@ const formatDate = (value) => {
 
 export default function PalletsDashboard() {
   const api = useApi();
+  const confirm = useConfirm();
   const [pallets, setPallets] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState("");
@@ -144,10 +146,7 @@ export default function PalletsDashboard() {
       return;
     }
 
-    const confirm = window.confirm(
-      "¿Eliminar este pallet? Se liberarán los bultos asociados."
-    );
-    if (!confirm) return;
+    if (!(await confirm({ title: "¿Eliminar pallet?", message: "Se liberarán los bultos asociados.", confirmText: "Eliminar", danger: true }))) return;
 
     setDeleting(true);
     try {

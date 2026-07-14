@@ -9,6 +9,7 @@ import {
 import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 // ────────────────────────────────────────────────
 // CONSTANTS
@@ -22,6 +23,7 @@ export default function RecetaDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const api = useApi();
+  const confirm = useConfirm();
   const [receta, setReceta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1177,11 +1179,13 @@ export default function RecetaDetail() {
                     </button>
 
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (
-                          window.confirm(
-                            "¿Estás seguro de que quieres eliminar este ingrediente?"
-                          )
+                          await confirm({
+                            title: "¿Eliminar ingrediente?",
+                            confirmText: "Eliminar",
+                            danger: true,
+                          })
                         ) {
                           handleRemoveIngredient(ingrediente.id);
                         }
@@ -1351,11 +1355,13 @@ export default function RecetaDetail() {
                   </p>
                 </div>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (
-                      window.confirm(
-                        "¿Estás seguro de que quieres eliminar este subproducto?"
-                      )
+                      await confirm({
+                        title: "¿Eliminar subproducto?",
+                        confirmText: "Eliminar",
+                        danger: true,
+                      })
                     ) {
                       handleRemoveSubproduct(subproducto.id);
                     }

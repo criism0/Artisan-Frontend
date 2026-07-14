@@ -13,6 +13,7 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import DTEPanel from "../../components/DTE/DTEPanel.jsx";
 import Selector from "../../components/Forms/Selector";
 import AvanceItems from "../../components/AvanceItems";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -170,6 +171,7 @@ export default function OrdenVentaDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const api = useApi();
+  const confirm = useConfirm();
 
   const [orden, setOrden] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -286,7 +288,7 @@ export default function OrdenVentaDetail() {
   // ── Handlers de transición ──────────────────────────────────────────────────
   const handleValidar = async () => {
     if (!id) return;
-    if (!window.confirm("¿Validar esta orden de venta?")) return;
+    if (!(await confirm({ title: "¿Validar orden de venta?", confirmText: "Validar" }))) return;
     try {
       setTransitioning(true);
       const res = await api(`/ordenes-venta/${id}/validar`, { method: "PUT" });
@@ -303,7 +305,7 @@ export default function OrdenVentaDetail() {
 
   const handleCompletarPicking = async () => {
     if (!id) return;
-    if (!window.confirm("¿Completar el picking? Se verificará que todos los productos estén asignados.")) return;
+    if (!(await confirm({ title: "¿Completar el picking?", message: "Se verificará que todos los productos estén asignados.", confirmText: "Completar" }))) return;
     try {
       setTransitioning(true);
       const res = await api(`/ordenes-venta/${id}/completar-picking`, { method: "PUT" });
@@ -665,7 +667,6 @@ export default function OrdenVentaDetail() {
                 toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.DELETE]);
                 return;
               }
-              if (!window.confirm("¿Eliminar esta orden de venta?")) return;
               try {
                 await api(`/ordenes-venta/${id}`, { method: "DELETE" });
                 toast.success("Orden eliminada correctamente");

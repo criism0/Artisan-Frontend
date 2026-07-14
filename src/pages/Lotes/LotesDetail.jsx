@@ -4,6 +4,7 @@ import { useApi } from "../../lib/api";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 function Row({ label, value }) {
   return (
@@ -22,6 +23,7 @@ export default function LoteDetail() {
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(false);
   const api = useApi();
+  const confirm = useConfirm();
 
   const canReadInProgressLot = checkScope(ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ);
   const canDeleteInProgressLot = checkScope(ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.DELETE);
@@ -47,8 +49,7 @@ export default function LoteDetail() {
   }, [id, canReadInProgressLot]);
 
   const handleDelete = async () => {
-    const confirm = window.confirm("¿Estás seguro de que deseas eliminar este lote?");
-    if (!confirm) return;
+    if (!(await confirm({ title: "¿Eliminar lote?", message: "Esta acción no se puede deshacer.", confirmText: "Eliminar", danger: true }))) return;
     if (!canDeleteInProgressLot) {
       toast.permissionError([ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.DELETE]);
       setDeleting(false);
