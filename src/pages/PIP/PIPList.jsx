@@ -150,6 +150,12 @@ export default function PIPList() {
           >
             Ver Insumos
           </button>
+          <button
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            onClick={() => navigate("/PIP/crear")}
+          >
+            Crear PIP
+          </button>
         </>
       }
       toolbarStart={

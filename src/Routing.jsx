@@ -125,6 +125,7 @@ import ListaPrecioDetail from "./pages/ListasPrecio/ListaPrecioDetail";
 import ListaPrecioEdit from "./pages/ListasPrecio/ListaPrecioEdit";
 import LotesList from "./pages/Lotes/LotesList.jsx";
 import LoteDetail from "./pages/Lotes/LotesDetail.jsx";
+import LoteProductoFinalDetail from "./pages/Lotes/LoteProductoFinalDetail.jsx";
 
 import Pallets from "./pages/Logistica/Pallets";
 import LogisticaDashboard from "./pages/Logistica/LogisticaDashboard";
@@ -816,13 +817,21 @@ function Routing() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/lotes-producto-en-proceso/:id" 
+          <Route
+            path="/lotes-producto-en-proceso/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ]]}>
                 <LoteDetail />
               </ProtectedRoute>
-            } 
+            }
+          />
+          <Route
+            path="/lotes-producto-final/:id"
+            element={
+              <ProtectedRoute permissions={[[ModelType.LOTE_PRODUCTO_FINAL, ScopeType.READ]]}>
+                <LoteProductoFinalDetail />
+              </ProtectedRoute>
+            }
           />
           {/* Usuarios / Roles (admin) */}
           <Route

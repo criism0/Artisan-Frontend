@@ -56,17 +56,30 @@ const addTarget = (raw, file) => {
   targets.get(c).files.add(relative(SRC, file));
 };
 
-// patrones: navigate('..'|`..`), to="..."/to={`..`}/to={'..'}, <Navigate to=..>
-const patterns = [
-  /navigate\(\s*(["'`])([^"'`]*)\1/g,
-  /\bto=\s*(["'])([^"']*)\1/g, // to="..."  y  to='...'
-  /\bto=\s*\{\s*(["'`])([^"'`]*)\1\s*\}/g, // to={"..."} / to={`...`}
-];
+// Extrae TODOS los literales de ruta ("/..", '/..', `/..`) de un fragmento de
+// código, incluyendo templates con ${} (canon los colapsa a *).
+const extractPathLiterals = (fragment) => {
+  const out = [];
+  for (const m of fragment.matchAll(/`(\/[^`]*)`|"(\/[^"]*)"|'(\/[^']*)'/g)) {
+    out.push(m[1] ?? m[2] ?? m[3]);
+  }
+  return out;
+};
+
+// Toma el código desde `start` hasta el primer cierre de contexto de navegación
+// (`;`, `>` de cierre de tag JSX, o tope de N chars). Cubre `to={ternario}` y
+// `navigate(cond ? \`/a\` : \`/b\`)` que las regex simples no capturaban.
+const navWindow = (code, start) => {
+  const cap = code.slice(start, start + 400);
+  const stop = cap.search(/[;>]/);
+  return stop === -1 ? cap : cap.slice(0, stop + 1);
+};
 
 for (const file of files) {
   const code = stripComments(readFileSync(file, "utf8"));
-  for (const re of patterns) {
-    for (const m of code.matchAll(re)) addTarget(m[2], file);
+  // Contextos de navegación del router: navigate( ... ), to=... , <Navigate to=...
+  for (const m of code.matchAll(/\bnavigate\(|\bto=|<Navigate\b/g)) {
+    for (const lit of extractPathLiterals(navWindow(code, m.index))) addTarget(lit, file);
   }
 }
 
