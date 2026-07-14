@@ -96,4 +96,12 @@ temp/
 
 # Others
 *.local
-*.tgzdocs/INVESTIGACIÓN_MEJORAS.md
+*.tgz
+docs/INVESTIGACIÓN_MEJORAS.md
+
+# Playwright (E2E)
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+tests/e2e/.auth/

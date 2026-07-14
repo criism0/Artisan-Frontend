@@ -7,6 +7,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // Restringido a src para que vitest NO tome los specs de Playwright en tests/e2e.
+    include: ['src/**/*.{test,spec}.{js,jsx}'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
