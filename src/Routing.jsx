@@ -53,8 +53,6 @@ import PIPList from "./pages/PIP/PIPList";
 import Ordenes from "./pages/Compras/Ordenes";
 import CrearOrden from "./pages/Compras/CrearOrden";
 import EditOrden from "./pages/Compras/EditarOrden";
-import ValidarOrden from "./pages/Compras/ValidarOrden";
-import EnviarOrden from "./pages/Compras/EnviarOrden";
 import RecepcionarOrden from "./pages/Compras/RecepcionarOrden";
 import OrdenDetail from "./pages/Compras/OrdenDetail";
 import AdquisicionesDashboard from "./pages/Compras/AdquisicionesDashboard";
@@ -82,16 +80,13 @@ import AsignarRoles from "./pages/Roles/AsignarRoles";
 // ====== Inventarios ======
 import Inventario from "./pages/Inventario/Inventario";
 import InventarioDashboard from "./pages/Inventario/InventarioDashboard";
-import InventarioInsumos from "./pages/Inventario_Insumos/InventarioInsumos.jsx";
 
 
 // ====== Solicitudes ======
 import Solicitudes from "./pages/Solicitudes/Solicitudes";
 import AddSolicitud from "./pages/Solicitudes/AddSolicitud";
 import EditSolicitud from "./pages/Solicitudes/EditSolicitud";
-import CargarPallets from "./pages/Solicitudes/CargarPallet.jsx";
 import SolicitudDetail from "./pages/Solicitudes/SolicitudDetail";
-import PrepararPedido from "./pages/Solicitudes/PrepararPedido";
 import RecepcionarSolicitud from "./pages/Solicitudes/RecepcionarSolicitud";
 
 // ====== Orden de Manufactura ======
@@ -108,9 +103,6 @@ import ClientesPage from "./pages/Clientes/Clientes.jsx";
 import AddClientes from "./pages/Clientes/AddClientes.jsx";
 import EditClientes from "./pages/Clientes/ClienteEdit.jsx";
 import ClienteDetail from "./pages/Clientes/ClienteDetail.jsx";
-import AddLocalCliente from "./pages/Locales/AddLocalCliente.jsx";
-import EditLocalCliente from "./pages/Locales/EditLocalCliente.jsx";
-import LocalClienteDetail from "./pages/Locales/LocalClienteDetail.jsx";
 
 // ====== Ventas ======
 import VentasDashboard from "./pages/Ventas/VentasDashboard";
@@ -154,8 +146,6 @@ import ProcesosValorAgregado from "./pages/ProcesosValorAgregado/ProcesosValorAg
 import DetailProcesoValorAgregado from "./pages/ProcesosValorAgregado/DetailProcesoValorAgregado.jsx";
 import EditProcesoValorAgregado from "./pages/ProcesosValorAgregado/EditProcesoValorAgregado.jsx";
 import DeleteProcesoValorAgregado from "./pages/ProcesosValorAgregado/DeleteProcesoValorAgregado.jsx";
-import PautasValorAgregado from "./pages/PautasValorAgregado/PautasValorAgregado.jsx";
-import DetailPautaValorAgregado from "./pages/PautasValorAgregado/DetailPautaValorAgregado.jsx";
 import PVAPorProducto from "./pages/PVAProducto/PVAPorProducto.jsx";
 import AddPVAPorProducto from "./pages/PVAProducto/AddPVAPorProducto.jsx";
 import EditPVAPorProducto from "./pages/PVAProducto/EditPVAPorProducto.jsx";
@@ -274,18 +264,6 @@ function Routing() {
             } 
           />
 
-          <Route
-            path="/Inventario/:id_bodega"
-            element={
-              <ProtectedRoute permissions={[
-                [ModelType.INVENTARIO, ScopeType.READ],
-                [ModelType.BODEGA, ScopeType.READ]
-              ]}>
-                <InventarioInsumos />
-              </ProtectedRoute>
-            } 
-          />
-
           {/* Compras / Órdenes */}
           <Route 
             path="/Ordenes/dashboard" 
@@ -311,32 +289,16 @@ function Routing() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/Ordenes/validar/:ordenId" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.WRITE]]}>
-                <ValidarOrden />
-              </ProtectedRoute>
-            }
-          />
-          <Route 
-            path="/Ordenes/edit/:ordenId" 
+          <Route
+            path="/Ordenes/edit/:ordenId"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.WRITE]]}>
                 <EditOrden />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/Ordenes/enviar/:ordenId" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.WRITE]]}>
-                <EnviarOrden />
-              </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/Ordenes/recepcionar/:ordenId" 
+          <Route
+            path="/Ordenes/recepcionar/:ordenId"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.WRITE]]}>
                 <RecepcionarOrden />
@@ -374,25 +336,6 @@ function Routing() {
             element={
               <ProtectedRoute permissions={[[ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE]]}>
                 <EditSolicitud />
-              </ProtectedRoute>
-            }
-          />
-          <Route 
-            path="/Solicitudes/cargar-pallets" 
-            element={
-              <ProtectedRoute permissions={[
-                [ModelType.SOLICITUD_MERCADERIA, ScopeType.READ],
-                [ModelType.PALLET, ScopeType.READ]
-              ]}>
-                <CargarPallets />
-              </ProtectedRoute>
-            } 
-          />
-          <Route
-            path="/Solicitudes/:solicitudId/preparar-pedido"
-            element={
-              <ProtectedRoute permissions={[[ModelType.SOLICITUD_MERCADERIA, ScopeType.READ]]}>
-                <PrepararPedido />
               </ProtectedRoute>
             }
           />
@@ -1030,39 +973,6 @@ function Routing() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="/clientes/:clienteId/locales/add"
-            element={
-              <ProtectedRoute permissions={[
-                [ModelType.CLIENTE, ScopeType.READ],
-                [ModelType.LOCAL_CLIENTE, ScopeType.WRITE]
-              ]}>
-                <AddLocalCliente />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/clientes/:clienteId/locales/:id"
-            element={
-              <ProtectedRoute permissions={[
-                [ModelType.CLIENTE, ScopeType.READ],
-                [ModelType.LOCAL_CLIENTE, ScopeType.READ]
-              ]}>
-                <LocalClienteDetail />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/clientes/:clienteId/locales/:id/edit"
-            element={
-              <ProtectedRoute permissions={[
-                [ModelType.CLIENTE, ScopeType.READ],
-                [ModelType.LOCAL_CLIENTE, ScopeType.WRITE]
-              ]}>
-                <EditLocalCliente />
-              </ProtectedRoute>
-            }
-          />
 
 
           {/* Facturas IA */}
@@ -1221,23 +1131,6 @@ function Routing() {
             }
           />
 
-          {/* Pauta PVA (admin) */}
-          <Route
-            path="/PautasValorAgregado"
-            element={
-              <ProtectedRoute permissions={[[ModelType.PAUTA_VALOR_AGREGADO, ScopeType.READ]]}>
-                <PautasValorAgregado />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/PautasValorAgregado/:id"
-            element={
-              <ProtectedRoute permissions={[[ModelType.PAUTA_VALOR_AGREGADO, ScopeType.READ]]}>
-                <DetailPautaValorAgregado />
-              </ProtectedRoute>
-            }
-          />
 
           {/* Pauta PVA a productos */}
           <Route 

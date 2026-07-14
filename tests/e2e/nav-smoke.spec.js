@@ -8,7 +8,7 @@ const RUTAS = [
   "/Home",
   // Adquisiciones
   "/Ordenes", "/Ordenes/dashboard", "/Ordenes/add",
-  "/Solicitudes", "/Solicitudes/add", "/Solicitudes/cargar-pallets",
+  "/Solicitudes", "/Solicitudes/add",
   "/Proveedores", "/Proveedores/add",
   // Producción
   "/Produccion/dashboard",
@@ -35,7 +35,6 @@ const RUTAS = [
   "/Recetas", "/Recetas/add",
   "/Bodegas", "/Bodegas/add",
   "/ProcesosValorAgregado", "/ProcesosValorAgregado/add",
-  "/PautasValorAgregado",
   "/PVAPorProducto", "/PVAPorProducto/agregar",
   // Administración · Seguridad y acceso
   "/Usuarios", "/Usuarios/add", "/Roles", "/Roles/add", "/AsignarRoles", "/GenerarQR",
