@@ -48,7 +48,10 @@ export default function DTEPanel({ orden }) {
   if (!orden) return null;
 
   const estado  = orden.estado ?? '';
-  const cliente = orden.direccion?.cliente ?? {};
+  // El receptor del DTE es el cliente de la orden (id_cliente, siempre presente).
+  // Antes se leía solo orden.direccion?.cliente, que es null cuando la OV no tiene
+  // dirección de despacho → falso "cliente sin RUT". Se prioriza orden.cliente.
+  const cliente = orden.cliente ?? orden.direccion?.cliente ?? {};
   const tieneRUT = !!cliente.rut;
 
   const facturaEmitida = documentos.find(d => d.tipoDte === 33 && d.estadoSii !== 'anulado');
