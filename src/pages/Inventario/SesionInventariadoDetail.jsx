@@ -75,6 +75,26 @@ const COLS_BASE = [
   { key: "item", label: "Ítem", render: (b) => b.item },
 ];
 
+// Columna con quién escaneó cada bulto (y cuándo). Solo aplica a bultos escaneados
+// (los faltantes no se escanearon). El backend expone escaneado_por + fecha_escaneo.
+const COL_ESCANEO = {
+  key: "esc",
+  label: "Escaneado por",
+  render: (b) =>
+    b.escaneado_por?.nombre ? (
+      <div className="leading-tight">
+        <div>{b.escaneado_por.nombre}</div>
+        {b.fecha_escaneo && (
+          <div className="text-xs text-gray-400">
+            {new Date(b.fecha_escaneo).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" })}
+          </div>
+        )}
+      </div>
+    ) : (
+      "—"
+    ),
+};
+
 /**
  * Detalle de una sesión de toma de inventario:
  * - Activa/Terminada: previsualización de diferencias (toma vs realidad) y,
@@ -217,6 +237,7 @@ export default function SesionInventariadoDetail() {
                   {b.diferencia_unidades > 0 ? "+" : ""}{fmt(b.diferencia_unidades)}
                 </span>
               ) },
+              COL_ESCANEO,
             ]}
           />
           <Seccion
@@ -228,6 +249,7 @@ export default function SesionInventariadoDetail() {
               ...COLS_BASE,
               { key: "bod", label: "Bodega registrada", render: (b) => b.id_bodega ?? "—" },
               { key: "cont", label: "Contado", render: (b) => fmt(b.unidades_contadas) },
+              COL_ESCANEO,
             ]}
           />
           <Seccion
@@ -238,6 +260,7 @@ export default function SesionInventariadoDetail() {
             columns={[
               ...COLS_BASE,
               { key: "cont", label: "Contado", render: (b) => fmt(b.unidades_contadas) },
+              COL_ESCANEO,
             ]}
           />
           <Seccion
@@ -256,6 +279,7 @@ export default function SesionInventariadoDetail() {
             columns={[
               ...COLS_BASE,
               { key: "u", label: "Unidades", render: (b) => fmt(b.unidades_disponibles) },
+              COL_ESCANEO,
             ]}
           />
         </>
