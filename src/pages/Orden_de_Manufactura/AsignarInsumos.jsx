@@ -4,7 +4,7 @@ import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import { BackButton, UndoButton } from "../../components/Buttons/ActionButtons";
-import { formatNumberCL } from "../../services/formatHelpers";
+import { formatNumberCL, formatCLP } from "../../services/formatHelpers";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
@@ -949,16 +949,16 @@ export default function AsignarInsumos() {
                                 {b.identificador ? `Bulto ${b.identificador}` : `Bulto #${b.id}`}
                               </td>
                               <td className="px-4 py-2 text-right text-text">
-                                {mostrarNumeroExacto(b.unidades_disponibles)} / {mostrarNumeroExacto(b.cantidad_unidades)}
+                                {formatNumberCL(b.unidades_disponibles, 4)} / {formatNumberCL(b.cantidad_unidades, 4)}
                               </td>
                               <td className="px-4 py-2 text-right text-text">
-                                {mostrarNumeroExacto(b.peso_unitario)}{sufijoUnidad}
+                                {formatNumberCL(b.peso_unitario, 4)}{sufijoUnidad}
                               </td>
                               <td className="px-4 py-2 text-right text-text">
-                                {mostrarNumeroExacto(equivalente)}{sufijoUnidad}
+                                {formatNumberCL(equivalente, 4)}{sufijoUnidad}
                               </td>
                               <td className="px-4 py-2 text-right text-text">
-                                {b.costo_unitario != null ? `$${b.costo_unitario}` : "—"}
+                                {b.costo_unitario != null ? formatCLP(b.costo_unitario, 0) : "—"}
                               </td>
                               <td className="px-4 py-2">
                                 <div className="flex flex-col">
