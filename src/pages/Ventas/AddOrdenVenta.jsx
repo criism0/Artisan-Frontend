@@ -84,7 +84,7 @@ export default function AddOrdenVenta() {
     const precioLista = buscarPrecioLista(nombreId, preciosListaActual);
     const nombreFact = nombres.find((n) => n.id === nombreId);
     const unidadesPorCaja = Number(
-      precioLista?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0
+      precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0
     ) || 0;
     const precioCaja = precioLista?.precio_caja;
     const precioUnidad = precioLista?.precio_unidad;
@@ -108,7 +108,7 @@ export default function AddOrdenVenta() {
       const precioLista = buscarPrecioLista(prod.id_nombre_facturacion, preciosListaActual);
       const nombreFact = nombres.find((n) => n.id === prod.id_nombre_facturacion);
       const unidadesPorCaja = Number(
-        precioLista?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || prod.unidades_por_caja || 0
+        precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || prod.unidades_por_caja || 0
       ) || 0;
       return {
         ...prod,
@@ -220,7 +220,7 @@ export default function AddOrdenVenta() {
     const nombreFact = nombres.find((n) => n.id === nombreId);
     const formato = (clienteConfig?.formato || "UNIDADES").toUpperCase();
     const precioLista = buscarPrecioLista(nombreId, preciosLista);
-    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
+    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
     const cantidad = Number(productoForm.cantidad);
     setProductosAgregados((prev) => [
       {

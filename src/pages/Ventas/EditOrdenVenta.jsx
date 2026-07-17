@@ -148,7 +148,7 @@ export default function EditOrdenVenta() {
     if (!nombreId || !clienteConfig) return "";
     const precioLista = buscarPrecioLista(nombreId);
     const nombreFact = nombres.find((n) => n.id === nombreId);
-    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
+    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
     const precioCaja = precioLista?.precio_caja;
     const precioUnidad = precioLista?.precio_unidad;
     const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
@@ -190,7 +190,7 @@ export default function EditOrdenVenta() {
     }
     const nombreFact = nombres.find((n) => n.id === nombreId);
     const precioLista = buscarPrecioLista(nombreId);
-    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
+    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
     const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
     const cantidadFormato = Number(productoForm.cantidad);
     const cantidadUnidades = esCajas && unidadesPorCaja ? cantidadFormato * unidadesPorCaja : cantidadFormato;
