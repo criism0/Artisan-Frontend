@@ -437,16 +437,31 @@ function PanelAlertasReposicion({ api }) {
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState(null);
   const [soloProblemas, setSoloProblemas] = useState(true);
- 
+  const [bodegas, setBodegas]   = useState([]);
+  const [bodegaId, setBodegaId] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    api(`/bodegas`)
+      .then((res) => {
+        if (cancelled) return;
+        const data = res?.data?.bodegas || res?.bodegas || [];
+        setBodegas(data.filter((b) => (b?.nombre || "").toLowerCase().trim() !== "en tránsito"));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [api]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    cargarAlertasReposicion(api)
+    setError(null);
+    cargarAlertasReposicion(api, bodegaId ? { id_bodega: bodegaId } : {})
       .then((data) => { if (!cancelled) setAlertas(data); })
       .catch((err) => { if (!cancelled) setError(err?.message || "Error al cargar alertas"); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [api]);
+  }, [api, bodegaId]);
  
   const criticos  = alertas.filter((a) => a.nivel === "Crítico").length;
   const reordenar = alertas.filter((a) => a.nivel === "Reordenar").length;
@@ -460,9 +475,24 @@ function PanelAlertasReposicion({ api }) {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-lg font-semibold text-text">Alertas de reposición</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Stock calculado sobre consumo real de las últimas 4 semanas</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Stock y consumo real de las últimas 4 semanas
+            {bodegaId
+              ? ` en ${bodegas.find((b) => String(b.id) === bodegaId)?.nombre || "la bodega"}`
+              : " (todas las bodegas)"}
+          </p>
         </div>
         <div className="flex items-center gap-3 flex-wrap">
+          <select
+            value={bodegaId}
+            onChange={(e) => setBodegaId(e.target.value)}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option value="">Todas las bodegas</option>
+            {bodegas.map((b) => (
+              <option key={b.id} value={String(b.id)}>{b.nombre}</option>
+            ))}
+          </select>
           {criticos > 0 && (
             <span className="flex items-center gap-1.5 px-3 py-1 bg-red-50 border border-red-200 rounded-full text-xs font-medium text-red-700">
               <AlertTriangle size={13} />{criticos} crítico{criticos === 1 ? "" : "s"}
