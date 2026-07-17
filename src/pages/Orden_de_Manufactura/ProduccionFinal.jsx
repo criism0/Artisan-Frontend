@@ -1158,41 +1158,85 @@ export default function ProduccionFinal() {
                 </div>
               ) : null}
               
-              {/* Métricas principales */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo OM</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview.costo_total_om_actual || 0), 2)}</div>
-                </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Empaques</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview.costo_empaques_estimado || 0), 2)}</div>
-                </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Indirectos</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview?.costos_indirectos_estimado?.costo_indirecto_total || 0), 2)}</div>
-                  <div className="text-[11px] text-gray-600 mt-1">
-                    {formatCLP(Number(preview?.costos_indirectos_estimado?.costo_indirecto_por_kg || 0), 2)}/kg · Base: {formatNumberCL(Number(preview?.costos_indirectos_estimado?.peso_aplicado || 0), 2)} kg
+              {/* Cómo se llega al costo total (M5): suma explícita para el operario */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+                <div className="bg-white border border-blue-200 rounded p-4">
+                  <div className="text-sm font-semibold text-text mb-3">Cómo se compone el costo</div>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">Costo OM (insumos ya absorbidos)</span>
+                      <span className="font-semibold text-text">{formatCLP(Number(preview.costo_total_om_actual || 0), 2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">+ Empaques (costos secos)</span>
+                      <span className="font-semibold text-text">{formatCLP(Number(preview.costo_empaques_estimado || 0), 2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">
+                        + Costos indirectos
+                        <span className="text-xs text-gray-400">
+                          {" "}({formatCLP(Number(preview?.costos_indirectos_estimado?.costo_indirecto_por_kg || 0), 2)}/kg × {formatNumberCL(Number(preview?.costos_indirectos_estimado?.peso_aplicado || 0), 2)} kg)
+                        </span>
+                      </span>
+                      <span className="font-semibold text-text">{formatCLP(Number(preview?.costos_indirectos_estimado?.costo_indirecto_total || 0), 2)}</span>
+                    </div>
+                    <div className="border-t border-gray-300 my-1" />
+                    <div className="flex justify-between items-baseline">
+                      <span className="font-medium text-gray-700">= Costo Total estimado</span>
+                      <span className="text-lg font-bold text-green-600">{formatCLP(Number(preview.costo_total_estimado || 0), 2)}</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-gray-200 flex justify-between items-baseline text-sm">
+                    <span className="text-gray-600">Costo/kg <span className="text-xs text-gray-400">(sobre el producto obtenido)</span></span>
+                    <span className="font-bold text-text">{formatCLP(Number(preview.costo_por_kg_estimado || 0), 2)}</span>
                   </div>
                 </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo Total</div>
-                  <div className="text-lg font-bold text-green-600">{formatCLP(Number(preview.costo_total_estimado || 0), 2)}</div>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo/kg</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview.costo_por_kg_estimado || 0), 2)}</div>
-                </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Peso objetivo</div>
-                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_objetivo || 0), 2)} kg</div>
-                </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Salida para rendimiento</div>
-                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_total_salida_rendimiento || 0), 2)} kg</div>
+                {/* Balance de masas (M5): entrada = producto + subproductos + merma */}
+                <div className="bg-white border border-blue-200 rounded p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-semibold text-text">Balance de masas</div>
+                    <div className="text-xs text-gray-500">Objetivo: {formatNumberCL(Number(preview.peso_objetivo || 0), 2)} kg</div>
+                  </div>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">Peso ingresado (consumo real)</span>
+                      <span className="font-bold text-text">{formatNumberCL(Number(preview.peso_ingresado_rendimiento || 0), 2)} kg</span>
+                    </div>
+                    <div className="border-t border-gray-300 my-1" />
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">Producto obtenido</span>
+                      <span className="font-semibold text-text">{formatNumberCL(Number(preview.peso_obtenido || 0), 2)} kg</span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">+ Subproductos (a costo 0)</span>
+                      <span className="font-semibold text-text">{formatNumberCL(Number(preview.peso_subproductos || 0), 2)} kg</span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">+ Merma estimada</span>
+                      <span className={`font-semibold ${Number(preview.peso_merma_estimado || 0) > 0.0001 ? "text-orange-700" : "text-text"}`}>
+                        {formatNumberCL(Number(preview.peso_merma_estimado || 0), 2)} kg
+                        {Number(preview.peso_ingresado_rendimiento || 0) > 0 && (
+                          <span className="text-xs text-gray-400 font-normal">
+                            {" "}({formatNumberCL((Number(preview.peso_merma_estimado || 0) / Number(preview.peso_ingresado_rendimiento || 1)) * 100, 1)}%)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="border-t border-gray-300 my-1" />
+                    <div className="flex justify-between items-baseline">
+                      <span className="font-medium text-gray-700">= Total salida</span>
+                      <span className="font-bold text-text">
+                        {formatNumberCL(Number(preview.peso_total_salida_rendimiento || 0) + Number(preview.peso_merma_estimado || 0), 2)} kg
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-gray-200 flex justify-between items-baseline text-sm">
+                    <span className="text-gray-600">Rendimiento <span className="text-xs text-gray-400">(buen rango 90–110%)</span></span>
+                    <span className="font-bold text-text">
+                      {preview.rendimiento_peso_estimado == null ? "N/A" : `${formatNumberCL(Number(preview.rendimiento_peso_estimado) * 100, 2)}%`}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1229,35 +1273,6 @@ export default function ProduccionFinal() {
                   </div>
                 </div>
               ) : null}
-
-              {/* Rendimiento y Merma */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-white border border-orange-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Merma estimada</div>
-                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_merma_estimado || 0), 2)} kg</div>
-                  <div className="text-xs text-gray-600 mt-1">
-                    {Number(preview.peso_ingresado_rendimiento || preview.peso_objetivo || 0) > 0 
-                      ? `${formatNumberCL((Number(preview.peso_merma_estimado || 0) / Number(preview.peso_ingresado_rendimiento || preview.peso_objetivo || 1)) * 100, 1)}% del ingresado`
-                      : "N/A"}
-                  </div>
-                </div>
-                <div className="bg-white border border-green-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Rendimiento</div>
-                  <div className="text-lg font-bold text-text">
-                    {preview.rendimiento_peso_estimado == null ? "N/A" : `${formatNumberCL(Number(preview.rendimiento_peso_estimado) * 100, 2)}%`}
-                  </div>
-                  <div className="text-xs text-gray-600 mt-1">
-                    Buen rango: 90-110%
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-1 gap-3 mb-4">
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Subproductos</div>
-                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_subproductos || 0), 2)} kg</div>
-                </div>
-              </div>
 
               {/* Salida: cajas o bultos */}
               <div className="bg-white border border-blue-200 rounded p-3">

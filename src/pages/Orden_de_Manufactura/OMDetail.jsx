@@ -418,10 +418,14 @@ export default function OMDetail() {
   const esPIP = Boolean(loteProductoEnProceso);
   const labelObtenido = esPIP ? "Peso Obtenido (PIP)" : "Peso Obtenido (PT)";
 
-  // Bultos productivos (PT o PIP, excluye merma)
+  // Bultos productivos del PRODUCTO elaborado (PT o PIP): excluye merma y
+  // también los SUBPRODUCTOS (M5) — entran a inventario a costo 0 y no deben
+  // contar en unidades/cajas ni diluir el costo por unidad.
+  const esSubproducto = (b) => Boolean(b?.id_registro_subproducto ?? b?.RegistroSubproducto);
   const bultosProductivos = (bultosAsociados || []).filter(
-    (b) => getClaveCategoria(b) === "PT" || getClaveCategoria(b) === "PIP"
+    (b) => !esSubproducto(b) && (getClaveCategoria(b) === "PT" || getClaveCategoria(b) === "PIP")
   );
+  const bultosSubproducto = (bultosAsociados || []).filter((b) => esSubproducto(b));
   const cajasObtenidas = bultosProductivos.length;
   const unidadesObtenidas = bultosProductivos.reduce(
     (acc, b) => acc + Number(b?.cantidad_unidades || 0),
@@ -643,67 +647,84 @@ export default function OMDetail() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            {/* Fila 1: Pesos */}
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Peso Objetivo</div>
-              <div className="text-lg font-bold text-text">{formatNumberCL(pesoObjetivo, 2)} kg</div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Peso Total entrada</div>
-              <div className="text-lg font-bold text-text">
-                {pesoTotalEntrada > 0 ? `${formatNumberCL(pesoTotalEntrada, 2)} kg` : "—"}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Balance de masas (M5): cómo la entrada se convierte en salidas */}
+            <div className="bg-gray-50 rounded-lg border border-border p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-semibold text-text">Balance de masas</div>
+                <div className="text-xs text-gray-500">Objetivo: {formatNumberCL(pesoObjetivo, 2)} kg</div>
               </div>
-              <div className="text-xs text-gray-400 mt-1">Suma insumos consumidos</div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">{labelObtenido}</div>
-              <div className="text-lg font-bold text-text">{formatNumberCL(pesoObtenido, 2)} kg</div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Peso Subproductos</div>
-              <div className="text-lg font-bold text-text">{formatNumberCL(pesoSubproductos, 2)} kg</div>
-            </div>
-
-            {/* Fila 2: Merma y rendimiento */}
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Peso Merma</div>
-              <div className={`text-lg font-bold ${pesoMerma > 0.0001 ? "text-orange-700" : "text-text"}`}>
-                {Number.isFinite(pesoMerma) ? `${formatNumberCL(pesoMerma, 2)} kg` : "—"}
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-gray-600">Peso Total entrada (insumos consumidos)</span>
+                  <span className="font-bold text-text">
+                    {pesoTotalEntrada > 0 ? `${formatNumberCL(pesoTotalEntrada, 2)} kg` : "—"}
+                  </span>
+                </div>
+                <div className="border-t border-gray-300 my-1" />
+                <div className="flex justify-between items-baseline">
+                  <span className="text-gray-600">{labelObtenido}</span>
+                  <span className="font-semibold text-text">{formatNumberCL(pesoObtenido, 2)} kg</span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-gray-600">+ Subproductos</span>
+                  <span className="font-semibold text-text">{formatNumberCL(pesoSubproductos, 2)} kg</span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-gray-600">+ Merma</span>
+                  <span className={`font-semibold ${pesoMerma > 0.0001 ? "text-orange-700" : "text-text"}`}>
+                    {Number.isFinite(pesoMerma) ? `${formatNumberCL(pesoMerma, 2)} kg` : "—"}
+                  </span>
+                </div>
+                <div className="border-t border-gray-300 my-1" />
+                <div className="flex justify-between items-baseline">
+                  <span className="font-medium text-gray-700">= Total salida</span>
+                  <span className="font-bold text-text">
+                    {formatNumberCL(pesoObtenido + pesoSubproductos + (Number.isFinite(pesoMerma) ? pesoMerma : 0), 2)} kg
+                  </span>
+                </div>
+              </div>
+              <div className="mt-3 pt-2 border-t border-gray-200 flex justify-between items-baseline">
+                <span className="text-sm text-gray-600">
+                  Rendimiento <span className="text-xs text-gray-400">(obtenido / entrada)</span>
+                </span>
+                <span className="text-lg font-bold text-text">
+                  {rendimientoPeso == null ? "—" : `${formatNumberCL(Number(rendimientoPeso) * 100, 2)}%`}
+                </span>
               </div>
             </div>
 
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Rendimiento</div>
-              <div className="text-lg font-bold text-text">
-                {rendimientoPeso == null ? "—" : `${formatNumberCL(Number(rendimientoPeso) * 100, 2)}%`}
+            {/* Producto elaborado: unidades y cajas SOLO del producto (sin subproductos) */}
+            <div className="bg-gray-50 rounded-lg border border-border p-4">
+              <div className="text-sm font-semibold text-text mb-3">Producto elaborado</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white rounded-lg border border-border p-3">
+                  <div className="text-xs text-gray-500 font-medium">Unidades Obtenidas</div>
+                  <div className="text-lg font-bold text-text">
+                    {unidadesObtenidas > 0 ? formatNumberCL(unidadesObtenidas, 2) : "—"}
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg border border-border p-3">
+                  <div className="text-xs text-gray-500 font-medium">Cajas Obtenidas</div>
+                  <div className="text-lg font-bold text-text">
+                    {cajasObtenidas > 0 ? cajasObtenidas : "—"}
+                  </div>
+                </div>
               </div>
-              <div className="text-xs text-gray-400 mt-1">Obtenido / Total entrada</div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Unidades Obtenidas</div>
-              <div className="text-lg font-bold text-text">
-                {unidadesObtenidas > 0 ? formatNumberCL(unidadesObtenidas, 2) : "—"}
+              <div className="mt-2 text-xs text-gray-500">
+                Solo el producto elaborado — los subproductos no cuentan aquí (van aparte, a costo 0).
               </div>
+              {bultosSubproducto.length > 0 && (
+                <div className="mt-2 text-xs text-gray-600">
+                  Subproductos registrados: {bultosSubproducto.length} bulto{bultosSubproducto.length === 1 ? "" : "s"} · {formatNumberCL(pesoSubproductos, 2)} kg
+                </div>
+              )}
             </div>
-
-            <div className="bg-gray-50 rounded-lg border border-border p-3">
-              <div className="text-xs text-gray-500 font-medium">Cajas Obtenidas</div>
-              <div className="text-lg font-bold text-text">
-                {cajasObtenidas > 0 ? cajasObtenidas : "—"}
-              </div>
-              <div className="text-xs text-gray-400 mt-1">Bultos PT/PIP</div>
-            </div>
-
           </div>
 
           {Array.isArray(bultosAsociados) && bultosAsociados.length > 0 ? (
             <div className="mt-3 text-xs text-gray-600">
-              Salidas registradas: {bultosAsociados.filter((b) => getClaveCategoria(b) === "PT").length} PT · {bultosAsociados.filter((b) => getClaveCategoria(b) === "PIP").length} PIP · {bultosAsociados.filter((b) => getClaveCategoria(b) === "M").length} Merma
+              Salidas registradas: {bultosAsociados.filter((b) => !esSubproducto(b) && getClaveCategoria(b) === "PT").length} PT · {bultosAsociados.filter((b) => !esSubproducto(b) && getClaveCategoria(b) === "PIP").length} PIP · {bultosSubproducto.length} Subproducto{bultosSubproducto.length === 1 ? "" : "s"} · {bultosAsociados.filter((b) => getClaveCategoria(b) === "M").length} Merma
             </div>
           ) : null}
         </div>
@@ -734,6 +755,7 @@ export default function OMDetail() {
                   <div className="text-lg font-bold text-text">
                     {costoPorUnidad == null ? "—" : formatCLP(costoPorUnidad, 2)}
                   </div>
+                  <div className="text-xs text-gray-400 mt-1">Solo producto elaborado</div>
                 </div>
 
                 <div className="bg-gray-50 rounded-lg border border-border p-3">
@@ -741,6 +763,7 @@ export default function OMDetail() {
                   <div className="text-lg font-bold text-text">
                     {costoPorCaja == null ? "—" : formatCLP(costoPorCaja, 2)}
                   </div>
+                  <div className="text-xs text-gray-400 mt-1">Solo producto elaborado</div>
                 </div>
               </div>
             </div>

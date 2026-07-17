@@ -96,30 +96,28 @@ export default function HistorialCostosModal({ open, omId, onClose, inline = fal
 
           {!loading && om ? (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo total OM</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costo_total_om, 0)}</div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                  <div className="text-xs text-gray-500 font-medium">Absorción insumos</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costo_bultos_ingredientes, 0)}</div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                  <div className="text-xs text-gray-500 font-medium">Absorción empaques</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costo_bultos_empaques, 0)}</div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo directo</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costos_receta?.costo_directo_total, 0)}</div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo indirecto</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costos_receta?.costo_indirecto_total, 0)}</div>
+              {/* Cómo se llega al costo total (M5): suma explícita, sin el costo
+                  referencial de la receta (no aporta al costo real de la OM). */}
+              <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-6 max-w-xl">
+                <div className="text-sm font-semibold text-text mb-3">Cómo se compone el costo total</div>
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-gray-600">Absorción insumos (ingredientes)</span>
+                    <span className="font-semibold text-text">{formatCLP(resumen?.costo_bultos_ingredientes, 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-gray-600">+ Absorción empaques (costos secos)</span>
+                    <span className="font-semibold text-text">{formatCLP(resumen?.costo_bultos_empaques, 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-gray-600">+ Costos indirectos de la receta</span>
+                    <span className="font-semibold text-text">{formatCLP(resumen?.costos_receta?.costo_indirecto_total, 0)}</span>
+                  </div>
+                  <div className="border-t border-gray-300 my-1" />
+                  <div className="flex justify-between items-baseline">
+                    <span className="font-medium text-gray-700">= Costo total OM</span>
+                    <span className="text-lg font-bold text-text">{formatCLP(resumen?.costo_total_om, 0)}</span>
+                  </div>
                 </div>
               </div>
 
