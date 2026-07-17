@@ -201,18 +201,27 @@ export default function SolicitudDetail() {
           0;
         const cantSolicitada = detalle?.cantidad_solicitada ?? 0;
         const cantRecep = detalle?.cantidad_recepcionada ?? 0;
+        const esCajas = detalle?.producto_por_cajas && Number(detalle?.cantidad_por_caja) > 0;
         return {
           id: detalle?.id,
+          // PT: nombre de facturación (M4); productoBase queda para detalles legacy.
           nombre:
             detalle?.materiaPrima?.nombre ??
-            (detalle?.productoBase ? `${detalle.productoBase.nombre} (PT)` : "—"),
+            (detalle?.nombreFacturacion
+              ? `${detalle.nombreFacturacion.nombre} (PT)`
+              : detalle?.productoBase
+                ? `${detalle.productoBase.nombre} (PT)`
+                : "—"),
+          desglose_cajas: esCajas
+            ? `${Math.round(cantSolicitada / detalle.cantidad_por_caja)} cajas × ${detalle.cantidad_por_caja} un.`
+            : null,
           cantidad_solicitada: cantSolicitada,
           cantidad_despachada:
             detalle?.cantidad_despachada == null ? "—" : detalle.cantidad_despachada,
           cantidad_recepcionada: detalle?.cantidad_recepcionada == null ? "—" : cantRecep,
           unidad_medida:
             detalle?.materiaPrima?.unidad_medida ??
-            (detalle?.productoBase ? "Unidades" : "—"),
+            (detalle?.nombreFacturacion || detalle?.productoBase ? "Unidades" : "—"),
           comentario: getComentarioText(detalle),
           costo_unitario: costoUnitario,
           costo_despachado: costoUnitario * (Number(cantSolicitada) || 0),
@@ -228,7 +237,18 @@ export default function SolicitudDetail() {
 
   const insumosColumns = useMemo(
     () => [
-      { header: "Insumo", accessor: "nombre" },
+      {
+        header: "Insumo",
+        accessor: "nombre",
+        Cell: ({ value, row }) => (
+          <div>
+            {value}
+            {row?.desglose_cajas && (
+              <div className="text-xs text-gray-500">{row.desglose_cajas}</div>
+            )}
+          </div>
+        ),
+      },
       {
         header: "Cant. Solicitada",
         accessor: "cantidad_solicitada",

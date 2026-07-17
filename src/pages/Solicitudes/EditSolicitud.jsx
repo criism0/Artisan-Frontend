@@ -53,11 +53,13 @@ export default function EditSolicitud() {
     const detalles = Array.isArray(solicitud?.detalles) ? solicitud.detalles : [];
     return detalles
       .map((d) => ({
-        id_producto_base: d?.productoBase?.id,
+        id_nombre_facturacion: d?.id_nombre_facturacion ?? d?.nombreFacturacion?.id,
         cantidad_solicitada: d?.cantidad_solicitada,
+        producto_por_cajas: d?.producto_por_cajas,
+        cantidad_por_caja: d?.cantidad_por_caja,
         comentario: d?.comentario ?? "",
       }))
-      .filter((x) => x?.id_producto_base);
+      .filter((x) => x?.id_nombre_facturacion);
   }, [solicitud]);
 
   const fetchUsers = async () => {
@@ -194,7 +196,8 @@ export default function EditSolicitud() {
       const solicitudData = {
         id_bodega_proveedora: parseInt(selectedOrigen),
         id_bodega_solicitante: parseInt(selectedDestino),
-        // Insumos (id_materia_prima) + productos terminados (id_producto_base); B4.
+        // Insumos (id_materia_prima) + productos terminados por nombre de
+        // facturación (id_nombre_facturacion + cajas, M4).
         materias_primas: [
           ...insumosSeleccionados.map((insumo) => ({
             id_materia_prima: parseInt(insumo.id_articulo),
@@ -202,8 +205,10 @@ export default function EditSolicitud() {
             comentario: insumo.comentario || "",
           })),
           ...productosSeleccionados.map((p) => ({
-            id_producto_base: p.id_producto_base,
+            id_nombre_facturacion: p.id_nombre_facturacion,
             cantidad_solicitada: Number(p.cantidad_solicitada),
+            producto_por_cajas: p.producto_por_cajas,
+            cantidad_por_caja: p.cantidad_por_caja,
             comentario: p.comentario || "",
           })),
         ],

@@ -134,7 +134,7 @@ export default function AddSolicitud() {
         id_bodega_proveedora: parseInt(selectedOrigen),
         id_bodega_solicitante: parseInt(selectedDestino),
         // El array combina insumos (id_materia_prima) y productos terminados
-        // (id_producto_base); el backend valida que cada ítem tenga solo uno (B4).
+        // por nombre de facturación (id_nombre_facturacion + cajas, M4).
         materias_primas: [
           ...insumosSeleccionados.map(insumo => ({
             id_materia_prima: parseInt(insumo.id_articulo),
@@ -142,8 +142,10 @@ export default function AddSolicitud() {
             comentario: insumo.comentario || ''
           })),
           ...productosSeleccionados.map(p => ({
-            id_producto_base: p.id_producto_base,
+            id_nombre_facturacion: p.id_nombre_facturacion,
             cantidad_solicitada: Number(p.cantidad_solicitada),
+            producto_por_cajas: p.producto_por_cajas,
+            cantidad_por_caja: p.cantidad_por_caja,
             comentario: p.comentario || ''
           })),
         ],
