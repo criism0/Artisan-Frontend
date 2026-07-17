@@ -264,7 +264,7 @@ export default function AddSolicitud() {
           <div>
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold">Insumos a Solicitar</h3>
+                <h3 className="text-lg font-semibold">Insumos y PIP a Solicitar</h3>
                 {(!selectedOrigen || !selectedDestino) && (
                   <p className="mt-1 text-sm text-gray-500">Selecciona ambas bodegas para agregar insumos.</p>
                 )}
