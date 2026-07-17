@@ -323,9 +323,123 @@ function DashboardContent({ data, navigate, api }) {
       </div>
 
       <PanelAlertasReposicion api={api} />
+      <PanelValorInventario api={api} bodegas={bodegas} />
       <TablaPipPorBodega api={api} bodegas={bodegas} />
       <TablaProductosTerminados api={api} bodegas={bodegas} />
     </>
+  );
+}
+
+/**
+ * M7 — Valorización histórica del inventario por bodega: un punto por cada
+ * toma de inventario VALIDADA (snapshot post-ajustes, considera mermas), con
+ * el delta respecto de la toma anterior de la misma bodega.
+ */
+function PanelValorInventario({ api, bodegas }) {
+  const [snapshots, setSnapshots] = useState([]);
+  const [bodegaId, setBodegaId] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    api(`/inventario-dashboard/valorizacion${bodegaId ? `?id_bodega=${bodegaId}` : ""}`)
+      .then((res) => {
+        if (cancelled) return;
+        const data = Array.isArray(res) ? res : res?.data ?? [];
+        setSnapshots(data);
+      })
+      .catch(() => { if (!cancelled) setSnapshots([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [api, bodegaId]);
+
+  const serie = bodegaId ? snapshots : [];
+  const maxValor = Math.max(...serie.map((s) => s.valor_total), 1);
+  const W = 620, H = 140, PAD = 8;
+  const puntos = serie.map((s, i) => ({
+    x: PAD + (serie.length === 1 ? (W - 2 * PAD) / 2 : (i * (W - 2 * PAD)) / (serie.length - 1)),
+    y: H - PAD - (s.valor_total / maxValor) * (H - 2 * PAD),
+    s,
+  }));
+
+  const filas = [...snapshots].reverse();
+
+  return (
+    <div className="bg-white p-6 rounded-lg shadow mb-6 space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-lg font-semibold text-text">Valor del inventario por toma</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Un punto por cada toma de inventario validada (post-ajustes, considera mermas) y su
+            variación vs la toma anterior de la bodega.
+          </p>
+        </div>
+        <BodegaSelect bodegas={bodegas || []} value={bodegaId} onChange={setBodegaId} />
+      </div>
+
+      {loading ? (
+        <div className="text-sm text-gray-500">Cargando valorización…</div>
+      ) : snapshots.length === 0 ? (
+        <div className="border border-dashed border-gray-300 rounded-lg p-5 text-sm text-gray-500 text-center">
+          Aún no hay tomas de inventario validadas{bodegaId ? " en esta bodega" : ""} — el historial
+          se construye con cada validación.
+        </div>
+      ) : (
+        <>
+          {bodegaId && puntos.length > 0 && (
+            <div className="overflow-x-auto">
+              <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-2xl" role="img" aria-label="Evolución del valor de inventario">
+                <polyline
+                  fill="none" stroke="#7A5AF8" strokeWidth="2"
+                  points={puntos.map((p) => `${p.x},${p.y}`).join(" ")}
+                />
+                {puntos.map((p) => (
+                  <circle key={p.s.id} cx={p.x} cy={p.y} r="3.5" fill="#7A5AF8" />
+                ))}
+              </svg>
+            </div>
+          )}
+          <div className="overflow-x-auto border border-gray-200 rounded-lg">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold">Fecha</th>
+                  {!bodegaId && <th className="px-3 py-2 text-left font-semibold">Bodega</th>}
+                  <th className="px-3 py-2 text-right font-semibold">Valor total</th>
+                  <th className="px-3 py-2 text-right font-semibold">Insumos</th>
+                  <th className="px-3 py-2 text-right font-semibold">PIP</th>
+                  <th className="px-3 py-2 text-right font-semibold">PT</th>
+                  <th className="px-3 py-2 text-right font-semibold">Δ vs toma anterior</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map((s) => (
+                  <tr key={s.id} className="border-t border-gray-100">
+                    <td className="px-3 py-2">{new Date(s.fecha).toLocaleDateString()}</td>
+                    {!bodegaId && <td className="px-3 py-2">{s.bodega || `#${s.id_bodega}`}</td>}
+                    <td className="px-3 py-2 text-right font-semibold">{formatCLP(s.valor_total, 0)}</td>
+                    <td className="px-3 py-2 text-right text-gray-600">{formatCLP(s.valor_insumos, 0)}</td>
+                    <td className="px-3 py-2 text-right text-gray-600">{formatCLP(s.valor_pip, 0)}</td>
+                    <td className="px-3 py-2 text-right text-gray-600">{formatCLP(s.valor_pt, 0)}</td>
+                    <td className="px-3 py-2 text-right">
+                      {s.delta_valor == null ? (
+                        <span className="text-gray-400">— primera toma</span>
+                      ) : (
+                        <span className={s.delta_valor >= 0 ? "text-green-700" : "text-red-700"}>
+                          {s.delta_valor >= 0 ? "+" : ""}{formatCLP(s.delta_valor, 0)}
+                          {s.delta_pct != null && ` (${s.delta_pct >= 0 ? "+" : ""}${s.delta_pct}%)`}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
