@@ -28,6 +28,13 @@ export default function CrearOrden() {
   const [materiasPrimas, setMateriasPrimas] = useState([]);
   const [insumosSeleccionados, setInsumosSeleccionados] = useState([]);
 
+  // Búsqueda por insumo: qué proveedores lo ofrecen y a qué precio.
+  const [modoBusqueda, setModoBusqueda] = useState("proveedor");
+  const [insumosCatalogo, setInsumosCatalogo] = useState(null);
+  const [insumoBuscado, setInsumoBuscado] = useState("");
+  const [ofertas, setOfertas] = useState([]);
+  const [ofertasLoading, setOfertasLoading] = useState(false);
+
   const [form, setForm] = useState({
     id_proveedor: "",
     id_bodega: "",
@@ -109,6 +116,62 @@ export default function CrearOrden() {
       ...prev,
       [name]: value,
     }));
+  };
+
+  // Catálogo de insumos (solo se carga al usar el modo "por insumo").
+  useEffect(() => {
+    if (modoBusqueda !== "insumo" || insumosCatalogo !== null) return;
+    const fetchCatalogo = async () => {
+      try {
+        const res = await api(`/materias-primas`);
+        const data = Array.isArray(res?.data) ? res.data : res;
+        setInsumosCatalogo((data || []).filter((i) => i.activo === true));
+      } catch (error) {
+        toast.error(`Error al cargar los insumos: ${error.message}`);
+        setInsumosCatalogo([]);
+      }
+    };
+    fetchCatalogo();
+  }, [modoBusqueda, insumosCatalogo]);
+
+  // Ofertas de proveedores para el insumo buscado (ordenadas por precio en el backend).
+  useEffect(() => {
+    if (!insumoBuscado) {
+      setOfertas([]);
+      return;
+    }
+    const fetchOfertas = async () => {
+      setOfertasLoading(true);
+      try {
+        const res = await api(
+          `/proveedor-materia-prima/por-materia-prima?id_materia_prima=${insumoBuscado}`
+        );
+        const data = Array.isArray(res?.data) ? res.data : res;
+        setOfertas((data || []).filter((o) => o.proveedor?.activo === true));
+      } catch (error) {
+        toast.error(`Error al buscar proveedores del insumo: ${error.message}`);
+        setOfertas([]);
+      } finally {
+        setOfertasLoading(false);
+      }
+    };
+    fetchOfertas();
+  }, [insumoBuscado]);
+
+  const insumosCatalogoOptions = useMemo(
+    () =>
+      (insumosCatalogo || []).map((i) => ({
+        label: i.nombre || `Insumo #${i.id}`,
+        value: String(i.id),
+        searchText: `${i.nombre || ""}`.trim(),
+      })),
+    [insumosCatalogo]
+  );
+
+  const seleccionarProveedor = (idProveedor) => {
+    setFormField("id_proveedor", String(idProveedor ?? ""));
+    setMateriasPrimas([]);
+    setInsumosSeleccionados([]);
   };
 
   const proveedoresOptions = useMemo(
@@ -406,18 +469,121 @@ export default function CrearOrden() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block font-semibold mb-1">Proveedor:</label>
-          <Selector
-            options={proveedoresOptions}
-            selectedValue={form.id_proveedor}
-            onSelect={(value) => {
-              setFormField("id_proveedor", String(value ?? ""));
-              setMateriasPrimas([]);
-              setInsumosSeleccionados([]);
-            }}
-            useFuzzy
-            className="p-2 border rounded"
-          />
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block font-semibold">Buscar por:</label>
+            <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
+              {[
+                { value: "proveedor", label: "Proveedor" },
+                { value: "insumo", label: "Insumo" },
+              ].map((m) => (
+                <button
+                  key={m.value}
+                  type="button"
+                  onClick={() => setModoBusqueda(m.value)}
+                  className={`px-3 py-1.5 text-sm transition-colors ${
+                    modoBusqueda === m.value
+                      ? "bg-primary text-white"
+                      : "bg-white text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {modoBusqueda === "proveedor" ? (
+            <>
+              <label className="block font-semibold mb-1">Proveedor:</label>
+              <Selector
+                options={proveedoresOptions}
+                selectedValue={form.id_proveedor}
+                onSelect={(value) => seleccionarProveedor(value)}
+                useFuzzy
+                className="p-2 border rounded"
+              />
+            </>
+          ) : (
+            <>
+              <label className="block font-semibold mb-1">Insumo:</label>
+              <Selector
+                options={insumosCatalogoOptions}
+                selectedValue={insumoBuscado}
+                onSelect={(value) => setInsumoBuscado(String(value ?? ""))}
+                useFuzzy
+                className="p-2 border rounded"
+              />
+              {ofertasLoading && (
+                <p className="text-sm text-gray-500 mt-2">Buscando proveedores…</p>
+              )}
+              {!ofertasLoading && insumoBuscado && ofertas.length === 0 && (
+                <p className="text-sm text-gray-500 mt-2">
+                  Ningún proveedor activo ofrece este insumo.
+                </p>
+              )}
+              {!ofertasLoading && ofertas.length > 0 && (
+                <div className="mt-2 border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-semibold">Proveedor</th>
+                        <th className="px-3 py-2 text-left font-semibold">Formato</th>
+                        <th className="px-3 py-2 text-right font-semibold">Precio</th>
+                        <th className="px-3 py-2" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ofertas.map((o) => {
+                        const seleccionado = String(o.id_proveedor) === form.id_proveedor;
+                        return (
+                          <tr
+                            key={o.id}
+                            className={seleccionado ? "bg-primary/10" : "hover:bg-gray-50"}
+                          >
+                            <td className="px-3 py-2">
+                              {o.proveedor?.nombre_empresa || o.proveedor?.nombre || `Proveedor #${o.id_proveedor}`}
+                            </td>
+                            <td className="px-3 py-2">
+                              {o.formato || "—"}
+                              {Number(o.cantidad_por_formato) > 0 &&
+                                ` (${o.cantidad_por_formato} ${o.unidad_medida || ""})`}
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              ${Number(o.precio_unitario || 0).toLocaleString()}
+                              <span className="text-gray-500"> {o.moneda || "CLP"}</span>
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              {seleccionado ? (
+                                <span className="text-primary font-semibold">Seleccionado</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => seleccionarProveedor(o.id_proveedor)}
+                                  className="px-3 py-1 rounded-lg bg-primary text-white hover:bg-hover transition-colors"
+                                >
+                                  Seleccionar
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {form.id_proveedor && (
+                <p className="text-sm text-gray-600 mt-2">
+                  Proveedor seleccionado:{" "}
+                  <span className="font-semibold">
+                    {proveedores.find((p) => String(p.id) === form.id_proveedor)?.nombre_empresa ||
+                      proveedores.find((p) => String(p.id) === form.id_proveedor)?.nombre ||
+                      `#${form.id_proveedor}`}
+                  </span>
+                </p>
+              )}
+            </>
+          )}
           {formErrors.id_proveedor && <p className="text-red-600 text-sm mt-1">{formErrors.id_proveedor}</p>}
         </div>
 
