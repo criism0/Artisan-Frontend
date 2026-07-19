@@ -10,7 +10,7 @@ import logo from "../../assets/logo.png";
 import { formatCLP } from "../../services/formatHelpers";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
-import DTEPanel from "../../components/DTE/DTEPanel.jsx";
+import PanelFacturacion from "../../components/DTE/PanelFacturacion.jsx";
 import Selector from "../../components/Forms/Selector";
 import AvanceItems from "../../components/AvanceItems";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
@@ -601,6 +601,13 @@ export default function OrdenVentaDetail() {
       );
     }
 
+    return null;
+  };
+
+  // ── Acción documental (M6): vive dentro del panel de Facturación ───────────
+  const renderAccionDocumental = () => {
+    const estado = orden?.estado;
+
     if (estado === "Lista para facturación") {
       return showFacturarForm ? (
         <FacturarForm
@@ -851,14 +858,17 @@ export default function OrdenVentaDetail() {
         />
       </div>
 
-      {/* Panel DTE — Documentos Tributarios Electrónicos (LibreDTE) */}
-      <DTEPanel orden={orden} />
+      {/* Panel ÚNICO de facturación y documentos (M6): stepper documental,
+          acción principal según estado (facturar / entregar) y DTEs */}
+      <PanelFacturacion orden={orden} accionPrincipal={renderAccionDocumental()} />
 
-      {/* Acciones según estado */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <h2 className="text-base font-semibold text-text mb-3">Acciones</h2>
-        {renderAccion()}
-      </div>
+      {/* Acciones de flujo pre-facturación (validar / picking) */}
+      {renderAccion() && (
+        <div className="bg-white rounded-lg shadow p-4 mt-6">
+          <h2 className="text-base font-semibold text-text mb-3">Acciones</h2>
+          {renderAccion()}
+        </div>
+      )}
     </div>
   );
 }
