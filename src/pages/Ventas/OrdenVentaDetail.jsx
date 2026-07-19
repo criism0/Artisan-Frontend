@@ -81,7 +81,7 @@ function FacturarForm({
     <div className="flex flex-col gap-4 max-w-sm">
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-gray-700">
-          Dirección de entrega {requiereDir && <span className="text-red-500">*</span>}
+          Dirección de facturación {requiereDir && <span className="text-red-500">*</span>}
         </span>
         {loadingDirecciones ? (
           <span className="text-sm text-gray-400 py-2">Cargando direcciones...</span>
@@ -104,7 +104,7 @@ function FacturarForm({
         )}
         <span className="text-xs text-gray-400 italic">
           {requiereDir
-            ? "Debes seleccionar la dirección de entrega para poder facturar"
+            ? "Debes seleccionar la dirección de facturación para poder facturar"
             : "Confirma o ajusta la dirección antes de facturar"}
         </span>
       </div>
@@ -121,8 +121,7 @@ function FacturarForm({
 
       {/* B5: facturar = emitir el documento tributario (sin documento no hay factura) */}
       <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-        Al confirmar se <strong>emite la Factura Electrónica (SII vía LibreDTE)</strong> con las
-        líneas fusionadas por nombre de facturación, y la orden queda <strong>Facturada</strong>.
+        Al confirmar se <strong>emite la Factura Electrónica (SII vía LibreDTE)</strong>.
         El cliente debe tener RUT, razón social y giro registrados.
       </div>
 
