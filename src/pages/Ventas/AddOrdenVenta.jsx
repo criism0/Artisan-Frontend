@@ -297,7 +297,16 @@ export default function AddOrdenVenta() {
         const cantidadEnUnidades = esCajas && p.unidades_por_caja ? p.cantidad * p.unidades_por_caja : p.cantidad;
         await api(`/ordenes-venta/${id_orden}/productos`, {
           method: "POST",
-          body: JSON.stringify({ id_orden, id_nombre_facturacion: p.id_nombre_facturacion, cantidad: cantidadEnUnidades, precio_venta: p.precio_unitario, porcentaje_descuento: 0 }),
+          body: JSON.stringify({
+            id_orden,
+            id_nombre_facturacion: p.id_nombre_facturacion,
+            cantidad: cantidadEnUnidades,
+            precio_venta: p.precio_unitario,
+            porcentaje_descuento: 0,
+            // Desglose comercial en cajas (la cantidad SIEMPRE viaja en unidades)
+            producto_por_cajas: Boolean(esCajas && p.unidades_por_caja),
+            cantidad_por_caja: esCajas && p.unidades_por_caja ? p.unidades_por_caja : 0,
+          }),
         });
       }
       toast.success("Orden creada correctamente.");

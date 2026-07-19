@@ -269,15 +269,21 @@ export default function EditOrdenVenta() {
       const prodExistentes = prodExisRes?.data || prodExisRes || [];
 
       for (const prod of productosAgregados) {
+        // Desglose comercial en cajas (la cantidad SIEMPRE viaja en unidades)
+        const lineaEnCajas = Boolean(prod.formato_linea === "CAJAS" && prod.unidades_por_caja);
+        const camposCajas = {
+          producto_por_cajas: lineaEnCajas,
+          cantidad_por_caja: lineaEnCajas ? prod.unidades_por_caja : 0,
+        };
         if (prod.dbId != null) {
           await api(`/ordenes-venta/${id}/productos/${prod.dbId}`, {
             method: "PUT",
-            body: JSON.stringify({ cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: 0 }),
+            body: JSON.stringify({ cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: 0, ...camposCajas }),
           });
         } else {
           await api(`/ordenes-venta/${id}/productos`, {
             method: "POST",
-            body: JSON.stringify({ id_orden: Number(id), id_nombre_facturacion: prod.id_nombre_facturacion, cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: 0 }),
+            body: JSON.stringify({ id_orden: Number(id), id_nombre_facturacion: prod.id_nombre_facturacion, cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: 0, ...camposCajas }),
           });
         }
       }

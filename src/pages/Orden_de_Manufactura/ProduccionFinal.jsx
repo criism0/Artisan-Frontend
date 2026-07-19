@@ -1209,7 +1209,7 @@ export default function ProduccionFinal() {
                       <span className="font-semibold text-text">{formatNumberCL(Number(preview.peso_obtenido || 0), 2)} kg</span>
                     </div>
                     <div className="flex justify-between items-baseline">
-                      <span className="text-gray-600">+ Subproductos (a costo 0)</span>
+                      <span className="text-gray-600">+ Subproductos</span>
                       <span className="font-semibold text-text">{formatNumberCL(Number(preview.peso_subproductos || 0), 2)} kg</span>
                     </div>
                     <div className="flex justify-between items-baseline">

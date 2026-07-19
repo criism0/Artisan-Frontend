@@ -158,11 +158,7 @@ export default function ProductosTerminadosTable({
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-sm text-gray-500">
-          Los productos se solicitan por su nombre de facturación, en cajas por defecto; el picking
-          acepta cualquier producto físico del grupo.
-        </p>
+      <div className="flex items-center justify-end mb-2">
         <button
           type="button"
           onClick={() =>

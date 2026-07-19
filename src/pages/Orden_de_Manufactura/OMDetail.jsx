@@ -711,9 +711,6 @@ export default function OMDetail() {
                   </div>
                 </div>
               </div>
-              <div className="mt-2 text-xs text-gray-500">
-                Solo el producto elaborado — los subproductos no cuentan aquí (van aparte, a costo 0).
-              </div>
               {bultosSubproducto.length > 0 && (
                 <div className="mt-2 text-xs text-gray-600">
                   Subproductos registrados: {bultosSubproducto.length} bulto{bultosSubproducto.length === 1 ? "" : "s"} · {formatNumberCL(pesoSubproductos, 2)} kg
@@ -755,7 +752,6 @@ export default function OMDetail() {
                   <div className="text-lg font-bold text-text">
                     {costoPorUnidad == null ? "—" : formatCLP(costoPorUnidad, 2)}
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">Solo producto elaborado</div>
                 </div>
 
                 <div className="bg-gray-50 rounded-lg border border-border p-3">
@@ -763,7 +759,6 @@ export default function OMDetail() {
                   <div className="text-lg font-bold text-text">
                     {costoPorCaja == null ? "—" : formatCLP(costoPorCaja, 2)}
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">Solo producto elaborado</div>
                 </div>
               </div>
             </div>
