@@ -1,20 +1,16 @@
 /**
  * Modal para emitir una Nota de Crédito (Tipo 61) sobre una factura existente.
  *
- * API futura:
- *   POST /api/dte/emitidos/:dteId/nota-credito
+ * POST /api/dte/emitidos/:dteId/nota-credito
  *   Body: { codRef: 1|2|3, razon: string, items: [...] }
- *   Response: { id, folio, modo, total }
  *
  * Distinción clave (R7 reunión con Hernán — INFORME_REUNION_SII_20260511.md):
  *   CodRef=1 → Anulación total: folio desaparece del SII, inventario +100%
  *   CodRef=3 → Rebaja parcial:  folio sigue, monto baja, inventario parcial
  *   CodRef=2 → Corrección texto: sin impacto en monto ni inventario, item con PrcItem=0
  *
- * TODO cuando LibreDTE esté configurado:
- *   1. Reemplazar abrirMockPDF() por llamada real a la API
- *   2. Integrar ajuste de inventario para CodRef=1 y CodRef=3
- *   3. Verificar que LibreDTE maneja correctamente la distinción CodRef=1 vs CodRef=3
+ * Ajuste de inventario (2026-07-21): el/los bultos devueltos vuelven a su bodega de
+ * origen marcados como merma (DteService.emitirNotaCredito → ajusteInventarioNotaCredito.ts).
  */
 
 import { useState } from 'react';
