@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
@@ -7,8 +7,12 @@ import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import {
   FiMail, FiPackage, FiCalendar, FiHash,
   FiAlertTriangle, FiEdit2, FiCheck, FiX, FiPlus, FiTrash2,
-  FiEye, FiInfo, FiFileText, FiUserPlus,
+  FiEye, FiInfo, FiFileText, FiUserPlus, FiSearch,
+  FiChevronLeft, FiChevronRight, FiChevronDown, FiChevronUp,
 } from "react-icons/fi";
+
+const PRODUCTOS_VISIBLES = 4;
+const PAGE_SIZE = 6;
 
 // ── Flags IA: mapeo a etiquetas legibles ────────────────────────────────────
 const FLAG_LABELS = {
@@ -386,9 +390,12 @@ function AgregarProductoRow({ ovId, catalogoOpts, onAdded, onCancel }) {
   );
 }
 
-// ── Modal correo original ────────────────────────────────────────────────────
+// ── Modal correo original (estilo tipo Gmail) ────────────────────────────────
 function EmailModal({ log, onClose }) {
   if (!log) return null;
+
+  const inicial = (log.email_remitente || "?").trim().charAt(0).toUpperCase();
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm px-4"
@@ -398,48 +405,46 @@ function EmailModal({ log, onClose }) {
         className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-          <div className="flex items-center gap-2">
-            <FiMail className="text-[#7A5AF8]" size={16} />
-            <h2 className="text-sm font-semibold text-gray-800">Correo original</h2>
-          </div>
+        {/* Header: cerrar */}
+        <div className="flex items-center justify-end px-4 py-2 border-b border-gray-100 shrink-0">
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition rounded-lg p-1 hover:bg-gray-100"
+            className="text-gray-400 hover:text-gray-600 transition rounded-full p-1.5 hover:bg-gray-100"
           >
-            <FiX size={16} />
+            <FiX size={18} />
           </button>
         </div>
 
-        {/* Metadata del correo */}
-        <div className="px-6 py-3 bg-gray-50 border-b border-gray-100 shrink-0 flex flex-col gap-1 text-xs">
-          {log.email_remitente && (
-            <div className="flex gap-2">
-              <span className="text-gray-400 shrink-0 w-14">De:</span>
-              <span className="text-gray-700 font-medium break-all">{log.email_remitente}</span>
-            </div>
-          )}
-          {log.email_asunto && (
-            <div className="flex gap-2">
-              <span className="text-gray-400 shrink-0 w-14">Asunto:</span>
-              <span className="text-gray-700">{log.email_asunto}</span>
-            </div>
-          )}
-          {log.procesado_en && (
-            <div className="flex gap-2">
-              <span className="text-gray-400 shrink-0 w-14">Recibido:</span>
-              <span className="text-gray-500">{new Date(log.procesado_en).toLocaleString("es-CL")}</span>
-            </div>
-          )}
+        {/* Asunto grande, como el título de un correo en Gmail */}
+        <div className="px-6 pt-3 pb-4 shrink-0">
+          <h2 className="text-lg font-semibold text-gray-900 leading-snug">
+            {log.email_asunto || "(Sin asunto)"}
+          </h2>
         </div>
 
-        {/* Cuerpo */}
-        <div className="px-6 py-4 overflow-y-auto flex-1">
+        {/* Fila remitente: avatar + email + fecha, como en Gmail */}
+        <div className="px-6 pb-4 flex items-start gap-3 border-b border-gray-100 shrink-0">
+          <div className="w-9 h-9 rounded-full bg-[#7A5AF8] text-white flex items-center justify-center font-semibold text-sm shrink-0">
+            {inicial}
+          </div>
+          <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
+            <span className="text-sm text-gray-800 font-medium break-all">
+              {log.email_remitente || "Remitente desconocido"}
+            </span>
+            {log.procesado_en && (
+              <span className="text-xs text-gray-400 shrink-0">
+                {new Date(log.procesado_en).toLocaleString("es-CL")}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Cuerpo del correo */}
+        <div className="px-6 py-5 overflow-y-auto flex-1">
           {log.raw_email_texto ? (
-            <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
+            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
               {log.raw_email_texto}
-            </pre>
+            </p>
           ) : (
             <p className="text-xs text-gray-400 italic text-center py-10">
               Texto del correo no disponible
@@ -467,6 +472,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
   const [emailOpen, setEmailOpen]     = useState(false);
   const [esReferencial, setEsReferencial] = useState(ovInicial.es_referencial ?? true);
   const [guardandoRef, setGuardandoRef]   = useState(false);
+  const [productosExpandido, setProductosExpandido] = useState(false);
   const log = ov.ai_log;
 
   const handleToggleReferencial = async () => {
@@ -528,6 +534,11 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
   };
 
   const sinMatchCount = ov.productos?.filter((p) => !p.id_producto).length ?? 0;
+  const todosLosProductos = ov.productos ?? [];
+  const productosMostrados = productosExpandido
+    ? todosLosProductos
+    : todosLosProductos.slice(0, PRODUCTOS_VISIBLES);
+  const productosOcultos = todosLosProductos.length - productosMostrados.length;
 
   return (
     <div className="bg-white rounded-2xl shadow border border-gray-100 p-6 flex flex-col gap-4">
@@ -654,7 +665,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
         </div>
 
         <ul className="divide-y divide-gray-100 text-sm">
-          {(ov.productos ?? []).map((p) => (
+          {productosMostrados.map((p) => (
             <ProductoRow
               key={p.id}
               prod={p}
@@ -664,7 +675,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
               onDeleted={handleDeletedProd}
             />
           ))}
-          {(ov.productos ?? []).length === 0 && !agregando && (
+          {todosLosProductos.length === 0 && !agregando && (
             <li className="py-2 text-xs text-gray-400 italic text-center">
               Sin productos — agrega al menos uno para validar
             </li>
@@ -678,6 +689,23 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
             />
           )}
         </ul>
+
+        {productosOcultos > 0 && (
+          <button
+            onClick={() => setProductosExpandido(true)}
+            className="mt-2 w-full flex items-center justify-center gap-1 text-xs font-medium text-[#7A5AF8] hover:text-[#6648e0] py-1.5 border-t border-dashed border-gray-200"
+          >
+            <FiChevronDown size={13} /> Ver {productosOcultos} producto{productosOcultos === 1 ? "" : "s"} más
+          </button>
+        )}
+        {productosExpandido && todosLosProductos.length > PRODUCTOS_VISIBLES && (
+          <button
+            onClick={() => setProductosExpandido(false)}
+            className="mt-2 w-full flex items-center justify-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 py-1.5 border-t border-dashed border-gray-200"
+          >
+            <FiChevronUp size={13} /> Ver menos
+          </button>
+        )}
       </div>
 
       {/* Banner: OC modificada — enlace a la OV original */}
@@ -764,6 +792,8 @@ export default function ColaIAPage() {
   const [loading, setLoading]   = useState(true);
   const [procesando, setProcesando] = useState(false);
   const [rechazarId, setRechazarId] = useState(null);
+  const [busqueda, setBusqueda] = useState("");
+  const [pagina, setPagina]     = useState(1);
 
   const fetchData = useCallback(async () => {
     try {
@@ -812,6 +842,33 @@ export default function ColaIAPage() {
     value: String(c.id),
     label: c.nombre_empresa ?? `Cliente #${c.id}`,
   }));
+
+  // Búsqueda: cliente, RUT, N° OC, remitente o asunto del correo
+  const ordenesFiltradas = useMemo(() => {
+    const term = busqueda.trim().toLowerCase();
+    if (!term) return ordenes;
+    return ordenes.filter((ov) => {
+      const campos = [
+        ov.cliente?.nombre_empresa,
+        ov.cliente?.rut,
+        ov.numero_oc,
+        ov.ai_log?.email_remitente,
+        ov.ai_log?.email_asunto,
+      ];
+      return campos.some((c) => c && String(c).toLowerCase().includes(term));
+    });
+  }, [ordenes, busqueda]);
+
+  const totalPaginas = Math.max(1, Math.ceil(ordenesFiltradas.length / PAGE_SIZE));
+
+  // Si la búsqueda o una validación/rechazo dejan la página actual vacía, retrocede.
+  useEffect(() => {
+    if (pagina > totalPaginas) setPagina(totalPaginas);
+  }, [pagina, totalPaginas]);
+
+  useEffect(() => { setPagina(1); }, [busqueda]);
+
+  const ordenesPagina = ordenesFiltradas.slice((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE);
 
   const handleValidar = async (id, bodegaId, clienteId) => {
     if (!bodegaId) { toast.warning("Debes seleccionar una bodega antes de validar"); return; }
@@ -864,6 +921,19 @@ export default function ColaIAPage() {
         </p>
       </div>
 
+      {!loading && ordenes.length > 0 && (
+        <div className="relative mb-5">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar por cliente, RUT, N° OC, remitente o asunto…"
+            className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8] focus:border-[#7A5AF8]"
+          />
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center py-20 text-gray-400">Cargando…</div>
       ) : ordenes.length === 0 ? (
@@ -874,21 +944,71 @@ export default function ColaIAPage() {
             Cuando llegue un correo con una OC, aparecerá aquí automáticamente
           </p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {ordenes.map((ov) => (
-            <OVIACard
-              key={ov.id}
-              ov={ov}
-              bodegas={bodegas}
-              catalogoOpts={catalogoOpts}
-              clientesOpts={clientesOpts}
-              onValidar={handleValidar}
-              onRechazar={setRechazarId}
-              procesando={procesando}
-            />
-          ))}
+      ) : ordenesFiltradas.length === 0 ? (
+        <div className="text-center py-20">
+          <p className="text-gray-500 font-medium">Sin resultados para "{busqueda}"</p>
+          <button
+            onClick={() => setBusqueda("")}
+            className="text-xs text-[#7A5AF8] hover:text-[#6648e0] font-medium mt-2"
+          >
+            Limpiar búsqueda
+          </button>
         </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {ordenesPagina.map((ov) => (
+              <OVIACard
+                key={ov.id}
+                ov={ov}
+                bodegas={bodegas}
+                catalogoOpts={catalogoOpts}
+                clientesOpts={clientesOpts}
+                onValidar={handleValidar}
+                onRechazar={setRechazarId}
+                procesando={procesando}
+              />
+            ))}
+          </div>
+
+          {totalPaginas > 1 && (
+            <div className="flex items-center justify-between mt-6">
+              <p className="text-xs text-gray-500">
+                Mostrando {(pagina - 1) * PAGE_SIZE + 1}–
+                {Math.min(pagina * PAGE_SIZE, ordenesFiltradas.length)} de {ordenesFiltradas.length}
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                  disabled={pagina === 1}
+                  className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-[#7A5AF8] disabled:text-gray-300 disabled:cursor-not-allowed px-2 py-1.5 rounded-lg hover:bg-gray-100 disabled:hover:bg-transparent"
+                >
+                  <FiChevronLeft size={14} /> Anterior
+                </button>
+                {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setPagina(n)}
+                    className={`w-7 h-7 flex items-center justify-center text-xs font-semibold rounded-lg transition ${
+                      n === pagina
+                        ? "bg-[#7A5AF8] text-white"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+                  disabled={pagina === totalPaginas}
+                  className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-[#7A5AF8] disabled:text-gray-300 disabled:cursor-not-allowed px-2 py-1.5 rounded-lg hover:bg-gray-100 disabled:hover:bg-transparent"
+                >
+                  Siguiente <FiChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <ConfirmActionModal
