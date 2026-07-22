@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import Selector from "../../components/Forms/Selector";
@@ -6,7 +7,7 @@ import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import {
   FiMail, FiPackage, FiCalendar, FiHash,
   FiAlertTriangle, FiEdit2, FiCheck, FiX, FiPlus, FiTrash2,
-  FiEye, FiInfo, FiFileText,
+  FiEye, FiInfo, FiFileText, FiUserPlus,
 } from "react-icons/fi";
 
 // ── Flags IA: mapeo a etiquetas legibles ────────────────────────────────────
@@ -453,6 +454,7 @@ function EmailModal({ log, onClose }) {
 // ── Tarjeta de una OV IA ─────────────────────────────────────────────────────
 function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValidar, onRechazar, procesando }) {
   const api = useApi();
+  const navigate = useNavigate();
   const [ov, setOv]                   = useState(ovInicial);
   const [bodegaId, setBodegaId]       = useState(() => {
     const santiago = bodegas.find(
@@ -489,6 +491,17 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
   const modOcMatch  = log?.error_detalle?.match(/modificacion_oc:OV#(\d+)/);
   const ovOriginalId = modOcMatch ? modOcMatch[1] : null;
   const flagsInfo   = parseFlagsVisibles(log?.error_detalle);
+
+  // Datos de cliente que la IA extrajo del correo aunque no hayan matcheado
+  // ningún cliente registrado — sirven para precargar "Crear cliente".
+  const nombreExtraido = log?.raw_ai_response?.cliente_nombre_extraido || "";
+  const rutExtraido    = log?.raw_ai_response?.cliente_rut_extraido || "";
+
+  const handleCrearCliente = () => {
+    navigate("/clientes/add", {
+      state: { prefill: { nombre_empresa: nombreExtraido, rut: rutExtraido } },
+    });
+  };
 
   const bodegaOptions = bodegas.map((b) => ({
     value: String(b.id),
@@ -599,12 +612,25 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
           <p className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
             <FiAlertTriangle size={13} /> Cliente no identificado — selecciona uno para validar
           </p>
+          {nombreExtraido && (
+            <p className="text-xs text-orange-600">
+              La IA encontró en el correo: <span className="font-semibold">{nombreExtraido}</span>
+              {rutExtraido && <> — RUT {rutExtraido}</>}
+            </p>
+          )}
           <Selector
             options={[{ value: "", label: "— Busca y selecciona un cliente —" }, ...clientesOpts]}
             selectedValue={clienteIdLocal}
             onSelect={setClienteIdLocal}
             disabled={procesando}
           />
+          <button
+            type="button"
+            onClick={handleCrearCliente}
+            className="self-start flex items-center gap-1.5 text-xs font-medium text-orange-700 hover:text-orange-800 underline decoration-dotted"
+          >
+            <FiUserPlus size={13} /> No existe — crear cliente nuevo{nombreExtraido ? " con estos datos" : ""}
+          </button>
         </div>
       )}
 

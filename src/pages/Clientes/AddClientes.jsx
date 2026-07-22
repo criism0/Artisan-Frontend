@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ApiError, useApi } from "../../lib/api";
 import DynamicCombobox from "../../components/UI/DynamicCombobox";
 import DireccionesManager from "../../components/Direcciones/DireccionesManager";
@@ -15,6 +15,7 @@ import { esEmailValido, formatPhoneInput, validarTelefonoCL } from "../../servic
 
 export default function AddClientes() {
   const navigate = useNavigate();
+  const location = useLocation();
   const api = useApi();
   const [canales, setCanales] = useState([]);
   const [listasPrecio, setListasPrecio] = useState([]);
@@ -108,6 +109,19 @@ export default function AddClientes() {
       api("/lista-precio").then(data => setListasPrecio(data)).catch(() => {}),
     ]).finally(() => setIsLoading(false));
   }, [api]);
+
+  // Prefill al venir desde "Crear cliente nuevo" en la Cola IA: la IA ya
+  // extrajo el nombre/RUT del correo, así el operario no vuelve a tipearlos.
+  useEffect(() => {
+    const prefill = location.state?.prefill;
+    if (!prefill) return;
+    setFormData(prev => ({
+      ...prev,
+      nombre_empresa: prefill.nombre_empresa ? prefill.nombre_empresa : prev.nombre_empresa,
+      rut: prefill.rut ? formatearRUT(prefill.rut) : prev.rut,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChange = e => {
     const { name, value } = e.target;
