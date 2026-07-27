@@ -167,6 +167,7 @@ export default function Navbar() {
               <MenuLink to="/PautasElaboracion" icon={<Clipboard />} label="Pautas de Elaboración" isAllowed={checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ)} />
               <MenuLink to="/Bodegas" icon={<FaWarehouse />} label="Bodegas" isAllowed={checkScope(ModelType.BODEGA, ScopeType.READ)} />
               <MenuLink to="/ProcesosValorAgregado" icon={<FaBroom />} label="Procesos Valor Agregado" isAllowed={checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ)} />
+              <MenuLink to="/PVAPorProducto" icon={<FaBroom />} label="Relaciones PVA por Producto" isAllowed={checkScope(ModelType.PVA_PRODUCTO, ScopeType.READ)} />
             </MenuGroup>
 
             <div role="separator" className="my-2 border-t border-gray-200" />
