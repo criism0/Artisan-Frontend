@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import Selector from "../../components/Forms/Selector";
@@ -8,7 +8,7 @@ import {
   FiMail, FiPackage, FiCalendar, FiHash,
   FiAlertTriangle, FiEdit2, FiCheck, FiX, FiPlus, FiTrash2,
   FiEye, FiInfo, FiFileText, FiUserPlus, FiSearch,
-  FiChevronLeft, FiChevronRight, FiChevronDown, FiChevronUp,
+  FiChevronLeft, FiChevronRight, FiChevronDown, FiChevronUp, FiDollarSign,
 } from "react-icons/fi";
 
 const PRODUCTOS_VISIBLES = 4;
@@ -906,19 +906,27 @@ export default function ColaIAPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          Cola IA
-          {!loading && ordenes.length > 0 && (
-            <span className="ml-1 inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#7A5AF8] text-white text-xs font-bold">
-              {ordenes.length}
-            </span>
-          )}
-        </h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Órdenes detectadas automáticamente vía correo. Revisa los productos, asocia los que
-          aparecen sin match, asigna bodega y valida cada orden.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            Cola IA
+            {!loading && ordenes.length > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#7A5AF8] text-white text-xs font-bold">
+                {ordenes.length}
+              </span>
+            )}
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Órdenes detectadas automáticamente vía correo. Revisa los productos, asocia los que
+            aparecen sin match, asigna bodega y valida cada orden.
+          </p>
+        </div>
+        <Link
+          to="/ConsumoGemini"
+          className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-[#7A5AF8] hover:text-[#6648e0] border border-[#7A5AF8]/30 hover:bg-[#7A5AF8]/5 rounded-xl px-3 py-2 transition"
+        >
+          <FiDollarSign size={14} /> Consumo API Gemini
+        </Link>
       </div>
 
       {!loading && ordenes.length > 0 && (

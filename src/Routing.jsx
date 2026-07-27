@@ -101,6 +101,7 @@ import OMDetail from "./pages/Orden_de_Manufactura/OMDetail";
 // ====== Clientes ======
 import ClientesPage from "./pages/Clientes/Clientes.jsx";
 import AddClientes from "./pages/Clientes/AddClientes.jsx";
+import ConsumoGeminiPage from "./pages/Administracion/ConsumoGeminiPage.jsx";
 import EditClientes from "./pages/Clientes/ClienteEdit.jsx";
 import ClienteDetail from "./pages/Clientes/ClienteDetail.jsx";
 
@@ -576,6 +577,16 @@ function Routing() {
             element={
               <ProtectedRoute permissions={[[ModelType.COSTO_INDIRECTO, ScopeType.READ]]}>
                 <CostosIndirectos />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Consumo API Gemini (admin) */}
+          <Route
+            path="/ConsumoGemini"
+            element={
+              <ProtectedRoute permissions={[[ModelType.COSTO_MARGINAL, ScopeType.READ]]}>
+                <ConsumoGeminiPage />
               </ProtectedRoute>
             }
           />
