@@ -77,12 +77,16 @@ export async function sendTransactionalEmail({ to, subject, params }) {
     const token = getToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
 
-    // No cambiar, el api no funciona, tiene que ser un fetch
+    // Se usa fetch y no el wrapper api() a propósito (ver historial), pero la sesión vive
+    // en cookies httpOnly: sin `credentials` no viaja ninguna credencial y el backend
+    // responde 401. La cabecera Bearer de más arriba dejó de servir cuando la
+    // autenticación pasó de localStorage a cookies — getToken() devuelve null.
     const res = await fetch(`${API_BASE}/email/send-transactional`, {
       method: "POST",
       headers,
+      credentials: "include",
       body: JSON.stringify(payload),
-    }); 
+    });
 
     if (!res.ok) {
       const errorText = await res.text();
