@@ -4,6 +4,7 @@ import { useApi } from "../../lib/api";
 import { EditButton, TrashButton, BackButton } from "../../components/Buttons/ActionButtons";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { getNombreComercial } from "../../utils/nombreComercial.js";
 import toast from "../../lib/toast.js";
 
 export default function ListaPrecioDetail() {
@@ -166,7 +167,7 @@ export default function ListaPrecioDetail() {
               {productosBase.map((producto) => (
                 <tr key={producto.id} className="border-t">
                   <td className="px-3 py-2 font-medium">
-                    {producto.nombre_producto || producto.productoBase?.nombre || `Producto #${producto.id_producto_base}`}
+                    {getNombreComercial(producto)}
                   </td>
                   <td className="px-3 py-2 text-right">{producto.unidades_por_caja ?? "—"}</td>
                   <td className="px-3 py-2 text-right">

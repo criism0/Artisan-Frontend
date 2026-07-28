@@ -4,6 +4,7 @@ import { EditButton, TrashButton } from "../Buttons/ActionButtons";
 import { api } from "../../lib/api";
 import toast from "../../lib/toast";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import { getNombreComercial } from "../../utils/nombreComercial";
 
 export default function ProductosBaseManager({ 
   listaPrecioId, 
@@ -197,7 +198,7 @@ export default function ProductosBaseManager({
             {productosList.map((producto) => (
               <tr key={producto.id} className="border-t">
                 <td className="px-3 py-2 font-medium">
-                  {producto.nombre_producto || producto.productoBase?.nombre || `Producto #${producto.id_producto_base}`}
+                  {getNombreComercial(producto)}
                 </td>
                 <td className="px-3 py-2 text-right">{producto.unidades_por_caja ?? "—"}</td>
                 <td className="px-3 py-2 text-right">
@@ -217,11 +218,7 @@ export default function ProductosBaseManager({
                         <TrashButton
                           onConfirmDelete={() => handleDeleteProducto(producto.id)}
                           tooltipText="Eliminar producto de la lista"
-                          entityName={
-                            producto.nombre_producto ||
-                            producto.productoBase?.nombre ||
-                            `Producto #${producto.id_producto_base}`
-                          }
+                          entityName={getNombreComercial(producto)}
                         />
                       )}
                     </div>
