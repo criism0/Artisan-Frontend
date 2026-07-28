@@ -4,12 +4,7 @@ import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import Selector from "../../components/Forms/Selector";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
-import {
-  FiMail, FiPackage, FiCalendar, FiHash,
-  FiAlertTriangle, FiEdit2, FiCheck, FiX, FiPlus, FiTrash2,
-  FiEye, FiInfo, FiFileText, FiUserPlus, FiSearch,
-  FiChevronLeft, FiChevronRight, FiChevronDown, FiChevronUp, FiDollarSign,
-} from "react-icons/fi";
+import Pagination from "../../components/UI/Pagination";
 
 const PRODUCTOS_VISIBLES = 4;
 const PAGE_SIZE = 6;
@@ -153,7 +148,7 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
 
   if (editing) {
     return (
-      <li className="py-2 flex flex-col gap-2 bg-purple-50 rounded-lg px-2 -mx-2">
+      <li className="py-2 flex flex-col gap-2 bg-gray-50 rounded-lg px-2 -mx-2">
         {/* Descripción original de referencia */}
         {prod.descripcion_original && (
           <p className="text-xs text-gray-500 italic">
@@ -196,14 +191,14 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
             disabled={saving}
             className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
           >
-            <FiX /> Cancelar
+            Cancelar
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !cantidad}
             className="flex items-center gap-1 text-xs bg-[#7A5AF8] text-white px-3 py-1 rounded-lg hover:bg-[#6648e0] disabled:opacity-50"
           >
-            <FiCheck /> {saving ? "Guardando…" : "Guardar"}
+            {saving ? "Guardando…" : "Guardar"}
           </button>
         </div>
       </li>
@@ -216,11 +211,11 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-col min-w-0">
             {/* Nombre del producto o descripción original */}
-            {nombre ? (
-              <span className="text-gray-700 text-sm truncate">{nombre}</span>
+            {nombreFact || nombre ? (
+              <span className="text-gray-800 text-sm truncate">{nombreFact ?? nombre}</span>
             ) : (
-              <span className="text-orange-600 text-sm italic truncate">
-                ⚠ Sin match — {prod.descripcion_original ?? "producto desconocido"}
+              <span className="text-gray-700 text-sm truncate">
+                Sin asociar — {prod.descripcion_original ?? "producto desconocido"}
               </span>
             )}
             {/* Si tiene match y además hay descripción original, mostrarla en gris */}
@@ -229,37 +224,29 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
                 «{prod.descripcion_original}»
               </span>
             )}
-            {/* Nombre de facturación del grupo (si difiere del producto físico) */}
-            {nombre && nombreFact && nombreFact !== nombre && (
-              <span className="text-xs text-[#7A5AF8] truncate">
-                Factura como: {nombreFact}
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <span className="text-gray-500 text-sm">× {prod.cantidad}</span>
             <button
               onClick={() => setEditing(true)}
-              className="text-gray-400 hover:text-[#7A5AF8] opacity-0 group-hover:opacity-100 transition"
-              title="Editar"
+              className="text-xs text-gray-500 hover:text-[#7A5AF8] opacity-0 group-hover:opacity-100 transition"
             >
-              <FiEdit2 size={13} />
+              Editar
             </button>
             <button
               onClick={() => setConfirmDel(true)}
-              className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
-              title="Eliminar"
+              className="text-xs text-gray-500 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
             >
-              <FiTrash2 size={13} />
-            </button>
+              Eliminar
+              </button>
           </div>
         </div>
 
         {/* Sugerencia fuzzy — visible solo cuando sin match y hay candidato */}
         {sinMatch && sugerido && simPct !== null && (
-          <div className="flex items-center justify-between gap-2 bg-blue-50 border border-blue-200 rounded-lg px-2 py-1 text-xs">
-            <span className="text-blue-700 truncate">
-              💡 ¿Es <strong>{sugerido.nombre}</strong>?{" "}
+          <div className="flex items-center justify-between gap-2 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs">
+            <span className="text-gray-700 truncate">
+              ¿Es <strong>{sugerido.nombre}</strong>?{" "}
               <span className={
                 simPct >= 80
                   ? "text-green-600 font-semibold"
@@ -275,7 +262,7 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
               disabled={saving}
               className="shrink-0 flex items-center gap-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-0.5 rounded font-medium"
             >
-              <FiCheck size={11} /> Aceptar
+              Aceptar
             </button>
           </div>
         )}
@@ -376,14 +363,14 @@ function AgregarProductoRow({ ovId, catalogoOpts, onAdded, onCancel }) {
           disabled={saving}
           className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
         >
-          <FiX /> Cancelar
+          Cancelar
         </button>
         <button
           onClick={handleAdd}
           disabled={saving}
           className="flex items-center gap-1 text-xs bg-[#7A5AF8] text-white px-3 py-1 rounded-lg hover:bg-[#6648e0] disabled:opacity-50"
         >
-          <FiPlus /> {saving ? "Agregando…" : "Agregar"}
+          {saving ? "Agregando…" : "Agregar"}
         </button>
       </div>
     </li>
@@ -411,8 +398,7 @@ function EmailModal({ log, onClose }) {
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition rounded-full p-1.5 hover:bg-gray-100"
           >
-            <FiX size={18} />
-          </button>
+            </button>
         </div>
 
         {/* Asunto grande, como el título de un correo en Gmail */}
@@ -555,7 +541,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
           </div>
           <h3 className="text-lg font-bold text-gray-800 mt-0.5">
             {ov.cliente?.nombre_empresa ?? (
-              <span className="text-orange-500 italic">Cliente no identificado</span>
+              <span className="text-gray-500 italic">Cliente no identificado</span>
             )}
           </h3>
           {ov.cliente?.rut && (
@@ -569,19 +555,17 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
       <div className="flex flex-col gap-1.5 text-sm border-t border-gray-100 pt-3 -mt-1">
         {log?.email_remitente && (
           <div className="flex items-center gap-2">
-            <FiMail className="text-gray-400 shrink-0" size={13} />
             <span className="text-gray-600 truncate flex-1">{log.email_remitente}</span>
             <button
               onClick={() => setEmailOpen(true)}
               className="shrink-0 flex items-center gap-1 text-xs text-[#7A5AF8] hover:text-[#6648e0] font-medium ml-2"
             >
-              <FiEye size={12} /> Ver correo
+              Ver correo
             </button>
           </div>
         )}
         {log?.email_asunto && (
           <div className="flex items-start gap-2">
-            <FiHash className="text-gray-400 shrink-0 mt-0.5" size={13} />
             <span className="text-gray-500 text-xs leading-snug">{log.email_asunto}</span>
           </div>
         )}
@@ -589,13 +573,11 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-gray-500 mt-0.5">
             {ov.numero_oc && (
               <div className="flex items-center gap-1.5">
-                <FiFileText className="text-gray-400 shrink-0" size={12} />
                 <span>OC {ov.numero_oc}</span>
               </div>
             )}
             {ov.fecha_orden && (
               <div className="flex items-center gap-1.5">
-                <FiCalendar className="text-gray-400 shrink-0" size={12} />
                 <span>{fmtDate(ov.fecha_orden)}</span>
               </div>
             )}
@@ -611,7 +593,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
               key={i}
               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-600 border border-blue-100"
             >
-              <FiInfo size={10} /> {label}
+              {label}
             </span>
           ))}
         </div>
@@ -620,11 +602,11 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
       {/* Selector de cliente — solo cuando la IA no pudo identificarlo */}
       {!ov.id_cliente && (
         <div className="border border-orange-200 bg-orange-50 rounded-xl p-3 flex flex-col gap-2">
-          <p className="text-xs font-semibold text-orange-700 flex items-center gap-1.5">
-            <FiAlertTriangle size={13} /> Cliente no identificado — selecciona uno para validar
+          <p className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+            Cliente no identificado — selecciona uno para validar
           </p>
           {nombreExtraido && (
-            <p className="text-xs text-orange-600">
+            <p className="text-xs text-gray-600">
               La IA encontró en el correo: <span className="font-semibold">{nombreExtraido}</span>
               {rutExtraido && <> — RUT {rutExtraido}</>}
             </p>
@@ -638,9 +620,9 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
           <button
             type="button"
             onClick={handleCrearCliente}
-            className="self-start flex items-center gap-1.5 text-xs font-medium text-orange-700 hover:text-orange-800 underline decoration-dotted"
+            className="self-start flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-gray-800 underline decoration-dotted"
           >
-            <FiUserPlus size={13} /> No existe — crear cliente nuevo{nombreExtraido ? " con estos datos" : ""}
+            No existe — crear cliente nuevo{nombreExtraido ? " con estos datos" : ""}
           </button>
         </div>
       )}
@@ -649,9 +631,9 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-semibold text-gray-500 uppercase flex items-center gap-1">
-            <FiPackage /> Productos ({ov.productos?.length ?? 0})
+            Productos ({ov.productos?.length ?? 0})
             {sinMatchCount > 0 && (
-              <span className="ml-1 text-orange-500">· {sinMatchCount} sin asociar</span>
+              <span className="ml-1 text-gray-500">· {sinMatchCount} sin asociar</span>
             )}
           </p>
           {!agregando && (
@@ -659,7 +641,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
               onClick={() => setAgregando(true)}
               className="flex items-center gap-1 text-xs text-[#7A5AF8] hover:text-[#6648e0] font-medium"
             >
-              <FiPlus size={12} /> Agregar
+              Agregar
             </button>
           )}
         </div>
@@ -695,7 +677,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
             onClick={() => setProductosExpandido(true)}
             className="mt-2 w-full flex items-center justify-center gap-1 text-xs font-medium text-[#7A5AF8] hover:text-[#6648e0] py-1.5 border-t border-dashed border-gray-200"
           >
-            <FiChevronDown size={13} /> Ver {productosOcultos} producto{productosOcultos === 1 ? "" : "s"} más
+            Ver {productosOcultos} producto{productosOcultos === 1 ? "" : "s"} más
           </button>
         )}
         {productosExpandido && todosLosProductos.length > PRODUCTOS_VISIBLES && (
@@ -703,15 +685,14 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
             onClick={() => setProductosExpandido(false)}
             className="mt-2 w-full flex items-center justify-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700 py-1.5 border-t border-dashed border-gray-200"
           >
-            <FiChevronUp size={13} /> Ver menos
+            Ver menos
           </button>
         )}
       </div>
 
       {/* Banner: OC modificada — enlace a la OV original */}
       {ovOriginalId && (
-        <div className="flex items-start gap-2 bg-orange-50 border border-orange-300 rounded-lg px-3 py-2 text-xs text-orange-800 font-medium">
-          <FiAlertTriangle className="mt-0.5 shrink-0 text-orange-500" />
+        <div className="flex items-start gap-2 bg-orange-50 border border-orange-300 rounded-lg px-3 py-2 text-xs text-gray-800 font-medium">
           <span>
             Posible modificación de OC — la OV original ya fue validada (
             <a
@@ -925,13 +906,12 @@ export default function ColaIAPage() {
           to="/ConsumoGemini"
           className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-[#7A5AF8] hover:text-[#6648e0] border border-[#7A5AF8]/30 hover:bg-[#7A5AF8]/5 rounded-xl px-3 py-2 transition"
         >
-          <FiDollarSign size={14} /> Consumo API Gemini
+          Consumo API Gemini
         </Link>
       </div>
 
       {!loading && ordenes.length > 0 && (
         <div className="relative mb-5">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
           <input
             type="text"
             value={busqueda}
@@ -980,40 +960,12 @@ export default function ColaIAPage() {
           </div>
 
           {totalPaginas > 1 && (
-            <div className="flex items-center justify-between mt-6">
-              <p className="text-xs text-gray-500">
-                Mostrando {(pagina - 1) * PAGE_SIZE + 1}–
-                {Math.min(pagina * PAGE_SIZE, ordenesFiltradas.length)} de {ordenesFiltradas.length}
-              </p>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setPagina((p) => Math.max(1, p - 1))}
-                  disabled={pagina === 1}
-                  className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-[#7A5AF8] disabled:text-gray-300 disabled:cursor-not-allowed px-2 py-1.5 rounded-lg hover:bg-gray-100 disabled:hover:bg-transparent"
-                >
-                  <FiChevronLeft size={14} /> Anterior
-                </button>
-                {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setPagina(n)}
-                    className={`w-7 h-7 flex items-center justify-center text-xs font-semibold rounded-lg transition ${
-                      n === pagina
-                        ? "bg-[#7A5AF8] text-white"
-                        : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    {n}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
-                  disabled={pagina === totalPaginas}
-                  className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-[#7A5AF8] disabled:text-gray-300 disabled:cursor-not-allowed px-2 py-1.5 rounded-lg hover:bg-gray-100 disabled:hover:bg-transparent"
-                >
-                  Siguiente <FiChevronRight size={14} />
-                </button>
-              </div>
+            <div className="mt-6">
+              <Pagination
+                currentPage={pagina}
+                totalPages={totalPaginas}
+                onPageChange={setPagina}
+              />
             </div>
           )}
         </>
