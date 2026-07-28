@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 export default function SubproductosDecision() {
   const { id } = useParams();
@@ -10,7 +11,15 @@ export default function SubproductosDecision() {
   const [hasSubproductos, setHasSubproductos] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const canReadManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ);
+
   useEffect(() => {
+    if (!canReadManufacture) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ]);
+      setLoading(false);
+      return;
+    }
+
     const loadData = async () => {
       try {
         setLoading(true);
@@ -34,7 +43,7 @@ export default function SubproductosDecision() {
     };
 
     loadData();
-  }, [id, navigate]);
+  }, [id, navigate, canReadManufacture]);
 
   const handleSubproductosYes = () => {
     navigate(`/Orden_de_Manufactura/${id}/registrar-subproductos`);

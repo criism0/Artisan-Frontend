@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { FiArrowRight } from "react-icons/fi";
-import { toast } from "react-toastify";
-
+import { ArrowRight } from "lucide-react";
+import { toast } from "../../lib/toast.js";
 import { useAuth } from "../../auth/AuthContext";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import MultiSelectInput from "../../components/MultiSelectInput";
-import InsumosTable from "../../components/InsumosTable";
-import Selector from "../../components/Selector";
+import MultiSelectInput from "../../components/Forms/MultiSelectInput";
+import InsumosTable from "../../components/Insumos/InsumosTable";
+import ProductosTerminadosTable from "../../components/Solicitudes/ProductosTerminadosTable";
+import Selector from "../../components/Forms/Selector";
 import { useApi } from "../../lib/api";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function EditSolicitud() {
   const { solicitudId } = useParams();
@@ -26,10 +28,13 @@ export default function EditSolicitud() {
   const [bodegas, setBodegas] = useState([]);
 
   const [insumosSeleccionados, setInsumosSeleccionados] = useState([]);
+  const [productosSeleccionados, setProductosSeleccionados] = useState([]);
   const [showErrors, setShowErrors] = useState(false);
   const [loading, setLoading] = useState(false);
   const [addSignal, setAddSignal] = useState(0);
   const [canAddMoreInsumos, setCanAddMoreInsumos] = useState(false);
+
+  const canWriteMerchRequest = checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE);
 
   const solicitudEditable = useMemo(() => String(solicitud?.estado || "") === "Creada", [solicitud]);
 
@@ -42,6 +47,19 @@ export default function EditSolicitud() {
         comentario: d?.comentario ?? "",
       }))
       .filter((x) => x?.id_materia_prima);
+  }, [solicitud]);
+
+  const initialProductos = useMemo(() => {
+    const detalles = Array.isArray(solicitud?.detalles) ? solicitud.detalles : [];
+    return detalles
+      .map((d) => ({
+        id_nombre_facturacion: d?.id_nombre_facturacion ?? d?.nombreFacturacion?.id,
+        cantidad_solicitada: d?.cantidad_solicitada,
+        producto_por_cajas: d?.producto_por_cajas,
+        cantidad_por_caja: d?.cantidad_por_caja,
+        comentario: d?.comentario ?? "",
+      }))
+      .filter((x) => x?.id_nombre_facturacion);
   }, [solicitud]);
 
   const fetchUsers = async () => {
@@ -140,8 +158,8 @@ export default function EditSolicitud() {
     if (!selectedDestino) newErrors.destino = "Debe seleccionar una bodega de destino";
     else if (selectedOrigen === selectedDestino)
       newErrors.destino = "La bodega de destino debe ser diferente a la de origen";
-    if (!insumosSeleccionados || insumosSeleccionados.length === 0)
-      newErrors.insumos = "Debe agregar al menos un insumo";
+    if ((insumosSeleccionados?.length ?? 0) === 0 && (productosSeleccionados?.length ?? 0) === 0)
+      newErrors.insumos = "Debe agregar al menos un insumo o producto terminado";
     if (selectedUsers.length === 0)
       newErrors.usuarios = "Debe seleccionar al menos un usuario para notificar";
     return newErrors;
@@ -149,7 +167,7 @@ export default function EditSolicitud() {
 
   const errors = useMemo(
     () => computeErrors(),
-    [selectedOrigen, selectedDestino, insumosSeleccionados, selectedUsers]
+    [selectedOrigen, selectedDestino, insumosSeleccionados, productosSeleccionados, selectedUsers]
   );
   const isFormReady = useMemo(() => Object.keys(errors).length === 0, [errors]);
 
@@ -167,17 +185,33 @@ export default function EditSolicitud() {
       return;
     }
     if (!validateForm()) return;
+    if (!canWriteMerchRequest) {
+      toast.permissionError([ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE]);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     try {
       const solicitudData = {
         id_bodega_proveedora: parseInt(selectedOrigen),
         id_bodega_solicitante: parseInt(selectedDestino),
-        materias_primas: insumosSeleccionados.map((insumo) => ({
-          id_materia_prima: parseInt(insumo.id_articulo),
-          cantidad_solicitada: Number(insumo.cantidad_solicitada),
-          comentario: insumo.comentario || "",
-        })),
+        // Insumos (id_materia_prima) + productos terminados por nombre de
+        // facturación (id_nombre_facturacion + cajas, M4).
+        materias_primas: [
+          ...insumosSeleccionados.map((insumo) => ({
+            id_materia_prima: parseInt(insumo.id_articulo),
+            cantidad_solicitada: Number(insumo.cantidad_solicitada),
+            comentario: insumo.comentario || "",
+          })),
+          ...productosSeleccionados.map((p) => ({
+            id_nombre_facturacion: p.id_nombre_facturacion,
+            cantidad_solicitada: Number(p.cantidad_solicitada),
+            producto_por_cajas: p.producto_por_cajas,
+            cantidad_por_caja: p.cantidad_por_caja,
+            comentario: p.comentario || "",
+          })),
+        ],
         notificaciones: selectedUsers.map((u) => u.email),
       };
 
@@ -207,6 +241,11 @@ export default function EditSolicitud() {
 
   return (
     <div className="p-6">
+      {loading && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <div className="flex items-center mb-6">
         <BackButton label="Volver" />
       </div>
@@ -242,7 +281,7 @@ export default function EditSolicitud() {
               )}
             </div>
             <div className="flex items-center justify-center text-primary">
-              <FiArrowRight className="w-6 h-6" />
+              <ArrowRight className="w-6 h-6" />
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium mb-1">Bodega Destino</label>
@@ -315,7 +354,7 @@ export default function EditSolicitud() {
           <div>
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold">Insumos a Solicitar</h3>
+                <h3 className="text-lg font-semibold">Insumos y PIP a Solicitar</h3>
                 {(!selectedOrigen || !selectedDestino) && (
                   <p className="mt-1 text-sm text-gray-500">
                     Selecciona ambas bodegas para agregar insumos.
@@ -371,6 +410,18 @@ export default function EditSolicitud() {
             {selectedOrigen && selectedDestino && showErrors && errors.insumos && (
               <p className="mt-2 text-sm text-red-500">{errors.insumos}</p>
             )}
+          </div>
+
+          {/* Productos terminados (B4) */}
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold mb-4">Productos Terminados a Solicitar</h3>
+            <ProductosTerminadosTable
+              key={`edit_pt_${selectedOrigen}`}
+              bodegaId={selectedOrigen}
+              disabled={loading || !solicitudEditable || !selectedOrigen || !selectedDestino}
+              onChange={setProductosSeleccionados}
+              initialProductos={initialProductos}
+            />
           </div>
 
           {/* Botón */}

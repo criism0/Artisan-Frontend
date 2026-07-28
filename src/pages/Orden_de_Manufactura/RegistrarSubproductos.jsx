@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 export default function RegistrarSubproductos() {
   const { id } = useParams();
@@ -19,9 +20,17 @@ export default function RegistrarSubproductos() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  const canReadManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ);
+  const canWriteSubproductRegistry = checkScope(ModelType.REGISTRO_SUBPRODUCTO, ScopeType.WRITE);
+
   const setField = (k, v) => setForm((s) => ({ ...s, [k]: v }));
 
   useEffect(() => {
+    if (!canReadManufacture) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ]);
+      return;
+    }
+
     const loadData = async () => {
       try {
         // Load manufacturing order data
@@ -37,13 +46,18 @@ export default function RegistrarSubproductos() {
     };
 
     loadData();
-  }, [id]);
+  }, [id, canReadManufacture]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
     const peso = Number(form.peso);
+
+    if (!canWriteSubproductRegistry) {
+      toast.permissionError([ModelType.REGISTRO_SUBPRODUCTO, ScopeType.WRITE]);
+      return setError("No tienes permisos para crear registros de subproducto.");
+    }
 
     if (!form.id_materia_prima) return setError("Selecciona un subproducto.");
     if (Number.isNaN(peso) || peso <= 0)

@@ -1,20 +1,31 @@
-
 // src/pages/compras/RecepcionarOrden.jsx
+//
+// Flujo de recepción (orden real del proceso):
+//   1) CUADRE DE FACTURA: por cada ítem se declara la cantidad recepcionada
+//      (en la unidad de consumo del insumo) y el precio unitario según la
+//      factura del proveedor → total neto por ítem y total del documento.
+//   2) DECLARACIÓN DE BULTOS: recién después se declara en cuántos bultos
+//      llegó cada ítem; la suma de los bultos debe CUADRAR con la cantidad
+//      declarada en la factura (la factura manda).
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import Table from "../../components/Table";
+import Table from "../../components/Tables/Table";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import { getToken, API_BASE, useApi } from "../../lib/api";
+import { useApi, apiBlob } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { buildOcEmailItemsFromOrden, notifyOrderChange } from "../../services/emailService";
 import { useAuth } from "../../auth/AuthContext";
-import axiosInstance from "../../axiosInstance";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { formatCLP } from "../../services/formatHelpers";
 import AvanceItems from "../../components/AvanceItems";
 
 // Evita que el scroll cambie el valor del input type="number"
 const handleNumberInputWheel = (e) => {
   e.preventDefault();
 };
+
+const EPSILON = 1e-6;
 
 export default function RecepcionarOrden() {
   const { user } = useAuth();
@@ -24,13 +35,14 @@ export default function RecepcionarOrden() {
   const [ordenData, setOrdenData] = useState(null);
   const [bodegas, setBodegas] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [_hasPartialReception, setHasPartialReception] = useState(false);
   const [errors, setErrors] = useState({});
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [bultosGenerados, setBultosGenerados] = useState([]);
   const [showRejectPopup, setShowRejectPopup] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const fechaActual = new Date().toISOString().split("T")[0];
+
+  const canWritePurchaseOrder = checkScope(ModelType.ORDEN_COMPRA, ScopeType.WRITE);
+  const canWriteBulk = checkScope(ModelType.BULTO, ScopeType.WRITE);
 
   useEffect(() => {
     const fetchBodegas = async () => {
@@ -38,24 +50,19 @@ export default function RecepcionarOrden() {
         const res = await api(`/bodegas`, { method: "GET" });
         const list = Array.isArray(res) ? res : (Array.isArray(res?.bodegas) ? res.bodegas : []);
         setBodegas(list);
-      } catch (e) {
+      } catch {
         setBodegas([]);
       }
     };
     fetchBodegas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const downloadEtiquetasForBultos = async ({ idsBultos, ordenIdForName }) => {
     const ids_bultos = Array.isArray(idsBultos) ? idsBultos.filter(Boolean) : [];
     if (ids_bultos.length === 0) return;
 
-    const response = await axiosInstance.post(
-      "/bultos/etiquetas",
-      { ids_bultos },
-      { responseType: "blob" }
-    );
-
-    const blob = new Blob([response.data], { type: "application/pdf" });
+    const blob = await apiBlob("/bultos/etiquetas", { method: "POST", body: { ids_bultos } });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -70,24 +77,14 @@ export default function RecepcionarOrden() {
     setIsLoading(true);
     const fetchOrden = async () => {
       try {
-        const token = getToken();
-        const response = await fetch(
-          `${API_BASE}/proceso-compra/ordenes/${ordenId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
+        const fetched = await api(`/proceso-compra/ordenes/${ordenId}`);
 
-        if (!response.ok) throw new Error("Error al obtener orden");
-
-        const raw = await response.json();
+        if (!fetched || fetched.error) throw new Error("Error al obtener orden");
 
         // Neto ya facturado en recepciones anteriores (desde bultos existentes)
-        const rawBultos = Array.isArray(raw?.bultos)
-          ? raw.bultos
-          : (Array.isArray(raw?.Bultos) ? raw.Bultos : []);
+        const rawBultos = Array.isArray(fetched?.bultos)
+          ? fetched.bultos
+          : (Array.isArray(fetched?.Bultos) ? fetched.Bultos : []);
 
         const netoFacturadoPrevByMpocId = {};
         for (const b of rawBultos) {
@@ -102,13 +99,12 @@ export default function RecepcionarOrden() {
             (Number(netoFacturadoPrevByMpocId[mpocId]) || 0) + (costoUnitario * unidades);
         }
 
-        // Para poder mostrar equivalencias y declarar bultos directo acá,
-        // necesitamos la info completa de formatos del proveedor (PMP).
+        // Para equivalencias formato de compra ↔ unidad base necesitamos la
+        // info completa de formatos del proveedor (PMP).
         let proveedorData = null;
         try {
-          proveedorData = await api(`/proveedores/${raw.id_proveedor}`, { method: "GET" });
-        } catch (e) {
-          // Si falla, seguimos igual (solo se pierde equivalencia visual)
+          proveedorData = await api(`/proveedores/${fetched.id_proveedor}`, { method: "GET" });
+        } catch {
           proveedorData = null;
         }
 
@@ -148,7 +144,7 @@ export default function RecepcionarOrden() {
           }
         }
 
-        const insumosTransformados = raw.materiasPrimas.map((mp) => {
+        const insumosTransformados = fetched.materiasPrimas.map((mp) => {
           const purchasePmpId = mp.id_proveedor_materia_prima;
           const purchasePmp = pmpById[purchasePmpId] || mp.proveedorMateriaPrima;
           const mpId = purchasePmp?.materiaPrima?.id ?? purchasePmp?.id_materia_prima;
@@ -165,11 +161,11 @@ export default function RecepcionarOrden() {
             cantidadSolicitadaFormato - cantidadRecepcionadaAcumFormato
           );
 
-          // Por defecto se asume que se recepciona lo pendiente
-          const expectedBaseUnits = cantidadPendienteFormato * ratio;
+          const pendienteBaseUnits = cantidadPendienteFormato * ratio;
 
           const precioUnitarioOC = Number(mp.precio_unitario) || 0;
-          const defaultNeto = precioUnitarioOC * cantidadSolicitadaFormato;
+          // Precio de la OC llevado a la unidad base (referencia para la factura)
+          const precioBaseOC = ratio > 0 ? (precioUnitarioOC / ratio) : precioUnitarioOC;
 
           return {
             // Identificadores
@@ -195,19 +191,22 @@ export default function RecepcionarOrden() {
             cantidad_solicitada: cantidadSolicitadaFormato,
             cantidad_recepcionada_acumulada: cantidadRecepcionadaAcumFormato,
             cantidad_pendiente: cantidadPendienteFormato,
+            pendiente_base_units: pendienteBaseUnits,
 
-            // Recepción (nuevo flujo)
-            bultos: 0,
-            bultos_detalle: [],
-            total_neto_factura: defaultNeto,
+            // ── Paso 1: cuadre de factura (la factura manda) ──
+            // Cantidad recepcionada según factura, en unidad base del insumo.
+            cantidad_factura: pendienteBaseUnits > 0 ? Number(pendienteBaseUnits.toFixed(4)) : 0,
+            // Precio unitario según factura ($ por unidad base); parte con el de la OC.
+            precio_unitario_factura: Number(precioBaseOC.toFixed(4)),
+            // Total neto del ítem (auto = cantidad × precio, editable para cuadrar redondeos)
+            total_neto_factura: Number((pendienteBaseUnits * precioBaseOC).toFixed(2)),
             costoEdited: false,
             neto_facturado_prev: Number(netoFacturadoPrevByMpocId?.[mp.id]) || 0,
 
-            // Derivados
-            expected_base_units: expectedBaseUnits,
+            // ── Paso 2: bultos (deben cuadrar con la factura) ──
+            bultos: 0,
+            bultos_detalle: [],
             total_base_units: 0,
-            // cantidad_recibida ahora significa "cantidad recepcionada en ESTA recepción" (en formato comprado)
-            cantidad_recibida: 0,
 
             // Info OC
             precio_unitario: precioUnitarioOC,
@@ -217,7 +216,7 @@ export default function RecepcionarOrden() {
         .filter((i) => (Number(i?.cantidad_pendiente) || 0) > 1e-9);
 
         // Avance completo de la OC (incluye insumos ya recepcionados al 100%)
-        const avanceItems = raw.materiasPrimas.map((mp) => {
+        const avanceItems = fetched.materiasPrimas.map((mp) => {
           const purchasePmp = pmpById[mp.id_proveedor_materia_prima] || mp.proveedorMateriaPrima;
           return {
             id: mp.id,
@@ -233,11 +232,11 @@ export default function RecepcionarOrden() {
 
         setOrdenData({
           avance_items: avanceItems,
-          ...raw,
-          proveedor: raw.proveedor?.nombre_empresa || raw.id_proveedor,
-          lugar: raw.BodegaSolicitante?.nombre || "-",
-          numero: `OC-${String(raw.id).padStart(3, "0")}`,
-          id_bodega_recepcion: raw.id_bodega_destino ?? "",
+          ...fetched,
+          proveedor: fetched.proveedor?.nombre_empresa || fetched.id_proveedor,
+          lugar: fetched.BodegaSolicitante?.nombre || "-",
+          numero: `OC-${String(fetched.id).padStart(3, "0")}`,
+          id_bodega_recepcion: fetched.id_bodega_destino ?? "",
           fecha_recepcion: fechaActual,
           numero_factura: "",
           fecha_documento: "",
@@ -245,13 +244,13 @@ export default function RecepcionarOrden() {
           insumos: insumosTransformados,
         });
       } catch (error) {
-        toast.error("Error al cargar la orden:", error);
-        alert("No se pudo cargar la orden de compra.");
+        toast.error(`Error al cargar la orden: ${error.message}`);
       } finally {
         setIsLoading(false);
       }
     };
     fetchOrden();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ordenId]);
 
   const buildDefaultDistribution = (totalBaseUnits, cantidadBultos) => {
@@ -263,32 +262,14 @@ export default function RecepcionarOrden() {
       const rem = totalInt % cantidadBultos;
       for (let i = 0; i < cantidadBultos; i++) out.push(base + (i < rem ? 1 : 0));
     } else {
-      const u = totalBaseUnits / cantidadBultos;
+      const u = Number((totalBaseUnits / cantidadBultos).toFixed(4));
       for (let i = 0; i < cantidadBultos; i++) out.push(u);
     }
     return out;
   };
 
-  const recalcInsumoDerived = (insumo) => {
-    const ratio = Number(insumo.ratio) || 1;
-    const totalBase = (insumo.bultos_detalle || []).reduce(
-      (s, b) => s + (Number(b.cantidad_unidades) || 0),
-      0
-    );
-    const cantidadRecibidaFormato = ratio > 0 ? (totalBase / ratio) : 0;
-    const next = {
-      ...insumo,
-      total_base_units: totalBase,
-      cantidad_recibida: cantidadRecibidaFormato,
-    };
-
-    if (!next.costoEdited) {
-      const precioOC = Number(next.precio_unitario) || 0;
-      next.total_neto_factura = precioOC * cantidadRecibidaFormato;
-    }
-
-    return next;
-  };
+  const sumBultos = (insumo) =>
+    (insumo.bultos_detalle || []).reduce((s, b) => s + (Number(b.cantidad_unidades) || 0), 0);
 
   const emailSender = async (ordenId) => {
     try {
@@ -296,11 +277,11 @@ export default function RecepcionarOrden() {
         `/proceso-compra/ordenes/${ordenId}`, { method: "GET" }
       );
       const { items, totalNeto, iva, totalPago } = buildOcEmailItemsFromOrden(ordenData);
-      
+
       // Obtener usuarios con rol Super Admin
       const superAdmins = await api(`/usuarios?role=Super Admin`, { method: "GET" });
       const adminsArray = Array.isArray(superAdmins) ? superAdmins : [];
-      
+
       // Obtener encargados de la bodega
       const bodegaId = ordenData.BodegaSolicitante?.id;
       let encargados = [];
@@ -308,14 +289,14 @@ export default function RecepcionarOrden() {
         const bodegaData = await api(`/bodegas/${bodegaId}`, { method: "GET" });
         encargados = Array.isArray(bodegaData?.Encargados) ? bodegaData.Encargados : [];
       }
-      
+
       // Combinar ambos grupos de destinatarios
       const adminEmails = adminsArray.map((admin) => admin?.email).filter(Boolean);
       const encargadoEmails = encargados.map((e) => e?.usuario?.email).filter(Boolean);
       const allEmails = [...new Set([...adminEmails, ...encargadoEmails])];
-      
+
       const to = allEmails.map((email) => ({ email }));
-      
+
       const adminsNames = adminsArray.map((admin) => admin?.nombre).filter(Boolean).join(", ");
       const encargadosNames = encargados.map((e) => e?.usuario?.nombre).filter(Boolean).join(", ");
       const allNames = [adminsNames, encargadosNames].filter(Boolean).join(", ") || "Sin destinatarios";
@@ -341,111 +322,128 @@ export default function RecepcionarOrden() {
       });
     } catch (emailError) {
       console.error("Error enviando correo de notificación:", emailError);
-      }
+    }
   };
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
-    
+
     setOrdenData((prev) => ({
       ...prev,
       [name]: value,
     }));
   };
 
-  const handleBultosChange = (insumoId, newBultos) => {
-    const bCount = parseInt(newBultos) || 0;
-    setOrdenData((prev) => {
-      const updatedInsumos = prev.insumos.map((insumo) => {
-        if (insumo.id_proveedor_materia_prima !== insumoId) return insumo;
+  const updateInsumo = (insumoId, updater) => {
+    setOrdenData((prev) => ({
+      ...prev,
+      insumos: prev.insumos.map((insumo) =>
+        insumo.id_proveedor_materia_prima !== insumoId ? insumo : updater(insumo)
+      ),
+    }));
+  };
 
-        // Distribuir por defecto sobre lo pendiente
-        const expected = Number(insumo.expected_base_units) || 0;
-        const dist = buildDefaultDistribution(expected, bCount);
-        const bultos_detalle = dist.map((u) => ({
+  // ── Paso 1: cambios en la factura ──────────────────────────────────────────
+
+  const recalcTotales = (insumo) => {
+    const next = { ...insumo, total_base_units: sumBultos(insumo) };
+    if (!next.costoEdited) {
+      const cant = Number(next.cantidad_factura) || 0;
+      const precio = Number(next.precio_unitario_factura) || 0;
+      next.total_neto_factura = Number((cant * precio).toFixed(2));
+    }
+    return next;
+  };
+
+  const handleCantidadFacturaChange = (insumoId, value) => {
+    updateInsumo(insumoId, (insumo) => {
+      const next = { ...insumo, cantidad_factura: value };
+      // Si ya había bultos declarados, redistribuir sobre la nueva cantidad
+      const bCount = Number(next.bultos) || 0;
+      if (bCount > 0) {
+        const dist = buildDefaultDistribution(Number(value) || 0, bCount);
+        next.bultos_detalle = dist.map((u, i) => ({
           cantidad_unidades: u,
-          identificador_proveedor: "",
-          loteEdited: false,
+          identificador_proveedor: next.bultos_detalle?.[i]?.identificador_proveedor || "",
+          loteEdited: next.bultos_detalle?.[i]?.loteEdited || false,
           unitsEdited: false,
         }));
+      }
+      return recalcTotales(next);
+    });
+  };
 
-        return recalcInsumoDerived({
-          ...insumo,
-          bultos: bCount,
-          bultos_detalle,
-        });
-      });
+  const handlePrecioFacturaChange = (insumoId, value) => {
+    updateInsumo(insumoId, (insumo) =>
+      recalcTotales({ ...insumo, precio_unitario_factura: value })
+    );
+  };
 
-      const hasPartial = updatedInsumos.some(
-        (insumo) => (Number(insumo.cantidad_recibida) || 0) < (Number(insumo.cantidad_solicitada) || 0)
-      );
-      setHasPartialReception(hasPartial);
+  const handleTotalNetoChange = (insumoId, value) => {
+    updateInsumo(insumoId, (insumo) => ({
+      ...insumo,
+      total_neto_factura: value,
+      costoEdited: true,
+    }));
+  };
 
-      return { ...prev, insumos: updatedInsumos };
+  // ── Paso 2: cambios en bultos ───────────────────────────────────────────────
+
+  const handleBultosChange = (insumoId, newBultos) => {
+    const bCount = parseInt(newBultos) || 0;
+    updateInsumo(insumoId, (insumo) => {
+      // Distribuir por defecto la cantidad declarada en la factura
+      const declarado = Number(insumo.cantidad_factura) || 0;
+      const dist = buildDefaultDistribution(declarado, bCount);
+      const bultos_detalle = dist.map((u) => ({
+        cantidad_unidades: u,
+        identificador_proveedor: "",
+        loteEdited: false,
+        unitsEdited: false,
+      }));
+
+      return recalcTotales({ ...insumo, bultos: bCount, bultos_detalle });
     });
   };
 
   const handleBultoUnitsChange = (insumoId, idx, value) => {
-    setOrdenData((prev) => ({
-      ...prev,
-      insumos: prev.insumos.map((insumo) => {
-        if (insumo.id_proveedor_materia_prima !== insumoId) return insumo;
-        const detalle = Array.isArray(insumo.bultos_detalle) ? insumo.bultos_detalle : [];
-        const nextDetalle = detalle.map((b) => ({ ...b }));
+    updateInsumo(insumoId, (insumo) => {
+      const detalle = Array.isArray(insumo.bultos_detalle) ? insumo.bultos_detalle : [];
+      const nextDetalle = detalle.map((b) => ({ ...b }));
 
-        // Marca corte en el bulto editado
-        nextDetalle[idx] = {
-          ...nextDetalle[idx],
-          cantidad_unidades: value,
-          unitsEdited: true,
-        };
+      // Marca corte en el bulto editado
+      nextDetalle[idx] = {
+        ...nextDetalle[idx],
+        cantidad_unidades: value,
+        unitsEdited: true,
+      };
 
-        // Propagar hacia adelante hasta el siguiente editado manualmente
-        for (let i = idx + 1; i < nextDetalle.length; i++) {
-          if (nextDetalle[i]?.unitsEdited) break;
-          nextDetalle[i] = { ...nextDetalle[i], cantidad_unidades: value };
-        }
+      // Propagar hacia adelante hasta el siguiente editado manualmente
+      for (let i = idx + 1; i < nextDetalle.length; i++) {
+        if (nextDetalle[i]?.unitsEdited) break;
+        nextDetalle[i] = { ...nextDetalle[i], cantidad_unidades: value };
+      }
 
-        return recalcInsumoDerived({ ...insumo, bultos_detalle: nextDetalle });
-      }),
-    }));
+      return recalcTotales({ ...insumo, bultos_detalle: nextDetalle });
+    });
   };
 
   const handleLoteChange = (insumoId, idx, value) => {
-    setOrdenData((prev) => ({
-      ...prev,
-      insumos: prev.insumos.map((insumo) => {
-        if (insumo.id_proveedor_materia_prima !== insumoId) return insumo;
+    updateInsumo(insumoId, (insumo) => {
+      const detalle = Array.isArray(insumo.bultos_detalle) ? insumo.bultos_detalle : [];
+      const next = detalle.map((b) => ({ ...b }));
 
-        const detalle = Array.isArray(insumo.bultos_detalle) ? insumo.bultos_detalle : [];
-        const next = detalle.map((b, i) => ({ ...b }));
+      // Marca corte en el bulto editado
+      next[idx] = { ...next[idx], identificador_proveedor: value, loteEdited: true };
 
-        // Marca corte en el bulto editado
-        next[idx] = { ...next[idx], identificador_proveedor: value, loteEdited: true };
+      // Propagar hacia adelante hasta el siguiente editado manualmente
+      for (let i = idx + 1; i < next.length; i++) {
+        if (next[i]?.loteEdited) break;
+        next[i] = { ...next[i], identificador_proveedor: value };
+      }
 
-        // Propagar hacia adelante hasta el siguiente editado manualmente
-        for (let i = idx + 1; i < next.length; i++) {
-          if (next[i]?.loteEdited) break;
-          next[i] = { ...next[i], identificador_proveedor: value };
-        }
-
-        return { ...insumo, bultos_detalle: next };
-      }),
-    }));
-  };
-
-  const handleCostoFacturaChange = (insumoId, value) => {
-    setOrdenData((prev) => ({
-      ...prev,
-      insumos: prev.insumos.map((insumo) => {
-        if (insumo.id_proveedor_materia_prima !== insumoId) return insumo;
-        return {
-          ...insumo,
-          total_neto_factura: value,
-          costoEdited: true,
-        };
-      }),
-    }));
+      return { ...insumo, bultos_detalle: next };
+    });
   };
 
   const validarNumeroFactura = (valor) => {
@@ -480,14 +478,36 @@ export default function RecepcionarOrden() {
         "Formato inválido. Use solo números separados por comas (ej: 1234, 1235, 1236).";
     }
 
-    const tieneRecBulto = ordenData.insumos.some((i) => (Number(i.bultos) || 0) > 0);
-    if (!tieneRecBulto) newErrors.insumos = "Debe recepcionar al menos un bulto.";
+    const conCantidad = ordenData.insumos.filter(
+      (i) => (Number(i.cantidad_factura) || 0) > EPSILON
+    );
+    if (conCantidad.length === 0) {
+      newErrors.insumos = "Declara la cantidad recepcionada de al menos un insumo (según la factura).";
+    }
 
-    // Validar detalle de bultos + costos
-    for (const insumo of ordenData.insumos) {
+    // Validar cuadre factura ↔ bultos por ítem
+    for (const insumo of conCantidad) {
+      const declarado = Number(insumo.cantidad_factura) || 0;
       const b = Number(insumo.bultos) || 0;
-      if (b <= 0) continue;
+      const baseLabel = insumo.base_formato?.trim?.() || "un.";
 
+      const precio = Number(insumo.precio_unitario_factura);
+      if (!Number.isFinite(precio) || precio < 0) {
+        newErrors.insumos = `Precio unitario inválido en ${insumo.nombre}.`;
+        break;
+      }
+      const neto = Number(insumo.total_neto_factura);
+      if (!Number.isFinite(neto) || neto < 0) {
+        newErrors.insumos = `Total neto inválido en ${insumo.nombre}.`;
+        break;
+      }
+
+      if (b <= 0) {
+        newErrors.insumos =
+          `Declara los bultos de ${insumo.nombre} (paso 2), ` +
+          `o deja su cantidad en 0 si no vino en esta recepción.`;
+        break;
+      }
       const detalle = Array.isArray(insumo.bultos_detalle) ? insumo.bultos_detalle : [];
       if (detalle.length !== b) {
         newErrors.insumos = `Faltan bultos por declarar en ${insumo.nombre}.`;
@@ -497,15 +517,17 @@ export default function RecepcionarOrden() {
         const u = Number(d?.cantidad_unidades);
         const lote = d?.identificador_proveedor?.toString?.().trim?.() || "";
         if (!Number.isFinite(u) || u <= 0 || !lote) {
-          newErrors.insumos = `Debes completar unidades y lote en todos los bultos de ${insumo.nombre}.`;
+          newErrors.insumos = `Completa unidades y lote en todos los bultos de ${insumo.nombre}.`;
           break;
         }
       }
       if (newErrors.insumos) break;
 
-      const neto = Number(insumo.total_neto_factura);
-      if (!Number.isFinite(neto) || neto < 0) {
-        newErrors.insumos = `Costo neto factura inválido en ${insumo.nombre}.`;
+      const suma = sumBultos(insumo);
+      if (Math.abs(suma - declarado) > 1e-4) {
+        newErrors.insumos =
+          `Los bultos de ${insumo.nombre} suman ${suma.toFixed(2)} ${baseLabel} ` +
+          `pero la factura declara ${declarado.toFixed(2)} ${baseLabel}. Deben cuadrar.`;
         break;
       }
     }
@@ -515,10 +537,17 @@ export default function RecepcionarOrden() {
       toast.error("Por favor corrija los errores en el formulario.");
       return;
     }
+    setErrors({});
+
+    if (!canWritePurchaseOrder || !canWriteBulk) {
+      toast.permissionError(
+        [ModelType.ORDEN_COMPRA, ScopeType.WRITE],
+        [ModelType.BULTO, ScopeType.WRITE]
+      );
+      return;
+    }
 
     try {
-      const token = getToken();
-
       const payload = {
         pagada: true,
         id_bodega_recepcion: Number(ordenData.id_bodega_recepcion),
@@ -526,17 +555,22 @@ export default function RecepcionarOrden() {
         numero_factura: ordenData.numero_factura,
         fecha_documento: ordenData.fecha_documento,
         guia_despacho: ordenData.guia_despacho,
-        materias_primas_recepcionadas: ordenData.insumos.map((insumo) => ({
-          id_proveedor_materia_prima: insumo.id_proveedor_materia_prima,
-          id_materia_prima_orden_de_compra: insumo.mpocId,
-          cantidad_recepcionada: Number(insumo.cantidad_recibida) || 0,
-          cantidad_bultos: insumo.bultos,
-          bultos_detalle: (insumo.bultos_detalle || []).map((b) => ({
-            cantidad_unidades: Number(b.cantidad_unidades),
-            identificador_proveedor: b.identificador_proveedor,
-          })),
-          total_neto_factura: Number(insumo.total_neto_factura) || 0,
-        })),
+        materias_primas_recepcionadas: conCantidad.map((insumo) => {
+          const ratio = Number(insumo.ratio) || 1;
+          const cantidadBase = Number(insumo.cantidad_factura) || 0;
+          return {
+            id_proveedor_materia_prima: insumo.id_proveedor_materia_prima,
+            id_materia_prima_orden_de_compra: insumo.mpocId,
+            // El avance de la OC se lleva en formatos de compra
+            cantidad_recepcionada: ratio > 0 ? cantidadBase / ratio : cantidadBase,
+            cantidad_bultos: insumo.bultos,
+            bultos_detalle: (insumo.bultos_detalle || []).map((b) => ({
+              cantidad_unidades: Number(b.cantidad_unidades),
+              identificador_proveedor: b.identificador_proveedor,
+            })),
+            total_neto_factura: Number(insumo.total_neto_factura) || 0,
+          };
+        }),
       };
 
       const response = await api(
@@ -548,7 +582,6 @@ export default function RecepcionarOrden() {
       );
       if (!response || response.error) throw new Error("Error al recepcionar");
 
-      setBultosGenerados(response.bultos || []);
       setShowConfirmation(true);
       toast.success("Orden recepcionada y bultos declarados correctamente");
 
@@ -564,7 +597,7 @@ export default function RecepcionarOrden() {
       }
 
       try {
-        emailSender(ordenId);
+        await emailSender(ordenId);
       } catch (emailErr) {
         toast.error("Error enviando email tras validar orden:" + emailErr);
       }
@@ -583,27 +616,26 @@ export default function RecepcionarOrden() {
       setErrors(newErrors);
       return;
     }
+
+    if (!canWritePurchaseOrder) {
+      toast.permissionError([ModelType.ORDEN_COMPRA, ScopeType.WRITE]);
+      return;
+    }
     try {
-      const token = getToken();
-      const response = await fetch(
-        `${API_BASE}/proceso-compra/ordenes/${ordenId}/rechazar`,
+      await api(
+        `/proceso-compra/ordenes/${ordenId}/rechazar`,
         {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ motivo_rechazo: rejectReason.trim() }),
+          body: { motivo_rechazo: rejectReason.trim() }
         }
       );
 
-      if (!response.ok) throw new Error("Error al rechazar la orden.");
       setShowRejectPopup(false);
       toast.success("Orden rechazada correctamente");
       try {
-        emailSender(ordenId);
+        await emailSender(ordenId);
       } catch (emailErr) {
-        toast.error("Error enviando email tras validar orden:", emailErr);
+        toast.error(`Error enviando email tras validar orden: ${emailErr.message}`);
       }
       navigate("/Ordenes");
     } catch (error) {
@@ -611,7 +643,8 @@ export default function RecepcionarOrden() {
     }
   };
 
-  const columns = [
+  // ── Paso 1: columnas del cuadre de factura ─────────────────────────────────
+  const columnasFactura = [
     {
       header: "Insumo",
       accessor: "nombre",
@@ -620,64 +653,63 @@ export default function RecepcionarOrden() {
         const nombre = row.nombre?.trim?.() || "—";
         const unidad = row.unidad_medida?.trim?.() || "";
 
-        // Si formato = nombre → mostrar "(unidad) de nombre"
         if (formato && nombre && formato.toLowerCase() === nombre.toLowerCase()) {
           return `${unidad ? `${unidad} - ` : ""} ${nombre}`;
         }
-
-        // Si formato distinto → "(formato) de nombre"
         return `${formato ? `${formato} - ` : ""} ${nombre}`;
       },
     },
     {
-      header: "Cantidad Solicitada",
+      header: "Pedido / Pendiente",
       accessor: "cantidad_solicitada",
       Cell: ({ row }) => {
         const sol = Number(row.cantidad_solicitada) || 0;
         const rec = Number(row.cantidad_recepcionada_acumulada) || 0;
-        const pend = Number(row.cantidad_pendiente) || 0;
+        const pendBase = Number(row.pendiente_base_units) || 0;
         const fmt = row.formato || "";
+        const baseLabel = row.base_formato?.trim?.() || "un.";
         return (
           <div className="flex flex-col">
             <span className="font-medium">{sol.toFixed(2)} {fmt}</span>
-            <span className="text-xs text-gray-600">Ya recepcionado: {rec.toFixed(2)} {fmt}</span>
-            <span className="text-xs text-gray-600">Pendiente: {pend.toFixed(2)} {fmt}</span>
+            {rec > 0 && (
+              <span className="text-xs text-gray-600">Ya recepcionado: {rec.toFixed(2)} {fmt}</span>
+            )}
+            <span className="text-xs text-gray-600">
+              Pendiente: {pendBase.toFixed(2)} {baseLabel}
+            </span>
           </div>
         );
       },
     },
-    { header: "Bultos", accessor: "bultos", Cell: ({ row }) => (
-        <input
-          type="number"
-          min="0"
-          value={row.bultos || ""}
-          placeholder="0"
-          onChange={(e) =>
-            handleBultosChange(row.id_proveedor_materia_prima, e.target.value)
-          }
-          onWheel={handleNumberInputWheel}
-          className="w-24 px-2 py-1 border border-gray-300 rounded-md"
-        />
-      ),
-    },
     {
-      header: "Recibido",
-      accessor: "total_base_units",
+      header: "Cantidad según factura",
+      accessor: "cantidad_factura",
       Cell: ({ row }) => {
-        const totalBase = Number(row.total_base_units) || 0;
+        const baseLabel = row.base_formato?.trim?.() || "un.";
         const ratio = Number(row.ratio) || 1;
-        const recibidoFormato = ratio > 0 ? (totalBase / ratio) : 0;
-        const fmt = row.formato || "";
-        const baseLabel = row.base_formato?.trim?.() || "un. base";
-
-        const pendienteFmt = Number(row.cantidad_pendiente) || 0;
-        const pendienteBase = pendienteFmt * ratio;
-        const excede = totalBase > 0 && pendienteBase > 0 && totalBase > pendienteBase + 1e-9;
+        const cant = Number(row.cantidad_factura) || 0;
+        const enFormato = ratio > 0 ? cant / ratio : cant;
+        const pendBase = Number(row.pendiente_base_units) || 0;
+        const excede = cant > pendBase + 1e-4;
         return (
           <div className="flex flex-col">
-            <span className="font-medium">{totalBase.toFixed(2)} {baseLabel}</span>
-            {ratio > 1.01 && (
-              <span className="text-xs text-blue-600">≈ {recibidoFormato.toFixed(2)} {fmt}</span>
+            <div className="flex items-center gap-1">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={row.cantidad_factura ?? ""}
+                onChange={(e) =>
+                  handleCantidadFacturaChange(row.id_proveedor_materia_prima, e.target.value)
+                }
+                onWheel={handleNumberInputWheel}
+                className="w-28 px-2 py-1 border border-gray-300 rounded-md"
+                placeholder="0"
+              />
+              <span className="text-xs text-gray-600">{baseLabel}</span>
+            </div>
+            {ratio > 1.01 && cant > 0 && (
+              <span className="text-xs text-blue-600">≈ {enFormato.toFixed(2)} {row.formato}</span>
             )}
             {excede && (
               <span className="text-xs text-amber-700">Supera lo pendiente</span>
@@ -687,17 +719,37 @@ export default function RecepcionarOrden() {
       },
     },
     {
-      header: "Costo Neto Recepción",
+      header: "Precio unitario factura",
+      accessor: "precio_unitario_factura",
+      Cell: ({ row }) => {
+        const baseLabel = row.base_formato?.trim?.() || "un.";
+        return (
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-gray-600">$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.0001"
+                value={row.precio_unitario_factura ?? ""}
+                onChange={(e) =>
+                  handlePrecioFacturaChange(row.id_proveedor_materia_prima, e.target.value)
+                }
+                onWheel={handleNumberInputWheel}
+                className="w-28 px-2 py-1 border border-gray-300 rounded-md"
+                placeholder="0"
+              />
+              <span className="text-xs text-gray-600">/ {baseLabel}</span>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      header: "Total neto ítem",
       accessor: "total_neto_factura",
       Cell: ({ row }) => {
         const yaFacturado = Number(row?.neto_facturado_prev) || 0;
-        const fmtCLP = (n) =>
-          new Intl.NumberFormat("es-CL", {
-            style: "currency",
-            currency: "CLP",
-            maximumFractionDigits: 0,
-          }).format(Number.isFinite(n) ? n : 0);
-
         return (
           <div className="flex flex-col">
             <input
@@ -705,44 +757,48 @@ export default function RecepcionarOrden() {
               min="0"
               step="0.01"
               value={row.total_neto_factura ?? ""}
-              onChange={(e) => handleCostoFacturaChange(row.id_proveedor_materia_prima, e.target.value)}
+              onChange={(e) => handleTotalNetoChange(row.id_proveedor_materia_prima, e.target.value)}
               onWheel={handleNumberInputWheel}
               className="w-32 px-2 py-1 border border-gray-300 rounded-md"
               placeholder="0"
             />
+            {row.costoEdited && (
+              <span className="text-xs text-gray-500 mt-0.5">Editado a mano</span>
+            )}
             {yaFacturado > 0 && (
-              <span className="text-xs text-gray-600 mt-1">Ya facturado: {fmtCLP(yaFacturado)}</span>
+              <span className="text-xs text-gray-600 mt-1">Ya facturado: {formatCLP(yaFacturado, 0)}</span>
             )}
           </div>
         );
       },
     },
     {
-      header: "Costo Neto OC",
+      header: "Ref. OC",
       accessor: "precio_unitario",
       Cell: ({ row }) => {
         const precioUnitario = Number(row?.precio_unitario) || 0;
         const cantidadSolicitada = Number(row?.cantidad_solicitada) || 0;
         const total = precioUnitario * cantidadSolicitada;
-
-        return new Intl.NumberFormat("es-CL", {
-          style: "currency",
-          currency: "CLP",
-          maximumFractionDigits: 0,
-        }).format(Number.isFinite(total) ? total : 0);
+        return (
+          <div className="flex flex-col text-sm">
+            <span>{formatCLP(total, 0)}</span>
+            <span className="text-xs text-gray-500">{formatCLP(precioUnitario, 0)} / {row.formato || "fmt"}</span>
+          </div>
+        );
       },
     },
   ];
 
-  if (isLoading || !ordenData) {
-    return (
-      <div className="p-6 bg-background min-h-screen">
-        <div className="flex justify-center items-center h-64">
-          <span className="text-text">Cargando...</span>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading || !ordenData) return <PageLoader message="Cargando orden" />;
+
+  const totalNetoDocumento = ordenData.insumos.reduce(
+    (s, i) => s + (Number(i.total_neto_factura) || 0) * ((Number(i.cantidad_factura) || 0) > EPSILON ? 1 : 0),
+    0
+  );
+
+  const insumosConCantidad = ordenData.insumos.filter(
+    (i) => (Number(i.cantidad_factura) || 0) > EPSILON
+  );
 
   return (
     <div className="p-6 bg-background min-h-screen">
@@ -759,7 +815,7 @@ export default function RecepcionarOrden() {
             (field) => {
               let label =
                 field === "fecha"
-                  ? "Fecha de emisión" 
+                  ? "Fecha de emisión"
                   : field.charAt(0).toUpperCase() + field.slice(1);
 
               let value = ordenData[field];
@@ -862,92 +918,138 @@ export default function RecepcionarOrden() {
         </div>
       )}
 
+      {/* ── PASO 1: Cuadre de factura ── */}
       <div className="mt-6">
-        <h2 className="text-lg text-primary font-medium mb-4">Insumos</h2>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold">1</span>
+          <h2 className="text-lg text-primary font-medium">Cuadre de factura del proveedor</h2>
+        </div>
         <p className="text-sm text-gray-500 mb-3">
-          Se muestran solo los insumos con cantidades pendientes por recepcionar.
+          Declara por ítem la <strong>cantidad recepcionada</strong> y el <strong>precio unitario</strong> tal
+          como vienen en el documento del proveedor. Los campos parten con lo pendiente y el precio de la OC —
+          ajústalos para que cuadren con la factura. Se muestran solo los insumos con pendientes.
         </p>
         {errors.insumos && (
           <p className="text-red-600 text-sm mb-2">{errors.insumos}</p>
         )}
-        <Table columns={columns} data={ordenData.insumos} />
+        <Table columns={columnasFactura} data={ordenData.insumos} />
+
+        <div className="mt-3 flex justify-end">
+          <div className="bg-white rounded-lg shadow px-4 py-2 text-sm">
+            <span className="text-gray-600 mr-2">Total neto del documento:</span>
+            <span className="font-bold text-text">{formatCLP(totalNetoDocumento, 0)}</span>
+          </div>
+        </div>
       </div>
 
-      {/* Declaración de bultos directa (mezcla Recepcionar + Declarar) */}
+      {/* ── PASO 2: Declaración de bultos ── */}
       <div className="mt-8">
-        <h2 className="text-lg text-primary font-medium mb-4">Declaración de bultos</h2>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold">2</span>
+          <h2 className="text-lg text-primary font-medium">Declaración de bultos</h2>
+        </div>
+        <p className="text-sm text-gray-500 mb-3">
+          Indica en cuántos bultos llegó cada ítem. La suma de los bultos debe
+          <strong> cuadrar con la cantidad declarada en la factura</strong>.
+        </p>
 
-        {ordenData.insumos
-          .filter((i) => (Number(i.bultos) || 0) > 0)
-          .map((insumo) => {
-            const expected = Number(insumo.expected_base_units) || 0;
-            const totalBase = Number(insumo.total_base_units) || 0;
-            const ratio = Number(insumo.ratio) || 1;
+        {insumosConCantidad.length === 0 ? (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600">
+            Primero declara cantidades en el paso 1.
+          </div>
+        ) : (
+          insumosConCantidad.map((insumo) => {
+            const declarado = Number(insumo.cantidad_factura) || 0;
+            const totalBase = sumBultos(insumo);
+            const baseLabel = insumo.base_formato?.trim?.() || "un.";
             const fmt = insumo.formato || "";
-            const baseLabel = insumo.base_formato?.trim?.() || "un. base";
-            const expectedFmt = ratio > 0 ? (expected / ratio) : 0;
-            const recibidoFmt = ratio > 0 ? (totalBase / ratio) : 0;
+            const cuadra = Math.abs(totalBase - declarado) <= 1e-4;
+            const tieneBultos = (Number(insumo.bultos) || 0) > 0;
 
             return (
               <div key={insumo.id_proveedor_materia_prima} className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-bold text-gray-800">
-                    {insumo.nombre} <span className="text-sm font-normal text-gray-500">({fmt})</span>
-                  </h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Esperado: <strong>{expected.toFixed(2)}</strong> {baseLabel}
-                    {ratio > 1.01 && (
-                      <span> (≈ {expectedFmt.toFixed(2)} {fmt})</span>
-                    )}
-                    {" "}· Recibido: <strong>{totalBase.toFixed(2)}</strong> {baseLabel}
-                    {ratio > 1.01 && (
-                      <span> (≈ {recibidoFmt.toFixed(2)} {fmt})</span>
-                    )}
-                  </p>
+                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-800">
+                      {insumo.nombre} <span className="text-sm font-normal text-gray-500">({fmt})</span>
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Declarado en factura: <strong>{declarado.toFixed(2)}</strong> {baseLabel}
+                      {tieneBultos && (
+                        <>
+                          {" "}· En bultos: <strong>{totalBase.toFixed(2)}</strong> {baseLabel}{" "}
+                          {cuadra ? (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">✓ Cuadra</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                              Difiere en {(totalBase - declarado).toFixed(2)}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    N° de bultos
+                    <input
+                      type="number"
+                      min="0"
+                      value={insumo.bultos || ""}
+                      placeholder="0"
+                      onChange={(e) =>
+                        handleBultosChange(insumo.id_proveedor_materia_prima, e.target.value)
+                      }
+                      onWheel={handleNumberInputWheel}
+                      className="w-24 px-2 py-1 border border-gray-300 rounded-md"
+                    />
+                  </label>
                 </div>
 
-                <div className="p-4 overflow-x-auto">
-                  <table className="w-full text-sm border border-gray-200">
-                    <thead className="bg-gray-100 text-gray-700">
-                      <tr>
-                        <th className="p-2 border">Bulto</th>
-                        <th className="p-2 border">Cantidad de {baseLabel} en bulto</th>
-                        <th className="p-2 border">Lote proveedor</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(insumo.bultos_detalle || []).map((b, idx) => (
-                        <tr key={idx} className="border-t">
-                          <td className="p-2 border text-center">{idx + 1}</td>
-                          <td className="p-2 border text-center">
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={b.cantidad_unidades}
-                              onChange={(e) => handleBultoUnitsChange(insumo.id_proveedor_materia_prima, idx, e.target.value)}
-                              onWheel={handleNumberInputWheel}
-                              className="w-32 px-2 py-1 border rounded"
-                              placeholder="0"
-                            />
-                          </td>
-                          <td className="p-2 border">
-                            <input
-                              type="text"
-                              value={b.identificador_proveedor}
-                              onChange={(e) => handleLoteChange(insumo.id_proveedor_materia_prima, idx, e.target.value)}
-                              className="w-48 px-2 py-1 border rounded"
-                              placeholder="Lote proveedor"
-                            />
-                          </td>
+                {tieneBultos && (
+                  <div className="p-4 overflow-x-auto">
+                    <table className="w-full text-sm border border-gray-200">
+                      <thead className="bg-gray-100 text-gray-700">
+                        <tr>
+                          <th className="p-2 border">Bulto</th>
+                          <th className="p-2 border">Cantidad de {baseLabel} en bulto</th>
+                          <th className="p-2 border">Lote proveedor</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {(insumo.bultos_detalle || []).map((b, idx) => (
+                          <tr key={idx} className="border-t">
+                            <td className="p-2 border text-center">{idx + 1}</td>
+                            <td className="p-2 border text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={b.cantidad_unidades}
+                                onChange={(e) => handleBultoUnitsChange(insumo.id_proveedor_materia_prima, idx, e.target.value)}
+                                onWheel={handleNumberInputWheel}
+                                className="w-32 px-2 py-1 border rounded"
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="p-2 border">
+                              <input
+                                type="text"
+                                value={b.identificador_proveedor}
+                                onChange={(e) => handleLoteChange(insumo.id_proveedor_materia_prima, idx, e.target.value)}
+                                className="w-48 px-2 py-1 border rounded"
+                                placeholder="Lote proveedor"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             );
-          })}
+          })
+        )}
       </div>
 
       <div className="mt-6 flex justify-end gap-3">
@@ -959,6 +1061,7 @@ export default function RecepcionarOrden() {
         </button>
         <button
           onClick={handleFinalizarRecepcion}
+          disabled={!canWritePurchaseOrder || !canWriteBulk}
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
         >
           Recepcionar
@@ -1014,6 +1117,7 @@ export default function RecepcionarOrden() {
               </button>
               <button
                 onClick={handleRechazarRecepcion}
+                disabled={!canWritePurchaseOrder}
                 className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
               >
                 Confirmar rechazo

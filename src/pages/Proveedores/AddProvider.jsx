@@ -1,14 +1,15 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import { formatRutDisplay } from "../../services/formatHelpers";
+import { formatRutDisplay, esEmailValido } from "../../services/formatHelpers";
 import { COMUNAS_BY_REGION } from "../../data/comunas";
 import { REGIONES } from "../../data/regiones";
 import { BANCOS_CL, TIPO_CUENTA } from "../../data/datosBancarios";
-import { TIPO_PROVEEDOR } from "../../data/proveedoresType";
 import { toast } from "../../lib/toast";
 import { ApiError, useApi } from "../../lib/api";
-import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
+import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmModal";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 const classInput = (hasError) =>
   `border rounded px-3 py-2 w-full placeholder-gray-400 ${
@@ -106,6 +107,7 @@ const SimpleSelectRow = React.memo(function SimpleSelectRow({
   );
 });
 
+
 export default function AddProvider() {
   const navigate = useNavigate();
   const api = useApi();
@@ -116,6 +118,7 @@ export default function AddProvider() {
     matches: [],
   });
   const [pendingPayload, setPendingPayload] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     nombre_empresa: "",
@@ -137,6 +140,8 @@ export default function AddProvider() {
   const [errorGeneral, setErrorGeneral] = useState("");
   const isWebpay = formData.banco === "Webpay";
 
+  const canWriteProvider = checkScope(ModelType.PROVEEDOR, ScopeType.WRITE);
+
   const labels = {
     nombre_empresa: "Razón Social",
     rut_empresa: "RUT",
@@ -145,7 +150,7 @@ export default function AddProvider() {
     region: "Región",
     comuna: "Comuna",
     direccion: "Dirección",
-    cuenta_corriente: "Nº de Cuenta",
+    cuenta_corriente: "N° de Cuenta",
     banco: "Banco",
     cuenta: "Tipo de Cuenta",
     email_transferencia: "Email para Transferencias",
@@ -176,10 +181,9 @@ export default function AddProvider() {
     if (!isWebpay && !formData.cuenta)
       newErrors.cuenta = "Seleccione el tipo de cuenta";
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!isWebpay && !formData.email_transferencia)
       newErrors.email_transferencia = "Debe ingresar el email";
-    else if (!isWebpay && !emailRegex.test(formData.email_transferencia))
+    else if (!isWebpay && !esEmailValido(formData.email_transferencia))
       newErrors.email_transferencia = "Formato de email no válido";
 
     if (!formData.nombre_contacto.trim())
@@ -242,7 +246,11 @@ export default function AddProvider() {
     e.preventDefault();
     setErrorGeneral("");
     if (!validate()) return;
-
+    if (!canWriteProvider) {
+      toast.permissionError([ModelType.PROVEEDOR, ScopeType.WRITE]);
+      setIsSubmitting(false);
+      return;
+    }
     const payload = isWebpay
       ? {
           ...formData,
@@ -253,6 +261,7 @@ export default function AddProvider() {
       : formData;
 
     try {
+      setIsSubmitting(true);
       await api("/proveedores", {
         method: "POST",
         body: JSON.stringify(payload),
@@ -275,12 +284,20 @@ export default function AddProvider() {
       }
       setErrorGeneral(err?.message || "Error creando proveedor");
       toast.error("Error creando proveedor: " + (err?.message || ""));
-    }
+    } finally {
+      setIsSubmitting(false);
+      }
   };
 
   const confirmCreateAnyway = async () => {
     if (!pendingPayload) return;
+    if (!canWriteProvider) {
+      toast.permissionError([ModelType.PROVEEDOR, ScopeType.WRITE]);
+      setIsSubmitting(false);
+      return;
+    }
     try {
+      setIsSubmitting(true);
       await api("/proveedores", {
         method: "POST",
         body: JSON.stringify({ ...pendingPayload, confirmSimilarName: true }),
@@ -294,11 +311,18 @@ export default function AddProvider() {
       setPendingPayload(null);
       setErrorGeneral(err?.message || "Error creando proveedor");
       toast.error("Error creando proveedor: " + (err?.message || ""));
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="p-6 bg-background min-h-screen">
+      {isSubmitting && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <div className="mb-4">
         <BackButton to="/Proveedores" />
       </div>
@@ -445,9 +469,10 @@ export default function AddProvider() {
           </button>
           <button
             type="submit"
-            className="px-6 py-2 bg-primary text-white rounded hover:bg-hover"
+            disabled={isSubmitting}
+            className="px-6 py-2 bg-primary text-white rounded hover:bg-hover disabled:opacity-50"
           >
-            Guardar
+            {isSubmitting ? "Guardando..." : "Guardar"}
           </button>
         </div>
       </form>

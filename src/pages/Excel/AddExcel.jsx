@@ -3,6 +3,7 @@ import { useApi } from '../../lib/api';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '../../lib/toast';
 import * as XLSX from 'xlsx';
+import { checkScope, ModelType, ScopeType } from '../../services/scopeCheck';
 
 export default function ExportOrdenVentaExcel() {
   const api = useApi();
@@ -25,8 +26,17 @@ export default function ExportOrdenVentaExcel() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const canWriteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
+  const canWriteSaleOrderProduct = checkScope(ModelType.PRODUCTO_ORDEN, ScopeType.WRITE);
+
+  const canReadClients = checkScope(ModelType.CLIENTE, ScopeType.READ);
+
   useEffect(() => {
     const fetchClientes = async () => {
+      if (!canReadClients) {
+        toast.permissionError([ModelType.CLIENTE, ScopeType.READ]);
+        return;
+      }
       try {
         const data = await api('/clientes');
         if (Array.isArray(data)) {
@@ -40,7 +50,7 @@ export default function ExportOrdenVentaExcel() {
       }
     };
     fetchClientes();
-  }, [api]);
+  }, [api, canReadClients]);
 
   useEffect(() => {
     const fetchBodegas = async () => {
@@ -129,6 +139,11 @@ export default function ExportOrdenVentaExcel() {
       setClienteConfig(null);
       setPreciosLista([]);
 
+      if (!canReadClients) {
+        toast.permissionError([ModelType.CLIENTE, ScopeType.READ]);
+        return;
+      }
+
       if (!selectedClienteId) return;
 
       try {
@@ -162,7 +177,7 @@ export default function ExportOrdenVentaExcel() {
     };
 
     fetchClienteConfig();
-  }, [api, selectedClienteId]);
+  }, [api, selectedClienteId, canReadClients]);
 
   const handleFileChange = (e) => {
     const selected = e.target.files && e.target.files[0] ? e.target.files[0] : null;
@@ -394,6 +409,13 @@ export default function ExportOrdenVentaExcel() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
+
+    if (!canWriteSaleOrder || !canWriteSaleOrderProduct) {
+      toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.WRITE], [ModelType.PRODUCTO_ORDEN, ScopeType.WRITE]);
+      setErrorMsg('No tienes permisos para realizar esa acción.');
+      setLoading(false);
+      return;
+    }
 
     if (!selectedClienteId) {
       setErrorMsg('Debes seleccionar un cliente.');

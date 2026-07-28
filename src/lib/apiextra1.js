@@ -2,10 +2,18 @@
 const DEFAULT_DEV = "http://127.0.0.1:8000";
 const DEFAULT_PROD = "https://two025-2-s4-grupo2-extra-1.onrender.com";
 
-export const EXTRA1_BASE = String(
-  import.meta.env.VITE_EXTRA1_BASE ??
-    (import.meta.env.MODE === "development" ? DEFAULT_DEV : DEFAULT_PROD)
-).replace(/\/+$/, "");
+const stripTrailingSlashes = (s) => {
+  let i = s.length;
+  while (i > 0 && s.charCodeAt(i - 1) === 47 /* '/' */) i--;
+  return s.slice(0, i);
+};
+
+export const EXTRA1_BASE = stripTrailingSlashes(
+  String(
+    import.meta.env.VITE_EXTRA1_BASE ??
+      (import.meta.env.MODE === "development" ? DEFAULT_DEV : DEFAULT_PROD)
+  )
+);
 
 export async function apiExtra1(path, options = {}) {
   const url = path.startsWith("http") ? path : `${EXTRA1_BASE}${path}`;

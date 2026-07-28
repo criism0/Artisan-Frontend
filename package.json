@@ -3,46 +3,57 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "yarn@4.14.1+sha512.64df448055b2d37ba269d7db535a469b8da93f8ef1140c25fd7a83c00a8fbaacb214ca0e02553b92a2c54cef78bb67d0b4817fab02001df0e24fac0faccc3b42",
+  "engines": {
+    "npm": "please-use-yarn",
+    "yarn": ">= 4.6.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "nav-audit": "node scripts/nav-audit.mjs",
+    "prepare": "husky"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",
     "@react-oauth/google": "^0.13.5",
-    "axios": "^1.8.4",
-    "date-fns": "^4.1.0",
     "html5-qrcode": "^2.3.8",
-    "jsbarcode": "^3.12.1",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.507.0",
+    "pdfjs-dist": "^6.0.227",
     "qrcode": "^1.5.4",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.5.0",
-    "react-is": "^19.2.0",
     "react-router-dom": "^7.5.0",
     "react-toastify": "^11.0.5",
-    "svg2pdf.js": "^2.6.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
-    "@tailwindcss/postcss": "^4.1.3",
+    "@playwright/test": "^1.61.1",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react-swc": "^3.8.0",
+    "@vitest/coverage-v8": "^4.1.5",
     "autoprefixer": "^10",
     "eslint": "^9.21.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^15.15.0",
+    "husky": "^9.1.7",
+    "jsdom": "^29.1.0",
     "postcss": "^8",
     "tailwindcss": "3.4.4",
-    "vite": "^6.2.0"
+    "vite": "^6.2.0",
+    "vitest": "^4.1.4"
   }
 }

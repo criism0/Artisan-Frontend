@@ -1,9 +1,12 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useApi } from "../../lib/api";
-import DynamicFormWithSelect from "../../components/DynamicFormWithSelect";
-import ProductosBaseManager from "../../components/ProductosBaseManager";
+import DynamicFormWithSelect from "../../components/Forms/DynamicFormWithSelect";
+import ProductosBaseManager from "../../components/ProductosBase/ProductosBaseManager";
 import { BackButton } from "../../components/Buttons/ActionButtons";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import toast from "../../lib/toast.js";
 
 export default function ListaPrecioEdit() {
   const { id } = useParams();
@@ -13,6 +16,8 @@ export default function ListaPrecioEdit() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const api = useApi();
+
+  const canWritePriceList = checkScope(ModelType.LISTA_PRECIO, ScopeType.WRITE);
 
   useEffect(() => {
     const fetchListaPrecioData = async () => {
@@ -83,6 +88,10 @@ export default function ListaPrecioEdit() {
   const selectOptions = {};
 
   const handleFormSubmit = async (formData) => {
+    if (!canWritePriceList){
+      toast.permissionError([ModelType.LISTA_PRECIO, ScopeType.WRITE]);
+      return;
+    }
     try {
       setError(null);
       const formattedData = {
@@ -103,14 +112,7 @@ export default function ListaPrecioEdit() {
     }
   };
 
-  if (loading) return (
-    <div className="p-6 bg-background min-h-screen">
-      <div className="flex justify-center items-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-        <span className="ml-3 text-primary">Cargando datos...</span>
-      </div>
-    </div>
-  );
+  if (loading) return <PageLoader message="Cargando datos" />;
 
   if (!listaPrecioData && !loading) return (
     <div className="p-6 bg-background min-h-screen">
@@ -141,7 +143,7 @@ export default function ListaPrecioEdit() {
       />
 
       {/* Productos asociados: editar/eliminar usando el manager */}
-      <div className="mt-8">
+      <div className="mt-8 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
         <ProductosBaseManager
           listaPrecioId={id}
           productosBase={productosBase}

@@ -4,17 +4,19 @@ import { useNavigate, useParams } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import TabButton from "../../components/Wizard/TabButton";
 
-import DatosPipTab from "../../components/WizardTabs/DatosPipTab";
-import RecetaTab from "../../components/WizardTabs/RecetaTab";
-import CostosSecosTab from "../../components/WizardTabs/CostosSecosTab";
-import PautaTab from "../../components/WizardTabs/PautaTab";
-import PVAsTab from "../../components/WizardTabs/PVAsTab";
-import CostosIndirectosTab from "../../components/WizardTabs/CostosIndirectosTab";
+import DatosPipTab from "../../components/Wizard/DatosPipTab";
+import RecetaTab from "../../components/Wizard/RecetaTab";
+import CostosSecosTab from "../../components/Wizard/CostosSecosTab";
+import PautaTab from "../../components/Wizard/PautaTab";
+import PVAsTab from "../../components/Wizard/PVAsTab";
+import CostosIndirectosTab from "../../components/Wizard/CostosIndirectosTab";
 
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { insumoToSearchText } from "../../services/fuzzyMatch";
 import { toNumber } from "../../utils/toNumber";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function InsumoEdit() {
   const { id } = useParams();
@@ -33,6 +35,7 @@ export default function InsumoEdit() {
     id_categoria: "",
     stock_critico: "",
     unidad_medida: "",
+    semanas_seguridad: "",
   });
   const [errors, setErrors] = useState({});
   const [hasChanges, setHasChanges] = useState(false);
@@ -42,6 +45,7 @@ export default function InsumoEdit() {
     nombre: "",
     unidad_medida: "",
     stock_critico: "0",
+    semanas_seguridad: "",
   });
 
   const [tab, setTab] = useState("datos");
@@ -80,6 +84,14 @@ export default function InsumoEdit() {
   const [costoPorKg, setCostoPorKg] = useState("0");
   const [nuevoCosto, setNuevoCosto] = useState({ nombre: "", descripcion: "" });
 
+  const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteRecipe = checkScope(ModelType.RECETA, ScopeType.WRITE);
+  const canWriteRecipeIngredient = checkScope(ModelType.INGREDIENTE_RECETA, ScopeType.WRITE);
+  const canDeleteRecipeIngredient = checkScope(ModelType.INGREDIENTE_RECETA, ScopeType.DELETE);
+  const canWriteRawMaterial = checkScope(ModelType.MATERIA_PRIMA, ScopeType.WRITE);
+  const canWriteIndirectCost = checkScope(ModelType.COSTO_INDIRECTO, ScopeType.WRITE);
+  const canDeleteIndirectCost = checkScope(ModelType.COSTO_INDIRECTO, ScopeType.DELETE);
+
   useEffect(() => {
     const fetchBase = async () => {
       try {
@@ -102,12 +114,14 @@ export default function InsumoEdit() {
           id_categoria: insumoRes?.id_categoria != null ? String(insumoRes.id_categoria) : "",
           stock_critico: insumoRes?.stock_critico != null ? String(insumoRes.stock_critico) : "",
           unidad_medida: insumoRes?.unidad_medida || "",
+          semanas_seguridad: insumoRes?.semanas_seguridad != null ? String(insumoRes.semanas_seguridad) : "",
         });
 
         setPipForm({
           nombre: insumoRes?.nombre || "",
           unidad_medida: insumoRes?.unidad_medida || "",
           stock_critico: insumoRes?.stock_critico != null ? String(insumoRes.stock_critico) : "0",
+          semanas_seguridad: insumoRes?.semanas_seguridad != null ? String(insumoRes.semanas_seguridad) : "",
         });
 
         setTab("datos");
@@ -126,6 +140,13 @@ export default function InsumoEdit() {
     const loadPipWizardData = async () => {
       if (!isPip) return;
       if (!insumo) return;
+
+      if (!canReadElaborationGuideline) {
+        toast.permissionError(
+          [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+        );
+        return;
+      }
 
       try {
         const [mps, pautasRes, costosRes, recetasRes] = await Promise.all([
@@ -192,7 +213,7 @@ export default function InsumoEdit() {
     };
 
     void loadPipWizardData();
-  }, [api, id, insumo, isPip]);
+  }, [api, id, insumo, isPip, canReadElaborationGuideline]);
 
   useEffect(() => {
     if (!isPip) return;
@@ -275,9 +296,17 @@ export default function InsumoEdit() {
     if (!Number.isFinite(stockCriticoNum) || stockCriticoNum <= 0) {
       newErrors.stock_critico = "Debe ingresar un stock crítico mayor a 0.";
     }
+    if (pipForm.semanas_seguridad !== "" && (!Number.isFinite(toNumber(pipForm.semanas_seguridad)) || toNumber(pipForm.semanas_seguridad) < 0)) {
+      newErrors.semanas_seguridad = "Las semanas de seguridad deben ser un número mayor o igual a 0.";
+    }
 
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
+
+    if (!canWriteRawMaterial) {
+      toast.permissionError([ModelType.MATERIA_PRIMA, ScopeType.WRITE]);
+      return;
+    }
 
     try {
       const body = {
@@ -285,6 +314,9 @@ export default function InsumoEdit() {
         unidad_medida: pipForm.unidad_medida,
         stock_critico: stockCriticoNum,
         id_categoria: Number(formData.id_categoria),
+        ...(pipForm.semanas_seguridad !== ""
+          ? {semanas_seguridad: toNumber(pipForm.semanas_seguridad)}
+          : {}),
       };
 
       await api(`/materias-primas/${id}`, { method: "PUT", body: JSON.stringify(body) });
@@ -315,6 +347,10 @@ export default function InsumoEdit() {
   };
 
   const handleGuardarReceta = async () => {
+    if (!canWriteRecipe) {
+      toast.permissionError([ModelType.RECETA, ScopeType.WRITE]);
+      return;
+    }
     const pesoNum = toNumber(recetaForm.peso);
     if (pesoNum <= 0) return toast.error("El peso debe ser mayor a 0");
     if (!recetaForm.unidad_medida) return toast.error("Unidad de medida es obligatoria");
@@ -377,7 +413,16 @@ export default function InsumoEdit() {
   const handleAddOrUpdateIngrediente = async () => {
     if (!recetaId) return;
     if (!selectedIngredientId) return toast.error("Selecciona un ingrediente");
-    const pesoNum = toNumber(ingredientPeso);
+    
+    if (!canWriteRecipe || !canWriteRecipeIngredient) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.INGREDIENTE_RECETA, ScopeType.WRITE]
+      );
+      return;
+    }
+    
+      const pesoNum = toNumber(ingredientPeso);
     if (pesoNum <= 0) return toast.error("El peso del ingrediente debe ser mayor a 0");
 
     const idsEquivalentes = (equivalentesIds || [])
@@ -418,6 +463,13 @@ export default function InsumoEdit() {
 
   const handleRemoveIngrediente = async (ingredienteId) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canDeleteRecipeIngredient){
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.INGREDIENTE_RECETA, ScopeType.DELETE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${recetaId}/ingredientes/${ingredienteId}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
@@ -431,6 +483,15 @@ export default function InsumoEdit() {
   const handleAddSubproducto = async () => {
     if (!recetaId) return;
     if (!selectedSubproductId) return toast.error("Selecciona un subproducto");
+
+    if (!canWriteRecipe || !canWriteRawMaterial) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.MATERIA_PRIMA, ScopeType.WRITE]
+      );
+      return;
+    }
+
     try {
       await api(`/recetas/${recetaId}/subproductos`, {
         method: "POST",
@@ -447,6 +508,13 @@ export default function InsumoEdit() {
 
   const handleRemoveSubproducto = async (mpId) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canWriteRawMaterial) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.MATERIA_PRIMA, ScopeType.WRITE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${recetaId}/subproductos/${mpId}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
@@ -460,6 +528,10 @@ export default function InsumoEdit() {
   const handleGuardarPauta = async () => {
     if (!recetaId) return;
     if (!selectedPautaId) return toast.error("Selecciona una pauta");
+    if (!canWriteRecipe) {
+      toast.permissionError([ModelType.RECETA, ScopeType.WRITE]);
+      return;
+    }
     try {
       const recetaActual = await api(`/recetas/${recetaId}`);
       await api(`/recetas/${recetaId}`, {
@@ -486,6 +558,10 @@ export default function InsumoEdit() {
   const handleCrearCosto = async () => {
     const nombre = String(nuevoCosto.nombre || "").trim();
     if (!nombre) return toast.error("Nombre de costo indirecto es obligatorio");
+    if (!canWriteIndirectCost) {
+      toast.permissionError([ModelType.COSTO_INDIRECTO, ScopeType.WRITE]);
+      return;
+    }
     try {
       await api("/costos-indirectos", {
         method: "POST",
@@ -504,6 +580,13 @@ export default function InsumoEdit() {
   const handleAddCostoReceta = async () => {
     if (!recetaId) return;
     if (!selectedCostoId) return toast.error("Selecciona un costo indirecto");
+    if (!canWriteRecipe || !canWriteIndirectCost) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.COSTO_INDIRECTO, ScopeType.WRITE]
+      );
+      return;
+    }
     const costoNum = toNumber(costoPorKg);
     if (costoNum < 0) return toast.error("Costo por kg no puede ser negativo");
     try {
@@ -523,6 +606,13 @@ export default function InsumoEdit() {
 
   const handleUpdateCostoReceta = async (idCosto, nextCostoPorKg) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canWriteIndirectCost) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.COSTO_INDIRECTO, ScopeType.WRITE]
+      );
+      return;
+    }
     const costoNum = toNumber(nextCostoPorKg);
     if (costoNum < 0) return;
     try {
@@ -539,6 +629,13 @@ export default function InsumoEdit() {
 
   const handleRemoveCostoReceta = async (idCosto) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canDeleteIndirectCost) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.COSTO_INDIRECTO, ScopeType.DELETE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${recetaId}/costos-indirectos/${idCosto}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
@@ -556,6 +653,9 @@ export default function InsumoEdit() {
     const stock = toNumber(formData.stock_critico);
     if (!Number.isFinite(stock) || stock <= 0) newErrors.stock_critico = "Debe ingresar un stock crítico mayor a 0.";
     if (!formData.unidad_medida) newErrors.unidad_medida = "Debe seleccionar unidad de medida.";
+    if (formData.semanas_seguridad !== "" && (!Number.isFinite(toNumber(formData.semanas_seguridad)) || toNumber(formData.semanas_seguridad) < 0)) {
+      newErrors.semanas_seguridad = "Las semanas de seguridad deben ser un número mayor o igual a 0.";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -570,11 +670,17 @@ export default function InsumoEdit() {
     e.preventDefault();
     if (!validateNoPip()) return;
 
+    if (!canWriteRawMaterial) {
+      toast.permissionError([ModelType.MATERIA_PRIMA, ScopeType.WRITE]);
+      return;
+    }
+
     try {
       const body = {
         ...formData,
         id_categoria: Number(formData.id_categoria),
         stock_critico: toNumber(formData.stock_critico),
+        semanas_seguridad: formData.semanas_seguridad !== "" ? toNumber(formData.semanas_seguridad) : null,
       };
       await api(`/materias-primas/${id}`, { method: "PUT", body: JSON.stringify(body) });
       toast.success("Insumo actualizado correctamente.");
@@ -590,16 +696,7 @@ export default function InsumoEdit() {
     else navigate(`/Insumos/${id}`);
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 bg-background min-h-screen">
-        <div className="flex justify-center items-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-          <span className="ml-3 text-primary">Cargando datos...</span>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader message="Cargando datos" />;
 
   return (
     <div className="p-6 bg-background min-h-screen">
@@ -638,6 +735,7 @@ export default function InsumoEdit() {
               setPipForm={setPipForm}
               onGuardarPip={handleGuardarPip}
               unidadMedidaReadOnly
+              errors={errors}
             />
           ) : null}
 
@@ -781,6 +879,24 @@ export default function InsumoEdit() {
               />
               {errors.stock_critico ? <p className="text-red-500 text-sm mt-1">{errors.stock_critico}</p> : null}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Semanas de Seguridad</label>
+            <input
+              type="number"
+              name="semanas_seguridad"
+              value={formData.semanas_seguridad}
+              onChange={handleChangeNoPip}
+              placeholder="Ej: 2"
+              min="0"
+              className={`w-full md:w-1/2 border rounded-lg px-3 py-2 placeholder-gray-400 ${
+                errors.semanas_seguridad ? "border-red-500" : "border-gray-300"
+              }`}
+            />
+            {errors.semanas_seguridad ? (
+              <p className="text-red-500 text-sm mt-1">{errors.semanas_seguridad}</p>
+            ) : null}
           </div>
 
           <div className="flex justify-end gap-3">

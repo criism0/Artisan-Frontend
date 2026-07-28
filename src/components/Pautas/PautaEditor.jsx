@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import StepsEditor from './StepsEditor';
 import AnalisisSensorialDefinicionForm from '../AnalisisSensorial/DefinicionForm';
 

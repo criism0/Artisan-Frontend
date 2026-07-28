@@ -1,14 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Dialog } from "@headlessui/react";
-import { jwtDecode } from "jwt-decode";
 import { toast } from "../../lib/toast";
 import { api } from "../../lib/api";
+import { useAuth } from "../../auth/AuthContext";
 import { formatNumberCL } from "../../services/formatHelpers";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function EjecutarPasosPVA() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [pauta, setPauta] = useState(null);
   const [lote, setLote] = useState(null);
   const [pasos, setPasos] = useState([]);
@@ -17,6 +20,15 @@ export default function EjecutarPasosPVA() {
   const [bultosPorInsumo, setBultosPorInsumo] = useState({});
   const [seleccionBultos, setSeleccionBultos] = useState({});
   const [nombreInsumoByKey, setNombreInsumoByKey] = useState({});
+
+  const canReadInProgress = checkScope(ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ);
+  const canReadFinished = checkScope(ModelType.LOTE_PRODUCTO_FINAL, ScopeType.READ);
+
+  const canReadAddedValueGuideline = checkScope(ModelType.PAUTA_VALOR_AGREGADO, ScopeType.READ);
+  const canWriteAddedValueGuideline = checkScope(ModelType.PAUTA_VALOR_AGREGADO, ScopeType.WRITE);
+
+  const canReadAddedValueStepRegistry = checkScope(ModelType.REGISTRO_PASO_VALOR_AGREGADO, ScopeType.READ);
+  const canWriteAddedValueStepRegistry = checkScope(ModelType.REGISTRO_PASO_VALOR_AGREGADO, ScopeType.WRITE);
 
   const formatDisponible = (b) => {
     const rawQty =
@@ -100,18 +112,20 @@ export default function EjecutarPasosPVA() {
     return `${ano}-${mes}-${dia}`;
   };
 
-  const elaboradorId = useMemo(() => {
-    try {
-      const token = localStorage.getItem("access_token") || localStorage.getItem("token");
-      if (!token) return undefined;
-      const decoded = jwtDecode(token);
-      return Number(decoded?.id ?? decoded?.sub);
-    } catch {
-      return undefined;
-    }
-  }, []);
+  const elaboradorId = user?.id ? Number(user.id) : undefined;
 
   const loadPauta = async () => {
+    if (!canReadAddedValueGuideline || !canReadAddedValueStepRegistry) {
+      toast.permissionError(
+        [ModelType.PAUTA_VALOR_AGREGADO, ScopeType.READ],
+        [ModelType.REGISTRO_PASO_VALOR_AGREGADO, ScopeType.READ]
+      );
+      setLoading(false);
+      setNombreInsumoByKey({});
+      setBultosPorInsumo({});
+      setPautasLote([]);
+      return;
+    }
     try {
       const pautaDetalle = await api(`/pautas-valor-agregado/${id}`, { method: "GET" });
       setPauta(pautaDetalle);
@@ -198,8 +212,16 @@ export default function EjecutarPasosPVA() {
     try {
       let loteData = null;
       if (pautaData.id_lote_producto_en_proceso) {
+        if (!canReadInProgress) {
+          toast.permissionError([ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ]);
+          return;
+        }
         loteData = await api(`/lotes-producto-en-proceso/${pautaData.id_lote_producto_en_proceso}`);
       } else if (pautaData.id_lote_producto_final) {
+        if (!canReadFinished) {
+          toast.permissionError([ModelType.LOTE_PRODUCTO_FINAL, ScopeType.READ]);
+          return;
+        }
         loteData = await api(`/lotes-producto-final/${pautaData.id_lote_producto_final}`);
       }
       setLote(loteData);
@@ -257,6 +279,12 @@ export default function EjecutarPasosPVA() {
       return;
     }
 
+    if (!canWriteAddedValueGuideline) {
+      toast.permissionError([ModelType.PAUTA_VALOR_AGREGADO, ScopeType.WRITE]);
+      setSaving(false);
+      return;
+    }
+
     try {
       setSaving(true);
       const body = {};
@@ -298,6 +326,11 @@ export default function EjecutarPasosPVA() {
   };
 
   const handleComenzarPaso = async (idRegistro) => {
+    if (!canWriteAddedValueStepRegistry) {
+      toast.permissionError([ModelType.REGISTRO_PASO_VALOR_AGREGADO, ScopeType.WRITE]);
+      setSaving(false);
+      return;
+    }
     try {
       setSaving(true);
       await api(`/registros-pasos-valor-agregado/comenzarPaso/${idRegistro}`, {
@@ -313,6 +346,11 @@ export default function EjecutarPasosPVA() {
     }
   };
   const handleCompletarPaso = async (idRegistro) => {
+    if (!canWriteAddedValueStepRegistry) {
+      toast.permissionError([ModelType.REGISTRO_PASO_VALOR_AGREGADO, ScopeType.WRITE]);
+      setSaving(false);
+      return;
+    }
     try {
       setSaving(true);
       await api(`/registros-pasos-valor-agregado/completarPaso/${idRegistro}`, {
@@ -376,6 +414,12 @@ export default function EjecutarPasosPVA() {
   const mostrarCantNuevasUnidades = generaBultos && (!esEmpaque || esPIP);
 
   const handleCompletarPauta = async () => {
+    if (!canWriteAddedValueGuideline) {
+      toast.permissionError([ModelType.PAUTA_VALOR_AGREGADO, ScopeType.WRITE]);
+      setSaving(false);
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -463,8 +507,7 @@ export default function EjecutarPasosPVA() {
   const todosCompletos = tienePasos && pasos.length > 0 && pasos.every((p) => p.estado === "Completado");
   const puedeCompletar = pautaEnProceso && (todosCompletos || !tienePasos);
 
-  if (loading)
-    return <div className="max-w-4xl mx-auto p-6 bg-white rounded shadow">Cargando pasos...</div>;
+  if (loading) return <PageLoader message="Cargando pasos" />;
 
   return (
     <div className="max-w-5xl mx-auto p-6 bg-white rounded shadow">
@@ -555,7 +598,7 @@ export default function EjecutarPasosPVA() {
             <button
               type="button"
               onClick={() => void handleComenzarPauta()}
-              disabled={saving || !puedeComenzarPauta}
+              disabled={saving || !puedeComenzarPauta || !canWriteAddedValueGuideline}
               className="px-5 py-2 bg-primary text-white rounded hover:bg-hover disabled:opacity-60"
             >
               {saving ? "Comenzando…" : "Comenzar"}
@@ -619,7 +662,7 @@ export default function EjecutarPasosPVA() {
                               {p.estado === "Pendiente" && puedeComenzar ? (
                                 <button
                                   onClick={() => handleComenzarPaso(p.id)}
-                                  disabled={saving}
+                                  disabled={saving || !canWriteAddedValueStepRegistry}
                                   className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 disabled:opacity-60"
                                 >
                                   Comenzar
@@ -633,7 +676,7 @@ export default function EjecutarPasosPVA() {
                               {p.estado === "En Proceso" ? (
                                 <button
                                   onClick={() => handleCompletarPaso(p.id)}
-                                  disabled={saving}
+                                  disabled={saving || !canWriteAddedValueStepRegistry}
                                   className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60"
                                 >
                                   Completar
@@ -909,7 +952,7 @@ export default function EjecutarPasosPVA() {
             </button>
             <button
               onClick={handleCompletarPauta}
-              disabled={saving}
+              disabled={saving || !canWriteAddedValueGuideline}
               className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
             >
               {saving ? "Guardando..." : "Completar"}

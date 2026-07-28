@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useApi } from "../../lib/api";
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function AddProcesoValorAgregado() {
   const navigate = useNavigate();
   const api = useApi();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     descripcion: "",
@@ -20,6 +23,9 @@ export default function AddProcesoValorAgregado() {
 
   const [pasos, setPasos] = useState([{ descripcion: "", orden: 1 }]);
   const [errors, setErrors] = useState({});
+
+  const canWriteAddedValueSteps = checkScope(ModelType.PASO_VALOR_AGREGADO, ScopeType.WRITE);
+  const canWriteAddedValueProcess = checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.WRITE);
 
   const validate = () => {
     const newErrors = {};
@@ -73,7 +79,25 @@ export default function AddProcesoValorAgregado() {
   const handleSubmit = async () => {
     if (!validate()) return;
 
+    if (!canWriteAddedValueProcess) {
+      toast.permissionError(
+        [ModelType.PROCESO_VALOR_AGREGADO, ScopeType.WRITE]
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (formData.tiene_pasos && pasos.length > 0 && !canWriteAddedValueSteps) {
+      toast.permissionError(
+        [ModelType.PROCESO_VALOR_AGREGADO, ScopeType.WRITE],
+        [ModelType.PASO_VALOR_AGREGADO, ScopeType.WRITE]
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
+      setIsSubmitting(true);
       const pvaBody = {
         descripcion: formData.descripcion,
         costo_estimado: formData.costo_estimado.trim() === "" ? 0 : parseFloat(formData.costo_estimado),
@@ -110,11 +134,18 @@ export default function AddProcesoValorAgregado() {
     } catch (err) {
       console.error("Error al crear el proceso de valor agregado:", err);
       toast.error("Error al crear el proceso. Verifica los campos e intenta nuevamente.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="p-6 bg-background min-h-screen">
+      {isSubmitting && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <div className="mb-4">
         <BackButton to="/ProcesosValorAgregado" />
       </div>
@@ -256,9 +287,10 @@ export default function AddProcesoValorAgregado() {
       <div className="flex justify-end mt-8">
         <button
           onClick={handleSubmit}
-          className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+          disabled={isSubmitting}
+          className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded disabled:opacity-50"
         >
-          Crear Proceso de Valor Agregado
+          {isSubmitting ? "Creando..." : "Crear Proceso de Valor Agregado"}
         </button>
       </div>
     </div>

@@ -1,13 +1,13 @@
 // src/pages/Login.jsx  (o donde lo tengas)
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext"; // <- ajusta si tu ruta cambia
-import { useLocation, useNavigate } from "react-router-dom";
-import QRScanner from "../components/QRScanner";
+import { useLocation, useNavigate, Navigate, Link } from "react-router-dom";
+import QRScanner from "../components/Scanner/QRScanner";
 import { QrCode } from "lucide-react";
 import { toast } from "../lib/toast";
 
 export default function Login() {
-  const { login, authError } = useAuth();
+  const { login, authError, isAuth } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -22,6 +22,12 @@ export default function Login() {
       toast.error(authError);
     }
   }, [authError]);
+
+  if (isAuth) {
+    // Para evitar que login sea accesible después de iniciar sesión
+    // (en vez de mostrar una pantalla en blanco, redirigirá de regreso a donde se venía)
+    return <Navigate to={from} replace />
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -131,6 +137,14 @@ export default function Login() {
                 <QrCode className="w-4 h-4" />
                 Iniciar sesión con QR
               </button>
+            </div>
+            <div className="text-right">
+              <Link
+                to="/forgot-password"
+                className="text-sm text-primary hover:text-primary-dark transition"
+              >
+                Olvidé mi contraseña
+              </Link>
             </div>
           </form>
 

@@ -3,9 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api, apiBlob } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import ResumenOMOperario from "../../components/OM/ResumenOMOperario";
 import { downloadBlob } from "../../lib/downloadBlob";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
@@ -63,9 +63,16 @@ export default function ProduccionFinal() {
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  // Colapsado del detalle de salida (B3): 100 cajas no deben desplegar 100 filas de una.
+  const LIMITE_DETALLE_SALIDA = 10;
+  const [mostrarTodoDetalleSalida, setMostrarTodoDetalleSalida] = useState(false);
   const [consumoInsumos, setConsumoInsumos] = useState([]);
   const [pesosPorUnidad, setPesosPorUnidad] = useState([]);
   const [pesosPorUnidadTocados, setPesosPorUnidadTocados] = useState(false);
+
+  const canReadManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ);
+  const canWriteManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE);
+  const canReadSupplyProduction = checkScope(ModelType.REGISTRO_INSUMOS_PRODUCCION, ScopeType.READ);
 
   const setField = (k, v) => {
     setPreview(null);
@@ -73,6 +80,12 @@ export default function ProduccionFinal() {
   };
 
   useEffect(() => {
+    if (!canReadManufacture || !canReadSupplyProduction) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ], [ModelType.REGISTRO_INSUMOS_PRODUCCION, ScopeType.READ]);
+      setLoadingOm(false);
+      return;
+    }
+
     let mounted = true;
     (async () => {
       try {
@@ -93,7 +106,7 @@ export default function ProduccionFinal() {
     return () => {
       mounted = false;
     };
-  }, [id]);
+  }, [id, canReadManufacture]);
 
   // Calcular fecha de vencimiento sugerida si la receta tiene dias_vida_util
   useEffect(() => {
@@ -429,6 +442,11 @@ export default function ProduccionFinal() {
   };
 
   const handlePreview = async () => {
+    if (!canReadManufacture) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ]);
+      return;
+    }
+
     const pesoTotal = Number(form.peso_obtenido);
     const unidades = Number(form.unidades_obtenidas);
 
@@ -489,6 +507,7 @@ export default function ProduccionFinal() {
         body: JSON.stringify(payload),
       });
       setPreview(data);
+      setMostrarTodoDetalleSalida(false);
     } catch (err) {
       toast.error(err.message || "No se pudo previsualizar el cierre.");
     } finally {
@@ -498,6 +517,11 @@ export default function ProduccionFinal() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!canWriteManufacture) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE]);
+      return;
+    }
 
     const pesoTotal = Number(form.peso_obtenido);
     const unidades = Number(form.unidades_obtenidas);
@@ -1134,41 +1158,85 @@ export default function ProduccionFinal() {
                 </div>
               ) : null}
               
-              {/* Métricas principales */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo OM</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview.costo_total_om_actual || 0), 2)}</div>
-                </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Empaques</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview.costo_empaques_estimado || 0), 2)}</div>
-                </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Indirectos</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview?.costos_indirectos_estimado?.costo_indirecto_total || 0), 2)}</div>
-                  <div className="text-[11px] text-gray-600 mt-1">
-                    {formatCLP(Number(preview?.costos_indirectos_estimado?.costo_indirecto_por_kg || 0), 2)}/kg · Base: {formatNumberCL(Number(preview?.costos_indirectos_estimado?.peso_aplicado || 0), 2)} kg
+              {/* Cómo se llega al costo total (M5): suma explícita para el operario */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
+                <div className="bg-white border border-blue-200 rounded p-4">
+                  <div className="text-sm font-semibold text-text mb-3">Cómo se compone el costo</div>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">Costo OM (insumos ya absorbidos)</span>
+                      <span className="font-semibold text-text">{formatCLP(Number(preview.costo_total_om_actual || 0), 2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">+ Empaques (costos secos)</span>
+                      <span className="font-semibold text-text">{formatCLP(Number(preview.costo_empaques_estimado || 0), 2)}</span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">
+                        + Costos indirectos
+                        <span className="text-xs text-gray-400">
+                          {" "}({formatCLP(Number(preview?.costos_indirectos_estimado?.costo_indirecto_por_kg || 0), 2)}/kg × {formatNumberCL(Number(preview?.costos_indirectos_estimado?.peso_aplicado || 0), 2)} kg)
+                        </span>
+                      </span>
+                      <span className="font-semibold text-text">{formatCLP(Number(preview?.costos_indirectos_estimado?.costo_indirecto_total || 0), 2)}</span>
+                    </div>
+                    <div className="border-t border-gray-300 my-1" />
+                    <div className="flex justify-between items-baseline">
+                      <span className="font-medium text-gray-700">= Costo Total estimado</span>
+                      <span className="text-lg font-bold text-green-600">{formatCLP(Number(preview.costo_total_estimado || 0), 2)}</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-gray-200 flex justify-between items-baseline text-sm">
+                    <span className="text-gray-600">Costo/kg <span className="text-xs text-gray-400">(sobre el producto obtenido)</span></span>
+                    <span className="font-bold text-text">{formatCLP(Number(preview.costo_por_kg_estimado || 0), 2)}</span>
                   </div>
                 </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo Total</div>
-                  <div className="text-lg font-bold text-green-600">{formatCLP(Number(preview.costo_total_estimado || 0), 2)}</div>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo/kg</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(Number(preview.costo_por_kg_estimado || 0), 2)}</div>
-                </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Peso objetivo</div>
-                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_objetivo || 0), 2)} kg</div>
-                </div>
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Salida para rendimiento</div>
-                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_total_salida_rendimiento || 0), 2)} kg</div>
+                {/* Balance de masas (M5): entrada = producto + subproductos + merma */}
+                <div className="bg-white border border-blue-200 rounded p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-semibold text-text">Balance de masas</div>
+                    <div className="text-xs text-gray-500">Objetivo: {formatNumberCL(Number(preview.peso_objetivo || 0), 2)} kg</div>
+                  </div>
+                  <div className="space-y-1.5 text-sm">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">Peso ingresado (consumo real)</span>
+                      <span className="font-bold text-text">{formatNumberCL(Number(preview.peso_ingresado_rendimiento || 0), 2)} kg</span>
+                    </div>
+                    <div className="border-t border-gray-300 my-1" />
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">Producto obtenido</span>
+                      <span className="font-semibold text-text">{formatNumberCL(Number(preview.peso_obtenido || 0), 2)} kg</span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">+ Subproductos</span>
+                      <span className="font-semibold text-text">{formatNumberCL(Number(preview.peso_subproductos || 0), 2)} kg</span>
+                    </div>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-gray-600">+ Merma estimada</span>
+                      <span className={`font-semibold ${Number(preview.peso_merma_estimado || 0) > 0.0001 ? "text-orange-700" : "text-text"}`}>
+                        {formatNumberCL(Number(preview.peso_merma_estimado || 0), 2)} kg
+                        {Number(preview.peso_ingresado_rendimiento || 0) > 0 && (
+                          <span className="text-xs text-gray-400 font-normal">
+                            {" "}({formatNumberCL((Number(preview.peso_merma_estimado || 0) / Number(preview.peso_ingresado_rendimiento || 1)) * 100, 1)}%)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="border-t border-gray-300 my-1" />
+                    <div className="flex justify-between items-baseline">
+                      <span className="font-medium text-gray-700">= Total salida</span>
+                      <span className="font-bold text-text">
+                        {formatNumberCL(Number(preview.peso_total_salida_rendimiento || 0) + Number(preview.peso_merma_estimado || 0), 2)} kg
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-2 border-t border-gray-200 flex justify-between items-baseline text-sm">
+                    <span className="text-gray-600">Rendimiento <span className="text-xs text-gray-400">(buen rango 90–110%)</span></span>
+                    <span className="font-bold text-text">
+                      {preview.rendimiento_peso_estimado == null ? "N/A" : `${formatNumberCL(Number(preview.rendimiento_peso_estimado) * 100, 2)}%`}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -1206,35 +1274,6 @@ export default function ProduccionFinal() {
                 </div>
               ) : null}
 
-              {/* Rendimiento y Merma */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-white border border-orange-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Merma estimada</div>
-                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_merma_estimado || 0), 2)} kg</div>
-                  <div className="text-xs text-gray-600 mt-1">
-                    {Number(preview.peso_ingresado_rendimiento || preview.peso_objetivo || 0) > 0 
-                      ? `${formatNumberCL((Number(preview.peso_merma_estimado || 0) / Number(preview.peso_ingresado_rendimiento || preview.peso_objetivo || 1)) * 100, 1)}% del ingresado`
-                      : "N/A"}
-                  </div>
-                </div>
-                <div className="bg-white border border-green-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Rendimiento</div>
-                  <div className="text-lg font-bold text-text">
-                    {preview.rendimiento_peso_estimado == null ? "N/A" : `${formatNumberCL(Number(preview.rendimiento_peso_estimado) * 100, 2)}%`}
-                  </div>
-                  <div className="text-xs text-gray-600 mt-1">
-                    Buen rango: 90-110%
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-1 gap-3 mb-4">
-                <div className="bg-white border border-blue-200 rounded p-3">
-                  <div className="text-xs text-gray-500 font-medium">Subproductos</div>
-                  <div className="text-lg font-bold text-text">{formatNumberCL(Number(preview.peso_subproductos || 0), 2)} kg</div>
-                </div>
-              </div>
-
               {/* Salida: cajas o bultos */}
               <div className="bg-white border border-blue-200 rounded p-3">
                 <div className="text-xs text-gray-500 font-medium mb-2">
@@ -1258,7 +1297,15 @@ export default function ProduccionFinal() {
 
               {Array.isArray(preview.items_salida) && preview.items_salida.length > 0 ? (
                 <div className="mt-4 bg-white border border-blue-200 rounded p-3">
-                  <div className="text-sm font-semibold text-text mb-2">Detalle de salida</div>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="text-sm font-semibold text-text">Detalle de salida</div>
+                    <div className="text-xs text-gray-600">
+                      {preview.items_salida.length} ítem(s)
+                      {!mostrarTodoDetalleSalida && preview.items_salida.length > LIMITE_DETALLE_SALIDA
+                        ? ` · mostrando ${LIMITE_DETALLE_SALIDA}`
+                        : ""}
+                    </div>
+                  </div>
                   <div className="overflow-x-auto border border-border rounded">
                     <table className="min-w-full text-sm">
                       <thead className="bg-gray-100">
@@ -1271,7 +1318,10 @@ export default function ProduccionFinal() {
                         </tr>
                       </thead>
                       <tbody>
-                        {preview.items_salida.map((it, idx) => (
+                        {(mostrarTodoDetalleSalida
+                          ? preview.items_salida
+                          : preview.items_salida.slice(0, LIMITE_DETALLE_SALIDA)
+                        ).map((it, idx) => (
                           <tr key={idx} className="border-t border-border">
                             <td className="p-2">
                               {it.tipo === "CAJA_PT" ? (
@@ -1293,6 +1343,19 @@ export default function ProduccionFinal() {
                       </tbody>
                     </table>
                   </div>
+                  {preview.items_salida.length > LIMITE_DETALLE_SALIDA ? (
+                    <div className="flex justify-center pt-2">
+                      <button
+                        type="button"
+                        className="text-sm text-primary hover:underline"
+                        onClick={() => setMostrarTodoDetalleSalida((v) => !v)}
+                      >
+                        {mostrarTodoDetalleSalida
+                          ? "Mostrar menos"
+                          : `Mostrar los ${preview.items_salida.length - LIMITE_DETALLE_SALIDA} restantes`}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 

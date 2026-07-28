@@ -1,11 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import axiosInstance from "../../axiosInstance";
 import { useState, useEffect } from "react";
 import { toast } from "../../lib/toast";
-import { useApi } from "../../lib/api";
-import { ApiError } from "../../lib/api";
-import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
+import { useApi, ApiError } from "../../lib/api";
+import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmModal";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function AddInsumo() {
   const navigate = useNavigate();
@@ -17,7 +17,8 @@ export default function AddInsumo() {
     nombre: "",
     id_categoria: "",
     unidad_medida: "",
-    stock_critico: ""
+    stock_critico: "",
+    semanas_seguridad: ""
   });
   const [errors, setErrors] = useState({});
   const [similarModal, setSimilarModal] = useState({
@@ -27,11 +28,13 @@ export default function AddInsumo() {
   });
   const [pendingPayload, setPendingPayload] = useState(null);
 
+  const canWriteRawMaterial = checkScope(ModelType.MATERIA_PRIMA, ScopeType.WRITE);
+
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await axiosInstance.get(`${import.meta.env.VITE_BACKEND_URL}/categorias-materia-prima`);
-        setCategories(response.data);
+        const response = await api('/categorias-materia-prima');
+        setCategories(response);
       } catch (error) {
         console.error("Error al cargar categorías:", error);
         setError("Error al cargar las categorías. Intenta nuevamente.");
@@ -49,6 +52,8 @@ export default function AddInsumo() {
     if (!formData.unidad_medida) newErrors.unidad_medida = "Debe seleccionar la unidad de medida.";
     if (!formData.stock_critico || parseInt(formData.stock_critico) < 0)
       newErrors.stock_critico = "Debe ingresar un stock crítico mayor o igual a 0.";
+    if (formData.semanas_seguridad !== "" && (isNaN(parseInt(formData.semanas_seguridad)) || parseInt(formData.semanas_seguridad) < 0))
+      newErrors.semanas_seguridad = "Las semanas de seguridad deben ser un número mayor o igual a 0.";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -58,32 +63,37 @@ export default function AddInsumo() {
     setFormData({ ...formData, [name]: value });
   };
 
+  const buildRequestBody = () => ({
+    nombre: formData.nombre,
+    id_categoria: parseInt(formData.id_categoria),
+    unidad_medida: formData.unidad_medida,
+    stock_critico: parseInt(formData.stock_critico),
+    ...(formData.semanas_seguridad !== ""
+      ? { semanas_seguridad: parseInt(formData.semanas_seguridad)}
+      : {}),
+  });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
+    if (!canWriteRawMaterial) {
+      toast.permissionError([ModelType.MATERIA_PRIMA, ScopeType.WRITE]);
+      return;
+    }
+
     try {
-      const requestBody = {
-        nombre: formData.nombre,
-        id_categoria: parseInt(formData.id_categoria),
-        unidad_medida: formData.unidad_medida,
-        stock_critico: parseInt(formData.stock_critico)
-      };
+      const requestBody = buildRequestBody();
 
       await api(`/materias-primas`, {
         method: "POST",
-        body: JSON.stringify(requestBody),
+        body: requestBody,
       });
       toast.success("Insumo creado correctamente.");
       navigate("/Insumos");
     } catch (error) {
       if (error instanceof ApiError && error.status === 409 && error.data?.code === "SIMILAR_NAME") {
-        const requestBody = {
-          nombre: formData.nombre,
-          id_categoria: parseInt(formData.id_categoria),
-          unidad_medida: formData.unidad_medida,
-          stock_critico: parseInt(formData.stock_critico),
-        };
+        const requestBody = buildRequestBody();
         setPendingPayload(requestBody);
         setSimilarModal({
           open: true,
@@ -100,10 +110,15 @@ export default function AddInsumo() {
 
   const confirmCreateAnyway = async () => {
     if (!pendingPayload) return;
+    if (!canWriteRawMaterial) {
+      toast.permissionError([ModelType.MATERIA_PRIMA, ScopeType.WRITE]);
+      return;
+    }
+
     try {
       await api(`/materias-primas`, {
         method: "POST",
-        body: JSON.stringify({ ...pendingPayload, confirmSimilarName: true }),
+        body: { ...pendingPayload, confirmSimilarName: true },
       });
       setSimilarModal({ open: false, inputName: "", matches: [] });
       setPendingPayload(null);
@@ -117,12 +132,7 @@ export default function AddInsumo() {
     }
   };
 
-  if (loading)
-    return (
-      <div className="p-6 bg-background min-h-screen flex justify-center items-center">
-        <span className="text-primary">Cargando categorías...</span>
-      </div>
-    );
+  if (loading) return <PageLoader message="Cargando categorías" />;
 
   return (
     <div className="p-6 bg-background min-h-screen">
@@ -199,6 +209,21 @@ export default function AddInsumo() {
           {errors.stock_critico && <p className="text-red-500 text-sm mt-1">{errors.stock_critico}</p>}
         </div>
 
+        <div>
+          <label className="block text-sm font-medium mb-1">Semanas de Seguridad</label>
+          <input
+            type="number"
+            name="semanas_seguridad"
+            value={formData.semanas_seguridad}
+            onChange={handleChange}
+            placeholder="Ej: 2"
+            min="0"
+            className={`w-full border rounded-lg px-3 py-2 placeholder-gray-400 ${
+              errors.semanas_seguridad ? "border-red-500" : "border-gray-300"
+            }`}
+          />
+          {errors.semanas_seguridad && <p className="text-red-500 text-sm mt-1">{errors.semanas_seguridad}</p>}
+        </div>
         <div className="flex justify-end">
           <button className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded" type="submit">
             Crear Insumo

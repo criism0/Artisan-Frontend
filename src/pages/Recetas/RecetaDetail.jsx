@@ -7,6 +7,9 @@ import {
   BackButton,
 } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 // ────────────────────────────────────────────────
 // CONSTANTS
@@ -20,6 +23,7 @@ export default function RecetaDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const api = useApi();
+  const confirm = useConfirm();
   const [receta, setReceta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -56,6 +60,14 @@ export default function RecetaDetail() {
   const [pautaQuery, setPautaQuery] = useState("");
   const [showPautaOptions, setShowPautaOptions] = useState(false);
   const [selectedPautaId, setSelectedPautaId] = useState("");
+
+  // Permisos
+  const canWriteRecipeIngredient = checkScope(ModelType.INGREDIENTE_RECETA, ScopeType.WRITE);
+  const canDeleteRecipeIngredient = checkScope(ModelType.INGREDIENTE_RECETA, ScopeType.DELETE);
+  const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteRecipe = checkScope(ModelType.RECETA, ScopeType.WRITE);
+  const canDeleteRecipe = checkScope(ModelType.RECETA, ScopeType.DELETE);
+  const canWriteRawMaterial = checkScope(ModelType.MATERIA_PRIMA, ScopeType.WRITE);
 
   const fetchReceta = async () => {
     try {
@@ -113,6 +125,10 @@ export default function RecetaDetail() {
 
   useEffect(() => {
     const fetchPautas = async () => {
+      if (!canReadElaborationGuideline) {
+        toast.permissionError([ModelType.PAUTA_ELABORACION, ScopeType.READ]);
+        return;
+      }
       try {
         const pautasRes = await api(`/pautas-elaboracion`);
         const lista = Array.isArray(pautasRes) ? pautasRes : [];
@@ -130,7 +146,7 @@ export default function RecetaDetail() {
       }
     };
     void fetchPautas();
-  }, [api]);
+  }, [api, canReadElaborationGuideline]);
 
   const openPautaSelector = () => {
     setShowPautaSelector(true);
@@ -148,7 +164,10 @@ export default function RecetaDetail() {
 
   const updatePautaElaboracion = async (nextPautaIdOrNull) => {
     if (!receta) return;
-
+    if (!canWriteRecipe) {
+      toast.permissionError([ModelType.RECETA, ScopeType.WRITE]);
+      return false;
+    }
     try {
       const payload = {
         nombre: receta.nombre,
@@ -203,6 +222,10 @@ export default function RecetaDetail() {
   // Eliminar receta
   // ───────────────────────────────
   const handleDelete = async () => {
+    if (!canDeleteRecipe) {
+      toast.permissionError([ModelType.RECETA, ScopeType.DELETE]);
+      return;
+    }
     try {
       await api(`/recetas/${id}`, { method: "DELETE" });
       toast.success("Receta eliminada correctamente.");
@@ -219,6 +242,14 @@ export default function RecetaDetail() {
   const handleAddSubproduct = async () => {
     if (!selectedMateriaPrima) {
       toast.error("Selecciona una materia prima.");
+      return;
+    }
+
+    if (!canWriteRecipe || !canWriteRawMaterial) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.MATERIA_PRIMA, ScopeType.WRITE]
+      );
       return;
     }
 
@@ -243,6 +274,13 @@ export default function RecetaDetail() {
   };
 
   const handleRemoveSubproduct = async (idMateriaPrima) => {
+    if (!canWriteRecipe || !canWriteRawMaterial){
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.MATERIA_PRIMA, ScopeType.WRITE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${id}/subproductos/${idMateriaPrima}`, {
         method: "DELETE",
@@ -287,6 +325,14 @@ export default function RecetaDetail() {
       return;
     }
 
+    if (!canWriteRecipe || !canWriteRecipeIngredient) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.INGREDIENTE_RECETA, ScopeType.WRITE]
+      );
+      return;
+    }
+
     if (parseFloat(ingredientPeso) <= 0) {
       toast.error("El peso debe ser un número positivo.");
       return;
@@ -322,6 +368,14 @@ export default function RecetaDetail() {
       return;
     }
 
+    if (!canWriteRecipe || !canWriteRecipeIngredient) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.INGREDIENTE_RECETA, ScopeType.WRITE]
+      );
+      return;
+    }
+
     if (parseFloat(newPeso) <= 0) {
       toast.error("El peso debe ser un número positivo.");
       return;
@@ -348,6 +402,12 @@ export default function RecetaDetail() {
   };
 
   const handleRemoveIngredient = async (ingredientId) => {
+    if (!canWriteRecipe || !canDeleteRecipeIngredient) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.INGREDIENTE_RECETA, ScopeType.DELETE]
+      );
+    }
     try {
       await api(`/recetas/${id}/ingredientes/${ingredientId}`, {
         method: "DELETE",
@@ -397,6 +457,10 @@ export default function RecetaDetail() {
 
   const handleSaveEquivalentes = async () => {
     if (!editingEquivalentesIngredient) return;
+    if (!canWriteRecipeIngredient) {
+      toast.permissionError([ModelType.INGREDIENTE_RECETA, ScopeType.WRITE]);
+      return;
+    }
     try {
       await api(`/ingredientes-receta/${editingEquivalentesIngredient}/equivalentes`, {
         method: "PUT",
@@ -461,14 +525,7 @@ export default function RecetaDetail() {
   // ───────────────────────────────
   // UI
   // ───────────────────────────────
-  if (loading) {
-    return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-        <span className="ml-3 text-primary">Cargando receta...</span>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader message="Cargando receta" />;
 
   if (error) {
     return (
@@ -1122,11 +1179,13 @@ export default function RecetaDetail() {
                     </button>
 
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         if (
-                          window.confirm(
-                            "¿Estás seguro de que quieres eliminar este ingrediente?"
-                          )
+                          await confirm({
+                            title: "¿Eliminar ingrediente?",
+                            confirmText: "Eliminar",
+                            danger: true,
+                          })
                         ) {
                           handleRemoveIngredient(ingrediente.id);
                         }
@@ -1296,11 +1355,13 @@ export default function RecetaDetail() {
                   </p>
                 </div>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (
-                      window.confirm(
-                        "¿Estás seguro de que quieres eliminar este subproducto?"
-                      )
+                      await confirm({
+                        title: "¿Eliminar subproducto?",
+                        confirmText: "Eliminar",
+                        danger: true,
+                      })
                     ) {
                       handleRemoveSubproduct(subproducto.id);
                     }

@@ -3,6 +3,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider } from "./auth/AuthContext.jsx";
+import { ConfirmProvider } from "./components/Modals/ConfirmProvider.jsx";
 import Routing from "./Routing";
 import "./index.css";
 
@@ -12,7 +13,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <AuthProvider>
-        <Routing />
+        <ConfirmProvider>
+          <Routing />
+        </ConfirmProvider>
       </AuthProvider>
     </GoogleOAuthProvider>
   </React.StrictMode>

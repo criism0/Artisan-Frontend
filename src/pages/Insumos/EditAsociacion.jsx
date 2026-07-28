@@ -3,6 +3,9 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { useState, useEffect, useCallback } from "react";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function EditAsociacion() {
   const { id } = useParams(); 
@@ -31,6 +34,11 @@ export default function EditAsociacion() {
   const [precioInputValue, setPrecioInputValue] = useState('');
   const [formatosHijos, setFormatosHijos] = useState([]);
   const [monedaBase, setMonedaBase] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const canWriteRawMaterialProvider = checkScope(ModelType.PROVEEDOR_MATERIA_PRIMA, ScopeType.WRITE);
+  const canReadProvider = checkScope(ModelType.PROVEEDOR, ScopeType.READ);
 
   const calcularPrecioDerivado = useCallback(() => {
     if (formData.es_unidad_consumo) return null;
@@ -52,6 +60,11 @@ export default function EditAsociacion() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!canReadProvider) {
+        toast.permissionError([ModelType.PROVEEDOR, ScopeType.READ]);
+        setIsLoading(false);
+        return;
+      }
       try {
         const [provRes, insRes, asocRes] = await Promise.all([
           api(`/proveedores`),
@@ -106,10 +119,12 @@ export default function EditAsociacion() {
       } catch (error) {
         console.error("Error al cargar datos:", error);
         setError("No se pudieron cargar los datos.");
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, canReadProvider]);
 
   // Si no es base, mantener moneda heredada
   useEffect(() => {
@@ -152,7 +167,14 @@ export default function EditAsociacion() {
     e.preventDefault();
     if (!validate()) return;
 
+    if (!canWriteRawMaterialProvider) {
+      toast.permissionError([ModelType.PROVEEDOR_MATERIA_PRIMA, ScopeType.WRITE]);
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
+      setIsSubmitting(true);
       const selectedInsumo = insumos.find(
         (i) => i.id === parseInt(formData.id_materia_prima)
       );
@@ -194,6 +216,8 @@ export default function EditAsociacion() {
     } catch (error) {
       toast.error("Error al actualizar la asociación.");
       setError("Error al actualizar la asociación.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -210,8 +234,15 @@ export default function EditAsociacion() {
     navigate(`/Insumos/${formData.id_materia_prima}`);
   };
 
+  if (isLoading) return <PageLoader message="Cargando asociación" />;
+
   return (
     <div className="p-6 bg-background min-h-screen">
+      {isSubmitting && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <BackButton to={`/Insumos/${formData.id_materia_prima}`} />
       <h1 className="text-2xl font-bold text-text mb-2">Editar Asociación</h1>
       <p className="text-sm text-gray-600 mb-6">
@@ -480,9 +511,10 @@ export default function EditAsociacion() {
 
           <button
             type="submit"
-            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded transition"
+            disabled={isSubmitting}
+            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded transition disabled:opacity-50"
           >
-            Guardar Cambios
+            {isSubmitting ? "Guardando..." : "Guardar Cambios"}
           </button>
         </div>
       </form>

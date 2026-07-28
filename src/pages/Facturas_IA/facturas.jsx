@@ -1,11 +1,12 @@
 // src/pages/Facturas_IA/Facturas.jsx
-import React, { useEffect, useMemo, useState, useRef, useCallback } from "react";
-import { Pencil, Trash2, X, Upload, PlusCircle } from "lucide-react";
-import RowsPerPageSelector from "../../components/RowsPerPageSelector";
-import SearchBar from "../../components/SearchBar";
-import Pagination from "../../components/Pagination";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { X, Upload, PlusCircle } from "lucide-react";
+import DataTable from "../../components/Tables/DataTable";
+import { EditButton, TrashButton } from "../../components/Buttons/ActionButtons";
 import { procesarFacturaExtra1 } from "../../services/facturasExtra";
 import {crear_factura, lista_de_facturas,editar_factura, eliminar_factura} from "../../services/ocrfacturas";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import toast from "../../lib/toast";
 
 const fmtDate = (value) => {
   if (!value) return "—";
@@ -36,7 +37,6 @@ const pick = (obj, keys) => {
 
 export default function Facturas() {
   const [facturas, setFacturas] = useState([]);
-  const [filtered, setFiltered] = useState([]);
   const [loadingLista, setLoadingLista] = useState(true);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
@@ -61,13 +61,12 @@ export default function Facturas() {
   });
 
   const [emisorFiltro, setEmisorFiltro] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [page, setPage] = useState(1);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
 
   const [editing, setEditing] = useState(null);
   const [editData, setEditData] = useState({});
+
+  const canWriteOCRInvoice = checkScope(ModelType.OCR_FACTURA, ScopeType.WRITE);
+  const canDeleteOCRInvoice = checkScope(ModelType.OCR_FACTURA, ScopeType.DELETE);
 
   const clearMessages = useCallback(() => {
     setOkMsg("");
@@ -110,116 +109,32 @@ export default function Facturas() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [facturas]);
 
-  const recompute = useCallback(() => {
-    let base = [...facturas];
-    if (emisorFiltro) base = base.filter((f) => (f?.emisor ?? "") === emisorFiltro);
-    const s = searchQuery.trim().toLowerCase();
-    if (s) {
-      base = base.filter((f) => {
-        const valor = pick(f, ["valor", "total", "monto_total"]);
-        const condiciones = pick(f, ["condiciones_pago", "condicionesDePago", "Condiciones de Pago"]);
-        const lugar = pick(f, ["lugar_entrega", "lugarDeEntrega", "Lugar de Entrega"]);
-        const infoCompr = pick(f, [
-          "informacion_comprador",
-          "informacionComprador",
-          "Información Comprador",
-        ]);
-        return [
-          f.id,
-          f.emisor,
-          f.receptor,
-          f.numero_orden_compra,
-          valor,
-          f.fecha_emision,
-          f.fecha_entrega,
-          condiciones,
-          lugar,
-          infoCompr,
-        ]
-          .map((v) => String(v ?? "").toLowerCase())
-          .some((v) => v.includes(s));
-      });
-    }
-    if (sortConfig.key) {
-      const { key, direction } = sortConfig;
-      base.sort((a, b) => {
-        const val = (row) => {
-          if (key === "valor_total") return Number(pick(row, ["valor", "total", "monto_total"])) || 0;
-          if (key === "condiciones_pago")
-            return String(
-              pick(row, ["condiciones_pago", "condicionesDePago", "Condiciones de Pago"]) ?? ""
-            ).toLowerCase();
-          if (key === "lugar_entrega")
-            return String(pick(row, ["lugar_entrega", "lugarDeEntrega", "Lugar de Entrega"]) ?? "")
-              .toLowerCase();
-          if (key === "informacion_comprador")
-            return String(
-              pick(row, [
-                "informacion_comprador",
-                "informacionComprador",
-                "Información Comprador",
-              ]) ?? ""
-            ).toLowerCase();
-          return row?.[key];
-        };
-        const A = val(a);
-        const B = val(b);
-        if (A == null) return 1;
-        if (B == null) return -1;
-        if (key === "fecha_emision" || key === "fecha_entrega") {
-          const cmp = new Date(A) - new Date(B);
-          return direction === "asc" ? cmp : -cmp;
-        }
-        if (key === "valor_total") {
-          return direction === "asc" ? A - B : B - A;
-        }
-        if (typeof A === "number" && typeof B === "number") {
-          return direction === "asc" ? A - B : B - A;
-        }
-        const aStr = String(A).toLowerCase();
-        const bStr = String(B).toLowerCase();
-        return direction === "asc" ? aStr.localeCompare(bStr) : bStr.localeCompare(aStr);
-      });
-    }
-    setFiltered(base);
-    setPage(1);
-  }, [facturas, emisorFiltro, searchQuery, sortConfig]);
+  // Filtro de negocio (emisor) sobre la data; búsqueda, orden y paginación las maneja DataTable.
+  const dataFiltrada = useMemo(() => {
+    if (!emisorFiltro) return facturas;
+    return facturas.filter((f) => (f?.emisor ?? "") === emisorFiltro);
+  }, [facturas, emisorFiltro]);
 
-  useEffect(() => {
-    recompute();
-  }, [recompute]);
-
-  const handleSearch = (q) => setSearchQuery(q || "");
-  const onChangeEmisor = (value) => setEmisorFiltro(value);
-
-  const handleSort = (key) => {
-    setSortConfig((prev) => {
-      let direction = "asc";
-      if (prev.key === key) direction = prev.direction === "asc" ? "desc" : "asc";
-      return { key, direction };
-    });
+  const getSearchText = (f) => {
+    const valor = pick(f, ["valor", "total", "monto_total"]);
+    const condiciones = pick(f, ["condiciones_pago", "condicionesDePago", "Condiciones de Pago"]);
+    const lugar = pick(f, ["lugar_entrega", "lugarDeEntrega", "Lugar de Entrega"]);
+    const infoCompr = pick(f, ["informacion_comprador", "informacionComprador", "Información Comprador"]);
+    return [
+      f.id,
+      f.emisor,
+      f.receptor,
+      f.numero_orden_compra,
+      valor,
+      f.fecha_emision,
+      f.fecha_entrega,
+      condiciones,
+      lugar,
+      infoCompr,
+    ]
+      .map((v) => String(v ?? ""))
+      .join(" ");
   };
-
-  const renderHeader = (label, accessor) => {
-    const isActive = sortConfig.key === accessor;
-    const ascActive = isActive && sortConfig.direction === "asc";
-    const descActive = isActive && sortConfig.direction === "desc";
-    return (
-      <div
-        className="flex items-center gap-1 cursor-pointer select-none"
-        onClick={() => handleSort(accessor)}
-      >
-        <span>{label}</span>
-        <div className="flex flex-col leading-none text-xs ml-1">
-          <span className={ascActive ? "text-gray-900" : "text-gray-300"}>▲</span>
-          <span className={descActive ? "text-gray-900" : "text-gray-300"}>▼</span>
-        </div>
-      </div>
-    );
-  };
-
-  const totalPages = Math.ceil(filtered.length / rowsPerPage) || 1;
-  const dataSlice = filtered.slice((page - 1) * rowsPerPage, page * rowsPerPage);
 
   const openUpload = () => {
     clearMessages();
@@ -240,6 +155,13 @@ export default function Facturas() {
       setError("Selecciona un PDF primero.");
       return;
     }
+    if (!canWriteOCRInvoice) {
+      toast.permissionError([ModelType.OCR_FACTURA, ScopeType.WRITE]);
+      setError("No tienes permiso para realizar esa acción.");
+      setLoadingParse(false);
+      setSaving(false);
+      return;
+    }
     setError("");
     setOkMsg("");
     setLoadingParse(true);
@@ -247,7 +169,7 @@ export default function Facturas() {
       const parsed = await procesarFacturaExtra1(file);
       setSaving(true);
       await crear_factura(parsed);
-      setOkMsg("Factura procesada y guardada correctamente.");
+      toast.success("Factura procesada y guardada correctamente.");
       await cargarLista();
       closeUpload();
     } catch (e) {
@@ -282,6 +204,12 @@ export default function Facturas() {
       setError("Completa al menos Emisor y Receptor.");
       return;
     }
+    if (!canWriteOCRInvoice) {
+      toast.permissionError([ModelType.OCR_FACTURA, ScopeType.WRITE]);
+      setSaving(false);
+      setError("No tienes permiso para realizar esa acción.");
+      return;
+    }
     try {
       setSaving(true);
       clearMessages();
@@ -295,7 +223,7 @@ export default function Facturas() {
         fecha_entrega: manualData.fecha_entrega || null,
       };
       await crear_factura(payload);
-      setOkMsg("Factura creada manualmente.");
+      toast.success("Factura creada manualmente.");
       await cargarLista();
       closeManual();
     } catch (e) {
@@ -329,6 +257,12 @@ export default function Facturas() {
   };
   const guardarEdicion = async () => {
     if (!editing?.id) return;
+    if (!canWriteOCRInvoice) {
+      toast.permissionError([ModelType.OCR_FACTURA, ScopeType.WRITE]);
+      setSaving(false);
+      setError("No tienes permiso para realizar esa acción.");
+      return;
+    }
     try {
       setSaving(true);
       clearMessages();
@@ -339,7 +273,7 @@ export default function Facturas() {
             ? null
             : Number(editData.valor),
       });
-      setOkMsg("Factura actualizada.");
+      toast.success("Factura actualizada.");
       await cargarLista();
       cancelarEdicion();
     } catch (e) {
@@ -350,77 +284,127 @@ export default function Facturas() {
   };
   const borrarFactura = async (row) => {
     if (!row?.id) return;
-    const ok = window.confirm(`¿Eliminar factura ${row.id}? Esta acción no se puede deshacer.`);
-    if (!ok) return;
+    if (!canDeleteOCRInvoice) {
+      toast.permissionError([ModelType.OCR_FACTURA, ScopeType.DELETE]);
+      return;
+    }
     try {
       setSaving(true);
       clearMessages();
       await eliminar_factura(row.id);
-      setOkMsg("Factura eliminada.");
+      toast.success("Factura eliminada.");
       await cargarLista();
     } catch (e) {
-      setError(e?.message || "No se pudo eliminar la factura");
+      toast.error(e?.message || "No se pudo eliminar la factura");
     } finally {
       setSaving(false);
     }
   };
 
   const btnPrimary =
-    "px-4 h-10 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60";
-  const btnGhost = "px-3 h-10 rounded border bg-white text-black hover:bg-gray-50";
+    "px-4 h-10 rounded-lg bg-primary text-white hover:bg-primary-dark disabled:opacity-60";
+  const btnGhost = "px-3 h-10 rounded-lg border bg-white text-black hover:bg-gray-50";
   const inputClass = "w-full h-10 bg-white text-black border rounded px-3";
 
-  const headers = [
-    { label: "ID", accessor: "id" },
-    { label: "Emisor", accessor: "emisor" },
-    { label: "Receptor", accessor: "receptor" },
-    { label: "Nº OC", accessor: "numero_orden_compra" },
-    { label: "Fecha emisión", accessor: "fecha_emision" },
-    { label: "Fecha entrega", accessor: "fecha_entrega" },
-    { label: "Condiciones de pago", accessor: "condiciones_pago" },
-    { label: "Lugar de entrega", accessor: "lugar_entrega" },
-    { label: "Información comprador", accessor: "informacion_comprador" },
-    { label: "Total", accessor: "valor_total" },
-    { label: "Acciones", accessor: "__acciones__" },
+  const columns = [
+    { header: "ID", accessor: "id", sortable: true },
+    { header: "Emisor", accessor: "emisor", sortable: true, Cell: ({ value }) => value || "—" },
+    { header: "Receptor", accessor: "receptor", sortable: true, Cell: ({ value }) => value || "—" },
+    { header: "Nº OC", accessor: "numero_orden_compra", sortable: true, Cell: ({ value }) => value || "—" },
+    {
+      header: "Fecha emisión",
+      accessor: "fecha_emision",
+      sortable: true,
+      sortValue: (r) => (r?.fecha_emision ? new Date(r.fecha_emision).getTime() : null),
+      Cell: ({ value }) => fmtDate(value),
+    },
+    {
+      header: "Fecha entrega",
+      accessor: "fecha_entrega",
+      sortable: true,
+      sortValue: (r) => (r?.fecha_entrega ? new Date(r.fecha_entrega).getTime() : null),
+      Cell: ({ value }) => fmtDate(value),
+    },
+    {
+      header: "Condiciones de pago",
+      accessor: "condiciones_pago",
+      sortable: true,
+      sortValue: (r) =>
+        String(pick(r, ["condiciones_pago", "condicionesDePago", "Condiciones de Pago"]) ?? "").toLowerCase(),
+      Cell: ({ row }) => pick(row, ["condiciones_pago", "condicionesDePago", "Condiciones de Pago"]) || "—",
+    },
+    {
+      header: "Lugar de entrega",
+      accessor: "lugar_entrega",
+      sortable: true,
+      sortValue: (r) =>
+        String(pick(r, ["lugar_entrega", "lugarDeEntrega", "Lugar de Entrega"]) ?? "").toLowerCase(),
+      Cell: ({ row }) => pick(row, ["lugar_entrega", "lugarDeEntrega", "Lugar de Entrega"]) || "—",
+    },
+    {
+      header: "Información comprador",
+      accessor: "informacion_comprador",
+      sortable: true,
+      sortValue: (r) =>
+        String(pick(r, ["informacion_comprador", "informacionComprador", "Información Comprador"]) ?? "").toLowerCase(),
+      Cell: ({ row }) =>
+        pick(row, ["informacion_comprador", "informacionComprador", "Información Comprador"]) || "—",
+    },
+    {
+      header: "Total",
+      accessor: "valor_total",
+      sortable: true,
+      sortValue: (r) => Number(pick(r, ["valor", "total", "monto_total"])) || 0,
+      Cell: ({ row }) => fmtMoneyCLP(Number(pick(row, ["valor", "total", "monto_total"])) || null),
+    },
   ];
 
+  const actions = (row) => (
+    <div className="flex gap-2">
+      <EditButton onClick={() => abrirEdicion(row)} tooltipText="Editar factura" />
+      {canDeleteOCRInvoice && (
+        <TrashButton
+          onConfirmDelete={() => borrarFactura(row)}
+          tooltipText="Eliminar factura"
+          entityName={`Factura #${row.id}`}
+        />
+      )}
+    </div>
+  );
+
   return (
-    <div className="p-6 bg-background min-h-screen">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Facturas</h1>
-        <div className="flex gap-2">
-          <button className={btnPrimary} onClick={openUpload}>
-            <span className="inline-flex items-center gap-2">
-              <Upload size={18} /> Subir factura (PDF)
-            </span>
-          </button>
-          <button className={btnPrimary} onClick={openManual}>
-            <span className="inline-flex items-center gap-2">
-              <PlusCircle size={18} /> Crear factura
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
-        <div className="flex items-center gap-3 flex-wrap">
+    <>
+      <DataTable
+        title="Facturas"
+        data={dataFiltrada}
+        columns={columns}
+        actions={actions}
+        getSearchText={getSearchText}
+        loading={loadingLista}
+        loadingMessage="Cargando facturas"
+        defaultRowsPerPage={25}
+        emptyMessage="No hay facturas para mostrar."
+        headerActions={
+          <>
+            <button className={btnPrimary} onClick={openUpload}>
+              <span className="inline-flex items-center gap-2">
+                <Upload size={18} /> Subir factura (PDF)
+              </span>
+            </button>
+            <button className={btnPrimary} onClick={openManual}>
+              <span className="inline-flex items-center gap-2">
+                <PlusCircle size={18} /> Crear factura
+              </span>
+            </button>
+          </>
+        }
+        toolbarStart={
           <div className="flex items-center gap-2">
-            <span>Mostrar</span>
-            <RowsPerPageSelector
-              defaultValue={25}
-              onRowsChange={(n) => {
-                setRowsPerPage(n);
-                setPage(1);
-              }}
-            />
-
-          </div>
-          <div className="w-64">
-            <label className="block text-sm mb-1">Emisor</label>
+            <label className="text-sm text-gray-600">Emisor</label>
             <select
               value={emisorFiltro}
-              onChange={(e) => onChangeEmisor(e.target.value)}
-              className={inputClass}
+              onChange={(e) => setEmisorFiltro(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
             >
               <option value="">Todos</option>
               {emisores.map((e) => (
@@ -430,98 +414,8 @@ export default function Facturas() {
               ))}
             </select>
           </div>
-        </div>
-        <SearchBar onSearch={handleSearch} />
-      </div>
-
-      {!!error && (
-        <div className="mb-3 text-sm text-red-700 bg-red-100 border border-red-200 rounded px-3 py-2">
-          {error}
-        </div>
-      )}
-      {!!okMsg && (
-        <div className="mb-3 text-sm text-green-800 bg-green-100 border border-green-200 rounded px-3 py-2">
-          {okMsg}
-        </div>
-      )}
-
-      <div className="overflow-x-auto border rounded-xl bg-white">
-        <table className="w-full table-auto rounded">
-          <thead className="bg-gray-100 text-gray-800 text-sm">
-            <tr>
-              {headers.map((h) => (
-                <th
-                  key={h.accessor}
-                  className={`px-4 py-2 ${h.accessor === "__acciones__" ? "text-center" : "text-left"}`}
-                >
-                  {h.accessor === "__acciones__" ? h.label : renderHeader(h.label, h.accessor)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="text-sm">
-            {loadingLista ? (
-              <tr>
-                <td className="px-4 py-6 text-center" colSpan={headers.length}>
-                  Cargando facturas…
-                </td>
-              </tr>
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td className="px-4 py-6 text-center" colSpan={headers.length}>
-                  No hay facturas para mostrar.
-                </td>
-              </tr>
-            ) : (
-              dataSlice.map((f) => {
-                const totalNumber = Number(pick(f, ["valor", "total", "monto_total"])) || null;
-                const condiciones =
-                  pick(f, ["condiciones_pago", "condicionesDePago", "Condiciones de Pago"]) ?? "—";
-                const lugar = pick(f, ["lugar_entrega", "lugarDeEntrega", "Lugar de Entrega"]) ?? "—";
-                const infoCompr =
-                  pick(f, ["informacion_comprador", "informacionComprador", "Información Comprador"]) ??
-                  "—";
-                return (
-                  <tr key={f.id} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-2">{f.id}</td>
-                    <td className="px-4 py-2">{f.emisor || "—"}</td>
-                    <td className="px-4 py-2">{f.receptor || "—"}</td>
-                    <td className="px-4 py-2">{f.numero_orden_compra || "—"}</td>
-                    <td className="px-4 py-2">{fmtDate(f.fecha_emision)}</td>
-                    <td className="px-4 py-2">{fmtDate(f.fecha_entrega)}</td>
-                    <td className="px-4 py-2">{condiciones || "—"}</td>
-                    <td className="px-4 py-2">{lugar || "—"}</td>
-                    <td className="px-4 py-2">{infoCompr || "—"}</td>
-                    <td className="px-4 py-2">{fmtMoneyCLP(totalNumber)}</td>
-                    <td className="px-4 py-2">
-                      <div className="flex gap-2 justify-center">
-                        <button
-                          onClick={() => abrirEdicion(f)}
-                          className="p-1 rounded hover:bg-gray-100 text-gray-600 hover:text-blue-600"
-                          title="Editar"
-                        >
-                          <Pencil size={18} strokeWidth={1.5} />
-                        </button>
-                        <button
-                          onClick={() => borrarFactura(f)}
-                          className="p-1 rounded hover:bg-red-100 text-red-600"
-                          title="Eliminar"
-                        >
-                          <Trash2 size={18} strokeWidth={1.5} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-4 flex justify-end">
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
-      </div>
+        }
+      />
 
       {showUpload && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
@@ -561,7 +455,7 @@ export default function Facturas() {
               </button>
               <button
                 onClick={subirYGuardar}
-                disabled={!file || loadingParse || saving}
+                disabled={!file || loadingParse || saving || !canWriteOCRInvoice}
                 className={btnPrimary}
               >
                 {loadingParse || saving ? "Procesando..." : "Procesar y guardar"}
@@ -681,7 +575,7 @@ export default function Facturas() {
               <button onClick={closeManual} className={btnGhost}>
                 Cancelar
               </button>
-              <button onClick={guardarManual} disabled={saving} className={btnPrimary}>
+              <button onClick={guardarManual} disabled={saving || !canWriteOCRInvoice} className={btnPrimary}>
                 {saving ? "Guardando..." : "Crear factura"}
               </button>
             </div>
@@ -802,17 +696,13 @@ export default function Facturas() {
               <button onClick={cancelarEdicion} className={btnGhost}>
                 Cancelar
               </button>
-              <button onClick={guardarEdicion} disabled={saving} className={btnPrimary}>
+              <button onClick={guardarEdicion} disabled={saving || !canWriteOCRInvoice} className={btnPrimary}>
                 {saving ? "Guardando..." : "Guardar cambios"}
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
-
-
-
-

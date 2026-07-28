@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { formatNumberCL } from "../../services/formatHelpers";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function AsignarInsumosPVA() {
   const { idPauta } = useParams();
@@ -13,6 +15,9 @@ export default function AsignarInsumosPVA() {
   const [pva, setPva] = useState(null);
   const [bultosPorInsumo, setBultosPorInsumo] = useState({});
   const [nombreInsumoByKey, setNombreInsumoByKey] = useState({});
+
+  const canReadAddedValueGuideline = checkScope(ModelType.PAUTA_VALOR_AGREGADO, ScopeType.READ);
+  const canWriteAddedValueGuideline = checkScope(ModelType.PAUTA_VALOR_AGREGADO, ScopeType.WRITE);
 
   const formatDisponible = (b) => {
     const rawQty =
@@ -36,6 +41,15 @@ export default function AsignarInsumosPVA() {
   };
 
   const loadData = async () => {
+    if (!canReadAddedValueGuideline) {
+      toast.permissionError(
+        [ModelType.PAUTA_VALOR_AGREGADO, ScopeType.READ]
+      );
+      setLoading(false);
+      setPva([]);
+      return;
+    }
+
     try {
       if (!id) {
         toast.error("ID de pauta inválido");
@@ -100,6 +114,10 @@ export default function AsignarInsumosPVA() {
   }, [id]);
 
   const asignar = async () => {
+    if (!canWriteAddedValueGuideline) {
+      toast.permissionError([ModelType.PAUTA_VALOR_AGREGADO, ScopeType.WRITE]);
+      return;
+    }
     try {
       if (!id) {
         toast.error("ID de pauta inválido");
@@ -127,7 +145,7 @@ export default function AsignarInsumosPVA() {
     }
   };
 
-  if (loading) return "Cargando...";
+  if (loading) return <PageLoader message="Cargando insumos" />;
 
   return (
     <div className="p-6 max-w-3xl mx-auto bg-white rounded shadow">
@@ -182,7 +200,7 @@ export default function AsignarInsumosPVA() {
       <button
         onClick={asignar}
         className="mt-4 px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-        disabled={!Array.isArray(pva) || pva.length === 0}
+        disabled={!Array.isArray(pva) || pva.length === 0 || !canWriteAddedValueGuideline}
       >
         Guardar Asignaciones
       </button>

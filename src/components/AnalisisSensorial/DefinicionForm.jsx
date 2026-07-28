@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Trash2, Pencil } from 'lucide-react';
+import { toast } from "../../lib/toast.js";
 
 const TIPOS_CAMPO = [
   { value: 'text', label: 'Texto' },
@@ -34,23 +35,21 @@ export default function AnalisisSensorialDefinicionForm({ campos, setCampos }) {
     setIndiceEdicion(null);
   };
 
-  const generarNombreTecnico = (etiqueta) => {
+const generarNombreTecnico = (etiqueta) => {
     const base = String(etiqueta || '')
       .trim()
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .replace(/_+/g, '_');
-
+      .replace(/(?:^_)|(?:_$)/g, '');
     return base || `campo_${Date.now()}`;
   };
 
   const handleAgregar = () => {
     // Validaciones
     if (!campoActual.etiqueta.trim()) {
-      alert('La etiqueta del campo es obligatoria');
+      toast.warning("La etiqueta del campo es obligatoria");
       return;
     }
 
@@ -65,7 +64,7 @@ export default function AnalisisSensorialDefinicionForm({ campos, setCampos }) {
       : campos.some(c => c.nombre === nombreFinal);
 
     if (nombreExiste) {
-      alert('Ya existe un campo con ese nombre');
+      toast.warning("Ya existe un campo con ese nombre");
       return;
     }
 
@@ -77,7 +76,7 @@ export default function AnalisisSensorialDefinicionForm({ campos, setCampos }) {
         .filter(o => o);
       
       if (opciones.length === 0) {
-        alert('Debe agregar al menos una opción para campos de selección');
+        toast.warning("Debe agregar al menos una opción para campos de selección");
         return;
       }
       campoActual.opciones = opciones;

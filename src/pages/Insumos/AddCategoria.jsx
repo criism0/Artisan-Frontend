@@ -1,14 +1,20 @@
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import axiosInstance from "../../axiosInstance";
+import { useApi } from "../../lib/api";
 import { useState } from "react";
 import { toast } from "../../lib/toast";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function AddCategoria() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({ nombre: "", descripcion: "" });
   const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const api = useApi();
+
+  const canWriteRawMaterialCategory = checkScope(ModelType.CATEGORIA_MATERIA_PRIMA, ScopeType.WRITE);
 
   const validate = () => {
     const newErrors = {};
@@ -25,19 +31,32 @@ export default function AddCategoria() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canWriteRawMaterialCategory) {
+      toast.permissionError([ModelType.CATEGORIA_MATERIA_PRIMA, ScopeType.WRITE]);
+      setIsSubmitting(false);
+      return;
+    }
     if (!validate()) return;
     try {
-      await axiosInstance.post(`${import.meta.env.VITE_BACKEND_URL}/categorias-materia-prima`, formData);
+      setIsSubmitting(true);
+      await api(`/categorias-materia-prima`, { method: "POST", body: formData });
       navigate("/Insumos/Categorias");
       toast.success("Categoría creada correctamente");
     } catch (error) {
-      toast.error("Error al crear categoría:", error);
+      toast.error(`Error al crear categoría: ${error.message}`);
       setError("No se pudo crear la categoría. Verifica los datos.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="p-6 bg-background min-h-screen">
+      {isSubmitting && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <BackButton to="/Insumos/Categorias" />
       <h1 className="text-2xl font-bold text-text mb-6">Añadir Categoría</h1>
 
@@ -73,8 +92,12 @@ export default function AddCategoria() {
         </div>
 
         <div className="flex justify-end">
-          <button className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded" type="submit">
-            Crear Categoría
+          <button
+            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded disabled:opacity-50"
+            type="submit"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Creando..." : "Crear Categoría"}
           </button>
         </div>
       </form>

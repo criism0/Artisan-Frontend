@@ -2,6 +2,7 @@ import { useState } from "react";
 import { toast } from "../../lib/toast";
 import PautaEditor from "./PautaEditor";
 import { Edit, X } from "lucide-react";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 export default function PautaSelectorConCreacion({
   api,
@@ -32,9 +33,21 @@ export default function PautaSelectorConCreacion({
   const [pautaEditErrors, setPautaEditErrors] = useState({});
   const [analisisDefinicionExiste, setAnalisisDefinicionExiste] = useState(false);
 
+  const canReadElaborationGuidelineSteps = checkScope(ModelType.PASO_PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteElaborationGuidelineSteps = checkScope(ModelType.PASO_PAUTA_ELABORACION, ScopeType.WRITE);
+
+  const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.WRITE);
+
   const handleAbrirEdicionPauta = async () => {
     if (!selectedPautaId) return;
-
+    if (!canReadElaborationGuidelineSteps || !canReadElaborationGuideline) {
+      toast.permissionError(
+        [ModelType.PASO_PAUTA_ELABORACION, ScopeType.READ],
+        [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+      );
+      return;
+    }
     try {
       const idPauta = selectedPautaId;
       const [pautaRes, pasosRes] = await Promise.all([
@@ -77,6 +90,13 @@ export default function PautaSelectorConCreacion({
 
   const handleGuardarEdicionPauta = async () => {
     if (!selectedPautaId) return;
+    if (!canReadElaborationGuidelineSteps || !canWriteElaborationGuidelineSteps || !canWriteElaborationGuideline || !canReadElaborationGuideline) {
+      toast.permissionError(
+        [ModelType.PASO_PAUTA_ELABORACION, [ScopeType.READ, ScopeType.WRITE]],
+        [ModelType.PAUTA_ELABORACION, [ScopeType.READ, ScopeType.WRITE]]
+      );
+      return;
+    }
 
     const name = String(pautaEditData?.name || "").trim();
     const description = String(pautaEditData?.description || "").trim();
@@ -161,6 +181,14 @@ export default function PautaSelectorConCreacion({
   };
 
   const handleCrearPautaInline = async () => {
+    if (!canWriteElaborationGuidelineSteps || !canReadElaborationGuideline || !canWriteElaborationGuideline) {
+      toast.permissionError(
+        [ModelType.PASO_PAUTA_ELABORACION, ScopeType.WRITE],
+        [ModelType.PAUTA_ELABORACION, [ScopeType.READ, ScopeType.WRITE]]
+      );
+      return;
+    }
+
     const name = String(nuevaPauta.name || "").trim();
     const description = String(nuevaPauta.description || "").trim();
     const PASO_MIN_LEN = 5;

@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function DeleteProcesoValorAgregado() {
   const { id } = useParams();
@@ -12,8 +14,16 @@ export default function DeleteProcesoValorAgregado() {
   const [isLoading, setIsLoading] = useState(true);
   const [pva, setPva] = useState(null);
 
+  const canReadAddedValueProcess = checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ);
+  const canDeleteAddedValueProcess = checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.DELETE);
+
   useEffect(() => {
     const fetchPva = async () => {
+      if (!canReadAddedValueProcess) {
+        toast.permissionError([ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ]);
+        setIsLoading(false);
+        return;
+      }
       try {
         const res = await api(`/procesos-de-valor-agregado/${id}`, { method: "GET" });
         setPva(res);
@@ -25,9 +35,13 @@ export default function DeleteProcesoValorAgregado() {
       }
     };
     fetchPva();
-  }, [api, id]);
+  }, [api, id, canReadAddedValueProcess]);
 
   const handleDelete = async () => {
+    if (!canDeleteAddedValueProcess) {
+      toast.permissionError([ModelType.PROCESO_VALOR_AGREGADO, ScopeType.DELETE]);
+      return;
+    }
     try {
       await api(`/procesos-de-valor-agregado/${id}`, { method: "DELETE" });
       toast.success("Proceso de valor agregado eliminado correctamente.");
@@ -38,14 +52,7 @@ export default function DeleteProcesoValorAgregado() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="p-6 bg-background min-h-screen flex justify-center items-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500"></div>
-        <span className="ml-3 text-purple-500">Cargando proceso...</span>
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoader message="Cargando proceso" />;
 
   if (!pva) {
     return (
@@ -72,6 +79,7 @@ export default function DeleteProcesoValorAgregado() {
         <div className="flex justify-center gap-4 mt-6">
           <button
             onClick={handleDelete}
+            disabled={!canDeleteAddedValueProcess}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded"
           >
             Sí, eliminar

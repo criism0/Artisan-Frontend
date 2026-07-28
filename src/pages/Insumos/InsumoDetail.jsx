@@ -4,8 +4,10 @@ import { ModifyButton, TrashButton, BackButton, EditButton, ToggleActiveButton }
 import { useState, useEffect } from "react";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import Table from "../../components/Table";
+import Table from "../../components/Tables/Table";
 import TabButton from "../../components/Wizard/TabButton";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 const sum = (arr) => (Array.isArray(arr) ? arr.reduce((acc, v) => acc + Number(v || 0), 0) : 0);
 
@@ -30,6 +32,10 @@ export default function InsumoDetail() {
   const [pautaPasosDetalle, setPautaPasosDetalle] = useState([]);
   const [pautaAnalisisDetalle, setPautaAnalisisDetalle] = useState(null);
   const [pautaDetalleLoading, setPautaDetalleLoading] = useState(false);
+
+  const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteRawMaterial = checkScope(ModelType.MATERIA_PRIMA, ScopeType.WRITE);
+  const canDeleteRawMaterialProvider = checkScope(ModelType.PROVEEDOR_MATERIA_PRIMA, ScopeType.DELETE);
 
   useEffect(() => {
     const fetchInsumo = async () => {
@@ -61,6 +67,12 @@ export default function InsumoDetail() {
 
   useEffect(() => {
     const loadRecetaPip = async () => {
+      if (!canReadElaborationGuideline) {
+        toast.permissionError(
+          [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+        );
+        return;
+      }
       try {
         if (!insumo) return;
         const isPip = insumo?.categoria?.nombre === "PIP";
@@ -106,7 +118,7 @@ export default function InsumoDetail() {
     };
 
     void loadRecetaPip();
-  }, [api, id, insumo]);
+  }, [api, id, insumo, canReadElaborationGuideline]);
 
   useEffect(() => {
     const loadPautaDetalle = async () => {
@@ -116,6 +128,13 @@ export default function InsumoDetail() {
         setPautaDetalle(null);
         setPautaPasosDetalle([]);
         setPautaAnalisisDetalle(null);
+        return;
+      }
+      if (!canReadElaborationGuideline) {
+        toast.permissionError(
+          [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+        );
+        setPautaDetalleLoading(false);
         return;
       }
 
@@ -141,9 +160,13 @@ export default function InsumoDetail() {
     };
 
     void loadPautaDetalle();
-  }, [api, receta?.id_pauta_elaboracion, tab]);
+  }, [api, receta?.id_pauta_elaboracion, tab, canReadElaborationGuideline]);
 
   const handleToggleActiveInsumo = async (insumoId) => {
+    if (!canWriteRawMaterial) {
+      toast.permissionError([ModelType.MATERIA_PRIMA, ScopeType.WRITE]);
+      return;
+    }
     try {
       const res = await api(`/materias-primas/${insumoId}/toggle-active`, { method: "PUT" });
       const updated = res;
@@ -151,18 +174,22 @@ export default function InsumoDetail() {
       // Actualizar el insumo principal
       setInsumo(prev => ({ ...prev, activo: updated.activo }));
     } catch (error) {
-      toast.error('Error activando/desactivando insumo:', error);
+      toast.error(`Error activando/desactivando insumo: ${error.message}`);
     }
   };
 
   const handleDeleteAssociation = async (associationId) => {
+    if (!canDeleteRawMaterialProvider) {
+      toast.permissionError([ModelType.PROVEEDOR_MATERIA_PRIMA, ScopeType.DELETE]);
+      return;
+    }
     try {
       await api(`/proveedor-materia-prima/por-materia-prima/${associationId}`, { method: "DELETE" });
       toast.success("Asociación eliminada correctamente.");
       setProveedores(prev => prev.filter(p => p.id !== associationId));
       
     } catch (error) {
-      toast.error("Error eliminando asociación:", error);
+      toast.error(`Error eliminando asociación: ${error.message}`);
     }
   };
 
@@ -180,7 +207,7 @@ export default function InsumoDetail() {
     </div>
   );
 
-  if (!insumo) return <div>Cargando...</div>;
+  if (!insumo) return <PageLoader message="Cargando insumo" />;
 
   const isPip = insumo?.categoria?.nombre === "PIP";
 
@@ -190,6 +217,7 @@ export default function InsumoDetail() {
     "Categoría": insumo.categoria.nombre || 'Sin categoría',
     "Unidad de Medida": insumo.unidad_medida,
     "Stock Crítico": insumo.stock_critico,
+    "Semanas de Seguridad": insumo.semanas_seguridad ?? "—",
     "Activo": insumo.activo ? "Activo" : "Inactivo"
   };
 

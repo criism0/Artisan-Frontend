@@ -1,11 +1,47 @@
 const API_BASE = import.meta.env.VITE_BACKEND_URL ?? "https://api-dev.proyecto-artisan.website/";
 
+const ACCESS_KEY = "access_token";
+const REFRESH_KEY = "refresh_token";
 
 export function getToken() {
-  return localStorage.getItem("access_token");
+  return localStorage.getItem(ACCESS_KEY);
 }
 export function clearToken() {
-  localStorage.removeItem("access_token");
+  localStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+}
+
+let refreshInFlight = null;
+
+async function refreshAccessToken() {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+function isAuthEndpoint(path) {
+  return (
+    path.startsWith("/auth/login") ||
+    path.startsWith("/auth/refresh") ||
+    path.startsWith("/auth/logout") ||
+    path.startsWith("auth/login") ||
+    path.startsWith("auth/refresh") ||
+    path.startsWith("auth/logout")
+  );
 }
 
 async function safeJson(res) {
@@ -38,12 +74,22 @@ export async function api(path, { auth = true, headers, ...opts } = {}) {
     h.set("Content-Type", "application/json");
   }
 
-  if (auth) {
-    const t = getToken();
-    if (t) h.set("Authorization", `Bearer ${t}`);
-  }
+  let res = await fetch(`${API_BASE}${path}`, {
+    ...opts,
+    headers: h,
+    credentials: "include",
+  });
 
-  const res = await fetch(`${API_BASE}${path}`, { ...opts, headers: h });
+  if (res.status === 401 && auth && !isAuthEndpoint(path)) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      res = await fetch(`${API_BASE}${path}`, {
+        ...opts,
+        headers: h,
+        credentials: "include",
+      });
+    }
+  }
 
   if (!res.ok) {
     const data = await safeJson(res);
@@ -77,12 +123,22 @@ export async function apiBlob(path, { auth = true, headers, ...opts } = {}) {
     h.set("Content-Type", "application/json");
   }
 
-  if (auth) {
-    const t = getToken();
-    if (t) h.set("Authorization", `Bearer ${t}`);
-  }
+  let res = await fetch(`${API_BASE}${path}`, {
+    ...opts,
+    headers: h,
+    credentials: "include",
+  });
 
-  const res = await fetch(`${API_BASE}${path}`, { ...opts, headers: h });
+  if (res.status === 401 && auth && !isAuthEndpoint(path)) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      res = await fetch(`${API_BASE}${path}`, {
+        ...opts,
+        headers: h,
+        credentials: "include",
+      });
+    }
+  }
 
   if (!res.ok) {
     const data = await safeJson(res);
@@ -110,3 +166,13 @@ export function useApi() {
 }
 
 export { API_BASE };
+
+export function buildApiUrl(path = "") {
+  if (!path) return "";
+
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+
+  return new URL(path, API_BASE).toString();
+}

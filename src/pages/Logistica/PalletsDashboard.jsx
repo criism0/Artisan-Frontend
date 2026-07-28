@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import Table from "../../components/Table";
+import Table from "../../components/Tables/Table";
 import { toast } from "../../lib/toast";
-import { API_BASE, useApi, getToken } from "../../lib/api";
+import { useApi, apiBlob } from "../../lib/api";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 const PAGE_SIZE = 50;
 
@@ -22,6 +24,7 @@ const formatDate = (value) => {
 
 export default function PalletsDashboard() {
   const api = useApi();
+  const confirm = useConfirm();
   const [pallets, setPallets] = useState([]);
   const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState("");
@@ -33,6 +36,10 @@ export default function PalletsDashboard() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [closing, setClosing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const canWritePallet = checkScope(ModelType.PALLET, ScopeType.WRITE);
+  const canDeletePallet = checkScope(ModelType.PALLET, ScopeType.DELETE);
+  const canWriteBulk = checkScope(ModelType.BULTO, ScopeType.WRITE);
 
   useEffect(() => {
     const fetchPallets = async () => {
@@ -95,20 +102,17 @@ export default function PalletsDashboard() {
 
   const cerrarPallet = async () => {
     if (!selected?.id) return;
+    if (!canWritePallet || !canWriteBulk) {
+      toast.permissionError(
+        [ModelType.PALLET, ScopeType.WRITE],
+        [ModelType.BULTO, ScopeType.WRITE]
+      );
+      setClosing(false);
+      return;
+    }
     setClosing(true);
     try {
-      const token = getToken();
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const response = await fetch(`${API_BASE}/pallets/${selected.id}/cerrar`, {
-        method: "PUT",
-        headers,
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || "Error al cerrar el pallet.");
-      }
-
-      const blob = await response.blob();
+      const blob = await apiBlob(`/pallets/${selected.id}/cerrar`, { method: "PUT" });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -132,10 +136,17 @@ export default function PalletsDashboard() {
 
   const deletePallet = async () => {
     if (!selected?.id) return;
-    const confirm = window.confirm(
-      "¿Eliminar este pallet? Se liberarán los bultos asociados."
-    );
-    if (!confirm) return;
+
+    if (!canWritePallet || !canDeletePallet || !canWriteBulk) {
+      toast.permissionError(
+        [ModelType.PALLET, [ScopeType.WRITE, ScopeType.DELETE]],
+        [ModelType.BULTO, ScopeType.WRITE]
+      );
+      setDeleting(false);
+      return;
+    }
+
+    if (!(await confirm({ title: "¿Eliminar pallet?", message: "Se liberarán los bultos asociados.", confirmText: "Eliminar", danger: true }))) return;
 
     setDeleting(true);
     try {

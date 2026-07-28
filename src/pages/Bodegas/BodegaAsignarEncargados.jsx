@@ -2,6 +2,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import toast from "../../lib/toast.js";
 
 export default function BodegaAsignarEncargados() {
   const { id } = useParams();
@@ -13,6 +16,8 @@ export default function BodegaAsignarEncargados() {
   const [selected, setSelected] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const canWriteWarehouse = checkScope(ModelType.BODEGA, ScopeType.WRITE);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -36,6 +41,12 @@ export default function BodegaAsignarEncargados() {
   }, [id, apiFetch]);
 
   const handleToggleEncargado = async (userId) => {
+    if (!canWriteWarehouse) {
+      toast.permissionError([ModelType.BODEGA, ScopeType.WRITE]);
+      setError("No tienes permisos para realizar esa accion.");
+      return;
+    }
+    
     const isAssigned = selected.includes(userId);
 
     try {
@@ -60,12 +71,7 @@ export default function BodegaAsignarEncargados() {
     }
   };
 
-  if (loading)
-    return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
-        <span className="text-primary">Cargando datos...</span>
-      </div>
-    );
+  if (loading) return <PageLoader message="Cargando datos" />;
 
   return (
     <div className="p-6 bg-background min-h-screen">

@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
-import { validarRut, formatRutDisplay } from "../../services/formatHelpers";
+import { validarRut, formatRutDisplay, esEmailValido } from "../../services/formatHelpers";
 import { COMUNAS_BY_REGION } from "../../data/comunas";
 import { REGIONES } from "../../data/regiones";
 import { BANCOS_CL, TIPO_CUENTA } from "../../data/datosBancarios";
-import { TIPO_PROVEEDOR } from "../../data/proveedoresType";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { api } from "../../lib/api.js";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 const classInput = (hasError) =>
   `border rounded px-3 py-2 w-full placeholder-gray-400 ${
@@ -109,7 +110,6 @@ const SimpleSelectRow = React.memo(function SimpleSelectRow({
 export default function ProveedorEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const token = localStorage.getItem("access_token");
 
   const [form, setForm] = useState({
     nombre_empresa: "",
@@ -132,6 +132,9 @@ export default function ProveedorEdit() {
   const [rutValido, setRutValido] = useState(true);
   const isWebpay = form.banco === "Webpay";
 
+  const canWriteProvider = checkScope(ModelType.PROVEEDOR, ScopeType.WRITE);
+  const canReadProvider = checkScope(ModelType.PROVEEDOR, ScopeType.READ);
+
   const comunasOptions = useMemo(
     () => (form.region ? COMUNAS_BY_REGION[form.region] || [] : []),
     [form.region]
@@ -139,11 +142,13 @@ export default function ProveedorEdit() {
 
   useEffect(() => {
     const fetchProveedor = async () => {
+      if (!canReadProvider) {
+        toast.permissionError([ModelType.PROVEEDOR, ScopeType.READ]);
+        setLoading(false);
+        return;
+      }
       try {
-        const { data } = await axios.get(
-          `${import.meta.env.VITE_BACKEND_URL}/proveedores/${id}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        const data = await api(`/proveedores/${id}`, { auth: true });
         setForm({
           nombre_empresa: data.nombre_empresa ?? "",
           rut_empresa: data.rut_empresa ?? "",
@@ -166,7 +171,7 @@ export default function ProveedorEdit() {
       }
     };
     fetchProveedor();
-  }, [id, token]);
+  }, [id, canReadProvider]);
 
   const handleChange = (key) => (val) => {
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -215,29 +220,26 @@ export default function ProveedorEdit() {
     const newErrors = {};
 
     if (!form.nombre_empresa.trim())
-      newErrors.nombre_empresa = "Debe ingresar la razón social";
+      newErrors.nombre_empresa = "Debe ingresar la razÃ³n social";
     if (!form.rut_empresa) newErrors.rut_empresa = "Debe ingresar el RUT";
 
-    if (!form.region) newErrors.region = "Seleccione la región";
+    if (!form.region) newErrors.region = "Seleccione la regiÃ³n";
     if (!form.comuna) newErrors.comuna = "Seleccione la comuna";
     if (!form.direccion.trim())
-      newErrors.direccion = "Debe ingresar la dirección completa";
+      newErrors.direccion = "Debe ingresar la direcciÃ³n completa";
 
     if (!form.banco) newErrors.banco = "Seleccione el banco";
     if (!isWebpay && !form.cuenta)
       newErrors.cuenta = "Seleccione el tipo de cuenta";
     if (!isWebpay && !form.cuenta_corriente)
-      newErrors.cuenta_corriente = "Ingrese número de cuenta";
+      newErrors.cuenta_corriente = "Ingrese nÃºmero de cuenta";
 
     if (!isWebpay && !form.email_transferencia)
       newErrors.email_transferencia = "Ingrese un email";
-    else if (!isWebpay) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(form.email_transferencia))
-        newErrors.email_transferencia = "Formato de email no válido";
-    }
+    else if (!isWebpay && !esEmailValido(form.email_transferencia))
+      newErrors.email_transferencia = "Formato de email no vÃ¡lido";
 
-    if (!form.telefono) newErrors.telefono = "Ingrese número de teléfono";
+    if (!form.telefono) newErrors.telefono = "Ingrese nÃºmero de telÃ©fono";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -246,7 +248,10 @@ export default function ProveedorEdit() {
   const onSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
-
+    if (!canWriteProvider) {
+      toast.permissionError([ModelType.PROVEEDOR, ScopeType.WRITE]);
+      return;
+    }
     const payload = isWebpay
       ? {
           ...form,
@@ -257,9 +262,7 @@ export default function ProveedorEdit() {
       : form;
 
     try {
-      await axios.put(`${import.meta.env.VITE_BACKEND_URL}/proveedores/${id}`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api(`/proveedores/${id}`, { method: "PUT", body: payload, auth: true });
       toast.success("Proveedor actualizado correctamente");
       navigate(`/Proveedores/${id}`);
     } catch (e) {
@@ -267,7 +270,7 @@ export default function ProveedorEdit() {
     }
   };
 
-  if (loading) return <div className="p-6">Cargando proveedor...</div>;
+  if (loading) return <PageLoader message="Cargando proveedor" />;
 
   return (
     <div className="p-6 bg-background min-h-screen">
@@ -281,12 +284,12 @@ export default function ProveedorEdit() {
         onSubmit={onSubmit}
         className="bg-white shadow p-6 rounded-lg max-w-3xl mx-auto"
       >
-        <Section title="Información General">
+        <Section title="InformaciÃ³n General">
           <FieldRow
             id="nombre_empresa"
-            label="Razón Social"
+            label="RazÃ³n Social"
             value={form.nombre_empresa}
-            placeholder="Ej: Lácteos del Sur SpA"
+            placeholder="Ej: LÃ¡cteos del Sur SpA"
             error={errors.nombre_empresa}
             onChange={handleChange("nombre_empresa")}
             required
@@ -314,7 +317,7 @@ export default function ProveedorEdit() {
             id="giro"
             label="Giro"
             value={form.giro}
-            placeholder="Ej: Producción de alimentos"
+            placeholder="Ej: ProducciÃ³n de alimentos"
             error={errors.giro}
             onChange={handleChange("giro")}
           />
@@ -329,10 +332,10 @@ export default function ProveedorEdit() {
           />
         </Section>
 
-        <Section title="Ubicación">
+        <Section title="UbicaciÃ³n">
           <SimpleSelectRow
             id="region"
-            label="Región"
+            label="RegiÃ³n"
             value={form.region}
             options={REGIONES}
             error={errors.region}
@@ -352,7 +355,7 @@ export default function ProveedorEdit() {
           />
           <FieldRow
             id="direccion"
-            label="Dirección"
+            label="DirecciÃ³n"
             value={form.direccion}
             placeholder="Ej: Av. Macul 1234, oficina 56"
             error={errors.direccion}
@@ -360,10 +363,10 @@ export default function ProveedorEdit() {
           />
         </Section>
 
-        <Section title="Información de Pago">
+        <Section title="InformaciÃ³n de Pago">
           <FieldRow
             id="cuenta_corriente"
-            label="Nº de Cuenta"
+            label="NÂ° de Cuenta"
             value={form.cuenta_corriente}
             placeholder={isWebpay ? "-" : "Ej: 12345678"}
             error={errors.cuenta_corriente}
@@ -405,13 +408,13 @@ export default function ProveedorEdit() {
             id="nombre_contacto"
             label="Nombre Contacto Comercial"
             value={form.nombre_contacto}
-            placeholder="Ej: María Pérez"
+            placeholder="Ej: MarÃ­a PÃ©rez"
             error={errors.nombre_contacto}
             onChange={handleChange("nombre_contacto")}
           />
           <FieldRow
             id="telefono"
-            label="Teléfono de Contacto"
+            label="TelÃ©fono de Contacto"
             value={form.telefono}
             placeholder="Ej: +56987654321"
             error={errors.telefono}

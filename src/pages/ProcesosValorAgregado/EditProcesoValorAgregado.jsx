@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function EditProcesoValorAgregado() {
   const { id } = useParams();
@@ -22,8 +24,18 @@ export default function EditProcesoValorAgregado() {
   const [pasos, setPasos] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const canWriteAddedValueSteps = checkScope(ModelType.PASO_VALOR_AGREGADO, ScopeType.WRITE);
+  const canDeleteAddedValueSteps = checkScope(ModelType.PASO_VALOR_AGREGADO, ScopeType.DELETE);
+  const canReadAddedValueProcess = checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ);
+  const canWriteAddedValueProcess = checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.WRITE);
+
   useEffect(() => {
     const fetchData = async () => {
+      if (!canReadAddedValueProcess) {
+        toast.permissionError([ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ]);
+        setIsLoading(false);
+        return;
+      }
       try {
         const res = await api(`/procesos-de-valor-agregado/${id}`, { method: "GET" });
         setFormData({
@@ -45,7 +57,7 @@ export default function EditProcesoValorAgregado() {
       }
     };
     fetchData();
-  }, [api, id]);
+  }, [api, id, canReadAddedValueProcess]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -67,6 +79,10 @@ export default function EditProcesoValorAgregado() {
 
   const handleRemovePaso = async (index) => {
     const paso = pasos[index];
+    if (!canDeleteAddedValueSteps) {
+      toast.permissionError([ModelType.PASO_VALOR_AGREGADO, ScopeType.DELETE]);
+      return;
+    }
     if (paso.id) {
       try {
         await api(`/pasos-valor-agregado/${paso.id}`, { method: "DELETE" });
@@ -80,6 +96,18 @@ export default function EditProcesoValorAgregado() {
 
 
   const handleSubmit = async () => {
+    if (!canWriteAddedValueProcess) {
+      toast.permissionError([ModelType.PROCESO_VALOR_AGREGADO, ScopeType.WRITE]);
+      return;
+    }
+    if (formData.tiene_pasos && !canWriteAddedValueSteps) {
+      toast.permissionError(
+        [ModelType.PROCESO_VALOR_AGREGADO, ScopeType.WRITE],
+        [ModelType.PASO_VALOR_AGREGADO, ScopeType.WRITE]
+      );
+      return;
+    }
+
     try {
       await api(`/procesos-de-valor-agregado/${id}`, {
         method: "PUT",
@@ -125,14 +153,7 @@ export default function EditProcesoValorAgregado() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="p-6 bg-background min-h-screen flex justify-center items-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-500"></div>
-        <span className="ml-3 text-purple-500">Cargando proceso...</span>
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoader message="Cargando proceso" />;
 
   return (
     <div className="p-6 bg-background min-h-screen">
@@ -269,6 +290,7 @@ export default function EditProcesoValorAgregado() {
       <div className="flex justify-end mt-8">
         <button
           onClick={handleSubmit}
+          disabled={!canWriteAddedValueProcess}
           className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
         >
           Guardar Cambios

@@ -1,14 +1,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../auth/AuthContext';
-import MultiSelectInput from '../../components/MultiSelectInput';
-import InsumosTable from '../../components/InsumosTable';
+import MultiSelectInput from '../../components/Forms/MultiSelectInput';
+import InsumosTable from '../../components/Insumos/InsumosTable';
+import ProductosTerminadosTable from '../../components/Solicitudes/ProductosTerminadosTable';
 import ImportarDesdeOCModal from '../../components/ImportarDesdeOCModal';
-import Selector from '../../components/Selector';
-import { FiArrowRight, FiDownload } from 'react-icons/fi';
+import Selector from '../../components/Forms/Selector';
+import { ArrowRight } from 'lucide-react';
+import { FiDownload } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
 import { BackButton } from '../../components/Buttons/ActionButtons';
 import { useApi } from '../../lib/api';
-import { toast } from 'react-toastify';
+import { toast } from "../../lib/toast.js";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from '../../services/scopeCheck.js';
 
 export default function AddSolicitud() {
   const { user } = useAuth();
@@ -18,6 +22,7 @@ export default function AddSolicitud() {
   const [selectedOrigen, setSelectedOrigen] = useState('');
   const [bodegas, setBodegas] = useState([]);
   const [insumosSeleccionados, setInsumosSeleccionados] = useState([]);
+  const [productosSeleccionados, setProductosSeleccionados] = useState([]);
   const [showErrors, setShowErrors] = useState(false);
   const [loading, setLoading] = useState(false);
   const [addSignal, setAddSignal] = useState(0);
@@ -28,9 +33,12 @@ export default function AddSolicitud() {
   const navigate = useNavigate();
   const api = useApi();
 
-  // Limpiar insumos al cambiar la bodega de origen
+  const canWriteMerchRequest = checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE);
+
+  // Limpiar insumos/productos al cambiar la bodega de origen
   useEffect(() => {
     setInsumosSeleccionados([]);
+    setProductosSeleccionados([]);
   }, [selectedOrigen]);
 
   useEffect(() => {
@@ -94,12 +102,13 @@ export default function AddSolicitud() {
     if (!selectedOrigen) newErrors.origen = 'Debe seleccionar una bodega de origen';
     if (!selectedDestino) newErrors.destino = 'Debe seleccionar una bodega de destino';
     else if (selectedOrigen === selectedDestino) newErrors.destino = 'La bodega de destino debe ser diferente a la de origen';
-    if (!insumosSeleccionados || insumosSeleccionados.length === 0) newErrors.insumos = 'Debe agregar al menos un insumo';
+    if ((insumosSeleccionados?.length ?? 0) === 0 && (productosSeleccionados?.length ?? 0) === 0)
+      newErrors.insumos = 'Debe agregar al menos un insumo o producto terminado';
     if (selectedUsers.length === 0) newErrors.usuarios = 'Debe seleccionar al menos un usuario para notificar';
     return newErrors;
   };
 
-  const errors = useMemo(() => computeErrors(), [selectedOrigen, selectedDestino, insumosSeleccionados, selectedUsers]);
+  const errors = useMemo(() => computeErrors(), [selectedOrigen, selectedDestino, insumosSeleccionados, productosSeleccionados, selectedUsers]);
   const isFormReady = useMemo(() => Object.keys(errors).length === 0, [errors]);
 
   const validateForm = () => {
@@ -112,6 +121,11 @@ export default function AddSolicitud() {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
+    if (!canWriteMerchRequest) {
+      toast.permissionError([ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE]);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
 
@@ -119,11 +133,22 @@ export default function AddSolicitud() {
       const solicitudData = {
         id_bodega_proveedora: parseInt(selectedOrigen),
         id_bodega_solicitante: parseInt(selectedDestino),
-        materias_primas: insumosSeleccionados.map(insumo => ({
-          id_materia_prima: parseInt(insumo.id_articulo),
-          cantidad_solicitada: Number(insumo.cantidad_solicitada),
-          comentario: insumo.comentario || ''
-        })),
+        // El array combina insumos (id_materia_prima) y productos terminados
+        // por nombre de facturación (id_nombre_facturacion + cajas, M4).
+        materias_primas: [
+          ...insumosSeleccionados.map(insumo => ({
+            id_materia_prima: parseInt(insumo.id_articulo),
+            cantidad_solicitada: Number(insumo.cantidad_solicitada),
+            comentario: insumo.comentario || ''
+          })),
+          ...productosSeleccionados.map(p => ({
+            id_nombre_facturacion: p.id_nombre_facturacion,
+            cantidad_solicitada: Number(p.cantidad_solicitada),
+            producto_por_cajas: p.producto_por_cajas,
+            cantidad_por_caja: p.cantidad_por_caja,
+            comentario: p.comentario || ''
+          })),
+        ],
         notificaciones: selectedUsers.map(user => user.email)
       };
 
@@ -162,6 +187,11 @@ export default function AddSolicitud() {
 
   return (
     <div className="p-6">
+      {loading && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <div className="flex items-center mb-6">
         <BackButton label="Volver" />
       </div>
@@ -182,7 +212,7 @@ export default function AddSolicitud() {
               {showErrors && errors.origen && <p className="mt-1 text-sm text-red-500">{errors.origen}</p>}
             </div>
             <div className="flex items-center justify-center text-primary">
-              <FiArrowRight className="w-6 h-6" />
+              <ArrowRight className="w-6 h-6" />
             </div>
             <div className="flex-1">
               <label className="block text-sm font-medium mb-1">Bodega Destino</label>
@@ -236,7 +266,7 @@ export default function AddSolicitud() {
           <div>
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold">Insumos a Solicitar</h3>
+                <h3 className="text-lg font-semibold">Insumos y PIP a Solicitar</h3>
                 {(!selectedOrigen || !selectedDestino) && (
                   <p className="mt-1 text-sm text-gray-500">Selecciona ambas bodegas para agregar insumos.</p>
                 )}
@@ -280,6 +310,21 @@ export default function AddSolicitud() {
             {selectedOrigen && selectedDestino && showErrors && errors.insumos && (
               <p className="mt-2 text-sm text-red-500">{errors.insumos}</p>
             )}
+          </div>
+
+          {/* Productos terminados (B4) */}
+          <div className="mt-8">
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold">Productos Terminados a Solicitar</h3>
+              {(!selectedOrigen || !selectedDestino) && (
+                <p className="mt-1 text-sm text-gray-500">Selecciona ambas bodegas para agregar productos.</p>
+              )}
+            </div>
+            <ProductosTerminadosTable
+              bodegaId={selectedOrigen}
+              disabled={!selectedOrigen || !selectedDestino}
+              onChange={setProductosSeleccionados}
+            />
           </div>
 
           {/* Botón */}

@@ -4,11 +4,14 @@ import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import StepsEditor from "../../components/Pautas/StepsEditor";
 import { toast } from "../../lib/toast";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function AddPautaElaboracion() {
   const navigate = useNavigate();
   const api = useApi();
   const PASO_MIN_LEN = 5;
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -29,6 +32,9 @@ export default function AddPautaElaboracion() {
   ]);
 
   const [errors, setErrors] = useState({});
+
+  const canWriteElaborationGuidelineSteps = checkScope(ModelType.PASO_PAUTA_ELABORACION, ScopeType.WRITE);
+  const canWriteElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
 
   const validate = () => {
     const newErrors = {};
@@ -109,8 +115,17 @@ export default function AddPautaElaboracion() {
 
   const handleSubmit = async () => {
     if (!validate()) return;
+    if (!canWriteElaborationGuidelineSteps || !canWriteElaborationGuideline) {
+      setIsSubmitting(false);
+      toast.permissionError(
+        [ModelType.PASO_PAUTA_ELABORACION, ScopeType.WRITE],
+        [ModelType.PAUTA_ELABORACION, ScopeType.WRITE]
+      );
+      return;
+    }
 
     try {
+      setIsSubmitting(true);
       // Create the pauta
       const pautaBody = {
         name: formData.name,
@@ -149,11 +164,18 @@ export default function AddPautaElaboracion() {
     } catch (err) {
       console.error("Error al crear pauta:", err);
       toast.error(err.message || "Error al crear la pauta de elaboración. Verifica los campos e intenta nuevamente.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="p-6 bg-background min-h-screen">
+      {isSubmitting && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <div className="max-w-6xl mx-auto">
         <div className="mb-4">
           <BackButton to="/PautasElaboracion" />
@@ -219,9 +241,10 @@ export default function AddPautaElaboracion() {
           </button>
           <button
             onClick={handleSubmit}
-            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+            disabled={isSubmitting}
+            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded disabled:opacity-50"
           >
-            Crear Pauta de Elaboración
+            {isSubmitting ? "Creando..." : "Crear Pauta de Elaboración"}
           </button>
         </div>
       </div>

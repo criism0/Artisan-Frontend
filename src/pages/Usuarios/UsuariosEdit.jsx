@@ -3,6 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { BackButton } from "../../components/Buttons/ActionButtons";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { esEmailValido } from "../../services/formatHelpers";
+
 
 export default function UsuariosEdit() {
   const { id } = useParams();
@@ -20,6 +24,8 @@ export default function UsuariosEdit() {
   const [rolesLoading, setRolesLoading] = useState(true);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
+
+  const canReadRoles = checkScope(ModelType.ROLE, ScopeType.READ);
 
   useEffect(() => {
     const fetchUsuario = async () => {
@@ -59,6 +65,11 @@ export default function UsuariosEdit() {
 
   useEffect(() => {
     const fetchRoles = async () => {
+      if (!canReadRoles) {
+        toast.permissionError([ModelType.ROLE, ScopeType.READ]);
+        setRolesLoading(false);
+        return;
+      }
       try {
         const resp = await api(`/roles`);
         const list = Array.isArray(resp) ? resp : resp?.roles || [];
@@ -73,13 +84,13 @@ export default function UsuariosEdit() {
       }
     };
     fetchRoles();
-  }, []);
+  }, [canReadRoles]);
 
   const validate = () => {
     const newErrors = {};
-    if (!usuario.nombre.trim()) newErrors.nombre = "El nombre es obligatorio.";
+        if (!usuario.nombre.trim()) newErrors.nombre = "El nombre es obligatorio.";
     if (!usuario.email.trim()) newErrors.email = "El email es obligatorio.";
-    else if (!/\S+@\S+\.\S+/.test(usuario.email))
+    else if (!esEmailValido(usuario.email))
       newErrors.email = "Formato de email inválido.";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -130,7 +141,7 @@ export default function UsuariosEdit() {
     }
   };
 
-  if (loading) return <p className="p-6">Cargando información del usuario...</p>;
+  if (loading) return <PageLoader message="Cargando usuario" />;
 
   const inputClass = (field) =>
     `w-full border rounded px-2 py-1 ${

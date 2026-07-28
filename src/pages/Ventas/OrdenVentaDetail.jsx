@@ -1,16 +1,19 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { BackButton, ModifyButton, DeleteButton } from "../../components/Buttons/ActionButtons";
-import Table from "../../components/Table";
+import Table from "../../components/Tables/Table";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import logo from "../../assets/logo.png";
 import { formatCLP } from "../../services/formatHelpers";
-import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
-import Selector from "../../components/Selector";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PanelFacturacion from "../../components/DTE/PanelFacturacion.jsx";
+import Selector from "../../components/Forms/Selector";
 import AvanceItems from "../../components/AvanceItems";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -78,7 +81,7 @@ function FacturarForm({
     <div className="flex flex-col gap-4 max-w-sm">
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-gray-700">
-          Dirección de entrega {requiereDir && <span className="text-red-500">*</span>}
+          Dirección de facturación {requiereDir && <span className="text-red-500">*</span>}
         </span>
         {loadingDirecciones ? (
           <span className="text-sm text-gray-400 py-2">Cargando direcciones...</span>
@@ -101,7 +104,7 @@ function FacturarForm({
         )}
         <span className="text-xs text-gray-400 italic">
           {requiereDir
-            ? "Debes seleccionar la dirección de entrega para poder facturar"
+            ? "Debes seleccionar la dirección de facturación para poder facturar"
             : "Confirma o ajusta la dirección antes de facturar"}
         </span>
       </div>
@@ -116,9 +119,15 @@ function FacturarForm({
         />
       </div>
 
+      {/* B5: facturar = emitir el documento tributario (sin documento no hay factura) */}
+      <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+        Al confirmar se <strong>emite la Factura Electrónica (SII vía LibreDTE)</strong>.
+        El cliente debe tener RUT, razón social y giro registrados.
+      </div>
+
       <div className="flex gap-2">
         <button onClick={onConfirm} disabled={transitioning} className={btnCls("yellow")}>
-          {transitioning ? "Facturando..." : "Confirmar factura"}
+          {transitioning ? "Emitiendo factura..." : "Emitir Factura Electrónica"}
         </button>
         <button onClick={onCancel} className={btnCls("ghost")}>
           Cancelar
@@ -168,6 +177,7 @@ export default function OrdenVentaDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const api = useApi();
+  const confirm = useConfirm();
 
   const [orden, setOrden] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -183,6 +193,9 @@ export default function OrdenVentaDetail() {
   const [direccionesCliente, setDireccionesCliente] = useState([]);
   const [idLocalDespacho, setIdLocalDespacho] = useState("");
   const [loadingDirecciones, setLoadingDirecciones] = useState(false);
+
+  const canWriteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
+  const canDeleteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.DELETE);
 
   const fetchOrden = async () => {
     const ordenData = await api(`/ordenes-venta/${id}/info`);
@@ -235,6 +248,8 @@ export default function OrdenVentaDetail() {
     [orden]
   );
 
+  // El progreso viene agrupado por nombre de facturación (el desglose por
+  // producto físico va en cada bulto asignado como producto_nombre)
   const progresoRows = useMemo(() => {
     const items = Array.isArray(progresoData?.progreso) ? progresoData.progreso : [];
     return items.map((p) => {
@@ -243,9 +258,10 @@ export default function OrdenVentaDetail() {
       const faltante = Number(p?.faltante_unidades ?? Math.max(0, requerido - asignado));
       const exceso = Number(p?.exceso_unidades ?? Math.max(0, asignado - requerido));
       return {
-        id: p?.id_producto,
-        id_producto: p?.id_producto,
-        producto_nombre: p?.ProductoBase?.nombre || `Producto #${p?.id_producto ?? "—"}`,
+        id: p?.id_nombre_facturacion ?? p?.id_producto,
+        id_nombre_facturacion: p?.id_nombre_facturacion,
+        producto_nombre:
+          p?.nombre || p?.ProductoBase?.nombre || `Línea #${p?.id_nombre_facturacion ?? "—"}`,
         requerido_unidades: requerido,
         asignado_unidades: asignado,
         faltante_unidades: faltante,
@@ -261,8 +277,9 @@ export default function OrdenVentaDetail() {
       const bultos = Array.isArray(p?.bultos_asignados) ? p.bultos_asignados : [];
       bultos.forEach((b, idx) => {
         rows.push({
-          key: `${p?.id_producto ?? "p"}-${b?.id_pick ?? b?.id_bulto ?? b?.identificador ?? idx}`,
+          key: `${p?.id ?? "p"}-${b?.id_pick ?? b?.id_bulto ?? b?.identificador ?? idx}`,
           producto: p?.producto_nombre || "—",
+          producto_fisico: b?.producto_nombre || "—",
           bulto: b?.identificador || b?.id_bulto || "—",
           pallet: b?.pallet_identificador || "—",
           unidades_pickeadas: Number(b?.unidades_pickeadas ?? 0),
@@ -277,7 +294,7 @@ export default function OrdenVentaDetail() {
   // ── Handlers de transición ──────────────────────────────────────────────────
   const handleValidar = async () => {
     if (!id) return;
-    if (!window.confirm("¿Validar esta orden de venta?")) return;
+    if (!(await confirm({ title: "¿Validar orden de venta?", confirmText: "Validar" }))) return;
     try {
       setTransitioning(true);
       const res = await api(`/ordenes-venta/${id}/validar`, { method: "PUT" });
@@ -294,7 +311,7 @@ export default function OrdenVentaDetail() {
 
   const handleCompletarPicking = async () => {
     if (!id) return;
-    if (!window.confirm("¿Completar el picking? Se verificará que todos los productos estén asignados.")) return;
+    if (!(await confirm({ title: "¿Completar el picking?", message: "Se verificará que todos los productos estén asignados.", confirmText: "Completar" }))) return;
     try {
       setTransitioning(true);
       const res = await api(`/ordenes-venta/${id}/completar-picking`, { method: "PUT" });
@@ -423,7 +440,8 @@ export default function OrdenVentaDetail() {
     });
 
     const tableBody = orderItems.map((it) => {
-      const productoNombre = it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`;
+      const productoNombre =
+        it?.NombreFacturacion?.nombre || it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`;
       const subtotal =
         Number(it?.cantidad || 0) *
         Number(it?.precio_venta || 0) *
@@ -539,12 +557,7 @@ export default function OrdenVentaDetail() {
   const iva = Math.round(totalNeto * 0.19);
   const total = totalNeto + iva;
 
-  if (loading)
-    return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
-        Cargando...
-      </div>
-    );
+  if (loading) return <PageLoader message="Cargando orden" />;
 
   if (!orden)
     return (
@@ -586,6 +599,13 @@ export default function OrdenVentaDetail() {
         </button>
       );
     }
+
+    return null;
+  };
+
+  // ── Acción documental (M6): vive dentro del panel de Facturación ───────────
+  const renderAccionDocumental = () => {
+    const estado = orden?.estado;
 
     if (estado === "Lista para facturación") {
       return showFacturarForm ? (
@@ -656,7 +676,10 @@ export default function OrdenVentaDetail() {
           <ModifyButton onClick={() => navigate(`/ventas/ordenes/${id}/edit`)} />
           <DeleteButton
             onConfirmDelete={async () => {
-              if (!window.confirm("¿Eliminar esta orden de venta?")) return;
+              if (!canDeleteSaleOrder) {
+                toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.DELETE]);
+                return;
+              }
               try {
                 await api(`/ordenes-venta/${id}`, { method: "DELETE" });
                 toast.success("Orden eliminada correctamente");
@@ -778,6 +801,7 @@ export default function OrdenVentaDetail() {
                     <thead>
                       <tr className="bg-gray-50">
                         <th className="border border-gray-300 px-4 py-2 text-left">Producto</th>
+                        <th className="border border-gray-300 px-4 py-2 text-left">Producto físico</th>
                         <th className="border border-gray-300 px-4 py-2 text-left">Bulto</th>
                         <th className="border border-gray-300 px-4 py-2 text-left">Pallet</th>
                         <th className="border border-gray-300 px-4 py-2 text-right">Unidades pickeadas</th>
@@ -787,6 +811,7 @@ export default function OrdenVentaDetail() {
                       {filasExtraccion.map((row) => (
                         <tr key={row.key} className="hover:bg-gray-50">
                           <td className="border border-gray-300 px-4 py-2 whitespace-normal break-words">{row.producto}</td>
+                          <td className="border border-gray-300 px-4 py-2 whitespace-normal break-words text-gray-600">{row.producto_fisico}</td>
                           <td className="border border-gray-300 px-4 py-2">{row.bulto}</td>
                           <td className="border border-gray-300 px-4 py-2">{row.pallet}</td>
                           <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(row.unidades_pickeadas)}</td>
@@ -821,7 +846,8 @@ export default function OrdenVentaDetail() {
               (1 - (Number(it?.porcentaje_descuento || 0) || 0) / 100);
             return {
               id: it?.id,
-              producto_nombre: it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`,
+              producto_nombre:
+                it?.NombreFacturacion?.nombre || it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`,
               cantidad: Number(it?.cantidad || 0),
               precio_venta: Number(it?.precio_venta || 0),
               porcentaje_descuento: Number(it?.porcentaje_descuento || 0),
@@ -831,11 +857,17 @@ export default function OrdenVentaDetail() {
         />
       </div>
 
-      {/* Acciones según estado */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <h2 className="text-base font-semibold text-text mb-3">Acciones</h2>
-        {renderAccion()}
-      </div>
+      {/* Panel ÚNICO de facturación y documentos (M6): stepper documental,
+          acción principal según estado (facturar / entregar) y DTEs */}
+      <PanelFacturacion orden={orden} accionPrincipal={renderAccionDocumental()} />
+
+      {/* Acciones de flujo pre-facturación (validar / picking) */}
+      {renderAccion() && (
+        <div className="bg-white rounded-lg shadow p-4 mt-6">
+          <h2 className="text-base font-semibold text-text mb-3">Acciones</h2>
+          {renderAccion()}
+        </div>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 function n(val) {
   const num = Number(val);
@@ -14,13 +15,24 @@ function safeDate(val) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export default function HistorialBultosModal({ open, omId, onClose }) {
+// `inline`: renderiza el contenido como panel embebido (sin overlay ni botón cerrar),
+// para usarlo dentro de un tab. En ese modo `open`/`onClose` se ignoran.
+export default function HistorialBultosModal({ open, omId, onClose, inline = false }) {
+  const abierto = inline || open;
   const [ordenData, setOrdenData] = useState(null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const canReadManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ);
+  const canReadSupplyProduction = checkScope(ModelType.REGISTRO_INSUMOS_PRODUCCION, ScopeType.READ);
+
   useEffect(() => {
-    if (!open) return;
+    if (!abierto) return;
+    if (!canReadManufacture || !canReadSupplyProduction) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ], [ModelType.REGISTRO_INSUMOS_PRODUCCION, ScopeType.READ]);
+      setLoading(false);
+      return;
+    }
 
     const load = async () => {
       try {
@@ -39,7 +51,7 @@ export default function HistorialBultosModal({ open, omId, onClose }) {
     };
 
     load();
-  }, [open, omId]);
+  }, [abierto, omId, canReadManufacture, canReadSupplyProduction]);
 
   const registros = Array.isArray(data?.registros) ? data.registros : [];
 
@@ -115,20 +127,20 @@ export default function HistorialBultosModal({ open, omId, onClose }) {
     return rows;
   }, [registros]);
 
-  if (!open) return null;
+  if (!abierto) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
+  const contenido = (
         <div className="p-6">
           <div className="flex justify-between items-center mb-6 gap-3">
             <h1 className="text-2xl font-bold">Historial de Bultos</h1>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-            >
-              ✕ Cerrar
-            </button>
+            {!inline && (
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+              >
+                ✕ Cerrar
+              </button>
+            )}
           </div>
 
           {loading ? (
@@ -217,6 +229,16 @@ export default function HistorialBultosModal({ open, omId, onClose }) {
             </>
           ) : null}
         </div>
+  );
+
+  if (inline) {
+    return <div className="bg-white rounded-xl border border-gray-200 shadow-sm">{contenido}</div>;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
+        {contenido}
       </div>
     </div>
   );

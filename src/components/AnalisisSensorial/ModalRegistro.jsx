@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { toast } from '../../lib/toast';
-import {jwtDecode} from 'jwt-decode';
+import { checkScope, ModelType, ScopeType } from '../../services/scopeCheck';
 
 export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufactura, api }) {
   const [loading, setLoading] = useState(true);
@@ -10,6 +10,9 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
   const [registro, setRegistro] = useState(null);
   const [valores, setValores] = useState({});
 
+  const canReadManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ);
+  const canWriteManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE);
+
   useEffect(() => {
     if (isOpen && idOrdenManufactura) {
       fetchData();
@@ -17,6 +20,11 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
   }, [isOpen, idOrdenManufactura]);
 
   const fetchData = async () => {
+    if (!canReadManufacture) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
 
@@ -70,6 +78,12 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!canWriteManufacture) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE]);
+      setSaving(false);
+      return;
+    }
 
     if (!definicion || !Array.isArray(definicion?.campos_definicion)) {
       toast.error('No hay definición válida de Análisis de Calidad para esta orden');

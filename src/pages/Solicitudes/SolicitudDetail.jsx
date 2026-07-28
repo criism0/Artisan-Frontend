@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { toast } from "react-toastify";
+import { toast } from "../../lib/toast.js";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-
+import { FileText, Plus, Loader2 } from "lucide-react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import Table from "../../components/Table";
+import Table from "../../components/Tables/Table";
 import logo from "../../assets/logo.png";
 import { apiBlob, useApi } from "../../lib/api";
 import { uploadToS3 } from "../../lib/uploadToS3";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { dteService } from "../../services/dteService.js";
+import { formatCLP } from "../../services/formatHelpers.js";
 
 function downloadBlob(blob, filename) {
   const url = window.URL.createObjectURL(blob);
@@ -97,10 +101,19 @@ export default function SolicitudDetail() {
   const [loading, setLoading] = useState(false);
 
   const [expandedPalletIds, setExpandedPalletIds] = useState(() => new Set());
+  const [gds,              setGds]              = useState([]);   // GDs de la solicitud
+  const [gdLoading,        setGdLoading]        = useState(false);
+  const [showEmitirGDModal, setShowEmitirGDModal] = useState(false);
+  // Formulario del modal de emisión GD
+  const [gdTransportista,  setGdTransportista]  = useState('');
+  const [gdFechaEnvio,     setGdFechaEnvio]     = useState(() => new Date().toISOString().slice(0, 10));
   const [guiaDespacho, setGuiaDespacho] = useState("");
   const [medioTransporte, setMedioTransporte] = useState("");
   const [mostrarFormularioEnvio, setMostrarFormularioEnvio] = useState(false);
   const [archivosGuia, setArchivosGuia] = useState([]);
+
+  const canWriteMerchRequest = checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE);
+  const canWritePallet = checkScope(ModelType.PALLET, ScopeType.WRITE);
 
   const fetchSolicitud = async () => {
     try {
@@ -119,9 +132,20 @@ export default function SolicitudDetail() {
     }
   };
 
+  const cargarGDs = async () => {
+    if (!solicitudId) return;
+    try {
+      const docs = await dteService.listarPorSolicitud(solicitudId);
+      setGds(docs ?? []);
+    } catch (err) {
+      console.error("Error cargando GDs:", err);
+    }
+  };
+
   useEffect(() => {
     if (!solicitudId) return;
     fetchSolicitud();
+    cargarGDs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solicitudId]);
 
@@ -169,23 +193,62 @@ export default function SolicitudDetail() {
 
   const insumosData = useMemo(
     () =>
-      detalles.map((detalle) => ({
-        id: detalle?.id,
-        nombre: detalle?.materiaPrima?.nombre ?? "—",
-        cantidad_solicitada: detalle?.cantidad_solicitada ?? 0,
-        cantidad_despachada:
-          detalle?.cantidad_despachada == null ? "—" : detalle.cantidad_despachada,
-        cantidad_recepcionada:
-          detalle?.cantidad_recepcionada == null ? "—" : detalle.cantidad_recepcionada,
-        unidad_medida: detalle?.materiaPrima?.unidad_medida ?? "—",
-        comentario: getComentarioText(detalle),
-      })),
+      detalles.map((detalle) => {
+        const costoUnitario =
+          detalle?.costo_unitario ??
+          detalle?.MateriaPrima?.costo_unitario ??
+          detalle?.materiaPrima?.costo_unitario ??
+          0;
+        const cantSolicitada = detalle?.cantidad_solicitada ?? 0;
+        const cantRecep = detalle?.cantidad_recepcionada ?? 0;
+        const esCajas = detalle?.producto_por_cajas && Number(detalle?.cantidad_por_caja) > 0;
+        return {
+          id: detalle?.id,
+          // PT: nombre de facturación (M4); productoBase queda para detalles legacy.
+          nombre:
+            detalle?.materiaPrima?.nombre ??
+            (detalle?.nombreFacturacion
+              ? `${detalle.nombreFacturacion.nombre} (PT)`
+              : detalle?.productoBase
+                ? `${detalle.productoBase.nombre} (PT)`
+                : "—"),
+          desglose_cajas: esCajas
+            ? `${Math.round(cantSolicitada / detalle.cantidad_por_caja)} cajas × ${detalle.cantidad_por_caja} un.`
+            : null,
+          cantidad_solicitada: cantSolicitada,
+          cantidad_despachada:
+            detalle?.cantidad_despachada == null ? "—" : detalle.cantidad_despachada,
+          cantidad_recepcionada: detalle?.cantidad_recepcionada == null ? "—" : cantRecep,
+          unidad_medida:
+            detalle?.materiaPrima?.unidad_medida ??
+            (detalle?.nombreFacturacion || detalle?.productoBase ? "Unidades" : "—"),
+          comentario: getComentarioText(detalle),
+          costo_unitario: costoUnitario,
+          costo_despachado: costoUnitario * (Number(cantSolicitada) || 0),
+        };
+      }),
     [detalles]
+  );
+
+  const costoTotalDespachado = useMemo(
+    () => insumosData.reduce((sum, d) => sum + (d.costo_despachado ?? 0), 0),
+    [insumosData]
   );
 
   const insumosColumns = useMemo(
     () => [
-      { header: "Insumo", accessor: "nombre" },
+      {
+        header: "Insumo",
+        accessor: "nombre",
+        Cell: ({ value, row }) => (
+          <div>
+            {value}
+            {row?.desglose_cajas && (
+              <div className="text-xs text-gray-500">{row.desglose_cajas}</div>
+            )}
+          </div>
+        ),
+      },
       {
         header: "Cant. Solicitada",
         accessor: "cantidad_solicitada",
@@ -203,6 +266,22 @@ export default function SolicitudDetail() {
       },
       { header: "UM", accessor: "unidad_medida" },
       {
+        header: "Costo Unitario",
+        accessor: "costo_unitario",
+        Cell: ({ value }) =>
+          value ? formatCLP(value, 0) : <span className="text-gray-400">—</span>,
+      },
+      {
+        header: "Costo Despachado",
+        accessor: "costo_despachado",
+        Cell: ({ value }) =>
+          value ? (
+            <span className="font-medium">{formatCLP(value, 0)}</span>
+          ) : (
+            <span className="text-gray-400">—</span>
+          ),
+      },
+      {
         header: "Comentario",
         accessor: "comentario",
         cellClassName: "whitespace-pre-wrap break-words max-w-[36rem]",
@@ -218,17 +297,16 @@ export default function SolicitudDetail() {
         id: p?.id,
         identificador: p?.identificador ?? `Pallet #${p?.id ?? "—"}`,
         estado: p?.estado ?? "—",
-        bultos:
-          Array.isArray(p?.Bultos) ? p.Bultos : Array.isArray(p?.bultos) ? p.bultos : [],
+        bultos: Array.isArray(p?.Bultos) ? p.Bultos : Array.isArray(p?.bultos) ? p.bultos : [],
       })),
     [pallets]
   );
 
   const palletsColumns = useMemo(
     () => [
-      { header: "ID", accessor: "id" },
+      { header: "ID",          accessor: "id"           },
       { header: "Identificador", accessor: "identificador" },
-      { header: "Estado", accessor: "estado" },
+      { header: "Estado",      accessor: "estado"       },
     ],
     []
   );
@@ -244,6 +322,41 @@ export default function SolicitudDetail() {
     []
   );
 
+  const handleEmitirGDSolicitud = async () => {
+    if (!solicitudId) return;
+    setGdLoading(true);
+    try {
+      await api('/facturacion/emitir-guia-despacho', {
+        method: 'POST',
+        body: {
+          id_solicitud_mercaderia: Number(solicitudId),
+          costo_total:            costoTotalDespachado,
+          transportista:          gdTransportista.trim() || null,
+          fecha_envio_override:   gdFechaEnvio || null,
+        },
+      });
+      toast.success('Guía de Despacho emitida correctamente');
+      setShowEmitirGDModal(false);
+      setGdTransportista('');
+      setGdFechaEnvio(new Date().toISOString().slice(0, 10));
+      await cargarGDs();
+    } catch (err) {
+      toast.error('Error al emitir GD: ' + (err?.message ?? err));
+    } finally {
+      setGdLoading(false);
+    }
+  };
+
+  const handleConfirmarLlegadaGD = async (gdId) => {
+    try {
+      await dteService.confirmarLlegada(gdId);
+      toast.success('Llegada confirmada ✓');
+      await cargarGDs();
+    } catch (err) {
+      toast.error('Error al confirmar llegada: ' + (err?.message ?? err));
+    }
+  };
+
   const toggleExpandedPallet = (palletId) => {
     setExpandedPalletIds((prev) => {
       const next = new Set(prev);
@@ -254,6 +367,14 @@ export default function SolicitudDetail() {
   };
 
   const handleValidarSolicitud = async () => {
+    if (!canWriteMerchRequest || !canWritePallet) {
+      toast.permissionError(
+        [ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE],
+        [ModelType.PALLET, ScopeType.WRITE]
+      );
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       await api(`/solicitudes-mercaderia/${solicitudId}/validar`, { method: "PUT" });
@@ -268,6 +389,11 @@ export default function SolicitudDetail() {
   };
 
   const handleCancelarSolicitud = async () => {
+    if (!canWriteMerchRequest) {
+      toast.permissionError([ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       await api(`/solicitudes-mercaderia/${solicitudId}/cancelar`, { method: "PUT" });
@@ -284,6 +410,12 @@ export default function SolicitudDetail() {
   const handleEnviarSolicitud = async () => {
     if (!guiaDespacho?.trim() || !medioTransporte?.trim()) {
       toast.error("Debes ingresar N° de guía y medio de transporte");
+      return;
+    }
+
+    if (!canWriteMerchRequest) {
+      toast.permissionError([ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE]);
+      setLoading(false);
       return;
     }
 
@@ -448,6 +580,11 @@ export default function SolicitudDetail() {
   };
 
   const handleDescargarEtiquetasPallets = async () => {
+    if (!canWriteMerchRequest) {
+      toast.permissionError([ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE]);
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const blob = await apiBlob(
@@ -467,9 +604,7 @@ export default function SolicitudDetail() {
     }
   };
 
-  if (loading && !solicitud) {
-    return <div className="p-6 text-sm text-gray-500">Cargando...</div>;
-  }
+  if (loading && !solicitud) return <PageLoader message="Cargando solicitud" />;
 
   if (loadFailed) {
     return (
@@ -676,7 +811,13 @@ export default function SolicitudDetail() {
           {insumosData.length > 0 ? (
             <>
               <Table data={insumosData} columns={insumosColumns} />
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-gray-700">
+                  <span className="text-gray-500">Costo total despachado:</span>{' '}
+                  <span className="font-semibold text-gray-900">
+                    {costoTotalDespachado > 0 ? formatCLP(costoTotalDespachado, 0) : '—'}
+                  </span>
+                </div>
                 <button
                   onClick={handleDownloadSolicitudInsumosPDF}
                   disabled={loading}
@@ -692,6 +833,162 @@ export default function SolicitudDetail() {
             </div>
           )}
         </div>
+
+        {/* ── Sección Guías de Despacho ───────────────────────────────── */}
+        <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-text">Guías de Despacho</h2>
+            {gds.length === 0 && (
+              <button
+                onClick={() => setShowEmitirGDModal(true)}
+                disabled={gdLoading || insumosData.length === 0}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50"
+                title={insumosData.length === 0 ? 'La solicitud no tiene insumos' : ''}
+              >
+                <Plus size={14} />
+                Emitir Guía de Despacho
+              </button>
+            )}
+          </div>
+
+          {gds.length === 0 ? (
+            <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-500">
+              No hay guías de despacho emitidas para esta solicitud.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {gds.map((gd) => {
+                const meta = gd.metadata ?? {};
+                const fechaLlegada = meta.fecha_llegada;
+                return (
+                  <div key={gd.id} className="flex items-center justify-between gap-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+                    <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-gray-800">GD N° {gd.folio ?? '—'}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          gd.estadoSii === 'aceptado' ? 'bg-green-100 text-green-800' :
+                          gd.estadoSii === 'rechazado' ? 'bg-red-100 text-red-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {gd.estadoSii?.toUpperCase() ?? 'PENDIENTE'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 flex flex-wrap gap-3 mt-0.5">
+                        {meta.bodega_origen && <span>De: <strong>{meta.bodega_origen}</strong></span>}
+                        {meta.bodega_destino && <span>→ <strong>{meta.bodega_destino}</strong></span>}
+                        {meta.transportista && <span>· Transportista: {meta.transportista}</span>}
+                        {gd.fechaEmision && <span>· Emitida: {new Date(gd.fechaEmision).toLocaleDateString('es-CL')}</span>}
+                        {fechaLlegada
+                          ? <span className="text-green-700 font-medium">· Llegada confirmada el {new Date(fechaLlegada).toLocaleString('es-CL')}</span>
+                          : <span className="text-amber-600">· En tránsito</span>
+                        }
+                      </div>
+                      {gd.montoTotal > 0 && (
+                        <span className="text-xs text-gray-500">Total: {formatCLP(gd.montoTotal, 0)}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {!fechaLlegada && (
+                        <button
+                          onClick={() => handleConfirmarLlegadaGD(gd.id)}
+                          className="px-2.5 py-1 text-xs font-medium rounded border border-green-300 text-green-700 hover:bg-green-50"
+                        >
+                          Confirmar llegada
+                        </button>
+                      )}
+                      <button
+                        onClick={() => dteService.verPDF(gd).catch(console.error)}
+                        className="px-2.5 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
+                        title="Ver PDF"
+                      >
+                        Ver
+                      </button>
+                      <button
+                        onClick={() => dteService.descargarPDF(gd, { id: solicitudId, materiasPrimas: [] }).catch(console.error)}
+                        className="px-2.5 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
+                        title="Descargar PDF"
+                      >
+                        Descargar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Modal emitir GD */}
+        {showEmitirGDModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                <h2 className="text-base font-bold text-gray-900">Emitir Guía de Despacho</h2>
+                <button onClick={() => setShowEmitirGDModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
+                  <Plus size={18} className="rotate-45" />
+                </button>
+              </div>
+              <div className="p-5 space-y-4">
+                {/* Bodegas (informativas, vienen de la solicitud) */}
+                <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                  <div className="flex justify-between text-gray-600">
+                    <span className="text-gray-500">Bodega origen</span>
+                    <span className="font-medium">{solicitud?.bodegaProveedora?.nombre ?? '—'}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span className="text-gray-500">Bodega destino</span>
+                    <span className="font-medium">{solicitud?.bodegaSolicitante?.nombre ?? '—'}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span className="text-gray-500">Total a despachar</span>
+                    <span className="font-semibold text-gray-900">{formatCLP(costoTotalDespachado, 0)}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Fecha de envío
+                  </label>
+                  <input
+                    type="date"
+                    value={gdFechaEnvio}
+                    onChange={(e) => setGdFechaEnvio(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Transportista
+                  </label>
+                  <input
+                    type="text"
+                    value={gdTransportista}
+                    onChange={(e) => setGdTransportista(e.target.value)}
+                    placeholder="Nombre del transportista o empresa de transporte"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    onClick={() => setShowEmitirGDModal(false)}
+                    className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleEmitirGDSolicitud}
+                    disabled={gdLoading}
+                    className="flex items-center gap-2 px-4 py-2 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50"
+                  >
+                    {gdLoading ? <><Loader2 size={14} className="animate-spin" /> Emitiendo…</> : 'Emitir GD'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {palletsData.length > 0 && (
           <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
@@ -729,7 +1026,9 @@ export default function SolicitudDetail() {
                     materia_prima:
                       b?.MateriaPrima?.nombre ??
                       b?.materiaPrima?.nombre ??
-                      "—",
+                      (b?.loteProductoFinal?.productoBase
+                        ? `${b.loteProductoFinal.productoBase.nombre} (PT)`
+                        : "—"),
                     unidades_disponibles: b?.unidades_disponibles ?? "—",
                     cantidad_un: cantidadUn,
                   };

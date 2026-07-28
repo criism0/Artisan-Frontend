@@ -2,18 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { useAuth } from "../../auth/AuthContext";
-import { jwtDecode } from "jwt-decode";
 import { toast } from "../../lib/toast";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
-import Selector from "../../components/Selector";
+import Selector from "../../components/Forms/Selector";
 import { insumoToSearchText } from "../../services/fuzzyMatch";
 import { formatNumberCL } from "../../services/formatHelpers";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 export default function AddOM() {
   const apiFetch = useApi();
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  const canReadManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ);
+  const canWriteManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE);
 
   const [productosBase, setProductosBase] = useState([]);
   const [pips, setPips] = useState([]);
@@ -50,18 +53,7 @@ export default function AddOM() {
 
   const setField = (k, v) => setForm((s) => ({ ...s, [k]: v }));
 
-  const idElaborador = useMemo(() => {
-    if (user?.id) return Number(user.id);
-    try {
-      const token =
-        localStorage.getItem("access_token") || localStorage.getItem("token");
-      if (!token) return undefined;
-      const decoded = jwtDecode(token);
-      return Number(decoded?.id ?? decoded?.sub);
-    } catch {
-      return undefined;
-    }
-  }, [user]);
+  const idElaborador = user?.id ? Number(user.id) : undefined;
 
   useEffect(() => {
     (async () => {
@@ -130,6 +122,11 @@ export default function AddOM() {
       if (!silent) {
         toast.error("Selecciona tipo, producto/PIP, bodega y peso objetivo.");
       }
+      return;
+    }
+
+    if (!canReadManufacture) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ]);
       return;
     }
 
@@ -317,6 +314,12 @@ export default function AddOM() {
   const submitOm = async ({ ignoreAvailability = false } = {}) => {
     setError(null);
     setSuccess(null);
+
+    if (!canWriteManufacture) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE]);
+      setLoading(false);
+      return;
+    }
 
     if (!idElaborador) {
       toast.error(

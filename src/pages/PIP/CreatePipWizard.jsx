@@ -5,17 +5,19 @@ import { ApiError, useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { insumoToSearchText } from "../../services/fuzzyMatch";
 
-import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
+import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmModal";
 
 import TabButton from "../../components/Wizard/TabButton";
 import { toNumber } from "../../utils/toNumber";
 
-import DatosPipTab from "../../components/WizardTabs/DatosPipTab";
-import RecetaTab from "../../components/WizardTabs/RecetaTab";
-import CostosSecosTab from "../../components/WizardTabs/CostosSecosTab";
-import PautaTab from "../../components/WizardTabs/PautaTab";
-import PVAsTab from "../../components/WizardTabs/PVAsTab";
-import CostosIndirectosTab from "../../components/WizardTabs/CostosIndirectosTab";
+import DatosPipTab from "../../components/Wizard/DatosPipTab";
+import RecetaTab from "../../components/Wizard/RecetaTab";
+import CostosSecosTab from "../../components/Wizard/CostosSecosTab";
+import PautaTab from "../../components/Wizard/PautaTab";
+import PVAsTab from "../../components/Wizard/PVAsTab";
+import CostosIndirectosTab from "../../components/Wizard/CostosIndirectosTab";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function CreatePipWizard() {
   const api = useApi();
@@ -31,6 +33,8 @@ export default function CreatePipWizard() {
   });
 
   const [tab, setTab] = useState("datos");
+  const [isLoading, setIsLoading] = useState(true);
+  const [pipErrors, setPipErrors] = useState({});
 
   const [categorias, setCategorias] = useState([]);
   const [materiasPrimas, setMateriasPrimas] = useState([]);
@@ -49,6 +53,7 @@ export default function CreatePipWizard() {
     nombre: "",
     unidad_medida: "",
     stock_critico: "0",
+    semanas_seguridad: "",
   });
 
   const [recetaForm, setRecetaForm] = useState({
@@ -80,8 +85,23 @@ export default function CreatePipWizard() {
   const [costoPorKg, setCostoPorKg] = useState("0");
   const [nuevoCosto, setNuevoCosto] = useState({ nombre: "", descripcion: "" });
 
+  const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteRecipe = checkScope(ModelType.RECETA, ScopeType.WRITE);
+  const canWriteRecipeIngredient = checkScope(ModelType.INGREDIENTE_RECETA, ScopeType.WRITE);
+  const canDeleteRecipeIngredient = checkScope(ModelType.INGREDIENTE_RECETA, ScopeType.DELETE);
+  const canWriteRawMaterial = checkScope(ModelType.MATERIA_PRIMA, ScopeType.WRITE);
+  const canWriteIndirectCost = checkScope(ModelType.COSTO_INDIRECTO, ScopeType.WRITE);
+  const canDeleteIndirectCost = checkScope(ModelType.COSTO_INDIRECTO, ScopeType.DELETE);
+
   useEffect(() => {
     const load = async () => {
+      if (!canReadElaborationGuideline) {
+        toast.permissionError(
+          [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+        );
+        setIsLoading(false);
+        return;
+      }
       try {
         const [catRes, mps, pautasRes, costosRes] = await Promise.all([
           api("/categorias-materia-prima"),
@@ -96,10 +116,12 @@ export default function CreatePipWizard() {
       } catch (e) {
         console.error(e);
         toast.error("No se pudieron cargar datos iniciales: " + (e?.message || e));
+      } finally {
+        setIsLoading(false);
       }
     };
     void load();
-  }, [api]);
+  }, [api, canReadElaborationGuideline]);
 
   useEffect(() => {
     const u = String(pipForm.unidad_medida || "");
@@ -177,12 +199,29 @@ export default function CreatePipWizard() {
     const stockCriticoNum = toNumber(pipForm.stock_critico);
     if (stockCriticoNum < 0) return toast.error("Stock crítico no puede ser negativo");
 
+    const semanasSeguridadProvided = pipForm.semanas_seguridad !== "";
+    const semanasSeguridadNum = toNumber(pipForm.semanas_seguridad);
+    if (semanasSeguridadProvided && (!Number.isFinite(semanasSeguridadNum) || semanasSeguridadNum < 0)) {
+      setPipErrors((prev) => ({
+        ...prev,
+        semanas_seguridad: "Las semanas de seguridad deben ser un número mayor o igual a 0.",
+      }));
+      return toast.error("Semanas de seguridad no puede ser negativo");
+    }
+    setPipErrors((prev) => ({...prev, semanas_seguridad: undefined}));
+
+    if (!canWriteRawMaterial) {
+      toast.permissionError([ModelType.MATERIA_PRIMA, ScopeType.WRITE]);
+      return;
+    }
+
     try {
       const payload = {
         nombre: pipForm.nombre.trim(),
         id_categoria: Number(pipCategoriaId),
         unidad_medida: pipForm.unidad_medida,
         stock_critico: stockCriticoNum,
+        ...(semanasSeguridadProvided ? {semanas_seguridad: semanasSeguridadNum} : {}),
       };
 
       if (pipId) {
@@ -242,6 +281,10 @@ export default function CreatePipWizard() {
   };
 
   const handleGuardarReceta = async (confirmSimilarNameOrEvent = false) => {
+    if (!canWriteRecipe) {
+      toast.permissionError([ModelType.RECETA, ScopeType.WRITE]);
+      return;
+    }
     const confirmSimilarName = typeof confirmSimilarNameOrEvent === "boolean" ? confirmSimilarNameOrEvent : false;
     if (!pipId) return toast.error("Primero debes guardar el PIP");
     const pesoNum = toNumber(recetaForm.peso);
@@ -324,6 +367,13 @@ export default function CreatePipWizard() {
   const handleAddOrUpdateIngrediente = async () => {
     if (!recetaId) return;
     if (!selectedIngredientId) return toast.error("Selecciona un ingrediente");
+    if (!canWriteRecipe || !canWriteRecipeIngredient) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.INGREDIENTE_RECETA, ScopeType.WRITE]
+      );
+      return;
+    }
     const pesoNum = toNumber(ingredientPeso);
     if (pesoNum <= 0) return toast.error("El peso del ingrediente debe ser mayor a 0");
 
@@ -365,6 +415,13 @@ export default function CreatePipWizard() {
 
   const handleRemoveIngrediente = async (ingredienteId) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canDeleteRecipeIngredient) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.INGREDIENTE_RECETA, ScopeType.DELETE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${recetaId}/ingredientes/${ingredienteId}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
@@ -378,6 +435,13 @@ export default function CreatePipWizard() {
   const handleAddSubproducto = async () => {
     if (!recetaId) return;
     if (!selectedSubproductId) return toast.error("Selecciona un subproducto");
+    if (!canWriteRecipe || !canWriteRawMaterial) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.MATERIA_PRIMA, ScopeType.WRITE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${recetaId}/subproductos`, {
         method: "POST",
@@ -394,6 +458,13 @@ export default function CreatePipWizard() {
 
   const handleRemoveSubproducto = async (idMateriaPrima) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canWriteRawMaterial) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.MATERIA_PRIMA, ScopeType.WRITE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${recetaId}/subproductos/${idMateriaPrima}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
@@ -408,6 +479,10 @@ export default function CreatePipWizard() {
   const handleGuardarPauta = async () => {
     if (!recetaId) return;
     if (!selectedPautaId) return toast.error("Selecciona una pauta");
+    if (!canWriteRecipe) {
+      toast.permissionError([ModelType.RECETA, ScopeType.WRITE]);
+      return;
+    }
     try {
       const recetaActual = await api(`/recetas/${recetaId}`);
       await api(`/recetas/${recetaId}`, {
@@ -435,6 +510,10 @@ export default function CreatePipWizard() {
   const handleCrearCosto = async () => {
     const nombre = String(nuevoCosto.nombre || "").trim();
     if (!nombre) return toast.error("Nombre de costo indirecto es obligatorio");
+    if (!canWriteIndirectCost) {
+      toast.permissionError([ModelType.COSTO_INDIRECTO, ScopeType.WRITE]);
+      return;
+    }
     try {
       await api("/costos-indirectos", {
         method: "POST",
@@ -453,6 +532,13 @@ export default function CreatePipWizard() {
   const handleAddCostoReceta = async () => {
     if (!recetaId) return;
     if (!selectedCostoId) return toast.error("Selecciona un costo indirecto");
+    if (!canWriteRecipe || !canWriteIndirectCost) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.COSTO_INDIRECTO, ScopeType.WRITE]
+      );
+      return;
+    }
     const costoNum = toNumber(costoPorKg);
     if (costoNum < 0) return toast.error("Costo por kg no puede ser negativo");
     try {
@@ -472,6 +558,13 @@ export default function CreatePipWizard() {
 
   const handleUpdateCostoReceta = async (idCosto, nextCostoPorKg) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canWriteIndirectCost) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.COSTO_INDIRECTO, ScopeType.WRITE]
+      );
+      return;
+    }
     const costoNum = toNumber(nextCostoPorKg);
     if (costoNum < 0) return;
     try {
@@ -488,6 +581,13 @@ export default function CreatePipWizard() {
 
   const handleRemoveCostoReceta = async (idCosto) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canDeleteIndirectCost) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.COSTO_INDIRECTO, ScopeType.DELETE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${recetaId}/costos-indirectos/${idCosto}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
@@ -500,6 +600,8 @@ export default function CreatePipWizard() {
 
   const canGoReceta = !!pipId;
   const canGoRest = !!recetaId;
+
+  if (isLoading) return <PageLoader message="Cargando datos" />;
 
   return (
     <div className="p-6 bg-background min-h-screen">
@@ -565,6 +667,7 @@ export default function CreatePipWizard() {
           pipForm={pipForm}
           setPipForm={setPipForm}
           onGuardarPip={() => handleGuardarPip(false)}
+          errors={pipErrors}
         />
       ) : null}
 

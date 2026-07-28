@@ -1,24 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { formatRutDisplay, toTitle, formatPhone, formatEmail, fmt } from "../../services/formatHelpers";
-import { BackButton, ModifyButton, ToggleActiveButton } from "../../components/Buttons/ActionButtons";
+import { formatRutDisplay, toTitle, formatPhone, formatEmail, fmt, formatNumberCL } from "../../services/formatHelpers";
+import { BackButton, EditButton, ToggleActiveButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 
 const MONEDAS_POSIBLES = ["CLP", "USD", "EUR", "UF"];
 
 import { toNumber } from "../../utils/toNumber";
-
-function formatNumberCL(value) {
-  const n = toNumber(value);
-  return n.toLocaleString("es-CL");
-}
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 function InfoTable({ title, rows }) {
   return (
-    <div className="bg-gray-200 p-4 rounded-lg">
-      <table className="w-full bg-white rounded-lg shadow overflow-hidden">
-        <thead className="bg-gray-100 text-sm text-gray-600">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <table className="w-full">
+        <thead className="bg-gray-50 text-sm text-gray-600">
           <tr>
             <th className="px-6 py-3 text-base font-semibold text-left">{title}</th>
             <th className="px-6 py-3 text-base font-semibold text-left">Dato</th>
@@ -72,6 +69,8 @@ function ProveedorInsumos({ proveedorId }) {
   const [draftById, setDraftById] = useState({});
   const [dirtyIds, setDirtyIds] = useState(() => new Set());
   const [loading, setLoading] = useState(false);
+
+  const canWriteRawMaterialProvider = checkScope(ModelType.PROVEEDOR_MATERIA_PRIMA, ScopeType.WRITE);
 
   const loadAsociaciones = async () => {
     if (!proveedorId) {
@@ -327,6 +326,11 @@ function ProveedorInsumos({ proveedorId }) {
       return;
     }
 
+    if (!canWriteRawMaterialProvider) {
+      toast.permissionError([ModelType.PROVEEDOR_MATERIA_PRIMA, ScopeType.WRITE]);
+      return;
+    }
+
     try {
       const results = await Promise.allSettled(
         ids.map(async (id) => {
@@ -382,8 +386,8 @@ function ProveedorInsumos({ proveedorId }) {
   };
 
   return (
-    <div className="bg-gray-200 p-4 rounded-lg">
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3 px-4 py-3">
           <div className="text-sm font-semibold text-gray-800">Insumos asociados</div>
@@ -417,7 +421,7 @@ function ProveedorInsumos({ proveedorId }) {
           <button
             className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-60"
             onClick={handleGuardarCambios}
-            disabled={loading || resumen.pendientes === 0}
+            disabled={loading || resumen.pendientes === 0 || !canWriteRawMaterialProvider}
             type="button"
           >
             Guardar ({resumen.pendientes})
@@ -532,7 +536,7 @@ function ProveedorInsumos({ proveedorId }) {
                                 className={`w-full border rounded-lg px-2 py-1 ${isDirty ? "bg-yellow-50" : "bg-white"}`}
                               />
                             ) : (
-                              <div className="text-gray-900 py-1">{formatNumberCL(displayPrecio)}</div>
+                              <div className="text-gray-900 py-1">{formatNumberCL(toNumber(displayPrecio), 3, 0)}</div>
                             )}
                           </td>
 
@@ -587,8 +591,16 @@ export default function ProveedorDetail() {
   const [prov, setProv] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const canReadProvider = checkScope(ModelType.PROVEEDOR, ScopeType.READ);
+  const canWriteProvider = checkScope(ModelType.PROVEEDOR, ScopeType.WRITE);
+
   useEffect(() => {
     const fetchOne = async () => {
+      if (!canReadProvider) {
+        toast.permissionError([ModelType.PROVEEDOR, ScopeType.READ]);
+        setLoading(false);
+        return;
+      }
       try {
         const data = await api(`/proveedores/${id}`, { method: "GET" });
         setProv(data);
@@ -599,10 +611,14 @@ export default function ProveedorDetail() {
       }
     };
     fetchOne();
-  }, [id, api]);
+  }, [id, api, canReadProvider]);
 
   const handleToggleStatus = async () => {
     if (!prov) return;
+    if (!canWriteProvider) {
+      toast.permissionError([ModelType.PROVEEDOR, ScopeType.WRITE]);
+      return;
+    }
     try {
       const nuevoEstado = !(prov.activo === true);
       await api(`/proveedores/${id}/toggle-activo`, {
@@ -615,7 +631,7 @@ export default function ProveedorDetail() {
     }
   };
 
-  if (loading) return <div className="p-6">Cargando…</div>;
+  if (loading) return <PageLoader message="Cargando proveedor" />;
   if (!prov) return <div className="p-6">Proveedor no encontrado.</div>;
 
   const activo = prov.activo === true;
@@ -637,18 +653,22 @@ export default function ProveedorDetail() {
 
   return (
     <div className="p-6 bg-background min-h-screen">
-      <div className="flex items-center justify-between mb-6 w-full">
+      <div className="mb-4">
+        <BackButton to="/Proveedores" />
+      </div>
+
+      <div className="flex items-center justify-between mb-4 w-full">
         <h1 className="text-2xl font-bold text-text">Detalle de Proveedor</h1>
-        <div className="flex gap-2">
-          <BackButton to="/Proveedores" />
-          <ModifyButton onClick={() => navigate(`/Proveedores/${id}/edit`)} />
+        <div className="flex gap-2 items-center">
+          <EditButton
+            onClick={() => navigate(`/Proveedores/${id}/edit`)}
+            tooltipText="Editar Proveedor"
+          />
           <ToggleActiveButton
             isActive={activo}
             entityName={"proveedor " + razon}
             onToggleActive={handleToggleStatus}
           />
-
-
         </div>
       </div>
     

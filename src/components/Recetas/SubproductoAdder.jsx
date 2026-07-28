@@ -1,4 +1,4 @@
-import Selector from "../Selector";
+import Selector from "../Forms/Selector";
 
 export default function SubproductoAdder({
   opcionesSubproductos,

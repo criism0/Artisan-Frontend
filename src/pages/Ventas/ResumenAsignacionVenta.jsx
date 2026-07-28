@@ -3,12 +3,16 @@ import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { ArrowLeft } from "lucide-react";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 export default function ResumenAsignacionVenta() {
   const { ordenId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const api = useApi();
+  const confirm = useConfirm();
 
   const [orden, setOrden] = useState(null);
   const [resumenAsignaciones, setResumenAsignaciones] = useState(null);
@@ -16,30 +20,14 @@ export default function ResumenAsignacionVenta() {
   const [palletIdNum, setPalletIdNum] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const canWriteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         // Obtener datos pasados desde la navegación o cargar desde el backend
         if (location.state?.resumen && location.state?.orden) {
-          // Cargar productos base para obtener los nombres si no vienen en el resumen
-          const productosBaseRes = await api(`/productos-base`);
-          const productosBase = Array.isArray(productosBaseRes) 
-            ? productosBaseRes 
-            : productosBaseRes.data || [];
-          
-          // Actualizar los nombres de productos en el resumen si es necesario
-          const resumenConNombres = {
-            ...location.state.resumen,
-            productosAsignados: location.state.resumen.productosAsignados?.map((producto) => {
-              const productoBase = productosBase.find(p => p.id === producto.id_producto);
-              return {
-                ...producto,
-                nombre: productoBase?.nombre || producto.nombre || `Producto #${producto.id_producto}`,
-              };
-            }) || [],
-          };
-          
-          setResumenAsignaciones(resumenConNombres);
+          setResumenAsignaciones(location.state.resumen);
           setOrden(location.state.orden);
           // Obtener el pallet ID desde la orden para poder usarlo en el botón
           const palletFromState = location.state.orden.productos_ingresados?.[0];
@@ -49,14 +37,8 @@ export default function ResumenAsignacionVenta() {
           setLoading(false);
           return;
         }
-        // Cargar productos base para obtener los nombres
-        const productosBaseRes = await api(`/productos-base`);
-        const productosBase = Array.isArray(productosBaseRes) 
-          ? productosBaseRes 
-          : productosBaseRes.data || [];
-        
-        // Obtener bultos asignados por producto desde el endpoint
-        const bultosPorProductoBase = await api(`/ordenes-venta/${ordenId}/added-products`);
+        // Obtener bultos asignados por nombre de facturación desde el endpoint
+        const bultosPorNombre = await api(`/ordenes-venta/${ordenId}/added-products`);
         
         // Si no vienen datos, cargar desde el backend
         const resOrden = await api(`/ordenes-venta/${ordenId}/info`);
@@ -81,16 +63,18 @@ export default function ResumenAsignacionVenta() {
         // Obtener productos de la orden
         const productosOrden = ordenData.productos || ordenData.productosOrden || [];
 
-        // Construir el resumen usando los bultos asignados por Producto Comercial
+        // Construir el resumen: las líneas van por nombre de facturación y
+        // added-products viene agrupado por id_nombre_facturacion
         const productosAsignados = productosOrden.map((productoOrden) => {
-          // Buscar el nombre del producto en la lista de productos base
-          const productoBase = productosBase.find(p => p.id === productoOrden.id_producto);
-          const nombreProducto = productoBase?.nombre || `Producto #${productoOrden.id_producto}`;
-          
-          // Obtener los bultos asignados para este Producto Comercial
-          const idProductoBase = String(productoOrden.id_producto);
-          const bultosProducto = Array.isArray(bultosPorProductoBase[idProductoBase]) 
-            ? bultosPorProductoBase[idProductoBase] 
+          const nombreProducto =
+            productoOrden.NombreFacturacion?.nombre ||
+            productoOrden.ProductoBase?.nombre ||
+            `Línea #${productoOrden.id}`;
+
+          // Obtener los bultos asignados para esta línea (nombre de facturación)
+          const idNombre = String(productoOrden.id_nombre_facturacion);
+          const bultosProducto = Array.isArray(bultosPorNombre[idNombre])
+            ? bultosPorNombre[idNombre]
             : [];
 
           // Calcular el total de unidades asignadas
@@ -100,7 +84,7 @@ export default function ResumenAsignacionVenta() {
           );
 
           return {
-            id_producto: productoOrden.id_producto,
+            id_nombre_facturacion: productoOrden.id_nombre_facturacion,
             nombre: nombreProducto,
             cantidad_requerida: Number(productoOrden.cantidad) || 0,
             total_asignado: totalAsignado,
@@ -110,6 +94,7 @@ export default function ResumenAsignacionVenta() {
               unidades_a_mover: Number(b.cantidad_unidades) || Number(b.unidades_disponibles) || 0,
               unidades_disponibles: Number(b.unidades_disponibles) || Number(b.cantidad_unidades) || 0,
               cantidad_unidades: Number(b.cantidad_unidades) || 0,
+              producto_nombre: b.producto_nombre || null,
             })),
           };
         });
@@ -136,7 +121,17 @@ export default function ResumenAsignacionVenta() {
       return;
     }
 
-    if (!window.confirm("¿Estás seguro de volver esta orden a estado Pendiente? Esto eliminará el pallet actual y creará uno nuevo vacío.")) {
+    if (!canWriteSaleOrder) {
+      toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.WRITE]);
+      setIsProcessing(false);
+      return;
+    }
+
+    if (!(await confirm({
+      title: "¿Volver la orden a Pendiente?",
+      message: "Esto eliminará el pallet actual y creará uno nuevo vacío.",
+      confirmText: "Volver a Pendiente",
+    }))) {
       return;
     }
 
@@ -158,9 +153,7 @@ export default function ResumenAsignacionVenta() {
     }
   };
 
-  if (loading) {
-    return <div className="p-6">Cargando...</div>;
-  }
+  if (loading) return <PageLoader message="Cargando resumen" />;
 
   if (!orden || !resumenAsignaciones) {
     return <div className="p-6">No se pudieron cargar los datos</div>;
@@ -224,7 +217,7 @@ export default function ResumenAsignacionVenta() {
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <h3 className="font-semibold text-lg">
-                    {producto.nombre || `Producto #${producto.id_producto}`}
+                    {producto.nombre || `Línea #${producto.id_nombre_facturacion ?? producto.id_producto}`}
                   </h3>
                   <p className="text-sm text-gray-600">
                     Cantidad requerida: {producto.cantidad_requerida} unidades
@@ -257,6 +250,9 @@ export default function ResumenAsignacionVenta() {
                         <span>
                           Bulto {bulto.identificador || bulto.bulto_id} -{" "}
                           {bulto.unidades_a_mover} unidades
+                          {bulto.producto_nombre ? (
+                            <span className="text-gray-500"> · {bulto.producto_nombre}</span>
+                          ) : null}
                         </span>
                         <span className="text-gray-600">
                           Disponible: {bulto.unidades_disponibles || bulto.cantidad_unidades}{" "}

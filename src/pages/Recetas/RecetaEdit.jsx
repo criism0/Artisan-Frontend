@@ -5,6 +5,8 @@ import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { AlertTriangle, Edit, X } from "lucide-react";
 import PautaEditor from "../../components/Pautas/PautaEditor";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 // ────────────────────────────────────────────────
 // CONSTANTS
@@ -34,12 +36,29 @@ export default function RecetaEdit() {
   const [camposAnalisisSensorial, setCamposAnalisisSensorial] = useState([]);
   const [pautaErrors, setPautaErrors] = useState({});
 
+  // Permisos
+  const canReadElaborationGuidelineSteps = checkScope(ModelType.PASO_PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteElaborationGuidelineSteps = checkScope(ModelType.PASO_PAUTA_ELABORACION, ScopeType.WRITE);
+  const canDeleteElaborationGuidelineSteps = checkScope(ModelType.PASO_PAUTA_ELABORACION, ScopeType.DELETE);
+
+  const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.WRITE);
+
+  const canWriteRecipe = checkScope(ModelType.RECETA, ScopeType.WRITE);
+
   // ────────────────────────────────────────────────
   // FETCH DATOS
   // ────────────────────────────────────────────────
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!canReadElaborationGuideline) {
+        toast.permissionError(
+          [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+        );
+        setIsLoading(false);
+        return;
+      }
       try {
         const [materiasRes, productosRes, pautasRes, recetaRes] = await Promise.all([
           api(`/materias-primas`),
@@ -77,7 +96,7 @@ export default function RecetaEdit() {
       }
     };
     fetchData();
-  }, [id, api]);
+  }, [id, api, canReadElaborationGuideline]);
 
   // ────────────────────────────────────────────────
   // HANDLERS DE CAMBIOS
@@ -132,6 +151,15 @@ export default function RecetaEdit() {
   // ────────────────────────────────────────────────
   const handleEditarPautaClick = async () => {
     if (!receta.id_pauta_elaboracion) return;
+
+    if (!canReadElaborationGuidelineSteps || !canReadElaborationGuideline) {
+      toast.permissionError(
+        [ModelType.PASO_PAUTA_ELABORACION, ScopeType.READ],
+        [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+      );
+      setEditandoPauta(false);
+      return;
+    }
     
     try {
       // Cargar datos de la pauta
@@ -167,6 +195,13 @@ export default function RecetaEdit() {
   };
 
   const handleGuardarPauta = async () => {
+    if (!canReadElaborationGuidelineSteps || !canDeleteElaborationGuidelineSteps || !canWriteElaborationGuidelineSteps || !canWriteElaborationGuideline || !canReadElaborationGuideline) {
+      toast.permissionError(
+        [ModelType.PASO_PAUTA_ELABORACION, [ScopeType.READ, ScopeType.WRITE, ScopeType.DELETE]],
+        [ModelType.PAUTA_ELABORACION, [ScopeType.READ, ScopeType.WRITE]]
+      );
+      return;
+    }
     try {
       // Validar datos básicos
       if (!pautaEditData?.name || !pautaEditData?.description) {
@@ -268,6 +303,10 @@ export default function RecetaEdit() {
   // GUARDAR CAMBIOS
   // ────────────────────────────────────────────────
   const handleSave = async () => {
+    if (!canWriteRecipe) {
+      toast.permissionError([ModelType.RECETA, ScopeType.WRITE]);
+      return;
+    }
     // Validate required fields based on recipe type
     if (receta.tipo === RECIPE_TYPES.PIP && !receta.id_materia_prima) {
       toast.error("Debe seleccionar un insumo para recetas PIP.");
@@ -339,14 +378,7 @@ export default function RecetaEdit() {
   // ────────────────────────────────────────────────
   // UI
   // ────────────────────────────────────────────────
-  if (isLoading) {
-    return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-        <span className="ml-3 text-primary">Cargando receta...</span>
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoader message="Cargando receta" />;
 
   if (error) {
     return (

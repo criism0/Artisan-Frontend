@@ -1,12 +1,31 @@
+function puntearMiles(s) {
+  let out = "";
+  for (let i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 === 0) out += ".";
+    out += s[i];
+  }
+  return out;
+}
+
 export function formatRutDisplay(value) {
   if (!value) return "—";
   const clean = String(value).replace(/[^0-9kK]/g, "").toUpperCase();
   if (clean.length < 2) return value;
   const cuerpo = clean.slice(0, -1);
   const dv = clean.slice(-1);
-  const cuerpoFmt = cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const cuerpoFmt = puntearMiles(cuerpo);
   return `${cuerpoFmt}-${dv}`;
 }
+
+export function esEmailValido(email){
+    if (/\s/.test(email)) return false;          
+    const partes = email.split('@');
+    if (partes.length !== 2) return false;       
+    const [local, dominio] = partes;
+    if (!local) return false;                     
+    const punto = dominio.lastIndexOf('.');
+    return punto > 0 && punto < dominio.length - 1; 
+  };
 
 /**
  * Formatea un número en estilo es-CL (miles con punto, decimales con coma).
@@ -37,6 +56,14 @@ export function formatCLP(value, decimals = 2) {
   }).format(num);
 }
 
+export function formatCLPCompact(value) {
+  const n = Number(value) || 0;
+  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
+  return `$${n}`;
+}
+
 export function toTitle(str) {
   if (!str) return "—";
   return String(str)
@@ -62,6 +89,32 @@ export function formatPhone(value) {
     return `${country} ${local[0]} ${local.slice(1, 5)} ${local.slice(5)}`;
   }
   return value;
+}
+
+/**
+ * Formatea un teléfono chileno progresivamente mientras se escribe en un input:
+ * "+56 9 1234 5678". Pensado para onChange de campos controlados (distinto de
+ * formatPhone, que es solo para mostrar un valor ya guardado).
+ */
+export function formatPhoneInput(value) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  const sinPrefijo = digits.startsWith("56") ? digits.slice(2) : digits;
+  let out = "+56";
+  if (sinPrefijo.length === 0) return out;
+  out += " " + sinPrefijo.slice(0, 1);
+  if (sinPrefijo.length <= 1) return out;
+  out += " " + sinPrefijo.slice(1, 5);
+  if (sinPrefijo.length <= 5) return out;
+  out += " " + sinPrefijo.slice(5, 9);
+  return out.trim();
+}
+
+/**
+ * Valida un teléfono chileno con el formato que produce formatPhoneInput:
+ * "+56 9 1234 5678".
+ */
+export function validarTelefonoCL(value) {
+  return /^\+56\s\d\s\d{4}\s\d{4}$/.test(value);
 }
 
 export function formatEmail(v) {

@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import axiosInstance from "../../axiosInstance";
+import { useApi } from "../../lib/api";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { toast } from "../../lib/toast.js";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 
 function Row({ label, value }) {
   return (
@@ -18,13 +22,22 @@ export default function LoteProductoFinalDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const api = useApi();
+  const confirm = useConfirm();
+
+  const canReadFinishedLot = checkScope(ModelType.LOTE_PRODUCTO_FINAL, ScopeType.READ);
+  const canDeleteFinishedLot = checkScope(ModelType.LOTE_PRODUCTO_FINAL, ScopeType.DELETE);
 
   useEffect(() => {
+    if (!canReadFinishedLot) {
+      toast.permissionError([ModelType.LOTE_PRODUCTO_FINAL, ScopeType.READ]);
+      setLoading(false);
+      return;
+    }
+
     const fetchData = async () => {
       try {
-        const base = import.meta.env.VITE_BACKEND_URL;
-        const url = `${base}/lotes-producto-final/${id}`;
-        const { data } = await axiosInstance.get(url);
+        const data = await api(`/lotes-producto-final/${id}`);
         setLote(data);
       } catch (e) {
         console.error(e);
@@ -34,23 +47,24 @@ export default function LoteProductoFinalDetail() {
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, canReadFinishedLot]);
 
   const handleDelete = async () => {
-    const confirm = window.confirm(
-      "¿Estás seguro de que deseas eliminar este lote?"
-    );
-    if (!confirm) return;
+    if (!canDeleteFinishedLot){
+      toast.permissionError([ModelType.LOTE_PRODUCTO_FINAL, ScopeType.DELETE]);
+      setDeleting(false);
+      return;
+    }
+    if (!(await confirm({ title: "¿Eliminar lote?", message: "Esta acción no se puede deshacer.", confirmText: "Eliminar", danger: true }))) return;
 
     try {
       setDeleting(true);
-      const base = import.meta.env.VITE_BACKEND_URL;
-      await axiosInstance.delete(`${base}/lotes-producto-final/${id}`);
-      alert("Lote eliminado correctamente.");
+      await api(`/lotes-producto-final/${id}`, { method: "DELETE" });
+      toast.success("Lote eliminado correctamente.");
       navigate("/lotes-producto-en-proceso");
     } catch (err) {
       console.error(err);
-      alert("No se pudo eliminar el lote. Intenta nuevamente.");
+      toast.error("No se pudo eliminar el lote. Intenta nuevamente.");
     } finally {
       setDeleting(false);
     }
@@ -107,7 +121,7 @@ export default function LoteProductoFinalDetail() {
     };
   }, [lote]);
 
-  if (loading) return <div className="p-6">Cargando...</div>;
+  if (loading) return <PageLoader message="Cargando lote" />;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
   if (!lote) return null;
 

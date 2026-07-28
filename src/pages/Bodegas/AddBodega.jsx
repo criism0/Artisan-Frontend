@@ -2,7 +2,10 @@ import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useRef, useState } from "react";
 import { ApiError, useApi } from "../../lib/api";
-import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
+import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmModal";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import toast from "../../lib/toast.js";
 
 export default function AddBodega() {
   const navigate = useNavigate();
@@ -26,6 +29,8 @@ export default function AddBodega() {
   const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  const canWriteWarehouse = checkScope(ModelType.BODEGA, ScopeType.WRITE);
 
   const validate = () => {
     const newErrors = {};
@@ -57,22 +62,25 @@ export default function AddBodega() {
   const handleSubmit = async (e, confirmSimilarName = false) => {
     e.preventDefault();
     if (!validate()) return;
-
+    if (!canWriteWarehouse) {
+      toast.permissionError([ModelType.BODEGA, ScopeType.WRITE]);
+      setSaving(false);
+      return;
+    }
     try {
       setSaving(true);
       setError(null);
 
       const res = await apiFetch(`/bodegas`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        body: {
           nombre: formData.nombre.trim(),
           region: formData.region.trim(),
           comuna: formData.comuna.trim(),
           direccion: formData.direccion.trim(),
           admite_produccion: formData.admite_produccion,
           confirmSimilarName,
-        }),
+        },
       });
 
       const body = res?.data ?? res;
@@ -101,6 +109,11 @@ export default function AddBodega() {
 
   return (
     <div className="p-6 bg-background min-h-screen">
+      {saving && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <div className="mb-4">
         <BackButton to="/Bodegas" />
       </div>

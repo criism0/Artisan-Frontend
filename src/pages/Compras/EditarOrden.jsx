@@ -4,10 +4,13 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { uploadToS3 } from "../../lib/uploadToS3";
-import ConfirmModal from "../../components/ConfirmModal";
-import Selector from "../../components/Selector";
+import ConfirmModal from "../../components/Modals/ConfirmModal";
+import Selector from "../../components/Forms/Selector";
 import { buildOcEmailItemsFromOrden, notifyOrderChange } from "../../services/emailService";
 import { useAuth } from "../../auth/AuthContext";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function EditOrden() {
   const { user } = useAuth();
@@ -33,6 +36,11 @@ export default function EditOrden() {
   const [formErrors, setFormErrors] = useState({});
   const [showInsumoError, setShowInsumoError] = useState(false);
   const [insumoErrorMsg, setInsumoErrorMsg] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const canWritePurchaseOrder = checkScope(ModelType.ORDEN_COMPRA, ScopeType.WRITE);
+  const canReadProvider = checkScope(ModelType.PROVEEDOR, ScopeType.READ);
 
   const hydrateProveedorInsumosWithOC = (proveedorInsumos, seleccionados) => {
     const byId = new Map(
@@ -61,6 +69,11 @@ export default function EditOrden() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!canReadProvider) {
+        toast.permissionError([ModelType.PROVEEDOR, ScopeType.READ]);
+        setIsLoading(false);
+        return;
+      }
       try {
         const [provRes, bodRes, ordenRes] = await Promise.all([
           api(`/proveedores`),
@@ -120,16 +133,22 @@ export default function EditOrden() {
             .filter((x) => Number.isFinite(x.id_proveedor_materia_prima))
         );
       } catch (error) {
-        toast.error("Error al cargar datos de la orden:", error);
+        toast.error(`Error al cargar datos de la orden: ${error.message}`);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchData();
-  }, [ordenId]); 
+  }, [ordenId, canReadProvider]);
 
   useEffect(() => {
     const fetchInsumos = async () => {
       if (!form.id_proveedor) return;
+      if (!canReadProvider) {
+        toast.permissionError([ModelType.PROVEEDOR, ScopeType.READ]);
+        return;
+      }
       try {
         const res = await api(`/proveedores/${form.id_proveedor}`, { method: "GET" });
         const activosBase = res.materiasPrimas?.filter((i) => i.materiaPrima?.activo) || [];
@@ -141,7 +160,7 @@ export default function EditOrden() {
           hydrateProveedorInsumosWithOC(activos, insumosSeleccionados)
         );
       } catch (error) {
-        toast.error("Error al cargar materias primas del proveedor:", error);
+        toast.error(`Error al cargar materias primas del proveedor: ${error.message}`);
         setMateriasPrimas([]);
       }
     };
@@ -388,6 +407,12 @@ export default function EditOrden() {
     e.preventDefault();
     if (!validateForm()) return;
 
+    if (!canWritePurchaseOrder) {
+      toast.permissionError([ModelType.ORDEN_COMPRA, ScopeType.WRITE]);
+      setIsSubmitting(false);
+      return;
+    }
+    setIsSubmitting(true);
     // Subir archivos nuevos a S3
     let nuevosS3Refs = [];
     if (form.archivosAdjuntos.length > 0) {
@@ -397,7 +422,7 @@ export default function EditOrden() {
             const ref = await uploadToS3(file);
             return ref;
           } catch (err) {
-            toast.error(`Error subiendo ${file.name}:`, err);
+            toast.error(`Error subiendo ${file.name}: ${err.message}`);
             return null;
           }
         })
@@ -433,18 +458,27 @@ export default function EditOrden() {
       });
       toast.success("Orden de compra actualizada correctamente");
       try {
-        emailSender(ordenId)
+        await emailSender(ordenId)
       } catch (emailErr) {
-        toast.error("Error enviando email tras crear orden:", emailErr);
+        toast.error(`Error enviando email tras crear orden: ${emailErr.message}`);
       }
       navigate("/Ordenes");
     } catch (error) {
-      toast.error("Error al actualizar la orden:", error);
+      toast.error(`Error al actualizar la orden: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  if (isLoading) return <PageLoader message="Cargando orden" />;
+
   return (
     <div className="p-6 bg-background min-h-screen">
+      {isSubmitting && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <BackButton to="/Ordenes" />
       <h1 className="text-2xl font-bold text-text mb-4">Editar Orden de Compra</h1>
 
@@ -766,9 +800,10 @@ export default function EditOrden() {
 
             <button
               type="submit"
-              className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-primary text-white rounded hover:bg-hover disabled:opacity-50"
             >
-              Guardar Cambios
+              {isSubmitting ? "Guardando..." : "Guardar Cambios"}
             </button>
           </div>
         </div>

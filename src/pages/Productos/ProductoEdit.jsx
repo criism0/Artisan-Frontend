@@ -7,11 +7,13 @@ import { toast } from "../../lib/toast";
 import { insumoToSearchText } from "../../services/fuzzyMatch";
 import { toNumber } from "../../utils/toNumber";
 
-import DatosProductoComercialTab from "../../components/WizardTabs/DatosProductoComercialTab";
-import RecetaTab from "../../components/WizardTabs/RecetaTab";
-import CostosSecosTab from "../../components/WizardTabs/CostosSecosTab";
-import PautaTab from "../../components/WizardTabs/PautaTab";
-import CostosIndirectosTab from "../../components/WizardTabs/CostosIndirectosTab";
+import DatosProductoComercialTab from "../../components/Wizard/DatosProductoComercialTab";
+import RecetaTab from "../../components/Wizard/RecetaTab";
+import CostosSecosTab from "../../components/Wizard/CostosSecosTab";
+import PautaTab from "../../components/Wizard/PautaTab";
+import CostosIndirectosTab from "../../components/Wizard/CostosIndirectosTab";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function ProductoEdit() {
   const { id } = useParams();
@@ -37,6 +39,7 @@ export default function ProductoEdit() {
     codigo_ean: "",
     codigo_sap: "",
     codigo_dun14: "",
+    id_nombre_facturacion: "",
   });
 
   const [recetaForm, setRecetaForm] = useState({
@@ -68,6 +71,15 @@ export default function ProductoEdit() {
   const [costoPorKg, setCostoPorKg] = useState("0");
   const [nuevoCosto, setNuevoCosto] = useState({ nombre: "", descripcion: "" });
 
+  const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteRecipe = checkScope(ModelType.RECETA, ScopeType.WRITE);
+  const canWriteRecipeIngredient = checkScope(ModelType.INGREDIENTE_RECETA, ScopeType.WRITE);
+  const canDeleteRecipeIngredient = checkScope(ModelType.INGREDIENTE_RECETA, ScopeType.DELETE);
+  const canWriteRawMaterial = checkScope(ModelType.MATERIA_PRIMA, ScopeType.WRITE);
+  const canWriteIndirectCost = checkScope(ModelType.COSTO_INDIRECTO, ScopeType.WRITE);
+  const canDeleteIndirectCost = checkScope(ModelType.COSTO_INDIRECTO, ScopeType.DELETE);
+  const canWriteBaseProduct = checkScope(ModelType.PRODUCTO_BASE, ScopeType.WRITE);
+
   useEffect(() => {
     const productoBaseId = Number(id);
     if (!Number.isFinite(productoBaseId) || productoBaseId <= 0) {
@@ -77,6 +89,13 @@ export default function ProductoEdit() {
     }
 
     const load = async () => {
+      if (!canReadElaborationGuideline) {
+        toast.permissionError(
+          [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+        );
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
 
@@ -102,6 +121,8 @@ export default function ProductoEdit() {
           codigo_ean: productoRes?.codigo_ean || "",
           codigo_sap: productoRes?.codigo_sap || "",
           codigo_dun14: productoRes?.codigo_dun14 || "",
+          id_nombre_facturacion:
+            productoRes?.id_nombre_facturacion != null ? String(productoRes.id_nombre_facturacion) : "",
         });
 
         const recetasList = Array.isArray(recetasRes) ? recetasRes : [];
@@ -163,7 +184,7 @@ export default function ProductoEdit() {
     };
 
     void load();
-  }, [api, id, navigate]);
+  }, [api, id, navigate, canReadElaborationGuideline]);
 
   useEffect(() => {
     // La unidad de la receta debe coincidir con la del Producto Comercial.
@@ -244,6 +265,11 @@ export default function ProductoEdit() {
     if (!productoForm.unidad_medida) return toast.error("Unidad de medida es obligatoria");
     if (!Number.isFinite(upc) || upc <= 0) return toast.error("Unidades por caja debe ser mayor a 0");
 
+    if (!canWriteBaseProduct) {
+      toast.permissionError([ModelType.PRODUCTO_BASE, ScopeType.WRITE]);
+      return;
+    }
+
     try {
       const payload = {
         nombre: productoForm.nombre.trim(),
@@ -254,6 +280,9 @@ export default function ProductoEdit() {
         codigo_ean: productoForm.codigo_ean.trim(),
         codigo_sap: productoForm.codigo_sap.trim() || null,
         codigo_dun14: productoForm.codigo_dun14.trim() || null,
+        id_nombre_facturacion: productoForm.id_nombre_facturacion
+          ? Number(productoForm.id_nombre_facturacion)
+          : null,
       };
 
       await api(`/productos-base/${productoId}`, { method: "PUT", body: JSON.stringify(payload) });
@@ -285,6 +314,10 @@ export default function ProductoEdit() {
 
   const handleGuardarReceta = async () => {
     if (!productoId) return toast.error("Primero debes guardar el Producto Comercial");
+    if (!canWriteRecipe) {
+      toast.permissionError([ModelType.RECETA, ScopeType.WRITE]);
+      return;
+    }
     const pesoNum = toNumber(recetaForm.peso);
     if (pesoNum <= 0) return toast.error("El peso debe ser mayor a 0");
     if (!recetaForm.unidad_medida) return toast.error("Unidad de medida es obligatoria");
@@ -347,6 +380,13 @@ export default function ProductoEdit() {
   const handleAddOrUpdateIngrediente = async () => {
     if (!recetaId) return;
     if (!selectedIngredientId) return toast.error("Selecciona un ingrediente");
+    if (!canWriteRecipe || !canWriteRecipeIngredient) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.INGREDIENTE_RECETA, ScopeType.WRITE]
+      );
+      return;
+    }
     const pesoNum = toNumber(ingredientPeso);
     if (pesoNum <= 0) return toast.error("El peso del ingrediente debe ser mayor a 0");
 
@@ -388,6 +428,13 @@ export default function ProductoEdit() {
 
   const handleRemoveIngrediente = async (ingredienteId) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canDeleteRecipeIngredient) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.INGREDIENTE_RECETA, ScopeType.DELETE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${recetaId}/ingredientes/${ingredienteId}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
@@ -401,6 +448,13 @@ export default function ProductoEdit() {
   const handleAddSubproducto = async () => {
     if (!recetaId) return;
     if (!selectedSubproductId) return toast.error("Selecciona un subproducto");
+    if (!canWriteRecipe || !canWriteRawMaterial) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.MATERIA_PRIMA, ScopeType.WRITE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${recetaId}/subproductos`, {
         method: "POST",
@@ -417,6 +471,13 @@ export default function ProductoEdit() {
 
   const handleRemoveSubproducto = async (idMateriaPrima) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canWriteRawMaterial) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.MATERIA_PRIMA, ScopeType.WRITE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${recetaId}/subproductos/${idMateriaPrima}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
@@ -430,6 +491,10 @@ export default function ProductoEdit() {
   const handleGuardarPauta = async () => {
     if (!recetaId) return;
     if (!selectedPautaId) return toast.error("Selecciona una pauta");
+    if (!canWriteRecipe) {
+      toast.permissionError([ModelType.RECETA, ScopeType.WRITE]);
+      return;
+    }
     try {
       const recetaActual = await api(`/recetas/${recetaId}`);
       await api(`/recetas/${recetaId}`, {
@@ -456,6 +521,10 @@ export default function ProductoEdit() {
   const handleCrearCosto = async () => {
     const nombre = String(nuevoCosto.nombre || "").trim();
     if (!nombre) return toast.error("Nombre de costo indirecto es obligatorio");
+    if (!canWriteIndirectCost) {
+      toast.permissionError([ModelType.COSTO_INDIRECTO, ScopeType.WRITE]);
+      return;
+    }
     try {
       await api("/costos-indirectos", {
         method: "POST",
@@ -474,6 +543,13 @@ export default function ProductoEdit() {
   const handleAddCostoReceta = async () => {
     if (!recetaId) return;
     if (!selectedCostoId) return toast.error("Selecciona un costo indirecto");
+    if (!canWriteRecipe || !canWriteIndirectCost) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.COSTO_INDIRECTO, ScopeType.WRITE]
+      );
+      return;
+    }
     const costoNum = toNumber(costoPorKg);
     if (costoNum < 0) return toast.error("Costo por kg no puede ser negativo");
     try {
@@ -493,6 +569,13 @@ export default function ProductoEdit() {
 
   const handleUpdateCostoReceta = async (idCosto, nextCostoPorKg) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canWriteIndirectCost) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.COSTO_INDIRECTO, ScopeType.WRITE]
+      );
+      return;
+    }
     const costoNum = toNumber(nextCostoPorKg);
     if (costoNum < 0) return;
     try {
@@ -509,6 +592,13 @@ export default function ProductoEdit() {
 
   const handleRemoveCostoReceta = async (idCosto) => {
     if (!recetaId) return;
+    if (!canWriteRecipe || !canDeleteIndirectCost) {
+      toast.permissionError(
+        [ModelType.RECETA, ScopeType.WRITE],
+        [ModelType.COSTO_INDIRECTO, ScopeType.DELETE]
+      );
+      return;
+    }
     try {
       await api(`/recetas/${recetaId}/costos-indirectos/${idCosto}`, { method: "DELETE" });
       await refreshRecetaParts(recetaId);
@@ -522,16 +612,7 @@ export default function ProductoEdit() {
   const canGoReceta = !!productoId;
   const canGoRest = !!recetaId;
 
-  if (loading) {
-    return (
-      <div className="p-6 bg-background min-h-screen">
-        <div className="mb-4">
-          <BackButton to="/Productos" />
-        </div>
-        <div className="text-sm text-gray-600">Cargando…</div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader message="Cargando producto" />;
 
   return (
     <div className="p-6 bg-background min-h-screen">

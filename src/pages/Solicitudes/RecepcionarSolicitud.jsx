@@ -1,9 +1,11 @@
-import axiosInstance from "../../axiosInstance";
+import { useApi } from "../../lib/api";
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from "react-router-dom";
-import Table from "../../components/Table";
+import Table from "../../components/Tables/Table";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import { toast } from 'react-toastify';
+import { toast } from '../../lib/toast';
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 function formatDateTime(value) {
   if (!value) return "—";
@@ -21,6 +23,11 @@ export default function RecepcionarSolicitud() {
   const [bultos, setBultos] = useState([]);
   const [cantidades, setCantidades] = useState({});
   const [solicitud, setSolicitud] = useState(null);
+  const api = useApi();
+
+  const canWriteMerchRequest = checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE);
+  const canWritePallet = checkScope(ModelType.PALLET, ScopeType.WRITE);
+  const canWriteBulk = checkScope(ModelType.BULTO, ScopeType.WRITE);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -29,12 +36,12 @@ export default function RecepcionarSolicitud() {
         setLoadFailed(false);
 
         const [resSolicitud, resBultos] = await Promise.all([
-          axiosInstance.get(`/solicitudes-mercaderia/${solicitudId}`),
-          axiosInstance.get(`/solicitudes-mercaderia/${solicitudId}/bultos`),
+          api(`/solicitudes-mercaderia/${solicitudId}`),
+          api(`/solicitudes-mercaderia/${solicitudId}/bultos`),
         ]);
 
-        setSolicitud(resSolicitud.data);
-        setBultos(resBultos.data);
+        setSolicitud(resSolicitud);
+        setBultos(resBultos);
       } catch {
         setLoadFailed(true);
         toast.error('Error al cargar información de la solicitud');
@@ -57,7 +64,13 @@ export default function RecepcionarSolicitud() {
     setCantidades({ ...cantidades, [id]: Number(value) });
   };
 
-  const getMateriaPrima = (row) => row?.materiaPrima ?? row?.MateriaPrima ?? null;
+  // El ítem de un bulto puede ser materia prima (insumos/PIP) o producto terminado (B4)
+  const getMateriaPrima = (row) =>
+    row?.materiaPrima ??
+    row?.MateriaPrima ??
+    (row?.loteProductoFinal?.productoBase
+      ? { ...row.loteProductoFinal.productoBase, nombre: `${row.loteProductoFinal.productoBase.nombre} (PT)` }
+      : null);
   const getUnidadMedida = (row) => {
     const mp = getMateriaPrima(row);
     const u = mp?.unidad_medida;
@@ -67,14 +80,26 @@ export default function RecepcionarSolicitud() {
     row?.unidades_disponibles ?? row?.cantidad_unidades ?? "—";
 
   const handleRecepcionar = async () => {
+    if (!canWriteMerchRequest || !canWritePallet || !canWriteBulk) {
+      toast.permissionError(
+        [ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE],
+        [ModelType.PALLET, ScopeType.WRITE],
+        [ModelType.BULTO, ScopeType.WRITE]
+      );
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const totalRecepcionada = Object.values(cantidades).reduce((a, b) => a + b, 0);
-      const res = await axiosInstance.put(`/solicitudes-mercaderia/${solicitudId}/recepcionar`, {
-        cantidades,
-        totalRecepcionada,
+      const res = await api(`/solicitudes-mercaderia/${solicitudId}/recepcionar`, {
+        method: "PUT",
+        body: {
+          cantidades,
+          totalRecepcionada,
+        },
       });
-      const nuevoEstado = res?.data?.solicitudActualizada?.estado;
+      const nuevoEstado = res?.solicitudActualizada?.estado;
       toast.success(
         nuevoEstado
           ? `Solicitud recepcionada: ${nuevoEstado}`
@@ -82,7 +107,7 @@ export default function RecepcionarSolicitud() {
       );
       navigate("/Solicitudes");
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Error al recepcionar solicitud');
+      toast.error(err.message || 'Error al recepcionar solicitud');
       navigate("/Solicitudes");
     } finally {
       setLoading(false);
@@ -155,9 +180,8 @@ export default function RecepcionarSolicitud() {
         </div>
 
         {(loadingData || (!solicitud && !loadFailed)) && (
-          <div className="bg-white rounded-lg shadow p-6 flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
-            <span className="text-text">Cargando información...</span>
+          <div className="bg-white rounded-lg shadow p-6 flex items-center justify-center">
+            <Spinner size="md" />
           </div>
         )}
 

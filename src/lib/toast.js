@@ -1,3 +1,5 @@
+import { translateScopeType } from "../utils/permissionUtils";
+
 // Custom toast system to replace react-toastify for React 19 compatibility
 class ToastManager {
   constructor() {
@@ -145,12 +147,88 @@ const toastManager = new ToastManager();
 
 // Export toast functions
 export const toast = {
+  /**
+   * Shows a success toast notification
+   * @param {string} message - Message to display
+   * @param {*} [options={}] - Toast configuration options, specifically autoClose
+   */
   success: (message, options = {}) => toastManager.success(message, options),
+
+  /**
+   * Shows an error toast notification
+   * @param {string} message - Message to display
+   * @param {object} [options={}] - Toast configuration options, specifically autoClose
+   */
   error: (message, options = {}) => toastManager.error(message, options),
+  
+  /**
+   * Shows an info toast notification
+   * @param {string} message - Message to display
+   * @param {object} [options={}] - Toast configuration options, specifically autoClose
+   * @returns 
+   */
   info: (message, options = {}) => toastManager.info(message, options),
+
+  /**
+   * Shows a warning toast notification
+   * @param {string} message - Message to display
+   * @param {object} [options={}] - Toast configuration options, specifically autoClose
+   */
   warning: (message, options = {}) => toastManager.warning(message, options),
+
+  /**
+   * Shows a toast with a clickable link (usado por exportar a Google Sheets)
+   * @param {string} label - Link text
+   * @param {string} url - Link destination
+   * @param {object} [options={}] - Toast configuration options
+   */
   link: (label, url, options = {}) => toastManager.link(label, url, options),
-  dismiss: (toastId) => toastManager.dismiss(toastId)
+
+  /**
+   * Dismisses a toast notification
+   * @param {number} toastId - Toast identifier
+   */
+  dismiss: (toastId) => toastManager.dismiss(toastId),
+
+  // Se añadio la siguiente funciona para mostrar la falta de permisos
+  // Un ejemplo de modo de uso es:
+  // toast.permissionError(
+  //   [ModelType.USUARIO, ScopeType.READ],
+  //   [ModelType.ROLE, [ScopeType.WRITE, ScopeType.DELETE]],
+  // );
+  /**
+   * Shows a standardized permission error toast.
+   * 
+   * Each argument represents a required permission, which can be in one of two ways:
+   * - [ModelType, ScopeType]
+   * - [ModelType, [ScopeType1, ScopeType2]]
+   * 
+   * @param  {...any} missingPermissions - Missing permissions required for the action
+   * 
+   * @example
+   * toast.permissionError(
+   *   [ModelType.USUARIO, ScopeType.READ],
+   *   [ModelType.ROLE, [ScopeType.WRITE, ScopeType.DELETE]],
+   * );
+   */
+  permissionError: (...missingPermissions) => {
+    const listPermissions = missingPermissions.map(([Model, Scopes]) => {
+      const scopeList = Array.isArray(Scopes) ? Scopes : [Scopes];
+      const scopesText = scopeList.map(translateScopeType).join(", ");
+      return `<li><strong>${Model}</strong>: ${scopesText}</li>`;
+    }).join("");
+
+    const message = `
+      <div>
+        <span>No tienes permisos para realizar esa acción. Se necesitan:</span>
+        <ul style="margin: 6px 0 0 0; padding-left: 18px;">
+          ${listPermissions}
+        </ul>
+      </div>
+    `;
+
+    return toastManager.error(message, {autoClose: 7000});
+  }
 };
 
 export default toast;

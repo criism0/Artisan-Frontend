@@ -4,10 +4,10 @@ import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import {
   checkScope,
-  isAdminOrSuperAdmin,
   ModelType,
   ScopeType,
 } from "../../services/scopeCheck";
+import { Spinner } from "../../components/UI/Spinner.jsx";
 
 const CATEGORIAS = [
   { value: "I", label: "Insumos (I)" },
@@ -29,9 +29,9 @@ export default function EditarBulto() {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  const canEditBulto = useMemo(
+  const canWriteBulk = useMemo(
     () =>
-      checkScope(ModelType.BULTO, ScopeType.WRITE) || isAdminOrSuperAdmin(),
+      checkScope(ModelType.BULTO, ScopeType.WRITE),
     []
   );
 
@@ -90,8 +90,9 @@ export default function EditarBulto() {
   }, [id]);
 
   const handleGuardar = async () => {
-    if (!canEditBulto) {
-      toast.error("No tienes permisos para editar bultos");
+    if (!canWriteBulk) {
+      toast.permissionError([ModelType.BULTO, ScopeType.WRITE]);
+      setLoading(false);
       return;
     }
     if (!idBodegaDestino) {
@@ -127,7 +128,7 @@ export default function EditarBulto() {
     }
   };
 
-  if (!canEditBulto) {
+  if (!canWriteBulk) {
     return (
       <div className="p-6 bg-gray-50 min-h-screen">
         <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
@@ -150,7 +151,7 @@ export default function EditarBulto() {
       </div>
 
       {loading && !bulto ? (
-        <p className="text-gray-600">Cargando...</p>
+        <div className="flex justify-center py-6"><Spinner size="md" /></div>
       ) : !bulto ? (
         <p className="text-gray-600">No se pudo cargar el bulto.</p>
       ) : (

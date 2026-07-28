@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 function n(val) {
   const num = Number(val);
@@ -14,12 +15,22 @@ function safeDate(val) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export default function HistorialCostosModal({ open, omId, onClose }) {
+// `inline`: renderiza el contenido como panel embebido (sin overlay ni botón cerrar),
+// para usarlo dentro de un tab. En ese modo `open`/`onClose` se ignoran.
+export default function HistorialCostosModal({ open, omId, onClose, inline = false }) {
+  const abierto = inline || open;
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  const canReadManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ);
+
   useEffect(() => {
-    if (!open) return;
+    if (!abierto) return;
+    if (!canReadManufacture) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ]);
+      setLoading(false);
+      return;
+    }
 
     const load = async () => {
       try {
@@ -35,7 +46,7 @@ export default function HistorialCostosModal({ open, omId, onClose }) {
     };
 
     load();
-  }, [open, omId]);
+  }, [abierto, omId, canReadManufacture]);
 
   const om = data?.om || null;
   const resumen = data?.resumen || {};
@@ -52,11 +63,9 @@ export default function HistorialCostosModal({ open, omId, onClose }) {
     });
   }, [data]);
 
-  if (!open) return null;
+  if (!abierto) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
+  const contenido = (
         <div className="p-6">
           <div className="flex justify-between items-center mb-6 gap-3">
             <div>
@@ -65,12 +74,14 @@ export default function HistorialCostosModal({ open, omId, onClose }) {
                 OM #{om?.id || omId} · {om?.receta?.nombre ? `Receta: ${om.receta.nombre}` : ""}
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-            >
-              ✕ Cerrar
-            </button>
+            {!inline && (
+              <button
+                onClick={onClose}
+                className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+              >
+                ✕ Cerrar
+              </button>
+            )}
           </div>
 
           {loading ? (
@@ -85,30 +96,28 @@ export default function HistorialCostosModal({ open, omId, onClose }) {
 
           {!loading && om ? (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-6">
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo total OM</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costo_total_om, 0)}</div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                  <div className="text-xs text-gray-500 font-medium">Absorción insumos</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costo_bultos_ingredientes, 0)}</div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                  <div className="text-xs text-gray-500 font-medium">Absorción empaques</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costo_bultos_empaques, 0)}</div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo directo</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costos_receta?.costo_directo_total, 0)}</div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg border border-gray-200 p-3">
-                  <div className="text-xs text-gray-500 font-medium">Costo indirecto</div>
-                  <div className="text-lg font-bold text-text">{formatCLP(resumen?.costos_receta?.costo_indirecto_total, 0)}</div>
+              {/* Cómo se llega al costo total (M5): suma explícita, sin el costo
+                  referencial de la receta (no aporta al costo real de la OM). */}
+              <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-6 max-w-xl">
+                <div className="text-sm font-semibold text-text mb-3">Cómo se compone el costo total</div>
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-gray-600">Absorción insumos (ingredientes)</span>
+                    <span className="font-semibold text-text">{formatCLP(resumen?.costo_bultos_ingredientes, 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-gray-600">+ Absorción empaques (costos secos)</span>
+                    <span className="font-semibold text-text">{formatCLP(resumen?.costo_bultos_empaques, 0)}</span>
+                  </div>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-gray-600">+ Costos indirectos de la receta</span>
+                    <span className="font-semibold text-text">{formatCLP(resumen?.costos_receta?.costo_indirecto_total, 0)}</span>
+                  </div>
+                  <div className="border-t border-gray-300 my-1" />
+                  <div className="flex justify-between items-baseline">
+                    <span className="font-medium text-gray-700">= Costo total OM</span>
+                    <span className="text-lg font-bold text-text">{formatCLP(resumen?.costo_total_om, 0)}</span>
+                  </div>
                 </div>
               </div>
 
@@ -193,6 +202,16 @@ export default function HistorialCostosModal({ open, omId, onClose }) {
             </>
           ) : null}
         </div>
+  );
+
+  if (inline) {
+    return <div className="bg-white rounded-xl border border-gray-200 shadow-sm">{contenido}</div>;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
+        {contenido}
       </div>
     </div>
   );

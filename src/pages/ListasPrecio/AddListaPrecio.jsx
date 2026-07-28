@@ -2,13 +2,17 @@ import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useRef, useState } from "react";
 import { ApiError, useApi } from "../../lib/api";
-import ProductosBaseManager from "../../components/ProductosBaseManager";
-import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
+import ProductosBaseManager from "../../components/ProductosBase/ProductosBaseManager";
+import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmModal";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { toast } from "../../lib/toast.js";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function AddListaPrecio() {
   const navigate = useNavigate();
   const api = useApi();
   const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const pendingSimilarActionRef = useRef(null);
   const [similarModal, setSimilarModal] = useState({ open: false, inputName: "", matches: [] });
   const [formData, setFormData] = useState({
@@ -18,6 +22,9 @@ export default function AddListaPrecio() {
   const [errors, setErrors] = useState({});
   const [productosBase, setProductosBase] = useState([]);
   const [listaPrecioId, setListaPrecioId] = useState(null);
+
+  const canWritePriceList = checkScope(ModelType.LISTA_PRECIO, ScopeType.WRITE);
+  const canWriteBaseProductPriceList = checkScope(ModelType.PRODUCTO_BASE_LISTA_PRECIO, ScopeType.WRITE);
 
   const validate = () => {
     const newErrors = {};
@@ -41,7 +48,17 @@ export default function AddListaPrecio() {
     e.preventDefault();
     if (!validate()) return;
 
+    if (!canWritePriceList || !canWriteBaseProductPriceList) {
+      toast.permissionError(
+        [ModelType.LISTA_PRECIO, ScopeType.WRITE],
+        [ModelType.PRODUCTO_BASE_LISTA_PRECIO, ScopeType.WRITE]
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
+      setIsSubmitting(true);
       setError(null);
       const formattedData = {
         nombre: formData.nombre,
@@ -76,7 +93,7 @@ export default function AddListaPrecio() {
             });
           }
         } catch (productoError) {
-          alert("Lista de precio creada pero hubo un error al guardar algunos productos. Puedes editarlos después.");
+          toast.warning("Lista de precio creada pero hubo un error al guardar algunos productos. Puedes editarlos después.");
         }
       } else {
         await createLista();
@@ -96,11 +113,18 @@ export default function AddListaPrecio() {
       setError(
         "No se pudo crear la lista de precio. Verifica los datos e intenta nuevamente."
       );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
     <div className="p-6 bg-background min-h-screen">
+      {isSubmitting && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <div className="mb-4">
         <BackButton to="/lista-precio" />
       </div>
@@ -158,8 +182,8 @@ export default function AddListaPrecio() {
         </div>
 
         {/* SECCIÓN DE PRODUCTOS BASE */}
-        <div className="mt-8 mb-6">
-          <ProductosBaseManager 
+        <div className="mt-8 mb-6 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+          <ProductosBaseManager
             listaPrecioId={listaPrecioId}
             productosBase={productosBase}
             onProductosBaseChange={setProductosBase}
@@ -171,9 +195,10 @@ export default function AddListaPrecio() {
         <div className="flex justify-end">
           <button
             type="submit"
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
           >
-            Crear Lista de Precio
+            {isSubmitting ? "Creando..." : "Crear Lista de Precio"}
           </button>
         </div>
       </form>

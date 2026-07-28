@@ -90,7 +90,7 @@ export async function sendTransactionalEmail({ to, subject, params }) {
     }
 
   } catch (error) {
-    toast.error("Error al enviar correo transaccional:", error);
+    toast.error(`Error al enviar correo transaccional: ${error.message}`);
   }
 }
 

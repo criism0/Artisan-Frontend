@@ -3,6 +3,9 @@ import { useApi } from "../../lib/api";
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function AddPVAPorProducto() {
   const api = useApi();
@@ -12,6 +15,8 @@ export default function AddPVAPorProducto() {
   const [materiasPrimas, setMateriasPrimas] = useState([]);
   const [productosBase, setProductosBase] = useState([]);
   const [procesoSeleccionado, setProcesoSeleccionado] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     id_proceso: "",
@@ -24,8 +29,17 @@ export default function AddPVAPorProducto() {
     { id_materia_prima: "", cantidad_por_bulto: "" },
   ]);
 
+  const canWritePVAProductSupplies = checkScope(ModelType.INSUMO_PVA_PRODUCTO, ScopeType.WRITE);
+  const canReadAddedValueProcess = checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ);
+  const canWritePVAProduct = checkScope(ModelType.PVA_PRODUCTO, ScopeType.WRITE);
+
   useEffect(() => {
     const fetchData = async () => {
+      if (!canReadAddedValueProcess) {
+        toast.permissionError([ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ]);
+        setIsLoading(false);
+        return;
+      }
       try {
         const [procRes, matRes] = await Promise.all([
           api(`/procesos-de-valor-agregado`, { method: "GET" }),
@@ -39,13 +53,21 @@ export default function AddPVAPorProducto() {
         setProductosBase(prodRes || []);
       } catch {
         toast.error("Error al cargar los datos iniciales.");
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchData();
-  }, [api]);
+  }, [api, canReadAddedValueProcess]);
 
   const handleChange = async (e) => {
+    if (!canReadAddedValueProcess) {
+      toast.permissionError([ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ]);
+      setProcesoSeleccionado(null);
+      return;
+    }
+
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
 
@@ -74,7 +96,13 @@ export default function AddPVAPorProducto() {
   };
 
   const handleSubmit = async () => {
+    if (!canWritePVAProduct) {
+      toast.permissionError([ModelType.PVA_PRODUCTO, ScopeType.WRITE]);
+      setIsSubmitting(false);
+      return;
+    }
     try {
+      setIsSubmitting(true);
       const res = await api(`/pva-por-producto/`, {
         method: "POST",
         body: JSON.stringify({
@@ -103,11 +131,19 @@ export default function AddPVAPorProducto() {
       }
     } catch {
       toast.error("Error al crear PVA por producto.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleSaveInsumos = async () => {
+    if (!canWritePVAProductSupplies){
+      toast.permissionError([ModelType.INSUMO_PVA_PRODUCTO, ScopeType.WRITE]);
+      setIsSubmitting(false);
+      return;
+    }
     try {
+      setIsSubmitting(true);
       if (!nuevoPvaId) {
         toast.error("Crea primero el PVA por producto.");
         return;
@@ -130,11 +166,20 @@ export default function AddPVAPorProducto() {
       navigate("/PVAPorProducto");
     } catch {
       toast.error("Error al agregar insumos.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  if (isLoading) return <PageLoader message="Cargando datos" />;
+
   return (
     <div className="p-6 bg-background min-h-screen">
+      {isSubmitting && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <BackButton to="/PVAPorProducto" />
       <h1 className="text-2xl font-bold mb-6">Asociar PVA con Producto</h1>
 
@@ -200,6 +245,7 @@ export default function AddPVAPorProducto() {
 
           <button
             onClick={handleSubmit}
+            disabled={!canWritePVAProduct}
             className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
           >
             Crear Asociación

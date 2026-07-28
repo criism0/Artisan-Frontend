@@ -1,15 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useGoogleLogin } from "@react-oauth/google";
 import { api, apiBlob } from "../../lib/api";
 import { createAndOpenSheet } from "../../lib/googleSheets";
-import DividirBultoModal from "../../components/DividirBultoModal";
+import GoogleSheetsExportButton from "../../components/UI/GoogleSheetsExportButton";
+import DividirBultoModal from "../../components/Pallets/DividirBultoModal";
 import { toast } from "../../lib/toast";
-import { FileDown, FileSpreadsheet, Pencil, Scissors, X } from "lucide-react";
+import { FileDown, Pencil, Scissors, X } from "lucide-react";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import Pagination from "../../components/UI/Pagination";
+import RowsPerPageSelector from "../../components/UI/RowsPerPageSelector";
+import { Spinner } from "../../components/UI/Spinner.jsx";
 import {
   checkScope,
-  isAdminOrSuperAdmin,
   ModelType,
   ScopeType,
 } from "../../services/scopeCheck";
@@ -88,6 +91,7 @@ export default function InventarioBultos() {
   const [bultos, setBultos] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [cargando, setCargando] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [bultoADividir, setBultoADividir] = useState(null);
 
   const [filters, setFilters] = useState({
@@ -107,11 +111,16 @@ export default function InventarioBultos() {
 
   const [sort, setSort] = useState({ key: "updatedAt", dir: "desc" });
 
+  // Paginación server-side (B2): la BD ya supera los 6.000 bultos
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [isExporting, setIsExporting] = useState(false);
 
-  const canEditBulto =
-    checkScope(ModelType.BULTO, ScopeType.WRITE) || isAdminOrSuperAdmin();
+  const canWriteBulk = checkScope(ModelType.BULTO, ScopeType.WRITE);
 
   // Restaurar filtros/orden desde localStorage (experiencia tipo Excel)
   useEffect(() => {
@@ -167,128 +176,57 @@ export default function InventarioBultos() {
     fetchBodegas();
   }, []);
 
+  const buildQueryParams = ({ paginado = true } = {}) => {
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) {
+      if (v !== "" && v != null) qs.set(k, String(v).trim());
+    }
+    if (busqueda.trim()) qs.set("q", busqueda.trim());
+    qs.set("sort_key", sort.key);
+    qs.set("sort_dir", sort.dir);
+    if (paginado) {
+      qs.set("page", String(page));
+      qs.set("limit", String(limit));
+    }
+    return qs;
+  };
+
   const fetchBultos = async () => {
     setCargando(true);
     try {
-      const qs = new URLSearchParams();
-      if (filters.id_bodega) qs.set("id_bodega", filters.id_bodega);
-      const path = qs.toString() ? `/inventario/bultos?${qs.toString()}` : "/inventario/bultos";
-      const res = await api(path);
-      setBultos(Array.isArray(res) ? res : []);
-      setSelectedIds(new Set());
+      const res = await api(`/inventario/bultos?${buildQueryParams().toString()}`);
+      setBultos(Array.isArray(res?.rows) ? res.rows : []);
+      setTotal(Number(res?.count) || 0);
+      setTotalPages(Number(res?.total_pages) || 1);
     } catch (error) {
       console.error("Error al obtener bultos:", error);
       toast.error("No se pudieron cargar los bultos");
     } finally {
       setCargando(false);
+      setIsInitialLoading(false);
     }
   };
 
+  // Cambios de filtros/búsqueda/orden: debounce y volver a página 1
+  const isFirstFilterRun = React.useRef(true);
+  useEffect(() => {
+    if (isFirstFilterRun.current) { isFirstFilterRun.current = false; return; }
+    const t = setTimeout(() => {
+      if (page !== 1) setPage(1);
+      else fetchBultos();
+    }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, busqueda, sort]);
+
+  // Cambios de página/tamaño: fetch inmediato (también cubre la carga inicial)
   useEffect(() => {
     fetchBultos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.id_bodega]);
+  }, [page, limit]);
 
-  const bultosFiltrados = useMemo(() => {
-    const q = (busqueda || "").toLowerCase().trim();
-
-    const idNeedle = (filters.id || "").trim();
-    const identNeedle = (filters.identificador || "").toLowerCase().trim();
-    const itemNeedle = (filters.item || "").toLowerCase().trim();
-    const palletNeedle = (filters.pallet || "").toLowerCase().trim();
-    const categoriaNeedle = (filters.clave_categoria || "").trim();
-
-    const pesoMin = toNumberOrNull(filters.peso_min);
-    const pesoMax = toNumberOrNull(filters.peso_max);
-    const dispMin = toNumberOrNull(filters.disp_min);
-    const dispMax = toNumberOrNull(filters.disp_max);
-    const costoMin = toNumberOrNull(filters.costo_min);
-    const costoMax = toNumberOrNull(filters.costo_max);
-
-    return (bultos || []).filter((b) => {
-      if (idNeedle) {
-        if (!String(b?.id ?? "").includes(idNeedle)) return false;
-      }
-
-      if (identNeedle) {
-        if (!String(b?.identificador ?? "").toLowerCase().includes(identNeedle)) return false;
-      }
-
-      const itemNombre = getItemNombre(b).toLowerCase();
-      if (itemNeedle && !itemNombre.includes(itemNeedle)) return false;
-
-      const palletId = getPalletIdentificador(b).toLowerCase();
-      if (palletNeedle && !palletId.includes(palletNeedle)) return false;
-
-      const clave = getClaveCategoria(b);
-      if (categoriaNeedle && clave !== categoriaNeedle) return false;
-
-      const peso = Number(b?.peso_unitario ?? 0);
-      if (pesoMin != null && !(peso >= pesoMin)) return false;
-      if (pesoMax != null && !(peso <= pesoMax)) return false;
-
-      const disponible = Number(b?.unidades_disponibles ?? 0) * Number(b?.peso_unitario ?? 0);
-      if (dispMin != null && !(disponible >= dispMin)) return false;
-      if (dispMax != null && !(disponible <= dispMax)) return false;
-
-      const costoTotal = Number(b?.costo_unitario ?? 0) * Number(b?.unidades_disponibles ?? 0);
-      if (costoMin != null && !(costoTotal >= costoMin)) return false;
-      if (costoMax != null && !(costoTotal <= costoMax)) return false;
-
-      if (q) {
-        const hay = `${b?.identificador ?? ""} ${itemNombre} ${getBodegaNombre(b)} ${palletId}`
-          .toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-
-      return true;
-    });
-  }, [bultos, busqueda, filters]);
-
-  const bultosOrdenados = useMemo(() => {
-    const list = [...bultosFiltrados];
-    const dir = sort.dir === "asc" ? 1 : -1;
-
-    const getSortable = (b) => {
-      switch (sort.key) {
-        case "clave_categoria":
-          return getClaveCategoria(b) || "";
-        case "id":
-          return Number(b?.id ?? 0);
-        case "identificador":
-          return String(b?.identificador ?? "");
-        case "item":
-          return getItemNombre(b);
-        case "bodega":
-          return getBodegaNombre(b);
-        case "pallet":
-          return getPalletIdentificador(b);
-        case "peso_unitario":
-          return Number(b?.peso_unitario ?? 0);
-        case "disponible":
-          return Number(b?.unidades_disponibles ?? 0) * Number(b?.peso_unitario ?? 0);
-        case "costo":
-          return Number(b?.costo_unitario ?? 0) * Number(b?.unidades_disponibles ?? 0);
-        case "fecha_ingreso":
-          return new Date(b?.createdAt ?? b?.updatedAt ?? 0).getTime();
-        case "updatedAt":
-        default:
-          return new Date(b?.updatedAt ?? b?.createdAt ?? 0).getTime();
-      }
-    };
-
-    list.sort((a, b) => {
-      const va = getSortable(a);
-      const vb = getSortable(b);
-
-      if (typeof va === "number" && typeof vb === "number") {
-        return (va - vb) * dir;
-      }
-      return String(va).localeCompare(String(vb), "es", { numeric: true, sensitivity: "base" }) * dir;
-    });
-
-    return list;
-  }, [bultosFiltrados, sort]);
+  // Filtrado y orden ahora son server-side; `bultos` ya es la página lista.
+  const bultosOrdenados = bultos;
 
   const toggleSort = (key) => {
     setSort((prev) => {
@@ -406,29 +344,30 @@ export default function InventarioBultos() {
       r.fecha_ingreso,
     ]);
 
-  const loginAndExport = useGoogleLogin({
-    onSuccess: async ({ access_token }) => {
-      const hasSelection = selectedIds.size > 0;
-      const data = hasSelection
-        ? bultosOrdenados.filter((b) => selectedIds.has(b.id))
-        : bultosOrdenados;
-      if (data.length === 0) { toast.error("No hay datos para exportar"); return; }
-      try {
-        setIsExporting(true);
-        const title = hasSelection
-          ? `Bultos seleccionados ${new Date().toLocaleDateString("es-CL")}`
-          : `Inventario Bultos ${new Date().toLocaleDateString("es-CL")}`;
-        const url = await createAndOpenSheet(access_token, title, [HEADERS_BULTOS, ...rowsToValues(buildExportRows(data))]);
-        toast.link("Hoja creada", url);
-      } catch {
-        toast.error("Error al exportar a Google Sheets");
-      } finally {
-        setIsExporting(false);
-      }
-    },
-    onError: () => toast.error("No se pudo autenticar con Google"),
-    scope: "https://www.googleapis.com/auth/spreadsheets",
-  });
+  const exportarASheets = async ({ access_token }) => {
+    const hasSelection = selectedIds.size > 0;
+    let data;
+    if (hasSelection) {
+      data = bultosOrdenados.filter((b) => selectedIds.has(b.id));
+    } else {
+      // Export completo: mismo filtro, sin paginar (el server lo resuelve)
+      const res = await api(`/inventario/bultos?${buildQueryParams({ paginado: false }).toString()}`);
+      data = Array.isArray(res) ? res : [];
+    }
+    if (data.length === 0) { toast.error("No hay datos para exportar"); return; }
+    try {
+      setIsExporting(true);
+      const title = hasSelection
+        ? `Bultos seleccionados ${new Date().toLocaleDateString("es-CL")}`
+        : `Inventario Bultos ${new Date().toLocaleDateString("es-CL")}`;
+      const url = await createAndOpenSheet(access_token, title, [HEADERS_BULTOS, ...rowsToValues(buildExportRows(data))]);
+      toast.link("Hoja creada", url);
+    } catch {
+      toast.error("Error al exportar a Google Sheets");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const clearFilters = () => {
     setBusqueda("");
@@ -450,8 +389,15 @@ export default function InventarioBultos() {
 
 
 
+  if (isInitialLoading) return <PageLoader message="Cargando bultos" />;
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
+      {cargando && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <div className="flex items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold">Inventario de Bultos</h1>
 
@@ -463,18 +409,13 @@ export default function InventarioBultos() {
                 {selectedIds.size} seleccionada{selectedIds.size !== 1 ? "s" : ""}
               </span>
             )}
-            <button
-              onClick={loginAndExport}
-              disabled={isExporting || bultosOrdenados.length === 0}
-              className="text-gray-500 hover:text-green-700 disabled:opacity-40"
-              title={selectedIds.size > 0
-                ? `Exportar ${selectedIds.size} seleccionada(s) (Google Sheets)`
-                : "Exportar filtrados (Google Sheets)"}
-            >
-              {isExporting
-                ? <span className="text-xs text-gray-500">Exportando…</span>
-                : <FileSpreadsheet className="w-5 h-5" />}
-            </button>
+            <GoogleSheetsExportButton
+              onToken={exportarASheets}
+              onError={() => toast.error("No se pudo autenticar con Google")}
+              isExporting={isExporting}
+              disabled={isExporting || total === 0}
+              title="Exportar a Google Sheets"
+            />
           </div>
         </div>
       </div>
@@ -535,13 +476,9 @@ export default function InventarioBultos() {
         </div>
 
         <div className="text-xs text-gray-500 mt-3">
-          Filas: <span className="font-semibold">{bultosOrdenados.length}</span> / {bultos.length}
+          Filas: <span className="font-semibold">{bultosOrdenados.length}</span> de {formatNumberCL(total)} (página {page} de {totalPages})
         </div>
       </div>
-
-      {cargando ? (
-        <p className="text-gray-600">Cargando bultos...</p>
-      ) : null}
 
       <div className="overflow-x-auto bg-white shadow rounded">
         <table className="w-full border border-gray-300 text-sm">
@@ -708,7 +645,7 @@ export default function InventarioBultos() {
                         <FileDown className="w-5 h-5" />
                       </button>
 
-                      {canEditBulto && (
+                      {canWriteBulk && (
                         <button
                           onClick={() => navigate(`/Inventario/bultos/editar/${b.id}`)}
                           className="text-gray-400 hover:text-blue-600"
@@ -732,6 +669,20 @@ export default function InventarioBultos() {
             </tbody>
           </table>
 
+      </div>
+
+      {/* Paginación server-side */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
+        <RowsPerPageSelector
+          value={limit}
+          options={[10, 25, 50, 100, 200]}
+          onRowsChange={(n) => { setLimit(n); setPage(1); }}
+        />
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={(p) => setPage(p)}
+        />
       </div>
 
       {bultoADividir && (

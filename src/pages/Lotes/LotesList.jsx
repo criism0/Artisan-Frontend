@@ -1,29 +1,86 @@
-import Table from "../../components/Table";
-import SearchBar from "../../components/SearchBar";
-import RowsPerPageSelector from "../../components/RowsPerPageSelector";
-import Pagination from "../../components/Pagination";
+import DataTable from "../../components/Tables/DataTable";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import axiosInstance from "../../axiosInstance";
-import { FiChevronDown, FiChevronRight } from "react-icons/fi";
+import { useApi } from "../../lib/api";
+import { toast } from "../../lib/toast";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function LotesList() {
   const [lotes, setLotes] = useState([]);
-  const [filtered, setFiltered] = useState([]);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
   const [expandedRows, setExpandedRows] = useState(new Set());
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const toggleRow = (id) => {
-    const next = new Set(expandedRows);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setExpandedRows(next);
+  const canReadInProgress = checkScope(ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ);
+  const canReadFinished = checkScope(ModelType.LOTE_PRODUCTO_FINAL, ScopeType.READ);
+
+  const api = useApi();
+
+  const toggleRow = (uid) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
+      return next;
+    });
   };
 
+  useEffect(() => {
+    if (!canReadInProgress && !canReadFinished) {
+      toast.permissionError(
+        [ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ],
+        [ModelType.LOTE_PRODUCTO_FINAL, ScopeType.READ]
+      );
+      setIsLoading(false);
+      setLotes([]);
+      return;
+    }
+    const fetchData = async () => {
+      try {
+        const safeGet = async (path) => {
+          try {
+            const data = await api(path);
+            const arr = Array.isArray(data?.lotes || data) ? data.lotes || data : [];
+            return arr;
+          } catch {
+            // Si no hay registros, backend ahora debería devolver [], pero toleramos 404 antiguos.
+            return [];
+          }
+        };
+
+        if (!canReadInProgress) {
+          toast.permissionError([ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ]);
+        }
+        if (!canReadFinished) {
+          toast.permissionError([ModelType.LOTE_PRODUCTO_FINAL, ScopeType.READ]);
+        }
+
+        const requests = [
+          canReadInProgress ? safeGet(`/lotes-producto-en-proceso/`) : Promise.resolve([]),
+          canReadFinished ? safeGet(`/lotes-producto-final/`) : Promise.resolve([]),
+        ];
+
+        const [lotesPip, lotesFinal] = await Promise.all(requests);
+
+        setLotes([
+          ...lotesPip.map((l) => ({ ...l, __tipoLote: "PIP" })),
+          ...lotesFinal.map((l) => ({ ...l, __tipoLote: "FINAL" })),
+        ]);
+      } catch (err) {
+        toast.error("Error cargando lotes: " + (err?.message || ""));
+        setLotes([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canReadInProgress, canReadFinished]);
+
+  // Normalización de campos derivados (los ids de PIP y FINAL pueden coincidir,
+  // por eso cada fila lleva un uid compuesto tipo-id)
   const normalized = useMemo(() => {
-    return filtered.map((l) => {
+    return lotes.map((l) => {
       const isFinal = l.__tipoLote === "FINAL";
       const bultos = Array.isArray(
         isFinal ? l.LoteProductoFinalBultos : l.LoteProductoEnProcesoBultos
@@ -41,30 +98,15 @@ export default function LotesList() {
         0
       );
       const primerIdentificador = bultos[0]?.identificador;
-      const numeroLote =
-        l.numero_lote ||
-        l.codigo ||
-        primerIdentificador ||
-        `LOTE-${l.id}`;
-      const nElaboracion =
-        l.n_elaboracion ||
-        l.ordenManufactura?.id ||
-        l.id_orden_manufactura ||
-        "";
+      const numeroLote = l.numero_lote || l.codigo || primerIdentificador || `LOTE-${l.id}`;
+      const nElaboracion = l.n_elaboracion || l.ordenManufactura?.id || l.id_orden_manufactura || "";
       const producto =
-        l.productoBase?.nombre ||
-        l.producto?.nombre ||
-        l.materiaPrima?.nombre ||
-        l.producto_nombre ||
-        "";
-      const fechaElab =
-        l.fecha_elaboracion ||
-        l.fecha ||
-        l.ordenManufactura?.fecha ||
-        l.createdAt;
+        l.productoBase?.nombre || l.producto?.nombre || l.materiaPrima?.nombre || l.producto_nombre || "";
+      const fechaElab = l.fecha_elaboracion || l.fecha || l.ordenManufactura?.fecha || l.createdAt;
 
       return {
         ...l,
+        uid: `${l.__tipoLote}-${l.id}`,
         numeroLote,
         nElaboracion,
         producto,
@@ -73,51 +115,7 @@ export default function LotesList() {
         fechaElab,
       };
     });
-  }, [filtered]);
-
-  const handleSort = (key) => {
-    let direction = "asc";
-    if (sortConfig.key === key && sortConfig.direction === "asc") {
-      direction = "desc";
-    }
-    setSortConfig({ key, direction });
-
-    const sorted = [...filtered].sort((a, b) => {
-      const aVal = a[key];
-      const bVal = b[key];
-      if (aVal == null) return 1;
-      if (bVal == null) return -1;
-
-      if (typeof aVal === "number" && typeof bVal === "number") {
-        return direction === "asc" ? aVal - bVal : bVal - aVal;
-      }
-      const aStr = aVal?.toString().toLowerCase() || "";
-      const bStr = bVal?.toString().toLowerCase() || "";
-      return direction === "asc"
-        ? aStr.localeCompare(bStr)
-        : bStr.localeCompare(aStr);
-    });
-    setFiltered(sorted);
-    setCurrentPage(1);
-  };
-
-  const renderHeader = (label, accessor) => {
-    const isActive = sortConfig.key === accessor;
-    const ascActive = isActive && sortConfig.direction === "asc";
-    const descActive = isActive && sortConfig.direction === "desc";
-    return (
-      <div
-        className="flex items-center gap-1 cursor-pointer select-none"
-        onClick={() => handleSort(accessor)}
-      >
-        <span>{label}</span>
-        <div className="flex flex-col leading-none text-xs ml-1">
-          <span className={ascActive ? "text-gray-900" : "text-gray-300"}>▲</span>
-          <span className={descActive ? "text-gray-900" : "text-gray-300"}>▼</span>
-        </div>
-      </div>
-    );
-  };
+  }, [lotes]);
 
   const columns = [
     {
@@ -125,19 +123,20 @@ export default function LotesList() {
       accessor: "expand",
       Cell: ({ row }) => (
         <button
-          onClick={() => toggleRow(row.id)}
+          onClick={() => toggleRow(row.uid)}
           className="text-gray-500 hover:text-gray-700"
         >
-          {expandedRows.has(row.id) ? <FiChevronDown /> : <FiChevronRight />}
+          {expandedRows.has(row.uid) ? <ChevronDown /> : <ChevronRight />}
         </button>
       ),
     },
     {
-      header: renderHeader("N° LOTE", "numeroLote"),
+      header: "N° Lote",
       accessor: "numeroLote",
+      sortable: true,
       Cell: ({ row }) => (
         <Link
-          className="font-medium text-primary-700 hover:underline"
+          className="font-medium text-primary hover:underline"
           to={
             row.__tipoLote === "FINAL"
               ? `/lotes-producto-final/${row.id}`
@@ -149,29 +148,25 @@ export default function LotesList() {
       ),
     },
     {
-      header: renderHeader("TIPO", "__tipoLote"),
+      header: "Tipo",
       accessor: "__tipoLote",
+      sortable: true,
       Cell: ({ row }) => (row.__tipoLote === "FINAL" ? "Producto Final" : "PIP"),
     },
     {
-      header: renderHeader("FECHA DE ELABORACIÓN", "fechaElab"),
+      header: "Fecha de Elaboración",
       accessor: "fechaElab",
+      sortable: true,
+      sortValue: (row) => (row.fechaElab ? new Date(row.fechaElab).getTime() : 0),
       Cell: ({ row }) =>
-        row.fechaElab
-          ? new Date(row.fechaElab).toLocaleDateString("es-CL")
-          : "",
+        row.fechaElab ? new Date(row.fechaElab).toLocaleDateString("es-CL") : "",
     },
+    { header: "N° Elaboración", accessor: "nElaboracion", sortable: true },
+    { header: "Producto", accessor: "producto", sortable: true },
     {
-      header: renderHeader("N° ELABORACIÓN", "nElaboracion"),
-      accessor: "nElaboracion",
-    },
-    {
-      header: renderHeader("PRODUCTO", "producto"),
-      accessor: "producto",
-    },
-    {
-      header: renderHeader("CANTIDAD", "cantidadInicial"),
+      header: "Cantidad",
       accessor: "cantidadInicial",
+      sortable: true,
       Cell: ({ row }) => (
         <div className="leading-tight">
           <div>Cantidad Inicial: {row.cantidadInicial}</div>
@@ -181,104 +176,11 @@ export default function LotesList() {
     },
   ];
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const base = import.meta.env.VITE_BACKEND_URL;
-        const safeGet = async (url) => {
-          try {
-            const { data } = await axiosInstance.get(url);
-            const arr = Array.isArray(data?.lotes || data) ? data.lotes || data : [];
-            return arr;
-          } catch {
-            // Si no hay registros, backend ahora debería devolver [], pero toleramos 404 antiguos.
-            return [];
-          }
-        };
-
-        const [lotesPip, lotesFinal] = await Promise.all([
-          safeGet(`${base}/lotes-producto-en-proceso/`),
-          safeGet(`${base}/lotes-producto-final/`),
-        ]);
-
-        const merged = [
-          ...lotesPip.map((l) => ({ ...l, __tipoLote: "PIP" })),
-          ...lotesFinal.map((l) => ({ ...l, __tipoLote: "FINAL" })),
-        ].sort((a, b) => {
-          const aDate = new Date(a.fecha_elaboracion || a.createdAt || 0).getTime();
-          const bDate = new Date(b.fecha_elaboracion || b.createdAt || 0).getTime();
-          return bDate - aDate;
-        });
-
-        setLotes(merged);
-        setFiltered(merged);
-      } catch (err) {
-        console.error("Error cargando lotes:", err);
-        setLotes([]);
-        setFiltered([]);
-      }
-    };
-    fetchData();
-  }, []);
-
-  const handleSearch = (query) => {
-    const q = (query || "").toLowerCase().trim();
-    if (!q) {
-      setFiltered(lotes);
-      setCurrentPage(1);
-      return;
-    }
-
-    const filteredRes = lotes.filter((l) => {
-      const isFinal = l.__tipoLote === "FINAL";
-      const bultos = Array.isArray(
-        isFinal ? l.LoteProductoFinalBultos : l.LoteProductoEnProcesoBultos
-      )
-        ? isFinal
-          ? l.LoteProductoFinalBultos
-          : l.LoteProductoEnProcesoBultos
-        : [];
-      const primerIdentificador = bultos[0]?.identificador || "";
-
-      const texto = [
-        l.id,
-        l.numero_lote,
-        l.codigo,
-        primerIdentificador,
-        l.ordenManufactura?.id,
-        l.id_orden_manufactura,
-        l.materiaPrima?.nombre,
-        l.productoBase?.nombre,
-        l.producto?.nombre,
-        l.__tipoLote,
-        l.fecha_elaboracion,
-        l.fecha,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return texto.includes(q);
-    });
-
-    setFiltered(filteredRes);
-    setCurrentPage(1);
-  };
-
-  const handleRowsChange = (value) => {
-    setRowsPerPage(value);
-    setCurrentPage(1);
-  };
-
-  const totalPages = Math.ceil(normalized.length / rowsPerPage) || 1;
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const pageData = normalized.slice(startIndex, startIndex + rowsPerPage);
-
   const renderExpandedRow = (row) => {
-    if (!expandedRows.has(row.id)) return null;
+    if (!expandedRows.has(row.uid)) return null;
     return (
-      <tr key={`${row.id}-expanded`}>
-        <td colSpan={columns.length + 1} className="bg-gray-50 px-6 py-4">
+      <tr key={`${row.uid}-expanded`}>
+        <td colSpan={columns.length} className="bg-gray-50 px-6 py-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
               <span className="font-semibold">OM:</span> {row.nElaboracion}
@@ -292,13 +194,10 @@ export default function LotesList() {
             </div>
             <div>
               <span className="font-semibold">Fecha Elab.:</span>{" "}
-              {row.fechaElab
-                ? new Date(row.fechaElab).toLocaleString("es-CL")
-                : ""}
+              {row.fechaElab ? new Date(row.fechaElab).toLocaleString("es-CL") : ""}
             </div>
             <div>
-              <span className="font-semibold">Peso Lote:</span>{" "}
-              {row.peso ?? "--"}
+              <span className="font-semibold">Peso Lote:</span> {row.peso ?? "--"}
             </div>
           </div>
 
@@ -319,30 +218,28 @@ export default function LotesList() {
     );
   };
 
+  const getSearchText = (row) =>
+    [
+      row.numeroLote,
+      row.nElaboracion,
+      row.producto,
+      row.__tipoLote === "FINAL" ? "Producto Final" : "PIP",
+      row.fechaElab,
+    ]
+      .filter(Boolean)
+      .join(" ");
+
   return (
-    <div className="p-6 bg-background min-h-screen">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Lotes</h1>
-      </div>
-
-      <div className="flex justify-between items-center mb-6">
-        <RowsPerPageSelector onRowsChange={handleRowsChange} />
-        <SearchBar onSearch={handleSearch} />
-      </div>
-
-      <Table
-        columns={columns}
-        data={pageData}
-        renderExpandedRow={renderExpandedRow}
-      />
-
-      <div className="mt-6 flex justify-end">
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
-      </div>
-    </div>
+    <DataTable
+      title="Lotes"
+      data={normalized}
+      columns={columns}
+      getSearchText={getSearchText}
+      renderExpandedRow={renderExpandedRow}
+      loading={isLoading}
+      loadingMessage="Cargando lotes"
+      initialSort={{ key: "fechaElab", direction: "desc" }}
+      emptyMessage="No hay lotes registrados."
+    />
   );
 }

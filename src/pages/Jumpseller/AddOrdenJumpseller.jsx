@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getJumpsellerOrdenPorId } from '../../services/jumpseller';
 import { useApi } from '../../lib/api';
 import { toast } from '../../lib/toast';
+import { checkScope, ModelType, ScopeType } from '../../services/scopeCheck';
 
 function formatRut(raw) {
   if (!raw) return "";
@@ -129,6 +130,13 @@ export default function OrdenVentaJumpseller() {
   const [jumpsellerOrder, setJumpsellerOrder] = useState(null);
   const [clienteIdActual, setClienteIdActual] = useState(null);
 
+  const canWriteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
+  const canWriteSaleOrderProduct = checkScope(ModelType.PRODUCTO_ORDEN, ScopeType.WRITE);
+
+  const canReadClients = checkScope(ModelType.CLIENTE, ScopeType.READ);
+  const canWriteClients = checkScope(ModelType.CLIENTE, ScopeType.WRITE);
+  const canWriteAddress = checkScope(ModelType.DIRECCION, ScopeType.WRITE);
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -193,6 +201,12 @@ export default function OrdenVentaJumpseller() {
     if (!direccionBase) return;
 
     let direcciones = [];
+
+    if (!canWriteAddress) {
+      toast.permissionError([ModelType.DIRECCION, ScopeType.WRITE]);
+      return;
+    }
+
     try {
       direcciones = await api('/direcciones');
     } catch (_) {
@@ -246,6 +260,11 @@ export default function OrdenVentaJumpseller() {
   const createProductosParaOrden = async (order, ordenId) => {
     if (!order || !ordenId) return;
 
+    if (!canWriteSaleOrderProduct) {
+      toast.permissionError([ModelType.PRODUCTO_ORDEN, ScopeType.WRITE]);
+      return;
+    }
+
     const items = Array.isArray(order.products) ? order.products : [];
 
     for (const it of items) {
@@ -297,6 +316,11 @@ export default function OrdenVentaJumpseller() {
 
   const createOrdenVenta = async (order, clienteId, direccionId) => {
     if (!clienteId || !order || !direccionId) return;
+
+    if (!canWriteSaleOrder) {
+      toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.WRITE]);
+      return;
+    }
 
     const fechaOrden = getDateOnlyFromUtcString(order.completed_at);
     let fechaEnvioFinal = fechaEnvio;
@@ -351,6 +375,14 @@ export default function OrdenVentaJumpseller() {
 
     if (!orderId.trim()) {
       setErrorMsg('Ingresa un número de orden');
+      return;
+    }
+
+    if (!canReadClients || !canWriteClients) {
+      toast.permissionError(
+        [ModelType.CLIENTE, [ScopeType.READ, ScopeType.WRITE]]
+      );
+      setLoading(false);
       return;
     }
 

@@ -1,8 +1,10 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useApi } from "../../lib/api";
-import { ModifyButton, DeleteButton, BackButton } from "../../components/Buttons/ActionButtons";
-import ProductosBaseManager from "../../components/ProductosBaseManager";
+import { EditButton, TrashButton, BackButton } from "../../components/Buttons/ActionButtons";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import toast from "../../lib/toast.js";
 
 export default function ListaPrecioDetail() {
   const { id } = useParams();
@@ -12,6 +14,8 @@ export default function ListaPrecioDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const api = useApi();
+
+  const canDeletePriceList = checkScope(ModelType.LISTA_PRECIO, ScopeType.DELETE);
 
   useEffect(() => {
     const fetchListaPrecio = async () => {
@@ -54,6 +58,10 @@ export default function ListaPrecioDetail() {
   }, [id, api]);
 
   const handleDeleteListaPrecio = async () => {
+    if (!canDeletePriceList) {
+      toast.permissionError([ModelType.LISTA_PRECIO, ScopeType.DELETE]);
+      return;
+    }
     try {
       await api(`/lista-precio/${id}`, {
         method: "DELETE",
@@ -64,16 +72,7 @@ export default function ListaPrecioDetail() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-text">Cargando lista de precio...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader message="Cargando lista de precio" />;
 
   if (error) {
     return (
@@ -108,39 +107,79 @@ export default function ListaPrecioDetail() {
       </div>
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-text">Detalle de la Lista de Precio</h1>
-        <div className="flex gap-4">
-          <ModifyButton onClick={() => navigate(`/lista-precio/${id}/edit`)} />
-          <DeleteButton 
+        <div className="flex gap-2 items-center">
+          <EditButton
+            onClick={() => navigate(`/lista-precio/${id}/edit`)}
+            tooltipText="Editar Lista de Precio"
+          />
+          <TrashButton
             onConfirmDelete={handleDeleteListaPrecio}
             tooltipText="Eliminar Lista de Precio"
-            entityName="lista de precio"
+            entityName={`lista de precio ${listaPrecio.nombre || ""}`}
           />
         </div>
       </div>
 
-      <div className="bg-white shadow rounded-xl border border-border overflow-hidden">
-        <table className="w-full">
-          <tbody>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Nombre</td>
-              <td className="px-6 py-4 text-sm text-text">{listaPrecio.nombre}</td>
-            </tr>
-            <tr>
-              <td className="px-6 py-4 text-sm font-medium text-text">Descripción</td>
-              <td className="px-6 py-4 text-sm text-text">{listaPrecio.description}</td>
-            </tr>
-          </tbody>
-        </table>
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+        <h2 className="text-lg font-semibold text-text mb-4">Información de la Lista</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <p className="text-gray-500 text-sm mb-1">Nombre</p>
+            <p className="font-medium">{listaPrecio.nombre || "—"}</p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-sm mb-1">Descripción</p>
+            <p className="font-medium">{listaPrecio.description || "—"}</p>
+          </div>
+        </div>
       </div>
 
-      <div className="mt-6">
-        {/* Mostrar en modo solo lectura reusando el manager sin acciones */}
-        <ProductosBaseManager
-          listaPrecioId={id}
-          productosBase={productosBase}
-          onProductosBaseChange={() => {}}
-          isEditing={false}
-        />
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mt-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+          <h2 className="text-lg font-semibold text-text">
+            Productos en la Lista
+            <span className="ml-2 text-sm font-normal text-gray-500">
+              {productosBase.length} producto(s)
+            </span>
+          </h2>
+          <button
+            onClick={() => navigate(`/lista-precio/${id}/edit`)}
+            className="px-3 py-2 border rounded-lg hover:bg-gray-50 text-sm"
+          >
+            Administrar productos
+          </button>
+        </div>
+
+        {productosBase.length === 0 ? (
+          <p className="text-gray-500 text-sm">No hay productos en esta lista.</p>
+        ) : (
+          <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+            <thead className="bg-gray-50 text-gray-700">
+              <tr>
+                <th className="px-3 py-2 text-left">Producto</th>
+                <th className="px-3 py-2 text-right">Unidades por caja</th>
+                <th className="px-3 py-2 text-right">Precio por unidad</th>
+                <th className="px-3 py-2 text-right">Precio por caja</th>
+              </tr>
+            </thead>
+            <tbody>
+              {productosBase.map((producto) => (
+                <tr key={producto.id} className="border-t">
+                  <td className="px-3 py-2 font-medium">
+                    {producto.nombre_producto || producto.productoBase?.nombre || `Producto #${producto.id_producto_base}`}
+                  </td>
+                  <td className="px-3 py-2 text-right">{producto.unidades_por_caja ?? "—"}</td>
+                  <td className="px-3 py-2 text-right">
+                    ${producto.precio_unidad?.toLocaleString("es-CL") || "0"}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    ${producto.precio_caja?.toLocaleString("es-CL") || "0"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

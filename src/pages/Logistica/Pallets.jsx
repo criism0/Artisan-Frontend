@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useMemo } from "react";
-import Table from "../../components/Table";
-import axiosInstance from "../../axiosInstance";
+import Table from "../../components/Tables/Table";
+import { useApi } from "../../lib/api";
 import jsPDF from "jspdf";
 import QRCode from "qrcode";
-import { Download } from "lucide-react";
+import { Download, Plus, FileText, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { dteService } from "../../services/dteService.js";
+import { toast } from "../../lib/toast.js";
 
 function formatDate(value) {
   if (!value) return "-";
@@ -26,12 +28,15 @@ export default function Pallets() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [gdsPorPallet, setGdsPorPallet] = useState({});
+  const [gdLoadingId, setGdLoadingId] = useState(null);
+  const api = useApi();
 
   useEffect(() => {
     const fetchPallets = async () => {
       setLoading(true);
       try {
-        const { data } = await axiosInstance.get(
+        const  data  = await api(
           "/solicitudes-mercaderia/lista-para-despacho"
         );
 
@@ -46,6 +51,7 @@ export default function Pallets() {
             fecha_envio: sol.fecha_envio,
             medio_transporte: sol.medio_transporte,
             bultos: Array.isArray(p.bultos) ? p.bultos.length : "-",
+            solicitudId: sol.id,
           }))
         );
         setPallets(list);
@@ -58,6 +64,26 @@ export default function Pallets() {
     };
     fetchPallets();
   }, []);
+
+  const handleEmitirGDPallet = async (pallet) => {
+    setGdLoadingId(pallet.id);
+    try {
+      const gd = await dteService.emitirGuiaDespacho(
+        pallet.solicitudId, 5,
+        {
+          montoTotal: null,
+          items: [{ nombre: 'Insumos varios', cantidad: 1, precioUnitario: 0, unidad: 'Un.' }],
+          referencia: `Solicitud N° ${pallet.solicitudId ?? '—'} — Pallet ${pallet.identificador}`,
+        }
+      );
+      setGdsPorPallet((prev) => ({ ...prev, [pallet.id]: gd }));
+      toast.success(`GD N° ${gd.folio} generada para pallet ${pallet.identificador}`);
+    } catch (err) {
+      toast.error('Error al generar la GD: ' + (err?.message ?? err));
+    } finally {
+      setGdLoadingId(null);
+    }
+  };
 
   const generarEtiqueta = async (pallet) => {
     const pdf = new jsPDF({
@@ -87,24 +113,54 @@ export default function Pallets() {
     );
   }, [search, pallets]);
 
-  const rows = filtered.map((p) => ({
-    id: p.id,
-    identificador: p.identificador,
-    estado: p.estado,
-    origen: p.origen,
-    destino: p.destino,
-    fecha_envio: formatDate(p.fecha_envio),
-    bultos: p.bultos,
-    acciones: (
-      <button
-        onClick={() => generarEtiqueta(p)}
-        className="p-1 text-gray-600 hover:text-green-600 transition"
-        title="Descargar etiqueta QR"
-      >
-        <Download size={17} strokeWidth={1.5} />
-      </button>
-    ),
-  }));
+  const rows = filtered.map((p) => {
+    const gd = gdsPorPallet[p.id];
+    const isLoadingGd = gdLoadingId === p.id;
+
+    return {
+      id: p.id,
+      identificador: p.identificador,
+      estado: p.estado,
+      origen: p.origen,
+      destino: p.destino,
+      fecha_envio: formatDate(p.fecha_envio),
+      bultos: p.bultos,
+      guia_despacho: gd ? (
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <FileText size={11} />
+            GD #{gd.folio}
+          </span>
+          <button
+            onClick={() => dteService.descargarPDF(gd, { id: p.solicitudId, materiasPrimas: [] })}
+            className="p-1 text-gray-400 hover:text-blue-600 transition"
+            title="Descargar PDF"
+          >
+            <FileText size={13} />
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => handleEmitirGDPallet(p)}
+          disabled={isLoadingGd}
+          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50 transition"
+          title="Emitir Guía de Despacho interna"
+        >
+          {isLoadingGd ? <Loader2 size={11} className="animate-spin" /> : <Plus size={11} />}
+          {isLoadingGd ? 'Generando…' : 'Emitir GD'}
+        </button>
+      ),
+      acciones: (
+        <button
+          onClick={() => generarEtiqueta(p)}
+          className="p-1 text-gray-600 hover:text-green-600 transition"
+          title="Descargar etiqueta QR"
+        >
+          <Download size={17} strokeWidth={1.5} />
+        </button>
+      ),
+    };
+  });
 
   const columns = [
     { header: "ID", accessor: "id" },
@@ -114,6 +170,7 @@ export default function Pallets() {
     { header: "Destino", accessor: "destino" },
     { header: "Fecha Envío", accessor: "fecha_envio" },
     { header: "Bultos", accessor: "bultos" },
+    { header: "Guía de Despacho", accessor: "guia_despacho" },
     { header: "Acciones", accessor: "acciones" },
   ];
 

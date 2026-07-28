@@ -3,6 +3,9 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { useState, useEffect } from "react";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function AddAsociacion() {
   const normalizeFormatoBaseFromUnidad = (unidadMedidaRaw) => {
@@ -61,6 +64,11 @@ export default function AddAsociacion() {
 
   const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const canWriteRawMaterialProvider = checkScope(ModelType.PROVEEDOR_MATERIA_PRIMA, ScopeType.WRITE);
+  const canReadProvider = checkScope(ModelType.PROVEEDOR, ScopeType.READ);
 
   // Permite entrar desde Detalle de Proveedor con proveedor preseleccionado
   useEffect(() => {
@@ -75,6 +83,11 @@ export default function AddAsociacion() {
 
   useEffect(() => {
     const fetchData = async () => {
+      if (!canReadProvider) {
+        toast.permissionError([ModelType.PROVEEDOR, ScopeType.READ]);
+        setIsLoading(false);
+        return;
+      }
       try {
         const [provRes, insRes] = await Promise.all([
           api(`/proveedores`),
@@ -104,10 +117,12 @@ export default function AddAsociacion() {
         }
       } catch (error) {
         toast.error("Error al cargar datos: " + error);
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, canReadProvider]);
 
   // Si el usuario selecciona manualmente un insumo
   useEffect(() => {
@@ -302,7 +317,14 @@ export default function AddAsociacion() {
     e.preventDefault();
     if (!validate()) return;
 
+    if (!canWriteRawMaterialProvider) {
+      toast.permissionError([ModelType.PROVEEDOR_MATERIA_PRIMA, ScopeType.WRITE]);
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
+      setIsSubmitting(true);
       if (!baseNivel || !baseNivel.formato || baseNivel.formato.trim() === '') {
         toast.error("Debe ingresar un nombre para el formato base.");
         return;
@@ -395,11 +417,20 @@ export default function AddAsociacion() {
       navigate(`/Insumos/${formData.id_materia_prima}`);
     } catch (error) {
       toast.error("Error al crear las asociaciones: " + error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
+  if (isLoading) return <PageLoader message="Cargando datos" />;
+
   return (
     <div className="p-6 bg-background min-h-screen">
+      {isSubmitting && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <BackButton to={id ? `/Insumos/${id}` : "/Insumos"} />
       <h1 className="text-2xl font-bold text-text mb-2">Asociar Insumo con Proveedor</h1>
 
@@ -685,8 +716,12 @@ export default function AddAsociacion() {
         </div>
 
         <div className="flex justify-end">
-          <button type="submit" className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded">
-            Crear Asociación
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded disabled:opacity-50"
+          >
+            {isSubmitting ? "Creando..." : "Crear Asociación"}
           </button>
         </div>
       </form>

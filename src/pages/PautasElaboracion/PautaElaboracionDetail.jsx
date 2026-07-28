@@ -3,7 +3,9 @@ import { useApi } from "../../lib/api";
 import { useParams, useNavigate } from "react-router-dom";
 import { ModifyButton, DeleteButton, BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
-import Table from "../../components/Table";
+import Table from "../../components/Tables/Table";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 function formatDateTime(value) {
   if (!value) return "—";
@@ -40,8 +42,20 @@ export default function PautaElaboracionDetail() {
   const [recetas, setRecetas] = useState([]);
   const [camposAnalisisSensorial, setCamposAnalisisSensorial] = useState([]);
 
+  const canReadElaborationGuidelineSteps = checkScope(ModelType.PASO_PAUTA_ELABORACION, ScopeType.READ);
+  const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
+  const canDeleteElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.DELETE);
+
   useEffect(() => {
     const fetchPauta = async () => {
+      if (!canReadElaborationGuidelineSteps || !canReadElaborationGuideline) {
+        toast.permissionError(
+          [ModelType.PASO_PAUTA_ELABORACION, ScopeType.READ],
+          [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+        );
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
 
@@ -76,9 +90,13 @@ export default function PautaElaboracionDetail() {
       }
     };
     fetchPauta();
-  }, [id, api]);
+  }, [id, api, canReadElaborationGuidelineSteps, canReadElaborationGuideline]);
 
   const handleDelete = async () => {
+    if (!canDeleteElaborationGuideline) {
+      toast.permissionError([ModelType.PAUTA_ELABORACION, ScopeType.DELETE]);
+      return;
+    }
     try {
       await api(`/pautas-elaboracion/${id}`, { method: "DELETE" });
       toast.success("Pauta de elaboración eliminada correctamente.");
@@ -89,14 +107,7 @@ export default function PautaElaboracionDetail() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-        <span className="ml-3 text-primary">Cargando pauta...</span>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader message="Cargando pauta" />;
 
   if (error) {
     return (

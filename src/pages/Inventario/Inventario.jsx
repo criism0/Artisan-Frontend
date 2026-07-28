@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, Fragment } from "react";
-import { useGoogleLogin } from "@react-oauth/google";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { ChevronDown, ChevronRight, FileSpreadsheet, X } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import { createAndOpenSheet } from "../../lib/googleSheets";
+import GoogleSheetsExportButton from "../../components/UI/GoogleSheetsExportButton";
 
 // ── Badges ─────────────────────────────────────────────────────────────────
 
@@ -61,10 +62,12 @@ function getClaveCategoria(b) {
 // ── Componente principal ───────────────────────────────────────────────────
 
 export default function Inventario() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const bodegaParam = Number(searchParams.get("bodega")) || 0;
   const [inventario, setInventario] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [bodegas, setBodegas] = useState([]);
-  const [bodegaFilter, setBodegaFilter] = useState(0);
+  const [bodegaFilter, setBodegaFilter] = useState(bodegaParam);
   const [tipoFilter, setTipoFilter] = useState("todos");
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -294,26 +297,22 @@ export default function Inventario() {
     return filtered;
   };
 
-  const loginAndExport = useGoogleLogin({
-    onSuccess: async ({ access_token }) => {
-      try {
-        setIsExporting(true);
-        const data = getExportData();
-        const hasSelection = selectedIds.size > 0;
-        const title = hasSelection
-          ? `Inventario seleccionados ${new Date().toLocaleDateString("es-CL")}`
-          : `Inventario ${new Date().toLocaleDateString("es-CL")}`;
-        const url = await createAndOpenSheet(access_token, title, [HEADERS_INVENTARIO, ...buildExportRows(data)]);
-        toast.link("Hoja creada", url);
-      } catch {
-        toast.error("Error al exportar a Google Sheets");
-      } finally {
-        setIsExporting(false);
-      }
-    },
-    onError: () => toast.error("No se pudo autenticar con Google"),
-    scope: "https://www.googleapis.com/auth/spreadsheets",
-  });
+  const exportarASheets = async ({ access_token }) => {
+    try {
+      setIsExporting(true);
+      const data = getExportData();
+      const hasSelection = selectedIds.size > 0;
+      const title = hasSelection
+        ? `Inventario seleccionados ${new Date().toLocaleDateString("es-CL")}`
+        : `Inventario ${new Date().toLocaleDateString("es-CL")}`;
+      const url = await createAndOpenSheet(access_token, title, [HEADERS_INVENTARIO, ...buildExportRows(data)]);
+      toast.link("Hoja creada", url);
+    } catch {
+      toast.error("Error al exportar a Google Sheets");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -327,18 +326,15 @@ export default function Inventario() {
                 {selectedIds.size} seleccionada{selectedIds.size !== 1 ? "s" : ""}
               </span>
             )}
-            <button
-              onClick={loginAndExport}
+            <GoogleSheetsExportButton
+              onToken={exportarASheets}
+              onError={() => toast.error("No se pudo autenticar con Google")}
+              isExporting={isExporting}
               disabled={isExporting || filtered.length === 0}
-              className="text-gray-500 hover:text-green-700 disabled:opacity-40"
               title={selectedIds.size > 0
                 ? `Exportar ${selectedIds.size} seleccionada(s) (Google Sheets)`
                 : "Exportar filtrados (Google Sheets)"}
-            >
-              {isExporting
-                ? <span className="text-xs text-gray-500">Exportando…</span>
-                : <FileSpreadsheet className="w-5 h-5" />}
-            </button>
+            />
           </div>
         </div>
       </div>
@@ -350,7 +346,14 @@ export default function Inventario() {
             <label className="block text-sm font-semibold mb-1">Bodega</label>
             <select
               value={bodegaFilter}
-              onChange={(e) => setBodegaFilter(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setBodegaFilter(v);
+                const next = new URLSearchParams(searchParams);
+                if (+v > 0) next.set("bodega", v);
+                else next.delete("bodega");
+                setSearchParams(next, { replace: true });
+              }}
               className="border rounded px-3 py-2 w-full"
             >
               <option value={0}>Todas</option>

@@ -3,6 +3,8 @@ import { useApi } from "../../lib/api";
 import { useNavigate, useParams } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function EditPVAPorProducto() {
   const api = useApi();
@@ -22,8 +24,21 @@ export default function EditPVAPorProducto() {
   const [isLoading, setIsLoading] = useState(true);
   const [errors, setErrors] = useState({});
 
+  const canWritePVAProductSupplies = checkScope(ModelType.INSUMO_PVA_PRODUCTO, ScopeType.WRITE);
+  const canDeletePVAProductSupplies = checkScope(ModelType.INSUMO_PVA_PRODUCTO, ScopeType.DELETE);
+
+  const canReadAddedValueProcess = checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ);
+
+  const canReadPVAProduct = checkScope(ModelType.PVA_PRODUCTO, ScopeType.READ);
+  const canWritePVAProduct = checkScope(ModelType.PVA_PRODUCTO, ScopeType.WRITE);
+
   useEffect(() => {
     const fetchData = async () => {
+      if (!canReadAddedValueProcess || !canReadPVAProduct) {
+        toast.permissionError([ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ]);
+        setIsLoading(false);
+        return;
+      }
       try {
         const [procRes, matRes, prodRes, relRes] = await Promise.all([
           api(`/procesos-de-valor-agregado`, { method: "GET" }),
@@ -53,7 +68,7 @@ export default function EditPVAPorProducto() {
       }
     };
     fetchData();
-  }, [api, id]);
+  }, [api, id, canReadAddedValueProcess]);
 
   const validate = () => {
     const newErrors = {};
@@ -67,6 +82,11 @@ export default function EditPVAPorProducto() {
 
   const handleSubmit = async () => {
     if (!validate()) return;
+
+    if (!canWritePVAProduct) {
+      toast.permissionError([ModelType.PVA_PRODUCTO, ScopeType.WRITE]);
+      return;
+    }
 
     try {
       const body = {
@@ -99,6 +119,11 @@ export default function EditPVAPorProducto() {
   };
 
   const refreshInsumos = async () => {
+    if (!canReadPVAProduct) {
+      toast.permissionError([ModelType.PVA_PRODUCTO, ScopeType.READ]);
+      setInsumos([]);
+      return;
+    }
     const updated = await api(`/pva-por-producto/${id}`, { method: "GET" });
     setInsumos(updated.Insumos || []);
   };
@@ -108,6 +133,10 @@ export default function EditPVAPorProducto() {
   )?.utiliza_insumos;
 
   const handleSaveInsumo = async (insumo) => {
+    if (!canWritePVAProductSupplies) {
+      toast.permissionError([ModelType.INSUMO_PVA_PRODUCTO, ScopeType.WRITE]);
+      return;
+    }
     try {
       if (!insumo.id) {
         const body = {
@@ -143,6 +172,10 @@ export default function EditPVAPorProducto() {
   };
 
   const handleDeleteInsumo = async (insumo) => {
+    if (!canDeletePVAProductSupplies) {
+      toast.permissionError([ModelType.INSUMO_PVA_PRODUCTO, ScopeType.DELETE]);
+      return;
+    }
     try {
       if (!insumo.id) {
         setInsumos((prev) => prev.filter((x) => x !== insumo));
@@ -160,13 +193,7 @@ export default function EditPVAPorProducto() {
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="p-6 text-center text-gray-600">
-        Cargando información del PVA por producto...
-      </div>
-    );
-  }
+  if (isLoading) return <PageLoader message="Cargando PVA por producto" />;
 
   return (
     <div className="p-6 bg-background min-h-screen">
@@ -357,6 +384,7 @@ export default function EditPVAPorProducto() {
       < div className="flex justify-end mt-8" >
         <button
           onClick={handleSubmit}
+          disabled={!canWritePVAProduct}
           className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
         >
           Guardar Cambios Generales

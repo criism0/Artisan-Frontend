@@ -4,6 +4,8 @@ import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { ModifyButton, DeleteButton, BackButton } from "../../components/Buttons/ActionButtons";
 import TabButton from "../../components/Wizard/TabButton";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -24,8 +26,18 @@ export default function ProductDetail() {
   const [pautaAnalisisDetalle, setPautaAnalisisDetalle] = useState(null);
   const [pautaDetalleLoading, setPautaDetalleLoading] = useState(false);
 
+  const canDeleteBaseProduct = checkScope(ModelType.PRODUCTO_BASE, ScopeType.DELETE);
+  
+  const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
+
   useEffect(() => {
     const load = async () => {
+      if (!canReadElaborationGuideline) {
+        toast.permissionError(
+          [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+        );
+        return;
+      }
       try {
         const [productoRes, recetasRes, pautasRes] = await Promise.all([
           api(`/productos-base/${id}`),
@@ -67,7 +79,7 @@ export default function ProductDetail() {
     };
 
     void load();
-  }, [id, api]);
+  }, [id, api, canReadElaborationGuideline]);
 
   useEffect(() => {
     const loadPautaDetalle = async () => {
@@ -77,6 +89,13 @@ export default function ProductDetail() {
         setPautaDetalle(null);
         setPautaPasosDetalle([]);
         setPautaAnalisisDetalle(null);
+        return;
+      }
+      if (!canReadElaborationGuideline) {
+        toast.permissionError(
+          [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+        );
+        setPautaDetalleLoading(false);
         return;
       }
 
@@ -102,9 +121,13 @@ export default function ProductDetail() {
     };
 
     void loadPautaDetalle();
-  }, [api, receta?.id_pauta_elaboracion, tab]);
+  }, [api, receta?.id_pauta_elaboracion, tab, canReadElaborationGuideline]);
 
   const handleDeleteProduct = async () => {
+    if (!canDeleteBaseProduct) {
+      toast.permissionError([ModelType.PRODUCTO_BASE, ScopeType.DELETE]);
+      return;
+    }
     try {
       await api(`/productos-base/${id}`, { method: "DELETE" });
       toast.success("Producto eliminado");
@@ -115,7 +138,7 @@ export default function ProductDetail() {
     }
   };
 
-  if (!producto) return <div>Cargando...</div>;
+  if (!producto) return <PageLoader message="Cargando producto" />;
 
   const recetaPautaId = receta?.id_pauta_elaboracion ?? null;
   const pautaNombre = recetaPautaId
@@ -149,7 +172,6 @@ export default function ProductDetail() {
           ) : null}
           <ModifyButton onClick={() => navigate(`/Productos/${id}/edit`)} />
           <DeleteButton
-            baseUrl={`${import.meta.env.VITE_BACKEND_URL}/productos-base`}
             entityId={id}
             onConfirmDelete={handleDeleteProduct}
             tooltipText="Eliminar Producto"
@@ -179,6 +201,12 @@ export default function ProductDetail() {
               <tr className="border-b border-border">
                 <td className="px-6 py-4 text-sm font-medium text-text">Nombre</td>
                 <td className="px-6 py-4 text-sm text-text">{producto.nombre}</td>
+              </tr>
+              <tr className="border-b border-border">
+                <td className="px-6 py-4 text-sm font-medium text-text">Nombre de facturación</td>
+                <td className="px-6 py-4 text-sm text-text">
+                  {producto.nombreFacturacion?.nombre || "—"}
+                </td>
               </tr>
               <tr className="border-b border-border">
                 <td className="px-6 py-4 text-sm font-medium text-text">Cantidad</td>

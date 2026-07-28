@@ -1,13 +1,13 @@
 import React, { useState } from "react";
-import { FiEye, FiEdit, FiTrash, FiArrowLeft, FiPlus} from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
-import { CopyCheck, DollarSign, RotateCcw, ClipboardPen, Lock, Unlock } from "lucide-react";
+import { Eye, Edit, Trash, ArrowLeft, Plus, DollarSign, RotateCcw, ClipboardPen, Lock, Unlock } from "lucide-react";
 import { toast } from "../../lib/toast"
+import { FaWarehouse } from "react-icons/fa";
 
 export function ViewDetailButton({ onClick, tooltipText }) {
   return (
     <button onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
-      <FiEye className="w-5 h-5" />
+      <Eye className="w-5 h-5" />
     </button>
   );
 }
@@ -31,7 +31,7 @@ export function UndoButton({ onClick, tooltipText }) {
 export function AddButton({ onClick, tooltipText }) {
   return (
     <button onClick={onClick} title={tooltipText} className="text-green-600 hover:text-green-800">
-      <FiPlus className="w-5 h-5" />
+      <Plus className="w-5 h-5" />
     </button>
   );
 }
@@ -97,12 +97,12 @@ export function PagarButton({
 export function EditButton({ onClick, tooltipText }) {
   return (
     <button onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
-      <FiEdit className="w-5 h-5" />
+      <Edit className="w-5 h-5" />
     </button>
   );
 }
 
-export function ConfirmDeleteModal({ isOpen, onClose, onConfirm, entityName = "elemento" }) {
+function ConfirmDeleteModal({ isOpen, onClose, onConfirm, entityName = "elemento" }) {
   if (!isOpen) return null;
 
   return (
@@ -155,7 +155,7 @@ export function TrashButton({ onConfirmDelete, tooltipText, entityName = "elemen
         className="text-red-600 hover:text-red-700"
         title={tooltipText}
       >
-        <FiTrash className="w-5 h-5" />
+        <Trash className="w-5 h-5" />
       </button>
       <ConfirmDeleteModal
         isOpen={isModalOpen}
@@ -174,7 +174,7 @@ export function TrashIconButton({ onClick, tooltipText }) {
       className="text-red-600 hover:text-red-700"
       title={tooltipText}
     >
-      <FiTrash className="w-5 h-5" />
+      <Trash className="w-5 h-5" />
     </button>
   );
 }
@@ -238,73 +238,13 @@ export function BackButton({ to = null, label = "Volver" }) {
       onClick={handleClick}
       className="text-primary border border-primary hover:bg-gray-100 font-medium text-sm flex items-center gap-2 px-4 py-2 rounded-md transition"
     >
-      <FiArrowLeft className="w-4 h-4" />
+      <ArrowLeft className="w-4 h-4" />
       {label}
     </button>
   );
 }
 
-export function DisableButton({ onConfirmDisable, tooltipText, entityName = "elemento" }) {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const handleOpenModal = () => setIsModalOpen(true);
-  const handleCloseModal = () => setIsModalOpen(false);
-
-  const handleConfirm = async () => {
-    try {
-      await onConfirmDisable();
-    } catch (error) {
-      toast.error(`Error deshabilitando ${entityName}:`, error);
-    }
-    handleCloseModal();
-  };
-
-  return (
-    <>
-      <button
-        onClick={handleOpenModal}
-        className="text-yellow-600 hover:text-yellow-700"
-        title={tooltipText || "Deshabilitar"}
-      >
-        <Lock className="w-5 h-5" />
-      </button>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md text-center">
-            <div className="flex flex-col items-center">
-              <div className="text-yellow-500 text-5xl mb-4">⚠️</div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Deshabilitar Insumo</h2>
-
-              <p className="text-gray-600 mb-6 text-sm leading-relaxed break-words whitespace-normal overflow-hidden text-ellipsis">
-                ¿Seguro que deseas deshabilitar{" "}
-                <span className="font-bold text-gray-800 uppercase break-all">{entityName}</span>?<br />
-                Este dejará de estar disponible en la lista de insumos activos.
-              </p>
-
-              <div className="flex flex-wrap justify-center gap-4">
-                <button
-                  onClick={handleConfirm}
-                  className="px-5 py-2 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-white font-medium transition-colors shadow"
-                >
-                  Sí, Deshabilitar
-                </button>
-                <button
-                  onClick={handleCloseModal}
-                  className="px-5 py-2 rounded-xl bg-gray-300 hover:bg-gray-400 text-black font-medium transition-colors shadow"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
-
-export function ToggleActiveButton({ 
+export function ToggleActiveButton({
   isActive, 
   onToggleActive, 
   entityName = "elemento",
@@ -324,7 +264,7 @@ export function ToggleActiveButton({
           : `${entityName} habilitado correctamente`
       );
     } catch (error) {
-      toast.error("Error al cambiar estado", error);
+      toast.error(`Error al cambiar estado: ${error.message} `);
     }
 
     handleClose();
@@ -387,3 +327,11 @@ export function ToggleActiveButton({
   );
 }
 
+// Solo usado para asignar bodegas a usuarios
+export function WarehouseButton({ onClick, tooltipText }) {
+  return (
+    <button onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
+      <FaWarehouse className="w-5 h-5" />
+    </button>
+  );
+}

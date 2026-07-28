@@ -15,6 +15,15 @@ export default {
         background: "#ffffff", 
         text: "#4A4A4A", 
       },
+      keyframes: {
+        "fade-in": {
+          "0%": {opacity: "0", transform: "scale(0.98)"},
+          "100%": {opacity: "1", transform: "scale(1)"},
+        },
+      },
+      animation: {
+        "fade-in": "fade-in 0.5s ease-out",
+      },
     },
   },
   plugins: [],

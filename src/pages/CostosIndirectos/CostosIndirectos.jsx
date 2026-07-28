@@ -1,14 +1,38 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import Table from "../../components/Table";
-import SearchBar from "../../components/SearchBar";
-import Selector from "../../components/Selector";
-import { BackButton } from "../../components/Buttons/ActionButtons";
-import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
+import DataTable from "../../components/Tables/DataTable";
+import Selector from "../../components/Forms/Selector";
+import {
+  BackButton,
+  EditButton,
+  TrashButton,
+} from "../../components/Buttons/ActionButtons";
+import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmModal";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { Lock, Unlock } from "lucide-react";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 function normalize(text) {
   return String(text ?? "").trim();
+}
+
+const ESTADO_OPTIONS = [
+  { value: "activos", label: "Activos" },
+  { value: "inactivos", label: "Inactivos" },
+  { value: "todos", label: "Todos" },
+];
+
+function EstadoChip({ activo }) {
+  return (
+    <span
+      className={`px-2 py-1 rounded-full text-xs font-medium ${
+        activo ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+      }`}
+    >
+      {activo ? "Activo" : "Inactivo"}
+    </span>
+  );
 }
 
 function Modal({ open, title, children, onClose }) {
@@ -16,7 +40,7 @@ function Modal({ open, title, children, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative w-[min(720px,95vw)] bg-white rounded-xl shadow-lg border border-gray-200">
+      <div className="relative w-[min(560px,95vw)] bg-white rounded-xl shadow-lg border border-gray-200">
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <div className="font-semibold text-gray-900">{title}</div>
           <button
@@ -28,6 +52,63 @@ function Modal({ open, title, children, onClose }) {
           </button>
         </div>
         <div className="p-4">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function CostoIndirectoForm({ form, setForm, onCancel, onSubmit, isSaving, submitLabel, canWrite, showActivo = false }) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className="block text-sm font-medium mb-1">Nombre *</label>
+        <input
+          className="w-full border rounded-lg px-3 py-2"
+          value={form.nombre}
+          onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))}
+          placeholder="Ej: Energía eléctrica"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Descripción</label>
+        <textarea
+          className="w-full border rounded-lg px-3 py-2"
+          value={form.descripcion}
+          onChange={(e) => setForm((p) => ({ ...p, descripcion: e.target.value }))}
+          rows={3}
+          placeholder="Opcional"
+        />
+      </div>
+      {showActivo && (
+        <div className="flex items-center gap-2">
+          <input
+            id="ci_is_active"
+            type="checkbox"
+            checked={!!form.is_active}
+            onChange={(e) => setForm((p) => ({ ...p, is_active: e.target.checked }))}
+          />
+          <label htmlFor="ci_is_active" className="text-sm text-gray-700">
+            Activo
+          </label>
+        </div>
+      )}
+      <div className="flex justify-end gap-2 pt-2">
+        <button
+          type="button"
+          className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+          onClick={onCancel}
+          disabled={isSaving}
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+          onClick={onSubmit}
+          disabled={isSaving || !canWrite}
+        >
+          {isSaving ? "Guardando..." : submitLabel}
+        </button>
       </div>
     </div>
   );
@@ -45,16 +126,21 @@ export default function CostosIndirectos() {
   });
 
   const [items, setItems] = useState([]);
-  const [query, setQuery] = useState("");
   const [estado, setEstado] = useState("activos"); // activos | inactivos | todos
+  const [isLoading, setIsLoading] = useState(true);
+  const [togglingId, setTogglingId] = useState(null);
 
-  const [createForm, setCreateForm] = useState({ nombre: "", descripcion: "" });
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ nombre: "", descripcion: "" });
   const [isCreating, setIsCreating] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [editForm, setEditForm] = useState({ nombre: "", descripcion: "", is_active: true });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+  const canWriteIndirectCost = checkScope(ModelType.COSTO_INDIRECTO, ScopeType.WRITE);
+  const canDeleteIndirectCost = checkScope(ModelType.COSTO_INDIRECTO, ScopeType.DELETE);
 
   const fetchAll = async () => {
     try {
@@ -70,6 +156,8 @@ export default function CostosIndirectos() {
     } catch (e) {
       console.error(e);
       toast.error("No se pudieron cargar los costos indirectos");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -78,25 +166,14 @@ export default function CostosIndirectos() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [estado]);
 
-  const filtered = useMemo(() => {
-    const q = normalize(query).toLowerCase();
-    if (!q) return items;
-
-    return (items || []).filter((i) => {
-      const nombre = String(i?.nombre || "").toLowerCase();
-      const descripcion = String(i?.descripcion || "").toLowerCase();
-      return nombre.includes(q) || descripcion.includes(q);
-    });
-  }, [items, query]);
-
-  const estadoOptions = useMemo(
-    () => [
-      { value: "activos", label: "Activos" },
-      { value: "inactivos", label: "Inactivos" },
-      { value: "todos", label: "Todos" },
-    ],
-    []
-  );
+  const openAdd = () => {
+    if (!canWriteIndirectCost) {
+      toast.permissionError([ModelType.COSTO_INDIRECTO, ScopeType.WRITE]);
+      return;
+    }
+    setAddForm({ nombre: "", descripcion: "" });
+    setAddOpen(true);
+  };
 
   const openEdit = (row) => {
     setEditId(row.id);
@@ -108,13 +185,18 @@ export default function CostosIndirectos() {
     setEditOpen(true);
   };
 
-  const handleCreate = async (confirmSimilarNameOrEvent = false) => {
-    const confirmSimilarName = typeof confirmSimilarNameOrEvent === "boolean" ? confirmSimilarNameOrEvent : false;
-    const nombre = normalize(createForm.nombre);
-    const descripcion = normalize(createForm.descripcion);
+  const handleCreate = async (confirmSimilarName = false) => {
+    const nombre = normalize(addForm.nombre);
+    const descripcion = normalize(addForm.descripcion);
 
     if (!nombre) {
       toast.error("El nombre es obligatorio");
+      return;
+    }
+
+    if (!canWriteIndirectCost) {
+      toast.permissionError([ModelType.COSTO_INDIRECTO, ScopeType.WRITE]);
+      setIsCreating(false);
       return;
     }
 
@@ -124,8 +206,8 @@ export default function CostosIndirectos() {
         method: "POST",
         body: JSON.stringify({ nombre, descripcion, confirmSimilarName }),
       });
-      setCreateForm({ nombre: "", descripcion: "" });
       toast.success("Costo indirecto creado");
+      setAddOpen(false);
       await fetchAll();
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && e.data?.code === "SIMILAR_NAME") {
@@ -148,14 +230,19 @@ export default function CostosIndirectos() {
     }
   };
 
-  const handleSaveEdit = async (confirmSimilarNameOrEvent = false) => {
-    const confirmSimilarName = typeof confirmSimilarNameOrEvent === "boolean" ? confirmSimilarNameOrEvent : false;
+  const handleSaveEdit = async (confirmSimilarName = false) => {
     if (!editId) return;
     const nombre = normalize(editForm.nombre);
     const descripcion = normalize(editForm.descripcion);
 
     if (!nombre) {
       toast.error("El nombre no puede quedar vacío");
+      return;
+    }
+
+    if (!canWriteIndirectCost) {
+      toast.permissionError([ModelType.COSTO_INDIRECTO, ScopeType.WRITE]);
+      setIsSavingEdit(false);
       return;
     }
 
@@ -193,16 +280,29 @@ export default function CostosIndirectos() {
   };
 
   const handleToggle = async (row) => {
+    if (!canWriteIndirectCost) {
+      toast.permissionError([ModelType.COSTO_INDIRECTO, ScopeType.WRITE]);
+      return;
+    }
+    const activo = row.is_active !== false;
+    setTogglingId(row.id);
     try {
       await api(`/costos-indirectos/${row.id}/toggle-active`, { method: "PUT" });
+      toast.success(activo ? "Costo indirecto desactivado" : "Costo indirecto activado");
       await fetchAll();
     } catch (e) {
       console.error(e);
       toast.error("No se pudo cambiar el estado");
+    } finally {
+      setTogglingId(null);
     }
   };
 
   const handleSoftDelete = async (row) => {
+    if (!canDeleteIndirectCost) {
+      toast.permissionError([ModelType.COSTO_INDIRECTO, ScopeType.DELETE]);
+      return;
+    }
     try {
       await api(`/costos-indirectos/${row.id}`, { method: "DELETE" });
       toast.success("Costo indirecto desactivado");
@@ -213,69 +313,113 @@ export default function CostosIndirectos() {
     }
   };
 
-  const columns = useMemo(
-    () => [
-      { header: "Nombre", accessor: "nombre" },
-      {
-        header: "Descripción",
-        accessor: "descripcion",
-        Cell: ({ row }) => (
-          <div className="text-sm text-gray-700 whitespace-pre-wrap">{row.descripcion || "—"}</div>
-        ),
-      },
-      {
-        header: "Estado",
-        accessor: "is_active",
-        Cell: ({ row }) => (
-          <span
-            className={`px-2 py-1 rounded-full text-xs font-medium ${
-              row.is_active === false
-                ? "bg-gray-100 text-gray-700"
-                : "bg-green-100 text-green-700"
-            }`}
-          >
-            {row.is_active === false ? "Inactivo" : "Activo"}
-          </span>
-        ),
-      },
-      {
-        header: "Acciones",
-        accessor: "actions",
-        Cell: ({ row }) => (
-          <div className="flex items-center gap-2 justify-end">
-            <button
-              type="button"
-              className="px-3 py-1.5 border rounded-lg hover:bg-gray-50"
-              onClick={() => openEdit(row)}
-            >
-              Editar
-            </button>
-            <button
-              type="button"
-              className="px-3 py-1.5 border rounded-lg hover:bg-gray-50"
-              onClick={() => handleToggle(row)}
-            >
-              {row.is_active === false ? "Activar" : "Desactivar"}
-            </button>
-            <button
-              type="button"
-              className="px-3 py-1.5 border border-red-200 text-red-700 rounded-lg hover:bg-red-50"
-              onClick={() => handleSoftDelete(row)}
-              disabled={row.is_active === false}
-              title={row.is_active === false ? "Ya está inactivo" : "Desactiva (soft-delete)"}
-            >
-              Eliminar
-            </button>
-          </div>
-        ),
-      },
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items]
-  );
+  const columns = [
+    {
+      header: "Nombre",
+      accessor: "nombre",
+      sortable: true,
+      Cell: ({ value }) => (
+        <div className="max-w-[320px] truncate font-medium" title={value || ""}>
+          {value || "—"}
+        </div>
+      ),
+    },
+    {
+      header: "Descripción",
+      accessor: "descripcion",
+      Cell: ({ value }) => (
+        <div className="max-w-[480px] truncate text-gray-600" title={value || ""}>
+          {value || "—"}
+        </div>
+      ),
+    },
+    {
+      header: "Estado",
+      accessor: "is_active",
+      sortable: true,
+      align: "center",
+      sortValue: (row) => (row.is_active === false ? 0 : 1),
+      Cell: ({ row }) => (
+        <div className="flex justify-center">
+          <EstadoChip activo={row.is_active !== false} />
+        </div>
+      ),
+    },
+  ];
+
+  const actions = (row) => {
+    const activo = row.is_active !== false;
+    return (
+      <div className="flex gap-2 items-center">
+        <EditButton onClick={() => openEdit(row)} tooltipText="Editar costo indirecto" />
+        <button
+          type="button"
+          onClick={() => void handleToggle(row)}
+          disabled={togglingId === row.id || !canWriteIndirectCost}
+          className={`${activo ? "text-yellow-600 hover:text-yellow-700" : "text-green-600 hover:text-green-700"} ${togglingId === row.id || !canWriteIndirectCost ? "opacity-60 cursor-not-allowed" : ""}`}
+          title={togglingId === row.id ? "Actualizando..." : activo ? "Desactivar costo indirecto" : "Activar costo indirecto"}
+          aria-label={activo ? "Desactivar costo indirecto" : "Activar costo indirecto"}
+        >
+          {activo ? <Lock className="w-5 h-5" /> : <Unlock className="w-5 h-5" />}
+        </button>
+        {activo && canDeleteIndirectCost ? (
+          <TrashButton
+            onConfirmDelete={() => handleSoftDelete(row)}
+            tooltipText="Desactivar (los costos no se eliminan para no romper recetas históricas)"
+            entityName={`costo indirecto ${row.nombre || ""}`}
+          />
+        ) : null}
+      </div>
+    );
+  };
+
+  const getSearchText = (row) =>
+    [row?.nombre, row?.descripcion, row?.is_active === false ? "inactivo" : "activo"]
+      .filter((v) => v != null)
+      .join(" ");
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <>
+      {(isCreating || isSavingEdit) && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
+
+      <DataTable
+        title="Costos Indirectos"
+        data={items}
+        columns={columns}
+        actions={actions}
+        getSearchText={getSearchText}
+        loading={isLoading}
+        loadingMessage="Cargando costos indirectos"
+        defaultRowsPerPage={25}
+        emptyMessage="No hay costos indirectos para mostrar."
+        headerActions={
+          <>
+            <BackButton to="/Home" />
+            <button
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+              onClick={openAdd}
+            >
+              Añadir Costo Indirecto
+            </button>
+          </>
+        }
+        toolbarStart={
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700">Estado</span>
+            <Selector
+              options={ESTADO_OPTIONS}
+              selectedValue={estado}
+              onSelect={(v) => setEstado(v)}
+              className="px-3 py-2 border border-gray-200 rounded-lg"
+            />
+          </div>
+        }
+      />
+
       <SimilarNameConfirmModal
         open={similarModal.open}
         entityLabel="costo indirecto"
@@ -293,88 +437,24 @@ export default function CostosIndirectos() {
           if (typeof fn === "function") await fn();
         }}
       />
-      <div className="mb-4">
-        <BackButton to="/InsumosPIPProductos" />
-      </div>
 
-      <div className="flex items-start justify-between gap-4 flex-wrap mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Costos Indirectos</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Catálogo maestro de costos indirectos. Se recomienda desactivar en vez de eliminar para no romper recetas históricas.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-            onClick={fetchAll}
-          >
-            Refrescar
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Estado</label>
-            <Selector
-              options={estadoOptions}
-              selectedValue={estado}
-              onSelect={(v) => setEstado(v)}
-              className="px-3 py-2 border border-gray-200 rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Buscar</label>
-            <SearchBar onSearch={(q) => setQuery(q)} />
-          </div>
-          <div className="md:col-span-2" />
-        </div>
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm mb-6">
-        <div className="font-semibold text-gray-900 mb-3">Crear costo indirecto</div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-sm font-medium mb-1">Nombre *</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2"
-              value={createForm.nombre}
-              onChange={(e) => setCreateForm((p) => ({ ...p, nombre: e.target.value }))}
-              placeholder="Ej: Energía eléctrica"
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-1">Descripción</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2"
-              value={createForm.descripcion}
-              onChange={(e) => setCreateForm((p) => ({ ...p, descripcion: e.target.value }))}
-              placeholder="Opcional"
-            />
-          </div>
-        </div>
-        <div className="flex justify-end mt-3">
-          <button
-            type="button"
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
-            onClick={() => handleCreate(false)}
-            disabled={isCreating}
-          >
-            {isCreating ? "Creando..." : "Crear"}
-          </button>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm">
-        {filtered.length === 0 ? (
-          <div className="p-6 text-center text-gray-500">No hay costos indirectos para mostrar.</div>
-        ) : (
-          <Table columns={columns} data={filtered} />
-        )}
-      </div>
+      <Modal
+        open={addOpen}
+        title="Añadir Costo Indirecto"
+        onClose={() => {
+          if (!isCreating) setAddOpen(false);
+        }}
+      >
+        <CostoIndirectoForm
+          form={addForm}
+          setForm={setAddForm}
+          onCancel={() => setAddOpen(false)}
+          onSubmit={() => handleCreate(false)}
+          isSaving={isCreating}
+          submitLabel="Crear"
+          canWrite={canWriteIndirectCost}
+        />
+      </Modal>
 
       <Modal
         open={editOpen}
@@ -383,56 +463,17 @@ export default function CostosIndirectos() {
           if (!isSavingEdit) setEditOpen(false);
         }}
       >
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium mb-1">Nombre *</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2"
-              value={editForm.nombre}
-              onChange={(e) => setEditForm((p) => ({ ...p, nombre: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Descripción</label>
-            <textarea
-              className="w-full border rounded-lg px-3 py-2"
-              value={editForm.descripcion}
-              onChange={(e) => setEditForm((p) => ({ ...p, descripcion: e.target.value }))}
-              rows={3}
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              id="is_active"
-              type="checkbox"
-              checked={!!editForm.is_active}
-              onChange={(e) => setEditForm((p) => ({ ...p, is_active: e.target.checked }))}
-            />
-            <label htmlFor="is_active" className="text-sm text-gray-700">
-              Activo
-            </label>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-              onClick={() => setEditOpen(false)}
-              disabled={isSavingEdit}
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
-              onClick={() => handleSaveEdit(false)}
-              disabled={isSavingEdit}
-            >
-              {isSavingEdit ? "Guardando..." : "Guardar"}
-            </button>
-          </div>
-        </div>
+        <CostoIndirectoForm
+          form={editForm}
+          setForm={setEditForm}
+          onCancel={() => setEditOpen(false)}
+          onSubmit={() => handleSaveEdit(false)}
+          isSaving={isSavingEdit}
+          submitLabel="Guardar"
+          canWrite={canWriteIndirectCost}
+          showActivo
+        />
       </Modal>
-    </div>
+    </>
   );
 }

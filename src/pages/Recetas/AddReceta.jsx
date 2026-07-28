@@ -3,7 +3,8 @@ import { ApiError, useApi } from "../../lib/api";
 import { useNavigate } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
-import SimilarNameConfirmModal from "../../components/SimilarNameConfirmModal";
+import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmModal";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 // ────────────────────────────────────────────────
 // CONSTANTS
@@ -53,11 +54,23 @@ export default function AddReceta() {
   const [showAddSubproduct, setShowAddSubproduct] = useState(false);
   const [selectedMateriaPrima, setSelectedMateriaPrima] = useState("");
 
+  // Permissions
+  const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteRecipe = checkScope(ModelType.RECETA, ScopeType.WRITE);
+  const canWriteRecipeIngredient = checkScope(ModelType.INGREDIENTE_RECETA, ScopeType.WRITE);
+  const canWriteRawMaterial = checkScope(ModelType.MATERIA_PRIMA, ScopeType.WRITE);
+
   // ────────────────────────────────────────────────
   // FETCHES
   // ────────────────────────────────────────────────
   useEffect(() => {
     const fetchData = async () => {
+      if (!canReadElaborationGuideline) {
+        toast.permissionError(
+          [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+        );
+        return;
+      }
       try {
         const [materiasRes, productosRes, pautasRes] = await Promise.all([
           api("/materias-primas"),
@@ -76,7 +89,7 @@ export default function AddReceta() {
       }
     };
     fetchData();
-  }, [api]);
+  }, [api, canReadElaborationGuideline]);
 
   // ────────────────────────────────────────────────
   // VALIDATION
@@ -232,6 +245,17 @@ export default function AddReceta() {
   const handleSubmit = async (confirmSimilarNameOrEvent = false) => {
     const confirmSimilarName = typeof confirmSimilarNameOrEvent === "boolean" ? confirmSimilarNameOrEvent : false;
     if (!validate()) return;
+
+    if (!canWriteRecipe) {
+      toast.permissionError(
+        ...[
+          [ModelType.RECETA, ScopeType.WRITE],
+          ingredientes.length > 0 && [ModelType.INGREDIENTE_RECETA, ScopeType.WRITE],
+          subproductos.length > 0 && [ModelType.MATERIA_PRIMA, ScopeType.WRITE]
+        ].filter(Boolean)
+      );
+      return;
+    }
 
     try {
       const diasVidaUtilParsed =

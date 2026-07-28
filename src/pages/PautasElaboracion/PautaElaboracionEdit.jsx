@@ -5,6 +5,8 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import StepsEditor from "../../components/Pautas/StepsEditor";
 import AnalisisSensorialDefinicionForm from "../../components/AnalisisSensorial/DefinicionForm";
 import { toast } from "../../lib/toast";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function PautaElaboracionEdit() {
   const { id } = useParams();
@@ -23,8 +25,23 @@ export default function PautaElaboracionEdit() {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
 
+  const canReadElaborationGuidelineSteps = checkScope(ModelType.PASO_PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteElaborationGuidelineSteps = checkScope(ModelType.PASO_PAUTA_ELABORACION, ScopeType.WRITE);
+  const canDeleteElaborationGuidelineSteps = checkScope(ModelType.PASO_PAUTA_ELABORACION, ScopeType.DELETE);
+
+  const canReadElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ);
+  const canWriteElaborationGuideline = checkScope(ModelType.PAUTA_ELABORACION, ScopeType.WRITE);
+
   useEffect(() => {
     const fetchPauta = async () => {
+      if (!canReadElaborationGuidelineSteps || !canReadElaborationGuideline) {
+        toast.permissionError(
+          [ModelType.PASO_PAUTA_ELABORACION, ScopeType.READ],
+          [ModelType.PAUTA_ELABORACION, ScopeType.READ]
+        );
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         const [pautaRes, pasosRes] = await Promise.all([
@@ -64,7 +81,7 @@ export default function PautaElaboracionEdit() {
       }
     };
     fetchPauta();
-  }, [id, api]);
+  }, [id, api, canReadElaborationGuidelineSteps, canReadElaborationGuideline]);
 
   const validate = () => {
     const newErrors = {};
@@ -97,6 +114,10 @@ export default function PautaElaboracionEdit() {
   const handleRemovePaso = async (index) => {
     const paso = pasos[index];
     if (paso.id) {
+      if (!canDeleteElaborationGuidelineSteps){
+        toast.permissionError([ModelType.PASO_PAUTA_ELABORACION, ScopeType.DELETE]);
+        return;
+      }
       try {
         await api(`/pasos-pauta-elaboracion/${paso.id}`, { method: "DELETE" });
       } catch (err) {
@@ -116,6 +137,14 @@ export default function PautaElaboracionEdit() {
 
   const handleSubmit = async () => {
     if (!validate()) return;
+
+    if (!canWriteElaborationGuidelineSteps || !canWriteElaborationGuideline) {
+      toast.permissionError(
+        [ModelType.PASO_PAUTA_ELABORACION, ScopeType.WRITE],
+        [ModelType.PAUTA_ELABORACION, ScopeType.WRITE]
+      );
+      return;
+    }
 
     try {
       // Update the pauta
@@ -181,14 +210,7 @@ export default function PautaElaboracionEdit() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-        <span className="ml-3 text-primary">Cargando pauta...</span>
-      </div>
-    );
-  }
+  if (loading) return <PageLoader message="Cargando pauta" />;
 
   return (
     <div className="p-6 bg-background min-h-screen">

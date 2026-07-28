@@ -1,33 +1,41 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import axiosInstance from "../../axiosInstance";
+import { useApi } from "../../lib/api";
 import { useState, useEffect } from "react";
 import { toast } from "../../lib/toast";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { Spinner } from "../../components/UI/Spinner.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function EditCategoria() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const api = useApi();
 
   const [formData, setFormData] = useState({ nombre: "", descripcion: "" });
   const [errors, setErrors] = useState({});
   const [error, setError] = useState(null);
   const [hasChanges, setHasChanges] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const canWriteRawMaterialCategory = checkScope(ModelType.CATEGORIA_MATERIA_PRIMA, ScopeType.WRITE);
 
   useEffect(() => {
     const fetchCategoria = async () => {
       try {
-        const res = await axiosInstance.get(
-          `${import.meta.env.VITE_BACKEND_URL}/categorias-materia-prima/${id}`
-        );
-        const categoria = res.data;
+        const res = await api(`/categorias-materia-prima/${id}`);
+        const categoria = res;
         setFormData({
           nombre: categoria.nombre || "",
           descripcion: categoria.descripcion || "",
         });
       } catch (error) {
-        toast.error("Error al cargar categoría:", error);
+        toast.error(`Error al cargar categoría: ${error.message}`);
         setError("No se pudo cargar la categoría.");
+      } finally {
+        setIsLoading(false);
       }
     };
     fetchCategoria();
@@ -51,19 +59,25 @@ export default function EditCategoria() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!canWriteRawMaterialCategory) {
+      toast.permissionError([ModelType.CATEGORIA_MATERIA_PRIMA, ScopeType.WRITE]);
+      setIsSubmitting(false);
+      return;
+    }
+
     if (!validate()) return;
 
     try {
-      await axiosInstance.put(
-        `${import.meta.env.VITE_BACKEND_URL}/categorias-materia-prima/${id}`,
-        formData
-      );
+      setIsSubmitting(true);
+      await api(`/categorias-materia-prima/${id}`, { method: "PUT", body: formData });
       toast.success("Categoría actualizada correctamente");
       navigate("/Insumos/Categorias");
     } catch (error) {
       console.error("Error al actualizar categoría:", error);
       toast.error("Error al actualizar categoría");
       setError("No se pudo actualizar la categoría. Verifica los datos.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -80,8 +94,15 @@ export default function EditCategoria() {
     navigate("/Insumos/Categorias");
   };
 
+  if (isLoading) return <PageLoader message="Cargando categoría" />;
+
   return (
     <div className="p-6 bg-background min-h-screen">
+      {isSubmitting && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
+          <Spinner size="lg" />
+        </div>
+      )}
       <BackButton to="/Insumos/Categorias" />
       <h1 className="text-2xl font-bold text-text mb-6">Editar Categoría</h1>
 
@@ -139,9 +160,10 @@ export default function EditCategoria() {
 
           <button
             type="submit"
-            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded transition"
+            disabled={isSubmitting}
+            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded transition disabled:opacity-50"
           >
-            Guardar Cambios
+            {isSubmitting ? "Guardando..." : "Guardar Cambios"}
           </button>
         </div>
       </form>

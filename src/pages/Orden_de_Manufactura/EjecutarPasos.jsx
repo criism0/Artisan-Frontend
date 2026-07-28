@@ -1,19 +1,26 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { jwtDecode } from "jwt-decode";
 import { toast } from "../../lib/toast";
 import { api } from "../../lib/api";
+import { useAuth } from "../../auth/AuthContext";
 import { BackButton } from "../../components/Buttons/ActionButtons";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function EjecutarPasos() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [pasos, setPasos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [ordenData, setOrdenData] = useState(null);
 
   const [todosCompletados, setTodosCompletados] = useState(false);
+
+  const canReadManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ);
+  const canWriteManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE);
+  const canWriteProductionSteps = checkScope(ModelType.REGISTRO_PASO_PRODUCCION, ScopeType.WRITE);
 
 
   // time helpers
@@ -33,18 +40,15 @@ export default function EjecutarPasos() {
     return `${hh}:${mm}`;
   };
 
-  const elaboradorId = useMemo(() => {
-    try {
-      const token = localStorage.getItem("access_token") || localStorage.getItem("token");
-      if (!token) return undefined;
-      const decoded = jwtDecode(token);
-      return Number(decoded?.id ?? decoded?.sub);
-    } catch {
-      return undefined;
-    }
-  }, []);
+  const elaboradorId = user?.id ? Number(user.id) : undefined;
 
   useEffect(() => {
+    if (!canReadManufacture) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ]);
+      setLoading(false);
+      return;
+    }
+
     const fetchData = async () => {
       try {
         // Load manufacturing order data
@@ -84,7 +88,7 @@ export default function EjecutarPasos() {
       }
     };
     fetchData();
-  }, [id]);
+  }, [id, canReadManufacture]);
 
   const handleChange = (idx, field, value) => {
     setPasos((prev) =>
@@ -111,6 +115,14 @@ export default function EjecutarPasos() {
   const handleGuardar = async (paso, idx) => {
     if (!elaboradorId) {
       toast.error("No se pudo identificar el usuario.");
+      return;
+    }
+
+    if (paso.estado === 'Completado' && !canWriteProductionSteps) {
+      toast.permissionError([ModelType.REGISTRO_PASO_PRODUCCION, ScopeType.WRITE]);
+      return;
+    } else if (!canWriteManufacture || !canWriteProductionSteps) {
+      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE], [ModelType.REGISTRO_PASO_PRODUCCION, ScopeType.WRITE]);
       return;
     }
 
@@ -221,12 +233,7 @@ export default function EjecutarPasos() {
       }
   };
 
-  if (loading)
-    return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
-        Cargando pasos...
-      </div>
-    );
+  if (loading) return <PageLoader message="Cargando pasos" />;
 
   return (
     <div className="p-6 bg-background min-h-screen">

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { BackButton } from "../../components/Buttons/ActionButtons";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
 export default function UsuariosEdit() {
   const { id } = useParams();
@@ -14,6 +15,8 @@ export default function UsuariosEdit() {
 
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
+
+  const canWriteUser = checkScope(ModelType.USUARIO, ScopeType.WRITE);
 
   useEffect(() => {
     const fetchUsuario = async () => {
@@ -45,6 +48,10 @@ export default function UsuariosEdit() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
+    if (!canWriteUser) {
+      toast.permissionError([ModelType.USUARIO, ScopeType.WRITE]);
+      return;
+    }
     try {
       await api(`/usuarios/${id}/password`, {
         method: "PUT",

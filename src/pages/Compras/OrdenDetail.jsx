@@ -1,13 +1,16 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
-import axiosInstance from "../../axiosInstance";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import logo from "../../assets/logo.png";
 import { toast } from "../../lib/toast";
-import { useApi, API_BASE } from "../../lib/api";
+import { useApi, apiBlob } from "../../lib/api";
 import { uploadToS3 } from "../../lib/uploadToS3";
+import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import DTERecibidoPanel from "../../components/DTE/DTERecibidoPanel.jsx";
+import { formatCLP } from "../../services/formatHelpers";
 import AvanceItems from "../../components/AvanceItems";
 
 export default function OrdenDetail() {
@@ -22,6 +25,8 @@ export default function OrdenDetail() {
   const [subiendoArchivos, setSubiendoArchivos] = useState(false);
   const [mostrarModalArchivos, setMostrarModalArchivos] = useState(false);
   const navigate = useNavigate();
+
+  const canWritePurchaseOrder = checkScope(ModelType.ORDEN_COMPRA, ScopeType.WRITE);
 
   const formatFechaCambio = (registro) => {
     const fecha = registro?.creado_en ?? registro?.fecha_cambio;
@@ -69,6 +74,12 @@ export default function OrdenDetail() {
       return;
     }
 
+    if (!canWritePurchaseOrder) {
+      toast.permissionError([ModelType.ORDEN_COMPRA, ScopeType.WRITE]);
+      setSubiendoArchivos(false);
+      return;
+    }
+
     setSubiendoArchivos(true);
     try {
       // Subir archivos a S3
@@ -97,7 +108,7 @@ export default function OrdenDetail() {
         `/proceso-compra/ordenes/${ordenId}/adjuntar-archivos`,
         {
           method: "PUT",
-          body: JSON.stringify({ archivos: archivosValidos }),
+          body: { archivos: archivosValidos },
         }
       );
 
@@ -114,13 +125,6 @@ export default function OrdenDetail() {
       setSubiendoArchivos(false);
     }
   };
-
-  const formatCLP = (valor) =>
-    new Intl.NumberFormat("es-CL", {
-      style: "currency",
-      currency: "CLP",
-      minimumFractionDigits: 0,
-    }).format(valor);
 
   const handleDownloadPDF = async () => {
     if (!orden) return;
@@ -164,7 +168,6 @@ export default function OrdenDetail() {
     doc.text(`Orden de Compra N° ${orden.id}`, x, y);
     doc.setFont(undefined, "normal");
 
-    const fmtCLP = (n) => `$${Math.round(Number(n || 0)).toLocaleString("es-CL")}`;
     const fmtDateEN = (d) =>
       d
         ? new Date(d).toLocaleDateString("en-US", {
@@ -215,7 +218,7 @@ export default function OrdenDetail() {
       const cantidad = mp.cantidad_formato || 0;
       const precio = mp.precio_unitario || 0;
       const sub = cantidad * precio;
-       return [nombre, String(cantidadTotal), fmtCLP(cantidadTotal ? (sub / cantidadTotal) : precio), fmtCLP(sub)];
+       return [nombre, String(cantidadTotal), formatCLP(Number(cantidadTotal ? (sub / cantidadTotal) : precio) || 0, 0), formatCLP(Number(sub) || 0, 0)];
     });
 
     const neto = orden.total_neto || 0;
@@ -230,17 +233,17 @@ export default function OrdenDetail() {
         [
           { content: "", colSpan: 2 },
           { content: "Neto", styles: { halign: "right" } },
-          fmtCLP(neto),
+          formatCLP(Number(neto) || 0, 0),
         ],
         [
           { content: "", colSpan: 2 },
           { content: "IVA", styles: { halign: "right" } },
-          fmtCLP(iva),
+          formatCLP(Number(iva) || 0, 0),
         ],
         [
           { content: "", colSpan: 2 },
           { content: "Total", styles: { halign: "right", fontStyle: "bold" } },
-          { content: fmtCLP(total), styles: { fontStyle: "bold" } },
+          { content: formatCLP(Number(total) || 0, 0), styles: { fontStyle: "bold" } },
         ],
       ],
       theme: "grid",
@@ -286,12 +289,7 @@ export default function OrdenDetail() {
       }
 
       const ids_bultos = bultos.map((b) => b.id).filter(Boolean);
-      const response = await axiosInstance.post(
-        "/bultos/etiquetas",
-        { ids_bultos },
-        { responseType: "blob" }
-      );
-      const blob = new Blob([response.data], { type: "application/pdf" });
+      const blob = await apiBlob("/bultos/etiquetas", { method: "POST", body: { ids_bultos } });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -308,18 +306,19 @@ export default function OrdenDetail() {
 
   const handlePagar = async () => {
     if (loading) return;
+    if (!canWritePurchaseOrder) {
+      toast.permissionError([ModelType.ORDEN_COMPRA, ScopeType.WRITE]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      await axiosInstance.put(
-        `${API_BASE}/proceso-compra/ordenes/${ordenId}/pagar`
-      );
-      const updatedResponse = await axiosInstance.get(
-        `${API_BASE}/proceso-compra/ordenes/${ordenId}`
-      );
-      setOrden(updatedResponse.data?.data || updatedResponse.data);
+      await api(`/proceso-compra/ordenes/${ordenId}/pagar`, { method: "PUT" });
+      const updatedData = await api(`/proceso-compra/ordenes/${ordenId}`);
+      setOrden(updatedData);
       toast.success("Orden marcada como pagada");
     } catch (error) {
-      toast.error("Error al marcar la orden como pagada:", error);
+      toast.error(`Error al marcar la orden como pagada: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -333,22 +332,15 @@ export default function OrdenDetail() {
     
     try {
       const data = await api(`/proceso-compra/ordenes/${ordenId}/historial`, { method: "GET" });
-      setHistorial(data?.data ?? data ?? []);
+      setHistorial(data ?? []);
       setshowHistorial(true)
 
     } catch (error) {
-      toast.error("Error al obtener el historial de la solicitud:", error);
-      alert("No se pudo cargar el historial de la solicitud. Intente nuevamente.");
+      toast.error(`Error al obtener el historial de la solicitud: ${error.message}`);
     }
   };
 
-  if (loading && !orden)
-    return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-        <span className="ml-3 text-primary">Cargando orden...</span>
-      </div>
-    );
+  if (loading && !orden) return <PageLoader message="Cargando orden" />;
 
   if (!orden && !loading)
     return (
@@ -568,9 +560,9 @@ export default function OrdenDetail() {
                             </td>
                             <td className="px-6 py-4 text-sm">{cantidad_formato}</td>
                             <td className="px-6 py-4 text-sm">
-                              {formatCLP(mp.precio_unitario)}
+                              {formatCLP(mp.precio_unitario, 0)}
                             </td>
-                            <td className="px-6 py-4 text-sm">{formatCLP(mp.precio_unitario*mp.cantidad_formato)}</td>
+                            <td className="px-6 py-4 text-sm">{formatCLP(mp.precio_unitario*mp.cantidad_formato, 0)}</td>
                           </tr>
                         );
                       })}
@@ -581,7 +573,7 @@ export default function OrdenDetail() {
                         <td className="px-6 py-3" />
                         <td className="px-6 py-3 text-sm font-medium text-text">Neto</td>
                         <td className="px-6 py-3 text-sm text-text">
-                          {formatCLP(orden.total_neto)}
+                          {formatCLP(orden.total_neto, 0)}
                         </td>
                       </tr>
                       <tr className="border-t border-gray-200">
@@ -589,7 +581,7 @@ export default function OrdenDetail() {
                         <td className="px-6 py-3" />
                         <td className="px-6 py-3 text-sm font-medium text-text">IVA</td>
                         <td className="px-6 py-3 text-sm text-text">
-                          {formatCLP(orden.iva)}
+                          {formatCLP(orden.iva, 0)}
                         </td>
                       </tr>
                       <tr className="border-t border-gray-200">
@@ -597,7 +589,7 @@ export default function OrdenDetail() {
                         <td className="px-6 py-3" />
                         <td className="px-6 py-3 text-sm font-semibold text-text bg-purple-200">Total</td>
                         <td className="px-6 py-3 text-sm font-semibold text-text bg-purple-200">
-                          {formatCLP(orden.total_pago)}
+                          {formatCLP(orden.total_pago, 0)}
                         </td>
                       </tr>
                       <tr className="border-t border-gray-300">
@@ -605,7 +597,7 @@ export default function OrdenDetail() {
                         <td className="px-6 py-3" />
                         <td className="px-6 py-3 text-sm font-medium text-text">Total Neto Facturado</td>
                         <td className="px-6 py-3 text-sm text-text">
-                          {formatCLP(totalNetoFacturado)}
+                          {formatCLP(totalNetoFacturado, 0)}
                         </td>
                       </tr>
                     </tfoot>
@@ -667,10 +659,10 @@ export default function OrdenDetail() {
                   </td>
                   <td className="px-6 py-4 text-sm">
                     <div>
-                      Unit: {bulto.costo_unitario ? formatCLP(bulto.costo_unitario) : "—"}
+                      Unit: {bulto.costo_unitario ? formatCLP(bulto.costo_unitario, 0) : "—"}
                     </div>
                     <div className="font-medium">
-                      Total: {bulto.costo_unitario ? formatCLP(Number(bulto.costo_unitario) * Number(bulto.cantidad_unidades || 0)) : "—"}
+                      Total: {bulto.costo_unitario ? formatCLP(Number(bulto.costo_unitario) * Number(bulto.cantidad_unidades || 0), 0) : "—"}
                     </div>
                   </td>
                 </tr>
@@ -680,6 +672,9 @@ export default function OrdenDetail() {
         </div>
       )}
 
+      {/* ── DTE Recibido: Guías de Despacho + Factura del proveedor ──────── */}
+      <DTERecibidoPanel ordenId={ordenId} orden={orden} />
+
       <div className="mt-6 flex gap-2 flex-wrap">
         {!orden.pagada && (
           <button
@@ -687,7 +682,7 @@ export default function OrdenDetail() {
               loading ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
             }`}
             onClick={handlePagar}
-            disabled={loading}
+            disabled={loading || !canWritePurchaseOrder}
           >
             {loading ? "Procesando..." : "Pagar"}
           </button>
@@ -822,7 +817,7 @@ export default function OrdenDetail() {
                   <button
                     type="button"
                     onClick={handleAdjuntarArchivos}
-                    disabled={subiendoArchivos}
+                    disabled={subiendoArchivos || !canWritePurchaseOrder}
                     className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
                     {subiendoArchivos ? "Subiendo..." : `Adjuntar ${nuevosArchivos.length} archivo(s)`}
