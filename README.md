@@ -44,6 +44,23 @@ src/
     (Adquisiciones, Producción, Logística, Inventario, Ventas, Calidad, Administración)
 ```
 
+## Entender el dominio
+
+Antes de tocar una vista conviene leer **`docs/MODULOS.md` del repo Backend**: explica qué
+resuelve cada módulo del ERP y por qué. Las decisiones de UI de acá se entienden mucho mejor
+con ese contexto.
+
+Lo que más se olvida:
+
+- **Los productos se muestran por su nombre comercial** (nombre de facturación), no por el
+  nombre físico de producción. La OV se pide por nombre comercial y el picking acepta
+  cualquier producto del grupo. Usar `utils/nombreComercial.js`, que además cubre las dos
+  formas en que la API entrega la asociación (`NombreFacturacion` en ventas,
+  `nombreFacturacion` en listas de precio). El campo `id_producto_base` es legacy y **viene
+  en NULL en la mayoría de las filas**: nunca pintarlo.
+- **La facturación electrónica está deshabilitada a propósito.** Las OV se quedan en *Lista
+  para facturación*; no es un error de la vista.
+
 ## Convenciones de UI
 
 - **Listas**: usar `components/Tables/DataTable.jsx` (título + acciones de header,
@@ -54,6 +71,9 @@ src/
 - **Confirmaciones**: modales de `components/Modals/` (no `window.confirm`).
 - **Nombres similares**: los POST de catálogos manejan el 409 `SIMILAR_NAME`
   con `SimilarNameConfirmModal`.
+- **Llamadas a la API**: usar siempre `lib/api.js`. ⚠️ La sesión vive en cookies `httpOnly`,
+  así que un `fetch` suelto sin `credentials: "include"` llega **sin credenciales** y recibe
+  un 401 aunque el usuario tenga sesión abierta. Ya pasó con el correo de órdenes de compra.
 
 ## Deploy
 
