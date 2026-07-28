@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../lib/api";
+import { getNombreComercial } from "../../utils/nombreComercial";
 
 function ProductCombobox({
   value,
   onChange,
   options,
   onSelect,
-  placeholder = "Escribe para buscar producto..."
+  placeholder = "Escribe para buscar nombre de facturación..."
 }) {
   const inputRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -107,45 +108,43 @@ export default function ProductoBaseModal({
   producto,
   isEditing = false
 }) {
-  const [productos, setProductos] = useState([]);
-  const [formData, setFormData] = useState({
-    id_producto_base: "",
-    nombre_producto: "",
+  // Los precios de una lista se definen por **nombre de facturación**, no por producto
+  // físico: dos productos comercialmente equivalentes (mismo yogur elaborado en Valdivia y
+  // en San Felipe) comparten precio. Por eso el selector ofrece nombres comerciales.
+  const [nombresFacturacion, setNombresFacturacion] = useState([]);
+  const VACIO = {
+    id_nombre_facturacion: "",
+    nombre_comercial: "",
     unidades_por_caja: "",
     precio_unidad: "",
     precio_caja: ""
-  });
+  };
+  const [formData, setFormData] = useState(VACIO);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
-      // Cargar productos base
-      api("/productos-base")
-        .then((data) => setProductos(data))
+      api("/nombres-facturacion")
+        .then((data) => setNombresFacturacion(Array.isArray(data) ? data : (data?.rows ?? [])))
         .catch(console.error);
 
-      // Si estamos editando, cargar datos del producto
       if (isEditing && producto) {
         setFormData({
-          id_producto_base: producto.id_producto_base || "",
-          nombre_producto: producto.nombre_producto || "",
+          id_nombre_facturacion:
+            producto.id_nombre_facturacion ?? producto.nombreFacturacion?.id ?? "",
+          // La fila que llega de la API trae la asociación, no un campo plano.
+          nombre_comercial: getNombreComercial(producto, ""),
           unidades_por_caja: producto.unidades_por_caja || "",
           precio_unidad: producto.precio_unidad || "",
           precio_caja: producto.precio_caja || ""
         });
       } else {
-        // Resetear formulario para nuevo producto
-        setFormData({
-          id_producto_base: "",
-          nombre_producto: "",
-          unidades_por_caja: "",
-          precio_unidad: "",
-          precio_caja: ""
-        });
+        setFormData(VACIO);
       }
       setErrors({});
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isEditing, producto]);
 
   const handleChange = (e) => {
@@ -166,21 +165,22 @@ export default function ProductoBaseModal({
     }
   };
 
-  const handleProductSelect = (producto) => {
+  const handleProductSelect = (nf) => {
     setFormData(prev => ({
       ...prev,
-      id_producto_base: producto.id,
-      nombre_producto: producto.nombre,
-      unidades_por_caja: producto.unidades_por_caja || ""
+      id_nombre_facturacion: nf.id,
+      nombre_comercial: nf.nombre,
+      // El nombre de facturación absorbió las unidades por caja del producto.
+      unidades_por_caja: nf.unidades_por_caja || ""
     }));
-    setErrors(prev => ({ ...prev, id_producto_base: "" }));
+    setErrors(prev => ({ ...prev, id_nombre_facturacion: "" }));
   };
 
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.id_producto_base) {
-      newErrors.id_producto_base = "Debe seleccionar un producto";
+    if (!formData.id_nombre_facturacion) {
+      newErrors.id_nombre_facturacion = "Debe seleccionar un nombre de facturación";
     }
     if (!formData.precio_unidad || parseFloat(formData.precio_unidad) <= 0) {
       newErrors.precio_unidad = "El precio por unidad debe ser mayor a 0";
@@ -200,11 +200,16 @@ export default function ProductoBaseModal({
     setLoading(true);
     try {
       const productoData = {
-        id_producto_base: parseInt(formData.id_producto_base),
-        nombre_producto: formData.nombre_producto,
+        id_nombre_facturacion: parseInt(formData.id_nombre_facturacion),
         unidades_por_caja: parseInt(formData.unidades_por_caja),
         precio_unidad: parseFloat(formData.precio_unidad),
-        precio_caja: parseFloat(formData.precio_caja)
+        precio_caja: parseFloat(formData.precio_caja),
+        // Sólo para pintar la fila sin volver a consultar: la API responde el registro
+        // creado sin sus asociaciones, así que la tabla se quedaría sin nombre.
+        nombreFacturacion: {
+          id: parseInt(formData.id_nombre_facturacion),
+          nombre: formData.nombre_comercial
+        }
       };
 
       await onSave(productoData);
@@ -226,20 +231,39 @@ export default function ProductoBaseModal({
         </h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Selección de Producto */}
+          {/* Selección del nombre de facturación */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Producto *
+              Nombre de facturación *
             </label>
-            <ProductCombobox
-              value={formData.nombre_producto}
-              onChange={(value) => setFormData(prev => ({ ...prev, nombre_producto: value }))}
-              options={productos}
-              onSelect={handleProductSelect}
-              placeholder="Buscar producto..."
-            />
-            {errors.id_producto_base && (
-              <p className="text-red-500 text-sm mt-1">{errors.id_producto_base}</p>
+            {isEditing ? (
+              // Al editar sólo se cambian precios: la entrada se identifica por su nombre de
+              // facturación y el backend ignora cualquier intento de cambiarlo, así que
+              // dejarlo editable sería engañoso.
+              <>
+                <input
+                  type="text"
+                  value={formData.nombre_comercial}
+                  readOnly
+                  className="border px-3 py-2 w-full rounded-md text-sm bg-gray-100 text-gray-600 cursor-not-allowed"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Para cambiar el nombre de facturación, elimina la entrada y agrégala de nuevo.
+                </p>
+              </>
+            ) : (
+              <ProductCombobox
+                value={formData.nombre_comercial}
+                onChange={(value) =>
+                  setFormData(prev => ({ ...prev, nombre_comercial: value, id_nombre_facturacion: "" }))
+                }
+                options={nombresFacturacion}
+                onSelect={handleProductSelect}
+                placeholder="Buscar nombre de facturación..."
+              />
+            )}
+            {errors.id_nombre_facturacion && (
+              <p className="text-red-500 text-sm mt-1">{errors.id_nombre_facturacion}</p>
             )}
           </div>
 
@@ -271,13 +295,13 @@ export default function ProductoBaseModal({
               name="precio_unidad"
               value={formData.precio_unidad}
               onChange={handleChange}
-              placeholder={formData.id_producto_base ? "Ej: 1500" : "Selecciona un producto primero"}
+              placeholder={formData.id_nombre_facturacion ? "Ej: 1500" : "Selecciona un nombre primero"}
               step="1"
               min="0"
-              disabled={!formData.id_producto_base}
+              disabled={!formData.id_nombre_facturacion}
               className={`border px-3 py-2 w-full rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:outline-none ${
                 errors.precio_unidad ? "border-red-500" : ""
-              } ${!formData.id_producto_base ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
+              } ${!formData.id_nombre_facturacion ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
             />
             {errors.precio_unidad && (
               <p className="text-red-500 text-sm mt-1">{errors.precio_unidad}</p>
@@ -294,16 +318,16 @@ export default function ProductoBaseModal({
               name="precio_caja"
               value={formData.precio_caja}
               onChange={handleChange}
-              placeholder={formData.id_producto_base ? "Ej: 18000" : "Selecciona un producto primero"}
+              placeholder={formData.id_nombre_facturacion ? "Ej: 18000" : "Selecciona un nombre primero"}
               step="1"
               min="0"
-              disabled={!formData.id_producto_base}
+              disabled={!formData.id_nombre_facturacion}
               className={`border px-3 py-2 w-full rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:outline-none ${
                 errors.precio_caja ? "border-red-500" : ""
-              } ${!formData.id_producto_base ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
+              } ${!formData.id_nombre_facturacion ? "bg-gray-100 cursor-not-allowed text-gray-400" : ""}`}
             />
             <p className="text-xs text-gray-500 mt-1">
-              {formData.id_producto_base && Number(formData.unidades_por_caja) > 0
+              {formData.id_nombre_facturacion && Number(formData.unidades_por_caja) > 0
                 ? "Calculado automáticamente (precio unitario × unidades/caja). Puedes editarlo."
                 : "Se calculará automáticamente al ingresar el precio por unidad."}
             </p>

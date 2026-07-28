@@ -82,7 +82,8 @@ export default function AddListaPrecio() {
           for (const producto of productosBase) {
             const productoData = {
               id_lista_precio: nuevaListaId,
-              id_producto_base: producto.id_producto_base,
+              // La entrada se identifica por el nombre de facturación, no por el producto.
+              id_nombre_facturacion: producto.id_nombre_facturacion,
               unidades_por_caja: producto.unidades_por_caja,
               precio_unidad: producto.precio_unidad,
               precio_caja: producto.precio_caja

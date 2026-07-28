@@ -42,13 +42,20 @@ export default function ProductosBaseManager({
     }
     setLoading(true);
     try {
+      // La identidad de una entrada es (lista, nombre de facturación). Comparar por
+      // id_producto_base no detectaba nada: es una referencia legacy que viene en NULL.
       const existe = productosList.some(
-        (p) => p.id_producto_base === productoData.id_producto_base && (!editingProducto || p.id !== editingProducto.id)
+        (p) =>
+          p.id_nombre_facturacion === productoData.id_nombre_facturacion &&
+          (!editingProducto || p.id !== editingProducto.id)
       );
       if (existe) {
-        toast.warning("Solo se puede agregar 1 vez el producto");
+        toast.warning("Ese nombre de facturación ya está en la lista");
         return;
       }
+
+      // `nombreFacturacion` sólo sirve para pintar la fila; a la API van los campos planos.
+      const { nombreFacturacion, ...datosParaApi } = productoData;
 
       let updatedProducto = null;
       let nuevoProducto = null;
@@ -57,12 +64,14 @@ export default function ProductosBaseManager({
         // Actualizar producto existente
         if (listaPrecioId && !editingProducto.id.toString().startsWith('temp-')) {
           // Si la lista ya existe y el producto no es temporal, actualizar en el backend
-          updatedProducto = await api(`/producto-base-lista-precio/${editingProducto.id}`, {
+          const respuesta = await api(`/producto-base-lista-precio/${editingProducto.id}`, {
             method: "PUT",
-            body: JSON.stringify(productoData)
+            body: JSON.stringify(datosParaApi)
           });
-          
-          setProductosList(prev => 
+          // La respuesta no trae asociaciones: sin esto la fila perdería el nombre.
+          updatedProducto = { ...respuesta, nombreFacturacion };
+
+          setProductosList(prev =>
             prev.map(prod => prod.id === editingProducto.id ? updatedProducto : prod)
           );
         } else {
@@ -81,14 +90,15 @@ export default function ProductosBaseManager({
         // Crear nuevo producto
         if (listaPrecioId) {
           // Si la lista ya existe, crear en el backend
-          nuevoProducto = await api("/producto-base-lista-precio", {
+          const respuesta = await api("/producto-base-lista-precio", {
             method: "POST",
             body: JSON.stringify({
-              ...productoData,
+              ...datosParaApi,
               id_lista_precio: listaPrecioId
             })
           });
-          
+          nuevoProducto = { ...respuesta, nombreFacturacion };
+
           setProductosList(prev => [...prev, nuevoProducto]);
         } else {
           // Si la lista no existe aún, crear solo localmente
