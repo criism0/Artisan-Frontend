@@ -7,6 +7,7 @@ import logo from "../../assets/logo.png";
 import { toast } from "../../lib/toast";
 import { useApi, apiBlob } from "../../lib/api";
 import { uploadToS3 } from "../../lib/uploadToS3";
+import { formatValorCambio } from "../../utils/formatValorCambio";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import DTERecibidoPanel from "../../components/DTE/DTERecibidoPanel.jsx";
@@ -880,8 +881,10 @@ export default function OrdenDetail() {
                   const rows = entries.length > 0 ? entries : [["—", { before: "—", after: "—" }]];
 
                   return rows.map(([campo, valores], cambioIdx) => {
-                    const before = valores?.before ?? "—";
-                    const after = valores?.after ?? "—";
+                    // Sin formatear, un valor que sea array u objeto (recepciones,
+                    // numero_factura) rompe el render y deja la página en blanco.
+                    const before = formatValorCambio(valores?.before);
+                    const after = formatValorCambio(valores?.after);
                     return (
                       <tr
                         key={`${idx}-${campo}-${cambioIdx}`}
@@ -906,7 +909,7 @@ export default function OrdenDetail() {
                           {after}
                         </td>
                         <td className="p-2 border text-center text-gray-700">
-                          {h.usuario?.nombre ?? h.usuario ?? "—"}
+                          {formatValorCambio(h.usuario?.nombre ?? h.usuario)}
                         </td>
                       </tr>
                     );
