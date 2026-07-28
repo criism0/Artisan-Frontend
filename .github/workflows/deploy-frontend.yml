@@ -10,16 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
+      # Sin `cache: yarn`: setup-node resuelve la caché corriendo `yarn cache dir` con el
+      # yarn 1 global del runner, y este proyecto declara packageManager yarn@4.14.1, así que
+      # falla antes de instalar nada. Corepack sólo se puede habilitar en un `run` posterior.
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'yarn'
 
       - name: Install dependencies
-        run: yarn install
+        run: corepack enable && yarn install --immutable
 
       # AQUÍ CONSTRUIMOS EL PROYECTO
       # Inyectamos la URL del backend que sacamos de tu IP
@@ -33,7 +35,7 @@ jobs:
         run: yarn build
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
