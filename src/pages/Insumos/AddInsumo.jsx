@@ -135,7 +135,7 @@ export default function AddInsumo() {
   if (loading) return <PageLoader message="Cargando categorías" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <BackButton to="/Insumos" />
       <h1 className="text-2xl font-bold text-text mb-6">Añadir Insumo</h1>
 

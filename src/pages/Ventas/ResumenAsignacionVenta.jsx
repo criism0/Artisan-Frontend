@@ -165,7 +165,7 @@ export default function ResumenAsignacionVenta() {
   const puedeVolverAPendiente = orden.estado === "Listo-para-despacho";
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <button
         onClick={() => navigate("/ventas/ordenes")}
         className="flex items-center text-primary mb-4 hover:underline"

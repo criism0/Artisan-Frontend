@@ -60,7 +60,7 @@ export default function AprobacionDetail() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-background min-h-screen">
+      <div>
         <BackButton to="/calidad/formularios/aprobaciones" />
         <PageLoader message="Cargando formulario"/>
       </div>
@@ -112,7 +112,7 @@ export default function AprobacionDetail() {
   const secciones = formulario.secciones || [];
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
           <BackButton to="/calidad/formularios/aprobaciones" />

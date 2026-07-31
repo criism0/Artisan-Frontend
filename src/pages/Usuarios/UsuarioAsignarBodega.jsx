@@ -115,7 +115,7 @@ export default function UsuarioAsignarBodega(params) {
   ];
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <BackButton to={"/Usuarios"} />
       <div className="mt-4 mb-6">
         <h1 className="text-2xl font-bold">Asignar Bodega</h1>

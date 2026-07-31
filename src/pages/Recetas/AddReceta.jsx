@@ -351,7 +351,7 @@ export default function AddReceta() {
   // RENDER
   // ────────────────────────────────────────────────
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <SimilarNameConfirmModal
         open={similarModal.open}
         entityLabel="receta"

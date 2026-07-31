@@ -155,7 +155,7 @@ export default function POEsList() {
       historico === null);
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="max-w-7xl mx-auto">
         <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
           <div>

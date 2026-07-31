@@ -213,7 +213,7 @@ export default function PautaElaboracionEdit() {
   if (loading) return <PageLoader message="Cargando pauta" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="max-w-6xl mx-auto">
         <div className="mb-4">
           <BackButton to={`/PautasElaboracion/${id}`} />

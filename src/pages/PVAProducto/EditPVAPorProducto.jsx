@@ -196,7 +196,7 @@ export default function EditPVAPorProducto() {
   if (isLoading) return <PageLoader message="Cargando PVA por producto" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to={`/PVAPorProducto/${id}`} />
       </div>

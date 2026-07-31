@@ -658,7 +658,7 @@ export default function AsignarInsumos() {
   const todoAsignado = idsPendientes.length === 0;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <ConfirmActionModal
         isOpen={noPasosConfirmOpen}
         onClose={closeNoPasosConfirm}

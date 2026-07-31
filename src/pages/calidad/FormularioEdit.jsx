@@ -41,7 +41,7 @@ export default function FormularioEdit() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-background min-h-screen">
+      <div>
         <BackButton to="/calidad/formularios" />
         <PageLoader message="Cargando Formulario"/>
       </div>

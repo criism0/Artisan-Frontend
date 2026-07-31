@@ -62,7 +62,7 @@ export default function BodegaDetail() {
 
   if (!bodega)
     return (
-      <div className="p-6 bg-background min-h-screen">
+      <div>
         <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">
           No se encontró la bodega.
         </div>
@@ -70,7 +70,7 @@ export default function BodegaDetail() {
     );
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/Bodegas" />
       </div>

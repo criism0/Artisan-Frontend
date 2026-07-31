@@ -45,7 +45,7 @@ export default function RolDetail() {
 
   if (error || !role) {
     return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
+      <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 text-lg">{error || "Rol no encontrado"}</p>
           <BackButton to="/Roles" label="Volver a Roles" />
@@ -55,7 +55,7 @@ export default function RolDetail() {
   }
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/Roles" />
       </div>

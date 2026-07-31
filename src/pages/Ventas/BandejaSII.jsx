@@ -89,7 +89,7 @@ export default function BandejaSII() {
   }, [filtros]);
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       {/* Encabezado */}
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 bg-blue-100 rounded-lg">

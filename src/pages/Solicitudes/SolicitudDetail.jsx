@@ -637,7 +637,7 @@ export default function SolicitudDetail() {
   }
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="max-w-6xl mx-auto">
         <div className="mb-4">
           <BackButton to="/Solicitudes" />

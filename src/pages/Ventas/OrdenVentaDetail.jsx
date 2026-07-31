@@ -561,7 +561,7 @@ export default function OrdenVentaDetail() {
 
   if (!orden)
     return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center text-gray-500">
+      <div className="min-h-[60vh] flex items-center justify-center text-gray-500">
         No se encontró la orden de venta
       </div>
     );
@@ -662,7 +662,7 @@ export default function OrdenVentaDetail() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/ventas/ordenes" />
       </div>

@@ -615,7 +615,7 @@ export default function ProductoEdit() {
   if (loading) return <PageLoader message="Cargando producto" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/Productos" />
       </div>

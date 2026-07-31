@@ -88,7 +88,7 @@ export default function CompletarFormulario() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-background min-h-screen">
+      <div>
         <BackButton to="/calidad/formularios" />
         <PageLoader message="Cargando formulario"/>
       </div>
@@ -97,7 +97,7 @@ export default function CompletarFormulario() {
 
   if (!formulario) {
     return (
-      <div className="p-6 bg-background min-h-screen">
+      <div>
         <BackButton to="/calidad/formularios" />
         <p className="mt-4 text-gray-600">Formulario no encontrado.</p>
       </div>
@@ -109,7 +109,7 @@ export default function CompletarFormulario() {
 
   if (!hayCampos) {
     return (
-      <div className="p-6 bg-background min-h-screen">
+      <div>
         <BackButton to="/calidad/formularios" />
         <h1 className="text-2xl font-bold text-text mt-4">{formulario.nombre}</h1>
         <p className="mt-4 text-gray-600">
@@ -220,7 +220,7 @@ export default function CompletarFormulario() {
   };
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between gap-4 mb-4">
           <BackButton to="/calidad/formularios" />

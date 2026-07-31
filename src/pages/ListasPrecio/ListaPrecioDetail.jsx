@@ -77,7 +77,7 @@ export default function ListaPrecioDetail() {
 
   if (error) {
     return (
-      <div className="p-6 bg-background min-h-screen">
+      <div>
         <div className="mb-4">
           <BackButton to="/lista-precio" />
         </div>
@@ -90,7 +90,7 @@ export default function ListaPrecioDetail() {
 
   if (!listaPrecio) {
     return (
-      <div className="p-6 bg-background min-h-screen">
+      <div>
         <div className="mb-4">
           <BackButton to="/lista-precio" />
         </div>
@@ -102,7 +102,7 @@ export default function ListaPrecioDetail() {
   }
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/lista-precio" />
       </div>

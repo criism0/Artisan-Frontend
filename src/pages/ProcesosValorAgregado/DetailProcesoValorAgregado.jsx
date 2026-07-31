@@ -42,14 +42,14 @@ export default function DetailProcesoValorAgregado() {
 
   if (!proceso) {
     return (
-      <div className="p-6 bg-background min-h-screen flex justify-center items-center">
+      <div className="min-h-[60vh] flex justify-center items-center">
         <p className="text-red-600 text-lg font-medium">No se encontró el proceso.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/ProcesosValorAgregado" />
       </div>

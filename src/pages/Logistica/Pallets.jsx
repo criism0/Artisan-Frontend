@@ -175,7 +175,7 @@ export default function Pallets() {
   ];
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Pallets Listos para Despacho</h1>
         <Link

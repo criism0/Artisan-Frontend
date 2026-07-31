@@ -244,7 +244,7 @@ export default function InsumoDetail() {
     const canGoReceta = Boolean(recetaId);
 
     return (
-      <div className="p-6 bg-background min-h-screen">
+      <div>
         <div className="mb-4">
           <BackButton to="/Insumos" />
         </div>
@@ -607,7 +607,7 @@ export default function InsumoDetail() {
   }
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/Insumos"/>
       </div>

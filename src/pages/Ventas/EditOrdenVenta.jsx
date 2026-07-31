@@ -306,10 +306,10 @@ export default function EditOrdenVenta() {
   const condicionPago = orden?.condiciones;
 
   if (loading) return <PageLoader message="Cargando orden" />;
-  if (!orden) return <div className="p-6 bg-background min-h-screen flex items-center justify-center text-gray-500">No se encontró la orden.</div>;
+  if (!orden) return <div className="min-h-[60vh] flex items-center justify-center text-gray-500">No se encontró la orden.</div>;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <button
         onClick={() => navigate("/ventas/ordenes")}
         className="flex items-center text-primary mb-4 hover:underline"

@@ -82,7 +82,7 @@ export default function UsuariosEdit() {
     }`;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <BackButton to={`/Usuarios/${id}`} />
       <div className="mt-4">
         <h1 className="text-2xl font-bold mb-6">Cambiar contraseña</h1>

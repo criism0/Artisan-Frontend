@@ -699,7 +699,7 @@ export default function InsumoEdit() {
   if (loading) return <PageLoader message="Cargando datos" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <BackButton to={`/Insumos/${id}`} />
       <h1 className="text-2xl font-bold text-text mb-6">Editar Insumo</h1>
 

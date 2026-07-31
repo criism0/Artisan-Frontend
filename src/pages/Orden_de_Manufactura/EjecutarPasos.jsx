@@ -236,7 +236,7 @@ export default function EjecutarPasos() {
   if (loading) return <PageLoader message="Cargando pasos" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to={`/Orden_de_Manufactura/${id}`} />
       </div>

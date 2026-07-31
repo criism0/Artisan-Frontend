@@ -136,7 +136,7 @@ export default function RespuestaDetail() {
 
   if (loading) {
     return (
-      <div className="p-6 bg-background min-h-screen">
+      <div>
         <BackButton />
         <PageLoader message="Cargando respuesta"/>
       </div>
@@ -145,7 +145,7 @@ export default function RespuestaDetail() {
 
   if (!respuesta || !formulario) {
     return (
-      <div className="p-6 bg-background min-h-screen">
+      <div>
         <BackButton />
         <p className="mt-4 text-gray-600">Respuesta no encontrada.</p>
       </div>
@@ -247,7 +247,7 @@ export default function RespuestaDetail() {
   const estadoCfg = ESTADO_CONFIG[respuesta.estado] || null;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
           <BackButton

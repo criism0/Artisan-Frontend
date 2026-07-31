@@ -31,7 +31,7 @@ export default function GenerarQR() {
   }
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       {/* Header */}
       <div className="flex justify-between items-center mb-2">
         <h1 className="text-2xl font-bold text-text">Generar QR de acceso</h1>

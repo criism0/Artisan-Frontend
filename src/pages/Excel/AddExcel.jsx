@@ -575,7 +575,7 @@ export default function ExportOrdenVentaExcel() {
     clientes.find((c) => String(c.id) === String(selectedClienteId)) || null;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <h1 className="text-2xl font-bold mb-6">
         Cargar OV - Excel
       </h1>

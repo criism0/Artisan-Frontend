@@ -254,7 +254,7 @@ export default function PalletsDashboard() {
     (selected?.estado || "").toLowerCase() === "cerrado";
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold">Pallets Dashboard</h1>

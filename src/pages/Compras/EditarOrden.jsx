@@ -473,7 +473,7 @@ export default function EditOrden() {
   if (isLoading) return <PageLoader message="Cargando orden" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       {isSubmitting && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
           <Spinner size="lg" />

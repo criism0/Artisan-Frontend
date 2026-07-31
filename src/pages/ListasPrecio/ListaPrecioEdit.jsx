@@ -115,7 +115,7 @@ export default function ListaPrecioEdit() {
   if (loading) return <PageLoader message="Cargando datos" />;
 
   if (!listaPrecioData && !loading) return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">
         {error || "No se encontró la lista de precio"}
       </div>
@@ -125,7 +125,7 @@ export default function ListaPrecioEdit() {
   if (!listaPrecioData) return null;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to={`/lista-precio/${id}`} />
       </div>

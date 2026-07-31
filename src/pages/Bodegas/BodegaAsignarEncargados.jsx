@@ -74,7 +74,7 @@ export default function BodegaAsignarEncargados() {
   if (loading) return <PageLoader message="Cargando datos" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4 flex items-center gap-2">
         <BackButton to={`/Bodegas/${id}`} />
         <h1 className="text-2xl font-bold">Asignar Encargados — Bodega #{id}</h1>

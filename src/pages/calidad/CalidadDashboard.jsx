@@ -20,6 +20,7 @@ import {
 } from "../../services/calidadAnalytics";
 import { toast } from "../../lib/toast";
 import { Spinner } from "../../components/UI/Spinner";
+import KpiCard from "../../components/UI/KpiCard";
 
 const formatoHora = (iso) =>
   iso
@@ -100,7 +101,7 @@ export default function CalidadDashboard() {
   }, []);
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="max-w-7xl mx-auto">
         <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
           <div>
@@ -439,26 +440,5 @@ function DashboardContent({ data, navigate }) {
         )}
       </div>
     </>
-  );
-}
-
-function KpiCard({ icon, label, value, subtitle, accent }) {
-  const accentBorder =
-    {
-      red: "border-l-4 border-l-red-500",
-      yellow: "border-l-4 border-l-yellow-500",
-      blue: "border-l-4 border-l-blue-500",
-      green: "border-l-4 border-l-green-500",
-    }[accent] || "border-l-4 border-l-green-500";
-
-  return (
-    <div className={`bg-white p-5 rounded-lg shadow ${accentBorder}`}>
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
-        {icon}
-      </div>
-      <p className="text-3xl font-bold text-gray-800">{value}</p>
-      {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
-    </div>
   );
 }

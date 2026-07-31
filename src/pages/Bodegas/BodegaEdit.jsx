@@ -86,7 +86,7 @@ export default function BodegaEdit() {
   if (loading) return <PageLoader message="Cargando información" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to={`/Bodegas/${id}`} />
       </div>

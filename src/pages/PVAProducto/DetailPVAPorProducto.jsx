@@ -59,7 +59,7 @@ export default function DetailPVAPorProducto() {
     "—";
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/PVAPorProducto" />
       </div>

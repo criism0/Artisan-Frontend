@@ -56,7 +56,7 @@ export default function DeleteProcesoValorAgregado() {
 
   if (!pva) {
     return (
-      <div className="p-6 bg-background min-h-screen flex justify-center items-center">
+      <div className="min-h-[60vh] flex justify-center items-center">
         <p className="text-red-600 text-lg font-medium">
           No se encontró el proceso.
         </p>
@@ -65,7 +65,7 @@ export default function DeleteProcesoValorAgregado() {
   }
 
   return (
-    <div className="p-6 bg-background min-h-screen flex justify-center items-center">
+    <div className="min-h-[60vh] flex justify-center items-center">
       <div className="bg-white rounded-lg shadow-lg p-8 max-w-lg w-full text-center">
         <div className="text-5xl mb-4">⚠️</div>
         <h2 className="text-2xl font-bold text-gray-800 mb-4">

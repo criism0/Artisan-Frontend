@@ -345,7 +345,7 @@ export default function OrdenDetail() {
 
   if (!orden && !loading)
     return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
+      <div className="min-h-[60vh] flex items-center justify-center">
         <div className="p-4 text-red-700 bg-red-100 rounded-lg">
           No se encontró la orden o hubo un error al cargar.
         </div>
@@ -364,7 +364,7 @@ export default function OrdenDetail() {
   }, 0);
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/Ordenes" />
       </div>

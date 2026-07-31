@@ -468,7 +468,7 @@ export default function OrdenVentaJumpseller() {
   const clienteSeleccionado = cliente;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <h1 className="text-2xl font-bold mb-6">
         Agregar Orden de Venta - Jumpseller
       </h1>

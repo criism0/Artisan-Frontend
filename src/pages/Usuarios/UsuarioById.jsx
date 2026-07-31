@@ -33,7 +33,7 @@ export default function UsuarioById() {
   if (!usuario) return <p className="p-6">Usuario no encontrado</p>;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/Usuarios" />
       </div>

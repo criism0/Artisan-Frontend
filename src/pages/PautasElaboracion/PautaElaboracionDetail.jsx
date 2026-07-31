@@ -111,7 +111,7 @@ export default function PautaElaboracionDetail() {
 
   if (error) {
     return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
+      <div className="min-h-[60vh] flex items-center justify-center">
         <div className="p-4 text-red-700 bg-red-100 rounded-lg">{error}</div>
       </div>
     );
@@ -139,7 +139,7 @@ export default function PautaElaboracionDetail() {
   };
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="max-w-6xl mx-auto">
         <div className="mb-4">
           <BackButton to="/PautasElaboracion" />

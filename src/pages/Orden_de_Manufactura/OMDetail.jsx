@@ -314,13 +314,13 @@ export default function OMDetail() {
   if (loading) return <PageLoader message="Cargando OM" />;
   if (error)
     return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center text-red-500">
+      <div className="min-h-[60vh] flex items-center justify-center text-red-500">
         {error}
       </div>
     );
   if (!om)
     return (
-      <div className="p-6 bg-background min-h-screen flex items-center justify-center text-gray-500">
+      <div className="min-h-[60vh] flex items-center justify-center text-gray-500">
         No se encontró la Orden de Manufactura
       </div>
     );
@@ -450,7 +450,7 @@ export default function OMDetail() {
   const porcentajeInsumos = totalInsumos > 0 ? Math.round((insumosConsumidos / totalInsumos) * 100) : 0;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/Orden_de_Manufactura" />
       </div>

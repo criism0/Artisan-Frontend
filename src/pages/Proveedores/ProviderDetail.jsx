@@ -652,7 +652,7 @@ export default function ProveedorDetail() {
   const actualizado = prov.updatedAt ? new Date(prov.updatedAt).toLocaleString() : "—";
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to="/Proveedores" />
       </div>

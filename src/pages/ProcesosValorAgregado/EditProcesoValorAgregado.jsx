@@ -156,7 +156,7 @@ export default function EditProcesoValorAgregado() {
   if (isLoading) return <PageLoader message="Cargando proceso" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="mb-4">
         <BackButton to={`/ProcesosValorAgregado/${id}`} />
       </div>

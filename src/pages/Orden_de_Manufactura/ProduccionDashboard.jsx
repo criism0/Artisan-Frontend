@@ -29,6 +29,7 @@ import {
   colorEstadoOM,
   opcionesFiltrosProduccion,
 } from "../../services/produccionAnalytics";
+import KpiCard from "../../components/UI/KpiCard";
 
 const formatNumCL = (num) =>
   new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(num || 0);
@@ -91,7 +92,7 @@ export default function ProduccionDashboard() {
   if (loading) return <PageLoader message="Cargando dashboard de producción" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <div className="max-w-7xl mx-auto">
         <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
           <div>
@@ -884,28 +885,6 @@ function chipEstado(estado) {
   if (v.includes("insumos asignados")) return "bg-blue-100 text-blue-800";
   return "bg-yellow-100 text-yellow-800";
 }
-
-function KpiCard({ icon, label, value, subtitle, accent }) {
-  const accentBorder =
-    {
-      red: "border-l-4 border-l-red-500",
-      yellow: "border-l-4 border-l-yellow-500",
-      blue: "border-l-4 border-l-blue-500",
-      green: "border-l-4 border-l-green-500",
-    }[accent] || "border-l-4 border-l-green-500";
-
-  return (
-    <div className={`bg-white p-5 rounded-lg shadow ${accentBorder}`}>
-      <div className="flex items-start justify-between mb-3">
-        <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
-        {icon}
-      </div>
-      <p className="text-3xl font-bold text-gray-800">{value}</p>
-      {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
-    </div>
-  );
-}
-
 function FiltroSelect({ value, onChange, allText, options }) {
   return (
     <select

@@ -343,7 +343,7 @@ export default function EditClientes() {
   if (loading) return <PageLoader message="Cargando cliente" />;
 
   return (
-    <div className="p-6 bg-background min-h-screen">
+    <div>
       <BackButton to="/clientes" />
       <h1 className="text-2xl font-bold text-text mb-6">Editar Cliente</h1>
 
