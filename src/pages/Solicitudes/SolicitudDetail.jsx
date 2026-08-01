@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "../../lib/toast.js";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { FileText, Plus, Loader2, Download, Pencil, Send, PackageCheck, XCircle, CheckCircle2 } from "lucide-react";
+import { FileText, Loader2, Download, Pencil, Send, XCircle, CheckCircle2 } from "lucide-react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import Table from "../../components/Tables/Table";
 import logo from "../../assets/logo.png";
@@ -581,15 +581,22 @@ export default function SolicitudDetail() {
         onClick: () => setMostrarFormularioEnvio((v) => !v),
         disabled: loading,
       };
-    if (solicitud.estado === "En tránsito")
-      return {
-        label: "Recepcionar",
-        icon: <PackageCheck className="w-4 h-4" />,
-        onClick: () => navigate(`/Solicitudes/${solicitudId}/recepcionar-solicitud`),
-        disabled: loading,
-      };
+    // "En tránsito" no tiene acción en la web: se recepciona escaneando en bodega. Ver el
+    // aviso de abajo.
     return null;
   })();
+
+  /**
+   * Lo que el estado explica pero no se hace desde acá.
+   *
+   * Decisión de Cristóbal (2026-08-01): la recepción es solo del móvil. La web tenía su
+   * propia vista para recepcionar —se eliminó— que permitía cerrar una recepción sin haber
+   * escaneado nada: alguien podía declarar recibida mercadería que nadie miró.
+   */
+  const avisoDeEstado =
+    solicitud.estado === "En tránsito"
+      ? "La recepción se hace escaneando los bultos desde la app móvil. Acá se ve el avance."
+      : null;
 
   const accionesSecundarias = [
     solicitud.estado === "Creada" && {
@@ -692,6 +699,12 @@ export default function SolicitudDetail() {
             </div>
           </div>
         </div>
+
+        {avisoDeEstado && (
+          <p className="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-3 py-2 mb-6">
+            {avisoDeEstado}
+          </p>
+        )}
 
         <Tabs
           activa={tab}

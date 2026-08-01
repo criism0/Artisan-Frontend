@@ -87,7 +87,6 @@ import Solicitudes from "./pages/Solicitudes/Solicitudes";
 import AddSolicitud from "./pages/Solicitudes/AddSolicitud";
 import EditSolicitud from "./pages/Solicitudes/EditSolicitud";
 import SolicitudDetail from "./pages/Solicitudes/SolicitudDetail";
-import RecepcionarSolicitud from "./pages/Solicitudes/RecepcionarSolicitud";
 
 // ====== Orden de Manufactura ======
 import AsignarInsumos from "./pages/Orden_de_Manufactura/AsignarInsumos";
@@ -337,14 +336,6 @@ function Routing() {
             element={
               <ProtectedRoute permissions={[[ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE]]}>
                 <EditSolicitud />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/Solicitudes/:solicitudId/recepcionar-solicitud"
-            element={
-              <ProtectedRoute permissions={[[ModelType.SOLICITUD_MERCADERIA, ScopeType.READ]]}>
-                <RecepcionarSolicitud />
               </ProtectedRoute>
             }
           />
