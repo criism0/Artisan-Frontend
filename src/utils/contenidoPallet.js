@@ -61,6 +61,9 @@ export function agruparBultosPorProducto(bultos) {
       identificador: bulto?.identificador ?? `#${bulto?.id ?? "—"}`,
       unidades: aNumero(bulto?.unidades_disponibles),
       pesoUnitario: aNumero(bulto?.peso_unitario),
+      // Nació de una división y todavía no tiene su QR pegado: sin etiqueta física nadie
+      // puede escanearlo al recepcionar.
+      requiereEtiqueta: Boolean(bulto?.requiere_etiqueta),
     });
     // La unidad puede faltar en el primer bulto y venir en otro del mismo producto.
     if (!grupo.unidad) grupo.unidad = unidadDeBulto(bulto);
@@ -110,5 +113,20 @@ export function resumirPallet(pallet) {
     productos,
     // Los ids que necesita POST /bultos/etiquetas para imprimir el pallet completo.
     idsBultos: productos.flatMap((p) => p.detalle.map((b) => b.id)).filter((id) => id != null),
+    // Los que nacieron de una división y esperan que alguien les pegue el QR.
+    idsSinEtiqueta: productos
+      .flatMap((p) => p.detalle.filter((b) => b.requiereEtiqueta).map((b) => b.id))
+      .filter((id) => id != null),
   };
+}
+
+/**
+ * Bultos de toda la solicitud que esperan su QR.
+ *
+ * Se cuenta a nivel solicitud y no de pallet porque el aviso vive en la cabecera: lo que
+ * importa antes de despachar es si queda ALGUNO sin etiqueta, no en qué pallet está.
+ */
+export function bultosSinEtiqueta(pallets) {
+  const lista = Array.isArray(pallets) ? pallets : [];
+  return lista.flatMap((pallet) => resumirPallet(pallet).idsSinEtiqueta);
 }

@@ -125,7 +125,16 @@ export default function PalletDetalleModal({ pallet, abierto, onCerrar }) {
                 <tbody className="divide-y divide-gray-50">
                   {p.detalle.map((b) => (
                     <tr key={b.id ?? b.identificador}>
-                      <td className="py-1.5 font-mono text-xs text-gray-700">{b.identificador}</td>
+                      <td className="py-1.5 font-mono text-xs text-gray-700">
+                        {b.identificador}
+                        {/* Nació de una división: sin el QR pegado no se puede escanear al
+                            recepcionar, y eso se descubre recién en la otra bodega. */}
+                        {b.requiereEtiqueta && (
+                          <span className="ml-2 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-sans font-medium">
+                            QR pendiente
+                          </span>
+                        )}
+                      </td>
                       <td className="py-1.5 text-right text-gray-700">{formatNum(b.unidades)}</td>
                       {tienePesoUtil(p) && (
                         <td className="py-1.5 text-right text-gray-500">

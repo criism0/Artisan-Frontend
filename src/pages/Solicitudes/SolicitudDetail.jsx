@@ -19,6 +19,7 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { dteService } from "../../services/dteService.js";
 import { formatCLP } from "../../services/formatHelpers.js";
 import { construirLineasSolicitud } from "../../utils/lineasSolicitud.js";
+import { bultosSinEtiqueta } from "../../utils/contenidoPallet.js";
 
 function downloadBlob(blob, filename) {
   const url = window.URL.createObjectURL(blob);
@@ -196,6 +197,31 @@ export default function SolicitudDetail() {
   // los pallets. Es el valor real de lo que sale, e incluye los PT — a diferencia del costo
   // por línea, que estima con el precio de lista del insumo y deja los PT en cero.
   const valorDespacho = Number(solicitud?.valor_despacho) || 0;
+
+  // Bultos nacidos de una división que todavía no tienen su QR pegado. Si salen así, en la
+  // bodega de destino nadie puede escanearlos y el problema se descubre allá.
+  const sinEtiqueta = useMemo(() => bultosSinEtiqueta(pallets), [pallets]);
+
+  const descargarEtiquetasPendientes = async () => {
+    if (!sinEtiqueta.length) return;
+    try {
+      setLoading(true);
+      const blob = await apiBlob("/bultos/etiquetas", {
+        method: "POST",
+        body: { ids_bultos: sinEtiqueta },
+      });
+      downloadBlob(blob, `qr-bultos-nuevos-solicitud-${solicitudId}.pdf`);
+      toast.success("Etiquetas descargadas");
+      // El backend limpia la marca al descargar, así que hay que releer para que el aviso
+      // desaparezca sin obligar a recargar la página.
+      await fetchSolicitud();
+    } catch (err) {
+      console.error("etiquetas pendientes:", err);
+      toast.error(err?.message || "No se pudieron descargar las etiquetas");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // La unidad de medida acompaña al nombre en vez de ocupar su propia columna: es un dato
   // del insumo, no una cifra que se compare hacia abajo. Y el costo salió de la tabla —
@@ -704,6 +730,28 @@ export default function SolicitudDetail() {
           <p className="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-3 py-2 mb-6">
             {avisoDeEstado}
           </p>
+        )}
+
+        {/* Va en la cabecera y no dentro de la pestaña de pallets: es lo único que puede
+            arruinar la recepción entera, y tiene que verse sin buscarlo. */}
+        {sinEtiqueta.length > 0 && (
+          <div className="flex items-center justify-between gap-4 flex-wrap text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-6">
+            <span>
+              <strong>
+                {sinEtiqueta.length} bulto{sinEtiqueta.length === 1 ? "" : "s"}
+              </strong>{" "}
+              {sinEtiqueta.length === 1 ? "nació" : "nacieron"} de una división y todavía no
+              {sinEtiqueta.length === 1 ? " tiene" : " tienen"} su QR pegado. Sin él no se
+              {sinEtiqueta.length === 1 ? " puede" : " pueden"} escanear al recepcionar.
+            </span>
+            <button
+              onClick={descargarEtiquetasPendientes}
+              disabled={loading}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 shrink-0"
+            >
+              Descargar QR de bultos nuevos
+            </button>
+          </div>
         )}
 
         <Tabs
