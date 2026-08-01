@@ -12,6 +12,9 @@ import { uploadToS3 } from "../../lib/uploadToS3";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import PageHeader from "../../components/UI/PageHeader.jsx";
 import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
+import Tabs from "../../components/UI/Tabs.jsx";
+import Modal from "../../components/UI/Modal.jsx";
+import PalletContenidoCard from "../../components/Pallets/PalletContenidoCard.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { dteService } from "../../services/dteService.js";
 import { formatCLP } from "../../services/formatHelpers.js";
@@ -93,7 +96,6 @@ export default function SolicitudDetail() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const [expandedPalletIds, setExpandedPalletIds] = useState(() => new Set());
   const [gds,              setGds]              = useState([]);   // GDs de la solicitud
   const [gdLoading,        setGdLoading]        = useState(false);
   const [showEmitirGDModal, setShowEmitirGDModal] = useState(false);
@@ -103,6 +105,7 @@ export default function SolicitudDetail() {
   const [guiaDespacho, setGuiaDespacho] = useState("");
   const [medioTransporte, setMedioTransporte] = useState("");
   const [mostrarFormularioEnvio, setMostrarFormularioEnvio] = useState(false);
+  const [tab, setTab] = useState("insumos");
   const [archivosGuia, setArchivosGuia] = useState([]);
 
   const canWriteMerchRequest = checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE);
@@ -183,33 +186,35 @@ export default function SolicitudDetail() {
   const celdaComentario = {
     header: "Comentario",
     accessor: "comentario",
-    cellClassName: "whitespace-pre-wrap break-words max-w-[36rem]",
+    cellClassName: "whitespace-pre-wrap break-words max-w-[20rem]",
     Cell: ({ value }) => (value ? value : <span className="text-gray-400">—</span>),
   };
 
+  // El costo solo tiene sentido cuando ya se sabe qué salió: mientras haya líneas sin
+  // despachar es una proyección sobre cantidades que todavía pueden cambiar.
+  const todoDespachado =
+    insumos.length > 0 && insumos.every((l) => l.cantidad_despachada != null);
+
+  // La unidad de medida acompaña al nombre en vez de ocupar su propia columna: es un dato
+  // del insumo, no una cifra que se compare hacia abajo. Y el costo salió de la tabla —
+  // para leer de un vistazo lo que importa es cuánto se pidió y cuánto llegó.
   const insumosColumns = useMemo(
     () => [
-      { header: "Insumo", accessor: "nombre" },
+      {
+        header: "Insumo",
+        accessor: "nombre",
+        Cell: ({ value, row }) => (
+          <div className="whitespace-normal break-words">
+            {value}
+            {row?.unidad_medida && row.unidad_medida !== "—" && (
+              <span className="text-xs text-gray-500"> · {row.unidad_medida}</span>
+            )}
+          </div>
+        ),
+      },
       { header: "Solicitada", accessor: "cantidad_solicitada", Cell: celdaCantidad },
       { header: "Despachada", accessor: "cantidad_despachada", Cell: celdaCantidad },
       { header: "Recepcionada", accessor: "cantidad_recepcionada", Cell: celdaCantidad },
-      { header: "UM", accessor: "unidad_medida" },
-      {
-        header: "Costo Unitario",
-        accessor: "costo_unitario",
-        Cell: ({ value }) =>
-          value ? formatCLP(value, 0) : <span className="text-gray-400">—</span>,
-      },
-      {
-        header: "Costo Despachado",
-        accessor: "costo_despachado",
-        Cell: ({ value }) =>
-          value ? (
-            <span className="font-medium">{formatCLP(value, 0)}</span>
-          ) : (
-            <span className="text-gray-400">—</span>
-          ),
-      },
       celdaComentario,
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -265,25 +270,6 @@ export default function SolicitudDetail() {
     [pallets]
   );
 
-  const palletsColumns = useMemo(
-    () => [
-      { header: "ID",          accessor: "id"           },
-      { header: "Identificador", accessor: "identificador" },
-      { header: "Estado",      accessor: "estado"       },
-    ],
-    []
-  );
-
-  const bultosColumns = useMemo(
-    () => [
-      { header: "ID", accessor: "id" },
-      { header: "Identificador", accessor: "identificador" },
-      { header: "Materia Prima", accessor: "materia_prima" },
-      { header: "Unidades Disp.", accessor: "unidades_disponibles" },
-      { header: "Cantidad Un.", accessor: "cantidad_un" },
-    ],
-    []
-  );
 
   const handleEmitirGDSolicitud = async () => {
     if (!solicitudId) return;
@@ -318,15 +304,6 @@ export default function SolicitudDetail() {
     } catch (err) {
       toast.error('Error al confirmar llegada: ' + (err?.message ?? err));
     }
-  };
-
-  const toggleExpandedPallet = (palletId) => {
-    setExpandedPalletIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(palletId)) next.delete(palletId);
-      else next.add(palletId);
-      return next;
-    });
   };
 
   const handleValidarSolicitud = async () => {
@@ -691,149 +668,92 @@ export default function SolicitudDetail() {
           }
         />
 
-        {solicitud.estado === "Lista para despacho" && mostrarFormularioEnvio && (
-          <div className="bg-white p-6 rounded-lg shadow space-y-3 mb-6">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-text">Datos de envío</h2>
-              <button
-                onClick={handleEnviarSolicitud}
-                disabled={loading}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-60"
-              >
-                Confirmar envío
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input
-                type="text"
-                placeholder="Número de Guía de Despacho"
-                value={guiaDespacho}
-                onChange={(e) => setGuiaDespacho(e.target.value)}
-                className="w-full p-2 border rounded"
-              />
-              <input
-                type="text"
-                placeholder="Medio de Transporte"
-                value={medioTransporte}
-                onChange={(e) => setMedioTransporte(e.target.value)}
-                className="w-full p-2 border rounded"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm text-gray-700">
-                Adjuntar archivos guía de despacho (opcional)
-              </label>
-              <input
-                type="file"
-                multiple
-                onChange={(e) => {
-                  const files = Array.from(e.target.files || []);
-                  setArchivosGuia(files);
-                }}
-                className="w-full"
-              />
-              {archivosGuia.length > 0 && (
-                <div className="text-xs text-gray-600">
-                  {archivosGuia.length} archivo(s) seleccionado(s)
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
+        {/* Una sola fila de indicadores. Antes había dos filas de tarjetas seguidas —las 4
+            de cabecera y las 2 del resumen— que decían cosas parecidas y ocupaban una
+            pantalla entera antes de llegar al contenido. */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
-            <div className="text-xs text-gray-500 font-medium">ESTADO</div>
-            <div className="mt-1">
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Estado</div>
+            <div className="mt-2">
               <span
                 className={`px-3 py-1 rounded-full text-xs border ${getEstadoBadgeClasses(solicitud.estado)}`}
               >
                 {normalizeEstadoSolicitud(solicitud.estado) ?? "—"}
               </span>
             </div>
-            <div className="text-xs text-gray-600 mt-2">Creada: {formatDateTime(solicitud.createdAt)}</div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-            <div className="text-xs text-gray-500 font-medium">BODEGAS</div>
-            <div className="font-bold text-text mt-1">{solicitud.bodegaProveedora?.nombre ?? "—"}</div>
-            <div className="text-xs text-gray-600 mt-2">Destino: {solicitud.bodegaSolicitante?.nombre ?? "—"}</div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-            <div className="text-xs text-gray-500 font-medium">CONTENIDO</div>
-            <div className="font-bold text-text mt-1">
-              {totales.insumos} insumo{totales.insumos === 1 ? "" : "s"}
-              {" · "}
-              {totales.productosTerminados} PT
-            </div>
             <div className="text-xs text-gray-600 mt-2">Solicita: {solicitanteNombre}</div>
           </div>
 
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
-            <div className="text-xs text-gray-500 font-medium">LOGÍSTICA</div>
-            <div className="font-bold text-text mt-1">Pallets: {palletsData.length}</div>
-            <div className="text-xs text-gray-600 mt-2">Guía: {solicitud.numero_guia_despacho ?? "—"}</div>
-          </div>
-        </div>
-
-        {/* Resumen: dos bloques con identidad propia en vez de una lista plana de pares
-            clave/valor. Cada uno se muestra solo si la solicitud lleva ese tipo de ítem. */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="bg-white p-5 rounded-lg shadow border-l-4 border-l-blue-500">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Insumos</p>
-              <p className="text-3xl font-bold text-gray-800 mt-2">{totales.insumos}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                {totales.costoInsumos > 0
-                  ? `${formatCLP(totales.costoInsumos, 0)} despachados`
-                  : "Sin costo registrado"}
-              </p>
-            </div>
-
-            <div className="bg-white p-5 rounded-lg shadow border-l-4 border-l-green-500">
-              <p className="text-xs uppercase tracking-wide text-gray-500">Productos terminados</p>
-              <p className="text-3xl font-bold text-gray-800 mt-2">{totales.productosTerminados}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                {totales.productosTerminados === 0 ? "Esta solicitud no lleva PT" : resumenPT()}
-              </p>
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Bodegas</div>
+            <div className="font-bold text-text mt-2">{solicitud.bodegaProveedora?.nombre ?? "—"}</div>
+            <div className="text-xs text-gray-600 mt-1">
+              → {solicitud.bodegaSolicitante?.nombre ?? "—"}
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-lg shadow space-y-2 text-sm">
-            <h2 className="text-base font-semibold text-text">Trazabilidad</h2>
-            {[
-              ["Creación", formatDateTime(solicitud.createdAt)],
-              ["Envío", solicitud.fecha_envio ? formatDateTime(solicitud.fecha_envio) : "Pendiente"],
-              ["Recepción", solicitud.fecha_recepcion ? formatDateTime(solicitud.fecha_recepcion) : "Pendiente"],
-              ["Transporte", solicitud.medio_transporte ?? "—"],
-            ].map(([etiqueta, valor]) => (
-              <div key={etiqueta} className="flex items-start justify-between gap-4">
-                <span className="text-gray-500">{etiqueta}</span>
-                <span className="text-text font-medium text-right">{valor}</span>
-              </div>
-            ))}
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Insumos</div>
+            <div className="text-3xl font-bold text-gray-800 mt-1">{totales.insumos}</div>
+            <div className="text-xs text-gray-600 mt-1">
+              {totales.insumos === 0 ? "Sin insumos" : `en ${palletsData.length} pallet${palletsData.length === 1 ? "" : "s"}`}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+              Productos terminados
+            </div>
+            <div className="text-3xl font-bold text-gray-800 mt-1">
+              {totales.productosTerminados}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              {totales.productosTerminados === 0 ? "Esta solicitud no lleva PT" : resumenPT()}
+            </div>
           </div>
         </div>
 
-        {insumos.length > 0 && (
+        <Tabs
+          activa={tab}
+          onCambiar={setTab}
+          pestanas={[
+            { id: "insumos", label: "Insumos", cantidad: insumos.length, deshabilitadaSiVacia: true },
+            {
+              id: "pt",
+              label: "Productos terminados",
+              cantidad: productosTerminados.length,
+              deshabilitadaSiVacia: true,
+            },
+            { id: "pallets", label: "Pallets", cantidad: palletsData.length, deshabilitadaSiVacia: true },
+            { id: "guias", label: "Guías de Despacho", cantidad: gds.length },
+            { id: "trazabilidad", label: "Trazabilidad" },
+          ]}
+        />
+
+        {tab === "insumos" && (
           <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-lg font-semibold text-text">Insumos</h2>
-              <div className="text-sm text-gray-700">
-                <span className="text-gray-500">Costo despachado:</span>{" "}
-                <span className="font-semibold text-gray-900">
-                  {totales.costoInsumos > 0 ? formatCLP(totales.costoInsumos, 0) : "—"}
-                </span>
-              </div>
+              {/* El costo aparece recién cuando ya está todo despachado: antes es una
+                  proyección sobre cantidades que todavía pueden cambiar. */}
+              {todoDespachado && totales.costoInsumos > 0 && (
+                <div className="text-sm text-gray-700">
+                  <span className="text-gray-500">Costo despachado:</span>{" "}
+                  <span className="font-semibold text-gray-900">
+                    {formatCLP(totales.costoInsumos, 0)}
+                  </span>
+                </div>
+              )}
             </div>
-            <Table data={insumos} columns={insumosColumns} />
+            {insumos.length > 0 ? (
+              <Table data={insumos} columns={insumosColumns} />
+            ) : (
+              <p className="text-sm text-gray-500">Esta solicitud no lleva insumos.</p>
+            )}
           </div>
         )}
 
-        {productosTerminados.length > 0 && (
+        {tab === "pt" && (
           <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-lg font-semibold text-text">Productos terminados</h2>
@@ -842,19 +762,39 @@ export default function SolicitudDetail() {
                 <span className="font-semibold text-gray-900">{resumenPT()}</span>
               </div>
             </div>
-            <Table data={productosTerminados} columns={productosTerminadosColumns} />
+            {productosTerminados.length > 0 ? (
+              <Table data={productosTerminados} columns={productosTerminadosColumns} />
+            ) : (
+              <p className="text-sm text-gray-500">Esta solicitud no lleva productos terminados.</p>
+            )}
           </div>
         )}
 
-        {lineas.length === 0 && (
+        {tab === "trazabilidad" && (
           <div className="bg-white p-6 rounded-lg shadow mb-6">
-            <p className="text-gray-500 text-sm">Esta solicitud no tiene ítems registrados.</p>
+            <h2 className="text-lg font-semibold text-text mb-4">Trazabilidad</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+              {[
+                ["Creación", formatDateTime(solicitud.createdAt)],
+                ["Envío", solicitud.fecha_envio ? formatDateTime(solicitud.fecha_envio) : "Pendiente"],
+                [
+                  "Recepción",
+                  solicitud.fecha_recepcion ? formatDateTime(solicitud.fecha_recepcion) : "Pendiente",
+                ],
+                ["Última actualización", formatDateTime(solicitud.updatedAt)],
+                ["Medio de transporte", solicitud.medio_transporte ?? "—"],
+                ["N° guía de despacho", solicitud.numero_guia_despacho ?? "—"],
+              ].map(([etiqueta, valor]) => (
+                <div key={etiqueta} className="flex items-start justify-between gap-4">
+                  <span className="text-gray-500">{etiqueta}</span>
+                  <span className="text-text font-medium text-right">{valor}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* ── Sección Guías de Despacho ─────────────────────────────────
-            "Emitir Guía de Despacho" ya no vive acá: subió al panel de acciones de la
-            cabecera, como el resto. Esta sección solo muestra las guías emitidas. */}
+        {tab === "guias" && (
         <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
           <h2 className="text-lg font-semibold text-text">Guías de Despacho</h2>
 
@@ -924,18 +864,39 @@ export default function SolicitudDetail() {
             </div>
           )}
         </div>
+        )}
 
         {/* Modal emitir GD */}
-        {showEmitirGDModal && (
-          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                <h2 className="text-base font-bold text-gray-900">Emitir Guía de Despacho</h2>
-                <button onClick={() => setShowEmitirGDModal(false)} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">
-                  <Plus size={18} className="rotate-45" />
-                </button>
-              </div>
-              <div className="p-5 space-y-4">
+        <Modal
+          abierto={showEmitirGDModal}
+          onCerrar={() => setShowEmitirGDModal(false)}
+          titulo="Emitir Guía de Despacho"
+          descripcion="Documento electrónico (DTE tipo 52) emitido ante el SII."
+          pie={
+            <>
+              <button
+                onClick={() => setShowEmitirGDModal(false)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEmitirGDSolicitud}
+                disabled={gdLoading}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+              >
+                {gdLoading ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" /> Emitiendo…
+                  </>
+                ) : (
+                  "Emitir GD"
+                )}
+              </button>
+            </>
+          }
+        >
+              <div className="space-y-4">
                 {/* Bodegas (informativas, vienen de la solicitud) */}
                 <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
                   <div className="flex justify-between text-gray-600">
@@ -960,7 +921,7 @@ export default function SolicitudDetail() {
                     type="date"
                     value={gdFechaEnvio}
                     onChange={(e) => setGdFechaEnvio(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
                   />
                 </div>
 
@@ -973,133 +934,127 @@ export default function SolicitudDetail() {
                     value={gdTransportista}
                     onChange={(e) => setGdTransportista(e.target.value)}
                     placeholder="Nombre del transportista o empresa de transporte"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
                   />
                 </div>
-
-                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-                  <button
-                    onClick={() => setShowEmitirGDModal(false)}
-                    className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleEmitirGDSolicitud}
-                    disabled={gdLoading}
-                    className="flex items-center gap-2 px-4 py-2 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50"
-                  >
-                    {gdLoading ? <><Loader2 size={14} className="animate-spin" /> Emitiendo…</> : 'Emitir GD'}
-                  </button>
-                </div>
               </div>
-            </div>
-          </div>
-        )}
+        </Modal>
 
-        {palletsData.length > 0 && (
+        {tab === "pallets" && (
           <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
-            <h2 className="text-lg font-semibold text-text">Pallets</h2>
-            <Table
-              data={palletsData}
-              columns={palletsColumns}
-              renderActions={(row) => (
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-lg font-semibold text-text">Pallets</h2>
+              {palletsData.length > 0 && (
                 <button
-                  onClick={() => toggleExpandedPallet(row.id)}
-                  className="px-3 py-1 rounded border border-gray-200 hover:bg-gray-50"
+                  onClick={handleDescargarEtiquetasPallets}
+                  disabled={loading}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-60"
                 >
-                  {expandedPalletIds.has(row.id) ? "Ocultar bultos" : "Ver bultos"}
+                  Descargar etiquetas
                 </button>
               )}
-              renderExpandedRow={(row) => {
-                if (!expandedPalletIds.has(row.id)) return null;
-
-                const palletBultos = Array.isArray(row?.bultos) ? row.bultos : [];
-                const bultosData = palletBultos.map((b) => {
-                  const unidad =
-                    b?.MateriaPrima?.unidad_medida ??
-                    b?.materiaPrima?.unidad_medida ??
-                    "";
-
-                  const cantidadUn = (() => {
-                    if (b?.peso_unitario == null || b?.peso_unitario === "") return "—";
-                    if (!unidad) return String(b.peso_unitario);
-                    return `${b.peso_unitario} ${String(unidad).toUpperCase()}`;
-                  })();
-
-                  return {
-                    id: b?.id,
-                    identificador: b?.identificador ?? "—",
-                    materia_prima:
-                      b?.MateriaPrima?.nombre ??
-                      b?.materiaPrima?.nombre ??
-                      (b?.loteProductoFinal?.productoBase
-                        ? `${b.loteProductoFinal.productoBase.nombre} (PT)`
-                        : "—"),
-                    unidades_disponibles: b?.unidades_disponibles ?? "—",
-                    cantidad_un: cantidadUn,
-                  };
-                });
-
-                return (
-                  <tr>
-                    <td colSpan={palletsColumns.length + 1} className="px-6 py-4">
-                      {bultosData.length > 0 ? (
-                        <div className="bg-gray-50 rounded-lg p-4 max-w-full">
-                          <div className="text-sm font-medium text-text mb-3">
-                            Bultos del pallet {row.identificador}
-                          </div>
-                          <div className="w-full max-w-full overflow-x-auto">
-                            <table className="min-w-full w-full">
-                              <thead className="bg-gray-100">
-                                <tr>
-                                  {bultosColumns.map((col) => (
-                                    <th
-                                      key={col.accessor}
-                                      className="px-4 py-2 text-left text-xs font-medium text-text uppercase tracking-wider whitespace-nowrap"
-                                    >
-                                      {col.header}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white">
-                                {bultosData.map((b) => (
-                                  <tr key={b.id ?? b.identificador} className="border-t">
-                                    {bultosColumns.map((col) => (
-                                      <td
-                                        key={`${b.id ?? b.identificador}-${col.accessor}`}
-                                        className="px-4 py-2 text-sm text-gray-700 whitespace-nowrap"
-                                      >
-                                        {b[col.accessor]}
-                                      </td>
-                                    ))}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-gray-500">Sin bultos asociados.</div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              }}
-            />
-
-            <div className="flex justify-end">
-              <button
-                onClick={handleDescargarEtiquetasPallets}
-                disabled={loading}
-                className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-60"
-              >
-                Etiquetas Pallets
-              </button>
             </div>
+
+            {palletsData.length === 0 ? (
+              <p className="text-sm text-gray-500">
+                Esta solicitud todavía no tiene pallets armados.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {palletsData.map((pallet) => (
+                  <PalletContenidoCard key={pallet.id} pallet={pallet} />
+                ))}
+              </div>
+            )}
           </div>
         )}
+
+        {/* Modal de envío: los datos de la guía manual y el medio de transporte. Antes era
+            un panel que se desplegaba en medio de la página y empujaba todo hacia abajo. */}
+        <Modal
+          abierto={mostrarFormularioEnvio}
+          onCerrar={() => setMostrarFormularioEnvio(false)}
+          titulo="Enviar solicitud"
+          descripcion="Al confirmar, los pallets pasan a tránsito y el stock sale de la bodega de origen."
+          pie={
+            <>
+              <button
+                onClick={() => setMostrarFormularioEnvio(false)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEnviarSolicitud}
+                disabled={loading || !guiaDespacho.trim() || !medioTransporte.trim()}
+                className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+              >
+                Confirmar envío
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            {/* Si ya se emitió la GD electrónica, su folio es el número que corresponde:
+                escribir otro a mano deja el papel y el documento del SII sin relación. */}
+            {gds.length > 0 && gds[0]?.folio && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
+                Esta solicitud ya tiene la Guía de Despacho electrónica{" "}
+                <strong>N° {gds[0].folio}</strong>.{" "}
+                <button
+                  type="button"
+                  onClick={() => setGuiaDespacho(String(gds[0].folio))}
+                  className="underline font-medium"
+                >
+                  Usar ese folio
+                </button>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                N° de guía de despacho
+              </label>
+              <input
+                type="text"
+                value={guiaDespacho}
+                onChange={(e) => setGuiaDespacho(e.target.value)}
+                placeholder="Ej: 12345"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Medio de transporte
+              </label>
+              <input
+                type="text"
+                value={medioTransporte}
+                onChange={(e) => setMedioTransporte(e.target.value)}
+                placeholder="Ej: Camión interno"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Adjuntar la guía <span className="text-gray-400 font-normal">(opcional)</span>
+              </label>
+              <input
+                type="file"
+                multiple
+                onChange={(e) => setArchivosGuia(Array.from(e.target.files || []))}
+                className="w-full text-sm"
+              />
+              {archivosGuia.length > 0 && (
+                <p className="text-xs text-gray-600 mt-1">
+                  {archivosGuia.length} archivo(s) seleccionado(s)
+                </p>
+              )}
+            </div>
+          </div>
+        </Modal>
       </div>
     </div>
   );
