@@ -13,3 +13,28 @@
 html {
   scrollbar-gutter: stable;
 }
+
+/**
+ * Foco de teclado visible.
+ *
+ * La app se usa con lector de código y teclado en bodega, y el foco por defecto de varios
+ * navegadores es casi invisible sobre fondo blanco. `:focus-visible` solo se activa con
+ * teclado, así que no agrega un halo al hacer clic con el mouse.
+ */
+:focus-visible {
+  outline: 2px solid theme("colors.primary.DEFAULT");
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Respetar a quien pidió menos movimiento en su sistema operativo. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

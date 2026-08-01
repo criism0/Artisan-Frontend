@@ -44,6 +44,7 @@ export function agruparBultosPorProducto(bultos) {
         unidades: 0,
         peso: 0,
         identificadores: [],
+        detalle: [],
       });
     }
 
@@ -53,11 +54,44 @@ export function agruparBultosPorProducto(bultos) {
     // El peso del bulto es `peso_unitario` por cada unidad que quede dentro.
     grupo.peso += aNumero(bulto?.peso_unitario) * aNumero(bulto?.unidades_disponibles);
     grupo.identificadores.push(bulto?.identificador ?? `#${bulto?.id ?? "—"}`);
+    // El detalle completo lo necesita el modal, que además imprime las etiquetas y para eso
+    // le hacen falta los ids.
+    grupo.detalle.push({
+      id: bulto?.id,
+      identificador: bulto?.identificador ?? `#${bulto?.id ?? "—"}`,
+      unidades: aNumero(bulto?.unidades_disponibles),
+      pesoUnitario: aNumero(bulto?.peso_unitario),
+    });
     // La unidad puede faltar en el primer bulto y venir en otro del mismo producto.
     if (!grupo.unidad) grupo.unidad = unidadDeBulto(bulto);
   }
 
   return [...porProducto.values()].sort((a, b) => b.bultos - a.bultos);
+}
+
+/**
+ * Texto de una cantidad con su sustantivo, en singular o plural.
+ *
+ * Las abreviaturas se leen mal en pantalla: "10 un. · 10 b." obliga a traducir dos veces.
+ * En una tarjeta que se mira de reojo en bodega, la palabra completa cuesta unos píxeles y
+ * ahorra la duda.
+ */
+export function contar(cantidad, singular, plural) {
+  const n = Number(cantidad) || 0;
+  const texto = n.toLocaleString("es-CL", { maximumFractionDigits: 3 });
+  return `${texto} ${n === 1 ? singular : plural}`;
+}
+
+/**
+ * ¿Vale la pena mostrar el peso además de las unidades?
+ *
+ * Cuando la unidad de medida del insumo es "Unidades", el peso ES la cantidad de unidades, y
+ * la fila termina diciendo "10 un. · 10 unidades": el mismo dato dos veces con distinto
+ * nombre. Solo aporta cuando la unidad es de masa o volumen.
+ */
+export function tienePesoUtil(grupo) {
+  if (!grupo?.peso || !grupo?.unidad) return false;
+  return !/^unidad/i.test(String(grupo.unidad).trim());
 }
 
 export function resumirPallet(pallet) {
@@ -74,5 +108,7 @@ export function resumirPallet(pallet) {
     estado: pallet?.estado ?? "—",
     totalBultos: bultos.length,
     productos,
+    // Los ids que necesita POST /bultos/etiquetas para imprimir el pallet completo.
+    idsBultos: productos.flatMap((p) => p.detalle.map((b) => b.id)).filter((id) => id != null),
   };
 }
