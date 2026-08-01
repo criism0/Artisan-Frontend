@@ -1,7 +1,19 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { BackButton, ModifyButton, DeleteButton } from "../../components/Buttons/ActionButtons";
+import {
+  CheckCircle2,
+  Download,
+  PackageCheck,
+  Pencil,
+  Receipt,
+  Trash2,
+  Truck,
+} from "lucide-react";
 import Table from "../../components/Tables/Table";
+import PageHeader from "../../components/UI/PageHeader.jsx";
+import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
+import Tabs from "../../components/UI/Tabs.jsx";
+import Modal from "../../components/UI/Modal.jsx";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import jsPDF from "jspdf";
@@ -64,6 +76,59 @@ const COMPANY = {
   contacto: "oc@quesosartisan.cl",
 };
 
+// Los estados por los que pasa una OV, en orden. Fuera del componente: no dependen de nada
+// suyo y así el arreglo no se reconstruye en cada render.
+const PASOS_OV = [
+  "Creada",
+  "Validada",
+  "En picking",
+  "Lista para facturación",
+  "Facturada",
+  "Entregada",
+];
+
+/**
+ * Barra de progreso de la orden.
+ *
+ * Estaba definida DENTRO de OrdenVentaDetail (`const StepBar = () => …`). React ve una
+ * función nueva en cada render, así que la trataba como un componente distinto y desmontaba
+ * y volvía a montar toda la barra cada vez que cambiaba cualquier estado de la vista.
+ */
+function StepBar({ estadoActual }) {
+  const actual = PASOS_OV.indexOf(estadoActual ?? "");
+
+  return (
+    <div className="bg-white rounded-lg shadow p-4 mb-6">
+      <div className="flex items-center justify-between">
+        {PASOS_OV.map((paso, idx) => {
+          const hecho = idx < actual;
+          const activo = idx === actual;
+          return (
+            <div key={paso} className="flex items-center flex-1">
+              <div className="flex flex-col items-center flex-1">
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+                    ${hecho ? "bg-primary text-white" : activo ? "bg-primary text-white ring-2 ring-primary ring-offset-2" : "bg-gray-200 text-gray-500"}`}
+                >
+                  {hecho ? "✓" : idx + 1}
+                </div>
+                <span
+                  className={`mt-1 text-xs text-center leading-tight ${activo ? "font-semibold text-primary" : hecho ? "text-gray-600" : "text-gray-400"}`}
+                >
+                  {paso}
+                </span>
+              </div>
+              {idx < PASOS_OV.length - 1 && (
+                <div className={`h-0.5 flex-1 mx-1 ${idx < actual ? "bg-primary" : "bg-gray-200"}`} />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Subformulario: Facturar ───────────────────────────────────────────────────
 function FacturarForm({
   direccionesCliente,
@@ -72,13 +137,10 @@ function FacturarForm({
   loadingDirecciones,
   fechaFacturacion,
   setFechaFacturacion,
-  transitioning,
-  onConfirm,
-  onCancel,
   requiereDir = false,
 }) {
   return (
-    <div className="flex flex-col gap-4 max-w-sm">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-gray-700">
           Dirección de facturación {requiereDir && <span className="text-red-500">*</span>}
@@ -124,23 +186,14 @@ function FacturarForm({
         Al confirmar se <strong>emite la Factura Electrónica (SII vía LibreDTE)</strong>.
         El cliente debe tener RUT, razón social y giro registrados.
       </div>
-
-      <div className="flex gap-2">
-        <button onClick={onConfirm} disabled={transitioning} className={btnCls("yellow")}>
-          {transitioning ? "Emitiendo factura..." : "Emitir Factura Electrónica"}
-        </button>
-        <button onClick={onCancel} className={btnCls("ghost")}>
-          Cancelar
-        </button>
-      </div>
     </div>
   );
 }
 
 // ── Subformulario: Entregar ───────────────────────────────────────────────────
-function EntregarForm({ costoEnvio, setCostoEnvio, fechaEnvio, setFechaEnvio, delivering, onConfirm, onCancel }) {
+function EntregarForm({ costoEnvio, setCostoEnvio, fechaEnvio, setFechaEnvio }) {
   return (
-    <div className="flex flex-col gap-4 max-w-xs">
+    <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-gray-700">Costo de envío * <span className="text-xs text-gray-400 font-normal">(puede ser 0)</span></span>
         <input
@@ -159,14 +212,6 @@ function EntregarForm({ costoEnvio, setCostoEnvio, fechaEnvio, setFechaEnvio, de
           onChange={(e) => setFechaEnvio(e.target.value)}
           className={inputCls}
         />
-      </div>
-      <div className="flex gap-2">
-        <button onClick={onConfirm} disabled={delivering} className={btnCls("green")}>
-          {delivering ? "Entregando..." : "Confirmar entrega"}
-        </button>
-        <button onClick={onCancel} className={btnCls("ghost")}>
-          Cancelar
-        </button>
       </div>
     </div>
   );
@@ -187,6 +232,7 @@ export default function OrdenVentaDetail() {
   const [transitioning, setTransitioning] = useState(false);
   const [showFacturarForm, setShowFacturarForm] = useState(false);
   const [showEntregarForm, setShowEntregarForm] = useState(false);
+  const [tab, setTab] = useState("resumen");
   const [fechaFacturacion, setFechaFacturacion] = useState("");
   const [costoEnvio, setCostoEnvio] = useState("");
   const [fechaEnvio, setFechaEnvio] = useState("");
@@ -506,39 +552,6 @@ export default function OrdenVentaDetail() {
     return <span className={map[estado] || `${base} bg-gray-100 text-gray-600`}>{estado}</span>;
   };
 
-  // Referenciales y normales siguen el mismo flujo de estados desde la app móvil
-  const steps = ["Creada", "Validada", "En picking", "Lista para facturación", "Facturada", "Entregada"];
-  const currentStepIdx = steps.indexOf(orden?.estado ?? "");
-
-  const StepBar = () => (
-    <div className="bg-white rounded-lg shadow p-4 mb-6">
-      <div className="flex items-center justify-between">
-        {steps.map((step, idx) => {
-          const done = idx < currentStepIdx;
-          const active = idx === currentStepIdx;
-          return (
-            <div key={step} className="flex items-center flex-1">
-              <div className="flex flex-col items-center flex-1">
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
-                    ${done ? "bg-primary text-white" : active ? "bg-primary text-white ring-2 ring-primary ring-offset-2" : "bg-gray-200 text-gray-500"}`}
-                >
-                  {done ? "✓" : idx + 1}
-                </div>
-                <span className={`mt-1 text-xs text-center leading-tight ${active ? "font-semibold text-primary" : done ? "text-gray-600" : "text-gray-400"}`}>
-                  {step}
-                </span>
-              </div>
-              {idx < steps.length - 1 && (
-                <div className={`h-0.5 flex-1 mx-1 ${idx < currentStepIdx ? "bg-primary" : "bg-gray-200"}`} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-
   const totalProductos = useMemo(
     () =>
       orderItems.reduce(
@@ -566,135 +579,160 @@ export default function OrdenVentaDetail() {
       </div>
     );
 
-  // ── Acción disponible según estado ─────────────────────────────────────────
-  const renderAccion = () => {
+  // ── Acciones ────────────────────────────────────────────────────────────────
+  // Una sola acción principal, la que corresponde al estado. Antes estaban repartidas en
+  // tres lugares: la cabecera, el interior del panel de facturación (al fondo de la página)
+  // y una tarjeta "Acciones" al final del todo.
+  const accionPrincipal = (() => {
     const estado = orden?.estado;
 
-    if (estado === "Creada") {
-      return canValidar ? (
-        <button onClick={handleValidar} disabled={transitioning} className={btnCls("blue")}>
-          {transitioning ? "Validando..." : "✔ Validar orden"}
-        </button>
-      ) : (
-        <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-          Sin permisos para validar esta orden. Contacta a un administrador.
-        </p>
-      );
-    }
+    if (estado === "Creada" && canValidar)
+      return {
+        label: "Validar orden",
+        icon: <CheckCircle2 className="w-4 h-4" />,
+        onClick: handleValidar,
+        disabled: transitioning,
+      };
 
-    if (estado === "Validada") {
-      return (
-        <p className="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
-          {orden?.es_referencial
-            ? <>La orden referencial pasará a <strong>En picking</strong> cuando el operario inicie el proceso de declaración de cantidades desde la app móvil.</>
-            : <>La orden pasará a <strong>En picking</strong> automáticamente al registrar el primer bulto en la asignación.</>}
-        </p>
-      );
-    }
+    if (estado === "En picking")
+      return {
+        label: "Completar picking",
+        icon: <PackageCheck className="w-4 h-4" />,
+        onClick: handleCompletarPicking,
+        disabled: transitioning,
+      };
 
-    if (estado === "En picking") {
-      return (
-        <button onClick={handleCompletarPicking} disabled={transitioning} className={btnCls("indigo")}>
-          {transitioning ? "Completando..." : "✔ Completar picking"}
-        </button>
-      );
-    }
+    if (estado === "Lista para facturación")
+      return {
+        label: "Facturar orden",
+        icon: <Receipt className="w-4 h-4" />,
+        onClick: () => {
+          setIdLocalDespacho(String(orden?.id_local || ""));
+          loadDireccionesCliente(cliente?.id);
+          setShowFacturarForm(true);
+        },
+        disabled: transitioning,
+      };
+
+    if (estado === "Facturada")
+      return {
+        label: "Registrar entrega",
+        icon: <Truck className="w-4 h-4" />,
+        onClick: () => setShowEntregarForm(true),
+        disabled: delivering,
+      };
 
     return null;
-  };
+  })();
 
-  // ── Acción documental (M6): vive dentro del panel de Facturación ───────────
-  const renderAccionDocumental = () => {
+  // Lo que el estado explica pero no permite hacer. Antes ocupaba una tarjeta entera al pie
+  // de la página; es información, no una acción, así que va bajo la cabecera.
+  const avisoDeEstado = (() => {
     const estado = orden?.estado;
 
-    if (estado === "Lista para facturación") {
-      return showFacturarForm ? (
-        <FacturarForm
-          direccionesCliente={direccionesCliente}
-          idLocalDespacho={idLocalDespacho}
-          setIdLocalDespacho={setIdLocalDespacho}
-          loadingDirecciones={loadingDirecciones}
-          fechaFacturacion={fechaFacturacion}
-          setFechaFacturacion={setFechaFacturacion}
-          transitioning={transitioning}
-          onConfirm={handleFacturar}
-          onCancel={() => { setShowFacturarForm(false); setIdLocalDespacho(""); setDireccionesCliente([]); }}
-          requiereDir={!orden?.id_local}
-        />
-      ) : (
-        <button
-          onClick={() => { setShowFacturarForm(true); setIdLocalDespacho(String(orden?.id_local || "")); loadDireccionesCliente(cliente?.id); }}
-          className={btnCls("yellow")}
-        >
-          Facturar orden
-        </button>
-      );
-    }
+    if (estado === "Creada" && !canValidar)
+      return {
+        tono: "amber",
+        texto: "Sin permisos para validar esta orden. Contacta a un administrador.",
+      };
 
-    if (estado === "Facturada") {
-      return showEntregarForm ? (
-        <EntregarForm
-          costoEnvio={costoEnvio}
-          setCostoEnvio={setCostoEnvio}
-          fechaEnvio={fechaEnvio}
-          setFechaEnvio={setFechaEnvio}
-          delivering={delivering}
-          onConfirm={handleEntregar}
-          onCancel={() => setShowEntregarForm(false)}
-        />
-      ) : (
-        <button onClick={() => setShowEntregarForm(true)} className={btnCls("green")}>
-          Registrar entrega
-        </button>
-      );
-    }
+    if (estado === "Validada")
+      return {
+        tono: "blue",
+        texto: orden?.es_referencial
+          ? "La orden referencial pasará a En picking cuando el operario inicie la declaración de cantidades desde la app móvil."
+          : "La orden pasará a En picking automáticamente al registrar el primer bulto en la asignación.",
+      };
 
-    if (estado === "Entregada") {
-      return (
-        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
-          ✔ Orden completada y entregada.
-        </p>
-      );
-    }
+    if (estado === "Entregada")
+      return { tono: "green", texto: "Orden completada y entregada." };
 
     return null;
-  };
+  })();
+
+  const accionesSecundarias = [
+    {
+      label: "Descargar PDF",
+      icon: <Download className="w-4 h-4" />,
+      onClick: handleDescargarPDF,
+    },
+    {
+      label: "Editar",
+      icon: <Pencil className="w-4 h-4" />,
+      onClick: () => navigate(`/ventas/ordenes/${id}/edit`),
+      // El botón anterior (ModifyButton) no miraba el permiso: dejaba entrar a la vista de
+      // edición para que el guardado fallara con un 403 después de rellenar el formulario.
+      disabled: !canWriteSaleOrder,
+      title: canWriteSaleOrder ? undefined : "Sin permiso para editar órdenes de venta",
+    },
+  ];
+
+  const accionesDestructivas = [
+    {
+      label: "Eliminar orden",
+      icon: <Trash2 className="w-4 h-4" />,
+      confirmar: {
+        titulo: `¿Eliminar la orden de venta #${orden?.id}?`,
+        mensaje:
+          "Se elimina la orden y sus líneas. Si ya tiene documentos tributarios emitidos, esos no se anulan.",
+        textoBoton: "Sí, eliminar",
+      },
+      onClick: async () => {
+        if (!canDeleteSaleOrder) {
+          toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.DELETE]);
+          return;
+        }
+        try {
+          await api(`/ordenes-venta/${id}`, { method: "DELETE" });
+          toast.success("Orden eliminada");
+          navigate("/ventas/ordenes");
+        } catch {
+          toast.error("No se pudo eliminar la orden");
+        }
+      },
+    },
+  ];
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  const TONOS_AVISO = {
+    amber: "text-amber-700 bg-amber-50 border-amber-200",
+    blue: "text-blue-700 bg-blue-50 border-blue-200",
+    green: "text-green-700 bg-green-50 border-green-200",
+  };
+
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/ventas/ordenes" />
-      </div>
-
-      <div className="flex justify-between items-center my-4">
-        <h1 className="text-2xl font-bold text-text">Orden de Venta #{orden.id}</h1>
-        <div className="flex gap-2 items-center">
-          <button onClick={handleDescargarPDF} className={btnCls("ghost")}>
-            Descargar PDF
-          </button>
-          <ModifyButton onClick={() => navigate(`/ventas/ordenes/${id}/edit`)} />
-          <DeleteButton
-            onConfirmDelete={async () => {
-              if (!canDeleteSaleOrder) {
-                toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.DELETE]);
-                return;
-              }
-              try {
-                await api(`/ordenes-venta/${id}`, { method: "DELETE" });
-                toast.success("Orden eliminada correctamente");
-                navigate("/ventas/ordenes");
-              } catch (err) {
-                toast.error("No se pudo eliminar la orden");
-              }
-            }}
-            tooltipText="Eliminar Orden"
-            entityName="orden de venta"
+      <PageHeader
+        volverA="/ventas/ordenes"
+        titulo={`Orden de Venta #${orden.id}`}
+        estado={
+          <>
+            {getEstadoBadge(orden?.estado)}
+            {orden?.es_referencial && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                Referencial
+              </span>
+            )}
+          </>
+        }
+        acciones={
+          <PanelAcciones
+            principal={accionPrincipal}
+            secundarias={accionesSecundarias}
+            destructivas={accionesDestructivas}
           />
-        </div>
-      </div>
+        }
+      />
 
-      <StepBar />
+      {avisoDeEstado && (
+        <p
+          className={`text-sm border rounded-md px-3 py-2 mb-6 ${TONOS_AVISO[avisoDeEstado.tono]}`}
+        >
+          {avisoDeEstado.texto}
+        </p>
+      )}
+
+      <StepBar estadoActual={orden?.estado} />
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
@@ -705,14 +743,13 @@ export default function OrdenVentaDetail() {
         </div>
 
         <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-          <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Estado</div>
-          <div className="mt-2 flex items-center gap-2">
-            {getEstadoBadge(orden?.estado)}
-            {orden?.es_referencial && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Referencial</span>
-            )}
+          <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+            Orden de compra
           </div>
-          <div className="text-xs text-gray-600 mt-2">OC: {orden?.numero_oc || "—"}</div>
+          <div className="font-bold text-text mt-1">{orden?.numero_oc || "—"}</div>
+          <div className="text-xs text-gray-600 mt-2">
+            Emitida: {formatDate(orden?.fecha_orden)}
+          </div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
@@ -728,8 +765,19 @@ export default function OrdenVentaDetail() {
         </div>
       </div>
 
+      <Tabs
+        activa={tab}
+        onCambiar={setTab}
+        pestanas={[
+          { id: "resumen", label: "Resumen" },
+          { id: "productos", label: "Productos", cantidad: orderItems.length },
+          { id: "asignacion", label: "Asignación", cantidad: progresoRows.length },
+          { id: "documentos", label: "Documentos" },
+        ]}
+      />
+
       {/* Información general */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
+      <div className={tab === "resumen" ? "bg-white rounded-lg shadow p-4 mb-6" : "hidden"}>
         <h2 className="text-base font-semibold text-text mb-3">Información</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
           <div className="bg-gray-50 rounded-lg border border-border p-3">
@@ -769,7 +817,7 @@ export default function OrdenVentaDetail() {
       </div>
 
       {/* Resumen de asignación */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
+      <div className={tab === "asignacion" ? "bg-white rounded-lg shadow p-4 mb-6" : "hidden"}>
         <h2 className="text-base font-semibold text-text mb-3">Resumen de asignación</h2>
         {loadingProgreso ? (
           <div className="text-sm text-gray-500">Cargando asignación...</div>
@@ -829,7 +877,7 @@ export default function OrdenVentaDetail() {
       </div>
 
       {/* Tabla de productos */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
+      <div className={tab === "productos" ? "bg-white rounded-lg shadow p-4 mb-6" : "hidden"}>
         <h2 className="text-base font-semibold text-text mb-3">Productos</h2>
         <Table
           columns={[
@@ -857,17 +905,73 @@ export default function OrdenVentaDetail() {
         />
       </div>
 
-      {/* Panel ÚNICO de facturación y documentos (M6): stepper documental,
-          acción principal según estado (facturar / entregar) y DTEs */}
-      <PanelFacturacion orden={orden} accionPrincipal={renderAccionDocumental()} />
+      {/* Documentos: stepper documental y DTEs emitidos (M6). La acción de facturar salió
+          de acá y vive en el panel de la cabecera, junto al resto. */}
+      <div className={tab === "documentos" ? "" : "hidden"}>
+        <PanelFacturacion orden={orden} />
+      </div>
 
-      {/* Acciones de flujo pre-facturación (validar / picking) */}
-      {renderAccion() && (
-        <div className="bg-white rounded-lg shadow p-4 mt-6">
-          <h2 className="text-base font-semibold text-text mb-3">Acciones</h2>
-          {renderAccion()}
-        </div>
-      )}
+      <Modal
+        abierto={showFacturarForm}
+        onCerrar={() => {
+          setShowFacturarForm(false);
+          setIdLocalDespacho("");
+          setDireccionesCliente([]);
+        }}
+        titulo="Facturar orden"
+        descripcion="Confirma la dirección y la fecha antes de emitir el documento."
+        pie={
+          <>
+            <button
+              onClick={() => {
+                setShowFacturarForm(false);
+                setIdLocalDespacho("");
+                setDireccionesCliente([]);
+              }}
+              className={btnCls("ghost")}
+            >
+              Cancelar
+            </button>
+            <button onClick={handleFacturar} disabled={transitioning} className={btnCls("primary")}>
+              {transitioning ? "Emitiendo factura…" : "Emitir Factura Electrónica"}
+            </button>
+          </>
+        }
+      >
+        <FacturarForm
+          direccionesCliente={direccionesCliente}
+          idLocalDespacho={idLocalDespacho}
+          setIdLocalDespacho={setIdLocalDespacho}
+          loadingDirecciones={loadingDirecciones}
+          fechaFacturacion={fechaFacturacion}
+          setFechaFacturacion={setFechaFacturacion}
+          requiereDir={!orden?.id_local}
+        />
+      </Modal>
+
+      <Modal
+        abierto={showEntregarForm}
+        onCerrar={() => setShowEntregarForm(false)}
+        titulo="Registrar entrega"
+        descripcion="Con esto la orden queda cerrada."
+        pie={
+          <>
+            <button onClick={() => setShowEntregarForm(false)} className={btnCls("ghost")}>
+              Cancelar
+            </button>
+            <button onClick={handleEntregar} disabled={delivering} className={btnCls("primary")}>
+              {delivering ? "Registrando…" : "Confirmar entrega"}
+            </button>
+          </>
+        }
+      >
+        <EntregarForm
+          costoEnvio={costoEnvio}
+          setCostoEnvio={setCostoEnvio}
+          fechaEnvio={fechaEnvio}
+          setFechaEnvio={setFechaEnvio}
+        />
+      </Modal>
     </div>
   );
 }
