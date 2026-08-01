@@ -96,12 +96,9 @@ export default function SolicitudDetail() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const [gds,              setGds]              = useState([]);   // GDs de la solicitud
-  const [gdLoading,        setGdLoading]        = useState(false);
-  const [showEmitirGDModal, setShowEmitirGDModal] = useState(false);
-  // Formulario del modal de emisión GD
-  const [gdTransportista,  setGdTransportista]  = useState('');
-  const [gdFechaEnvio,     setGdFechaEnvio]     = useState(() => new Date().toISOString().slice(0, 10));
+  // GDs electrónicas ya emitidas. Sólo de lectura: la emisión salió de esta vista mientras
+  // dure el bloqueo del traspaso a LibreDTE, y la guía se registra a mano al enviar.
+  const [gds, setGds] = useState([]);
   const [guiaDespacho, setGuiaDespacho] = useState("");
   const [medioTransporte, setMedioTransporte] = useState("");
   const [mostrarFormularioEnvio, setMostrarFormularioEnvio] = useState(false);
@@ -195,6 +192,11 @@ export default function SolicitudDetail() {
   const todoDespachado =
     insumos.length > 0 && insumos.every((l) => l.cantidad_despachada != null);
 
+  // `valor_despacho` lo calcula el backend sumando el costo de los bultos que van arriba de
+  // los pallets. Es el valor real de lo que sale, e incluye los PT — a diferencia del costo
+  // por línea, que estima con el precio de lista del insumo y deja los PT en cero.
+  const valorDespacho = Number(solicitud?.valor_despacho) || 0;
+
   // La unidad de medida acompaña al nombre en vez de ocupar su propia columna: es un dato
   // del insumo, no una cifra que se compare hacia abajo. Y el costo salió de la tabla —
   // para leer de un vistazo lo que importa es cuánto se pidió y cuánto llegó.
@@ -271,30 +273,12 @@ export default function SolicitudDetail() {
   );
 
 
-  const handleEmitirGDSolicitud = async () => {
-    if (!solicitudId) return;
-    setGdLoading(true);
-    try {
-      await api('/facturacion/emitir-guia-despacho', {
-        method: 'POST',
-        body: {
-          id_solicitud_mercaderia: Number(solicitudId),
-          costo_total:            totales.costoInsumos,
-          transportista:          gdTransportista.trim() || null,
-          fecha_envio_override:   gdFechaEnvio || null,
-        },
-      });
-      toast.success('Guía de Despacho emitida correctamente');
-      setShowEmitirGDModal(false);
-      setGdTransportista('');
-      setGdFechaEnvio(new Date().toISOString().slice(0, 10));
-      await cargarGDs();
-    } catch (err) {
-      toast.error('Error al emitir GD: ' + (err?.message ?? err));
-    } finally {
-      setGdLoading(false);
-    }
-  };
+  // La emisión electrónica de la Guía de Despacho se retiró de esta vista a propósito: la
+  // guía es una sola y hoy se registra a mano al enviar (ver el modal de envío). Emitir
+  // desde acá abría un segundo camino con sus propios campos —número, fecha,
+  // transportista— que no se relacionaba con los de la solicitud, y además fallaba en
+  // producción, porque `emitirDte` está detrás del bloqueo del traspaso a LibreDTE.
+  // Al levantar ese bloqueo, la emisión debe salir de los datos ya registrados en `enviar`.
 
   const handleConfirmarLlegadaGD = async (gdId) => {
     try {
@@ -620,13 +604,9 @@ export default function SolicitudDetail() {
       onClick: handleDownloadSolicitudInsumosPDF,
       disabled: loading || lineas.length === 0,
     },
-    gds.length === 0 && {
-      label: "Emitir Guía de Despacho",
-      icon: <FileText className="w-4 h-4" />,
-      onClick: () => setShowEmitirGDModal(true),
-      disabled: gdLoading || lineas.length === 0,
-      title: lineas.length === 0 ? "La solicitud no tiene ítems" : undefined,
-    },
+    // "Emitir Guía de Despacho" ya no es una acción aparte. La guía es una sola y se
+    // registra al enviar; la emisión electrónica se enchufa a ese mismo registro cuando se
+    // levante el bloqueo del traspaso a LibreDTE. Ver el aviso del modal de envío.
   ].filter(Boolean);
 
   const accionesDestructivas = puedeCancelar
@@ -736,12 +716,13 @@ export default function SolicitudDetail() {
               <h2 className="text-lg font-semibold text-text">Insumos</h2>
               {/* El costo aparece recién cuando ya está todo despachado: antes es una
                   proyección sobre cantidades que todavía pueden cambiar. */}
-              {todoDespachado && totales.costoInsumos > 0 && (
+              {todoDespachado && valorDespacho > 0 && (
                 <div className="text-sm text-gray-700">
-                  <span className="text-gray-500">Costo despachado:</span>{" "}
+                  <span className="text-gray-500">Valor despachado:</span>{" "}
                   <span className="font-semibold text-gray-900">
-                    {formatCLP(totales.costoInsumos, 0)}
+                    {formatCLP(valorDespacho, 0)}
                   </span>
+                  <span className="text-xs text-gray-400"> · suma de los bultos</span>
                 </div>
               )}
             </div>
@@ -866,80 +847,6 @@ export default function SolicitudDetail() {
         </div>
         )}
 
-        {/* Modal emitir GD */}
-        <Modal
-          abierto={showEmitirGDModal}
-          onCerrar={() => setShowEmitirGDModal(false)}
-          titulo="Emitir Guía de Despacho"
-          descripcion="Documento electrónico (DTE tipo 52) emitido ante el SII."
-          pie={
-            <>
-              <button
-                onClick={() => setShowEmitirGDModal(false)}
-                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleEmitirGDSolicitud}
-                disabled={gdLoading}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
-              >
-                {gdLoading ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" /> Emitiendo…
-                  </>
-                ) : (
-                  "Emitir GD"
-                )}
-              </button>
-            </>
-          }
-        >
-              <div className="space-y-4">
-                {/* Bodegas (informativas, vienen de la solicitud) */}
-                <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
-                  <div className="flex justify-between text-gray-600">
-                    <span className="text-gray-500">Bodega origen</span>
-                    <span className="font-medium">{solicitud?.bodegaProveedora?.nombre ?? '—'}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span className="text-gray-500">Bodega destino</span>
-                    <span className="font-medium">{solicitud?.bodegaSolicitante?.nombre ?? '—'}</span>
-                  </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span className="text-gray-500">Total a despachar</span>
-                    <span className="font-semibold text-gray-900">{formatCLP(totales.costoInsumos, 0)}</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha de envío
-                  </label>
-                  <input
-                    type="date"
-                    value={gdFechaEnvio}
-                    onChange={(e) => setGdFechaEnvio(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Transportista
-                  </label>
-                  <input
-                    type="text"
-                    value={gdTransportista}
-                    onChange={(e) => setGdTransportista(e.target.value)}
-                    placeholder="Nombre del transportista o empresa de transporte"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
-                  />
-                </div>
-              </div>
-        </Modal>
-
         {tab === "pallets" && (
           <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -995,11 +902,23 @@ export default function SolicitudDetail() {
           }
         >
           <div className="space-y-4">
-            {/* Si ya se emitió la GD electrónica, su folio es el número que corresponde:
-                escribir otro a mano deja el papel y el documento del SII sin relación. */}
+            {/* La guía de despacho es UNA sola. Hoy se registra a mano acá; cuando se
+                levante el bloqueo del traspaso a LibreDTE, la emisión electrónica saldrá
+                de estos mismos datos, sin un segundo formulario ni un segundo número. */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+              <p className="font-medium">La guía se registra a mano.</p>
+              <p className="mt-1 text-amber-800">
+                La emisión electrónica al SII está deshabilitada hasta el traspaso a LibreDTE.
+                Escribe acá el número de la guía emitida en el portal del SII: cuando se
+                habilite la emisión, se generará desde estos mismos datos.
+              </p>
+            </div>
+
+            {/* Si esta solicitud alcanzó a tener una GD electrónica, su folio es el número
+                que corresponde: escribir otro a mano deja el papel y el documento sin relación. */}
             {gds.length > 0 && gds[0]?.folio && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
-                Esta solicitud ya tiene la Guía de Despacho electrónica{" "}
+                Esta solicitud tiene la Guía de Despacho electrónica{" "}
                 <strong>N° {gds[0].folio}</strong>.{" "}
                 <button
                   type="button"

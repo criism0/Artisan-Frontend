@@ -1,3 +1,15 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/**
+ * Reserva siempre el ancho de la barra de scroll.
+ *
+ * Sin esto, cualquier cambio de contenido que haga la página más corta —cambiar de pestaña,
+ * filtrar una tabla, cerrar un modal— hace desaparecer la barra, y toda la vista se corre
+ * unos pixeles hacia la derecha. Es un salto chico pero se siente como si la página
+ * temblara cada vez que uno hace clic.
+ */
+html {
+  scrollbar-gutter: stable;
+}
