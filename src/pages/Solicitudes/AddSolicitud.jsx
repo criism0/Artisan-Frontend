@@ -8,7 +8,7 @@ import Selector from '../../components/Forms/Selector';
 import { ArrowRight } from 'lucide-react';
 import { FiDownload } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
-import { BackButton } from '../../components/Buttons/ActionButtons';
+import PageHeader from '../../components/UI/PageHeader.jsx';
 import { useApi } from '../../lib/api';
 import { toast } from "../../lib/toast.js";
 import { Spinner } from "../../components/UI/Spinner.jsx";
@@ -186,19 +186,13 @@ export default function AddSolicitud() {
   };
 
   return (
-    <div className="p-6">
-      {loading && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
-          <Spinner size="lg" />
-        </div>
-      )}
-      <div className="flex items-center mb-6">
-        <BackButton label="Volver" />
-      </div>
-      <h2 className="text-xl font-bold mb-4">Nueva Solicitud</h2>
+    <div className="max-w-5xl mx-auto">
+      {/* El overlay negro a pantalla completa desapareció: el resto de la app deshabilita
+          los controles mientras guarda, y una cortina oscura sobre toda la vista para una
+          espera de un segundo asusta más de lo que informa. */}
+      <PageHeader volverA="/Solicitudes" titulo="Nueva solicitud" />
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-6">
+      <div className="bg-white rounded-lg shadow p-6">
           {/* Origen y destino */}
           <div className="mb-4 flex gap-4">
             <div className="flex-1">
@@ -329,16 +323,18 @@ export default function AddSolicitud() {
 
           {/* Botón */}
           <div className="mt-6 flex items-center justify-end">
+            {/* El botón se llama igual que lo que produce, como en el resto de la app:
+                "Crear solicitud" → "Solicitud creada". "Solicitar" dejaba la duda de si
+                creaba un borrador o mandaba algo. */}
             <button
               onClick={handleSubmit}
               disabled={loading || !isFormReady}
-              title={!isFormReady ? 'Completa todos los campos requeridos para solicitar' : undefined}
-              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+              title={!isFormReady ? 'Completa todos los campos requeridos' : undefined}
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm disabled:opacity-50"
             >
-              {loading ? 'Creando...' : 'Solicitar'}
+              {loading ? 'Creando…' : 'Crear solicitud'}
             </button>
           </div>
-        </div>
       </div>
 
       <ImportarDesdeOCModal

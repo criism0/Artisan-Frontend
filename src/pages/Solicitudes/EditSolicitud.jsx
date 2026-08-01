@@ -2,19 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { toast } from "../../lib/toast.js";
-import { useAuth } from "../../auth/AuthContext";
-import { BackButton } from "../../components/Buttons/ActionButtons";
+import PageHeader from "../../components/UI/PageHeader.jsx";
 import MultiSelectInput from "../../components/Forms/MultiSelectInput";
 import InsumosTable from "../../components/Insumos/InsumosTable";
 import ProductosTerminadosTable from "../../components/Solicitudes/ProductosTerminadosTable";
 import Selector from "../../components/Forms/Selector";
 import { useApi } from "../../lib/api";
-import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 export default function EditSolicitud() {
   const { solicitudId } = useParams();
-  const { user } = useAuth();
   const api = useApi();
   const navigate = useNavigate();
 
@@ -232,35 +229,30 @@ export default function EditSolicitud() {
 
   if (!solicitudId) {
     return (
-      <div className="p-6">
-        <BackButton label="Volver" />
-        <div className="mt-2 text-sm text-gray-500">Solicitud inválida.</div>
+      <div className="max-w-5xl mx-auto">
+        <PageHeader volverA="/Solicitudes" titulo="Solicitud inválida" />
+        <p className="text-sm text-gray-500">No se recibió el número de la solicitud.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      {loading && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
-          <Spinner size="lg" />
-        </div>
-      )}
-      <div className="flex items-center mb-6">
-        <BackButton label="Volver" />
-      </div>
+    <div className="max-w-5xl mx-auto">
+      {/* Sin overlay negro a pantalla completa mientras guarda: los controles ya se
+          deshabilitan solos, y una cortina sobre toda la vista asusta más de lo que informa. */}
+      <PageHeader
+        volverA={`/Solicitudes/${solicitudId}`}
+        titulo={`Editar solicitud #${solicitudId}`}
+        estado={
+          !solicitudEditable && solicitud?.estado ? (
+            <span className="px-3 py-1 rounded-full text-xs border border-amber-200 bg-amber-50 text-amber-800">
+              No editable · {String(solicitud.estado)}
+            </span>
+          ) : null
+        }
+      />
 
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <h2 className="text-xl font-bold">Editar Solicitud #{solicitudId}</h2>
-        {!solicitudEditable && solicitud?.estado ? (
-          <span className="text-sm text-amber-700">
-            No editable (estado: {String(solicitud.estado)})
-          </span>
-        ) : null}
-      </div>
-
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="p-6">
+      <div className="bg-white rounded-lg shadow p-6">
           {/* Origen y destino */}
           <div className="mb-4 flex gap-4">
             <div className="flex-1">
@@ -430,9 +422,9 @@ export default function EditSolicitud() {
               onClick={handleSubmit}
               disabled={loading || !isFormReady || !solicitudEditable}
               title={!isFormReady ? "Completa todos los campos requeridos" : undefined}
-              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm disabled:opacity-50"
             >
-              {loading ? "Guardando..." : "Guardar cambios"}
+              {loading ? "Guardando…" : "Guardar cambios"}
             </button>
           </div>
 
@@ -441,7 +433,6 @@ export default function EditSolicitud() {
               Esta solicitud no se puede editar porque ya no está en estado <b>Creada</b>.
             </div>
           ) : null}
-        </div>
       </div>
     </div>
   );
