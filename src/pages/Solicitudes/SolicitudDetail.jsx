@@ -3,16 +3,19 @@ import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "../../lib/toast.js";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { FileText, Plus, Loader2 } from "lucide-react";
+import { FileText, Plus, Loader2, Download, Pencil, Send, PackageCheck, XCircle, CheckCircle2 } from "lucide-react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import Table from "../../components/Tables/Table";
 import logo from "../../assets/logo.png";
 import { apiBlob, useApi } from "../../lib/api";
 import { uploadToS3 } from "../../lib/uploadToS3";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import PageHeader from "../../components/UI/PageHeader.jsx";
+import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { dteService } from "../../services/dteService.js";
 import { formatCLP } from "../../services/formatHelpers.js";
+import { construirLineasSolicitud } from "../../utils/lineasSolicitud.js";
 
 function downloadBlob(blob, filename) {
   const url = window.URL.createObjectURL(blob);
@@ -79,16 +82,6 @@ function formatCantidad(value) {
   const n = safeNumber(value);
   if (n == null) return value == null || value === "" ? "—" : String(value);
   return n.toLocaleString("es-CL", { maximumFractionDigits: 3 });
-}
-
-function getComentarioText(detalle) {
-  const raw =
-    detalle?.comentario ??
-    detalle?.Comentario ??
-    detalle?.comentarios ??
-    detalle?.Comentarios ??
-    "";
-  return typeof raw === "string" ? raw.trim() : String(raw || "").trim();
 }
 
 export default function SolicitudDetail() {
@@ -170,100 +163,36 @@ export default function SolicitudDetail() {
       solicitud.estado
     );
 
-  const solicitudInfo = useMemo(() => {
-    if (!solicitud) return {};
-    return {
-      ID: solicitud.id ?? "—",
-      Estado: normalizeEstadoSolicitud(solicitud.estado) ?? "—",
-      Solicitante: solicitanteNombre,
-      "Bodega Proveedora": solicitud.bodegaProveedora?.nombre ?? "—",
-      "Bodega Solicitante": solicitud.bodegaSolicitante?.nombre ?? "—",
-      "Fecha de Creación": formatDateTime(solicitud.createdAt),
-      "Última Actualización": formatDateTime(solicitud.updatedAt),
-      "Fecha de Envío": solicitud.fecha_envio
-        ? formatDateTime(solicitud.fecha_envio)
-        : "Pendiente",
-      "Fecha de Recepción": solicitud.fecha_recepcion
-        ? formatDateTime(solicitud.fecha_recepcion)
-        : "Pendiente",
-      "N° Guía Despacho": solicitud.numero_guia_despacho ?? "—",
-      "Medio de Transporte": solicitud.medio_transporte ?? "—",
-    };
-  }, [solicitud, solicitanteNombre]);
-
-  const insumosData = useMemo(
-    () =>
-      detalles.map((detalle) => {
-        const costoUnitario =
-          detalle?.costo_unitario ??
-          detalle?.MateriaPrima?.costo_unitario ??
-          detalle?.materiaPrima?.costo_unitario ??
-          0;
-        const cantSolicitada = detalle?.cantidad_solicitada ?? 0;
-        const cantRecep = detalle?.cantidad_recepcionada ?? 0;
-        const esCajas = detalle?.producto_por_cajas && Number(detalle?.cantidad_por_caja) > 0;
-        return {
-          id: detalle?.id,
-          // PT: nombre de facturación (M4); productoBase queda para detalles legacy.
-          nombre:
-            detalle?.materiaPrima?.nombre ??
-            (detalle?.nombreFacturacion
-              ? `${detalle.nombreFacturacion.nombre} (PT)`
-              : detalle?.productoBase
-                ? `${detalle.productoBase.nombre} (PT)`
-                : "—"),
-          desglose_cajas: esCajas
-            ? `${Math.round(cantSolicitada / detalle.cantidad_por_caja)} cajas × ${detalle.cantidad_por_caja} un.`
-            : null,
-          cantidad_solicitada: cantSolicitada,
-          cantidad_despachada:
-            detalle?.cantidad_despachada == null ? "—" : detalle.cantidad_despachada,
-          cantidad_recepcionada: detalle?.cantidad_recepcionada == null ? "—" : cantRecep,
-          unidad_medida:
-            detalle?.materiaPrima?.unidad_medida ??
-            (detalle?.nombreFacturacion || detalle?.productoBase ? "Unidades" : "—"),
-          comentario: getComentarioText(detalle),
-          costo_unitario: costoUnitario,
-          costo_despachado: costoUnitario * (Number(cantSolicitada) || 0),
-        };
-      }),
+  // Insumos y productos terminados van separados: se piden distinto (unidad de medida vs.
+  // cajas) y solo el insumo tiene costo. La lógica está en utils/lineasSolicitud.js, con tests.
+  const { lineas, insumos, productosTerminados, totales } = useMemo(
+    () => construirLineasSolicitud(detalles),
     [detalles]
   );
 
-  const costoTotalDespachado = useMemo(
-    () => insumosData.reduce((sum, d) => sum + (d.costo_despachado ?? 0), 0),
-    [insumosData]
-  );
+  const celdaCantidad = ({ value }) =>
+    value == null ? <span className="text-gray-400">—</span> : formatCantidad(value);
+
+  // No todos los PT se piden en cajas. Decir "0 cajas · 12 unidades" hace pensar que falta
+  // información; cuando no hay cajas simplemente no se nombran.
+  const resumenPT = () => {
+    const unidades = `${formatCantidad(totales.unidadesPT)} unidades`;
+    return totales.cajas > 0 ? `${formatCantidad(totales.cajas)} cajas · ${unidades}` : unidades;
+  };
+
+  const celdaComentario = {
+    header: "Comentario",
+    accessor: "comentario",
+    cellClassName: "whitespace-pre-wrap break-words max-w-[36rem]",
+    Cell: ({ value }) => (value ? value : <span className="text-gray-400">—</span>),
+  };
 
   const insumosColumns = useMemo(
     () => [
-      {
-        header: "Insumo",
-        accessor: "nombre",
-        Cell: ({ value, row }) => (
-          <div>
-            {value}
-            {row?.desglose_cajas && (
-              <div className="text-xs text-gray-500">{row.desglose_cajas}</div>
-            )}
-          </div>
-        ),
-      },
-      {
-        header: "Cant. Solicitada",
-        accessor: "cantidad_solicitada",
-        Cell: ({ value }) => formatCantidad(value),
-      },
-      {
-        header: "Cant. Despachada",
-        accessor: "cantidad_despachada",
-        Cell: ({ value }) => (value === "—" ? <span className="text-gray-400">—</span> : formatCantidad(value)),
-      },
-      {
-        header: "Cant. Recepcionada",
-        accessor: "cantidad_recepcionada",
-        Cell: ({ value }) => (value === "—" ? <span className="text-gray-400">—</span> : formatCantidad(value)),
-      },
+      { header: "Insumo", accessor: "nombre" },
+      { header: "Solicitada", accessor: "cantidad_solicitada", Cell: celdaCantidad },
+      { header: "Despachada", accessor: "cantidad_despachada", Cell: celdaCantidad },
+      { header: "Recepcionada", accessor: "cantidad_recepcionada", Cell: celdaCantidad },
       { header: "UM", accessor: "unidad_medida" },
       {
         header: "Costo Unitario",
@@ -281,13 +210,47 @@ export default function SolicitudDetail() {
             <span className="text-gray-400">—</span>
           ),
       },
-      {
-        header: "Comentario",
-        accessor: "comentario",
-        cellClassName: "whitespace-pre-wrap break-words max-w-[36rem]",
-        Cell: ({ value }) => (value ? value : <span className="text-gray-400">—</span>),
-      },
+      celdaComentario,
     ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  // El PT se pide por nombre de facturación y casi siempre en cajas: esa es la columna que
+  // le importa a bodega, y hasta ahora vivía apretada como subtítulo dentro del nombre.
+  const productosTerminadosColumns = useMemo(
+    () => [
+      {
+        header: "Producto",
+        accessor: "nombre",
+        Cell: ({ value, row }) => (
+          <div>
+            {value}
+            {row?.legacy && (
+              <div className="text-xs text-amber-600">Sin nombre de facturación</div>
+            )}
+          </div>
+        ),
+      },
+      {
+        header: "Cajas",
+        accessor: "cajas",
+        Cell: ({ value, row }) =>
+          value == null ? (
+            <span className="text-gray-400">Por unidad</span>
+          ) : (
+            <span>
+              <span className="font-medium">{formatCantidad(value)}</span>
+              <span className="text-xs text-gray-500"> × {row.unidadesPorCaja} un.</span>
+            </span>
+          ),
+      },
+      { header: "Unidades", accessor: "cantidad_solicitada", Cell: celdaCantidad },
+      { header: "Despachadas", accessor: "cantidad_despachada", Cell: celdaCantidad },
+      { header: "Recepcionadas", accessor: "cantidad_recepcionada", Cell: celdaCantidad },
+      celdaComentario,
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -330,7 +293,7 @@ export default function SolicitudDetail() {
         method: 'POST',
         body: {
           id_solicitud_mercaderia: Number(solicitudId),
-          costo_total:            costoTotalDespachado,
+          costo_total:            totales.costoInsumos,
           transportista:          gdTransportista.trim() || null,
           fecha_envio_override:   gdFechaEnvio || null,
         },
@@ -498,17 +461,23 @@ export default function SolicitudDetail() {
         // ignore
       }
 
-      // Tabla de insumos - posición ajustada para landscape
+      // El PDF lleva las dos clases de línea; la columna "Tipo" dice cuál es cada una, que
+      // antes se adivinaba por un "(PT)" pegado al nombre.
       const startInsumosY = 32;
       autoTable(doc, {
         startY: startInsumosY,
-        head: [["#", "Insumo", "Cant. Sol.", "Cant. Desp.", "Cant. Rec.", "UM", "Comentario"]],
-        body: insumosData.map((row, idx) => [
+        head: [["#", "Tipo", "Ítem", "Cant. Sol.", "Cant. Desp.", "Cant. Rec.", "UM", "Comentario"]],
+        body: lineas.map((row, idx) => [
           String(idx + 1),
+          row.tipo === "PT" ? "PT" : "Insumo",
           String(row.nombre ?? "—"),
-          String(formatCantidad(row.cantidad_solicitada)),
-          String(row.cantidad_despachada === "—" ? "—" : formatCantidad(row.cantidad_despachada)),
-          String(row.cantidad_recepcionada === "—" ? "—" : formatCantidad(row.cantidad_recepcionada)),
+          String(
+            row.enCajas
+              ? `${formatCantidad(row.cajas)} cajas (${formatCantidad(row.cantidad_solicitada)} un.)`
+              : formatCantidad(row.cantidad_solicitada)
+          ),
+          String(row.cantidad_despachada == null ? "—" : formatCantidad(row.cantidad_despachada)),
+          String(row.cantidad_recepcionada == null ? "—" : formatCantidad(row.cantidad_recepcionada)),
           String(row.unidad_medida ?? "—"),
           String(row.comentario ?? ""),
         ]),
@@ -532,12 +501,13 @@ export default function SolicitudDetail() {
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: {
           0: { cellWidth: 9, halign: "center", minCellHeight: 8 },
-          1: { cellWidth: 70, minCellHeight: 8 },
-          2: { cellWidth: 22, halign: "right", minCellHeight: 8 },
-          3: { cellWidth: 22, halign: "right", minCellHeight: 8 },
+          1: { cellWidth: 14, halign: "center", minCellHeight: 8 },
+          2: { cellWidth: 62, minCellHeight: 8 },
+          3: { cellWidth: 30, halign: "right", minCellHeight: 8 },
           4: { cellWidth: 22, halign: "right", minCellHeight: 8 },
-          5: { cellWidth: 15, halign: "center", minCellHeight: 8 },
-          6: { cellWidth: 57, valign: "top", minCellHeight: 8 },
+          5: { cellWidth: 22, halign: "right", minCellHeight: 8 },
+          6: { cellWidth: 15, halign: "center", minCellHeight: 8 },
+          7: { cellWidth: 43, valign: "top", minCellHeight: 8 },
         },
         showHead: "everyPage",
         pageBreak: "auto",
@@ -636,79 +606,90 @@ export default function SolicitudDetail() {
     );
   }
 
+  // ── Acciones ────────────────────────────────────────────────────────────────
+  // Una sola acción principal, la que corresponde al estado; todo lo demás secundario, y
+  // Cancelar detrás del menú «⋯». Antes esto vivía en cuatro lugares distintos de la vista:
+  // la cabecera, el panel de envío, la sección de guías y el pie de la tabla de insumos.
+  const accionPrincipal = (() => {
+    if (solicitud.estado === "Creada")
+      return { label: "Validar", icon: <CheckCircle2 className="w-4 h-4" />, onClick: handleValidarSolicitud, disabled: loading };
+    if (solicitud.estado === "Lista para despacho")
+      return {
+        label: mostrarFormularioEnvio ? "Cerrar envío" : "Enviar",
+        icon: <Send className="w-4 h-4" />,
+        onClick: () => setMostrarFormularioEnvio((v) => !v),
+        disabled: loading,
+      };
+    if (solicitud.estado === "En tránsito")
+      return {
+        label: "Recepcionar",
+        icon: <PackageCheck className="w-4 h-4" />,
+        onClick: () => navigate(`/Solicitudes/${solicitudId}/recepcionar-solicitud`),
+        disabled: loading,
+      };
+    return null;
+  })();
+
+  const accionesSecundarias = [
+    solicitud.estado === "Creada" && {
+      label: "Editar",
+      icon: <Pencil className="w-4 h-4" />,
+      onClick: () => navigate(`/Solicitudes/${solicitudId}/edit`),
+      disabled: loading,
+    },
+    {
+      label: "Descargar PDF",
+      icon: <Download className="w-4 h-4" />,
+      onClick: handleDownloadSolicitudInsumosPDF,
+      disabled: loading || lineas.length === 0,
+    },
+    gds.length === 0 && {
+      label: "Emitir Guía de Despacho",
+      icon: <FileText className="w-4 h-4" />,
+      onClick: () => setShowEmitirGDModal(true),
+      disabled: gdLoading || lineas.length === 0,
+      title: lineas.length === 0 ? "La solicitud no tiene ítems" : undefined,
+    },
+  ].filter(Boolean);
+
+  const accionesDestructivas = puedeCancelar
+    ? [
+        {
+          label: "Cancelar solicitud",
+          icon: <XCircle className="w-4 h-4" />,
+          onClick: handleCancelarSolicitud,
+          disabled: loading,
+          confirmar: {
+            titulo: "¿Cancelar esta solicitud?",
+            mensaje:
+              "La solicitud queda cancelada y no se puede reabrir. Los ítems que ya estén en un pallet vuelven a quedar disponibles.",
+            textoBoton: "Sí, cancelar",
+          },
+        },
+      ]
+    : [];
+
   return (
     <div>
       <div className="max-w-6xl mx-auto">
-        <div className="mb-4">
-          <BackButton to="/Solicitudes" />
-        </div>
-
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold text-text">Solicitud #{solicitud.id}</h1>
+        <PageHeader
+          volverA="/Solicitudes"
+          titulo={`Solicitud #${solicitud.id}`}
+          estado={
             <span
               className={`px-3 py-1 rounded-full text-xs border ${getEstadoBadgeClasses(solicitud.estado)}`}
             >
               {normalizeEstadoSolicitud(solicitud.estado) ?? "—"}
             </span>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-start md:justify-end gap-2">
-            {solicitud.estado === "Creada" && (
-              <button
-                onClick={() => navigate(`/Solicitudes/${solicitudId}/edit`)}
-                disabled={loading}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50 disabled:opacity-60"
-              >
-                Editar
-              </button>
-            )}
-
-            {solicitud.estado === "Creada" && (
-              <button
-                onClick={handleValidarSolicitud}
-                disabled={loading}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-violet-700 disabled:opacity-60"
-              >
-                Validar
-              </button>
-            )}
-
-            {solicitud.estado === "En tránsito" && (
-              <button
-                onClick={() => navigate(`/Solicitudes/${solicitudId}/recepcionar-solicitud`)}
-                disabled={loading}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-violet-700 disabled:opacity-60"
-              >
-                Recepcionar
-              </button>
-            )}
-
-            {solicitud.estado === "Lista para despacho" && (
-              <button
-                onClick={() => setMostrarFormularioEnvio((v) => !v)}
-                disabled={loading}
-                className={`px-4 py-2 rounded-lg text-white disabled:opacity-60 ${
-                  mostrarFormularioEnvio
-                    ? "bg-gray-500 hover:bg-gray-600"
-                    : "bg-primary hover:bg-violet-700"
-                }`}
-              >
-                {mostrarFormularioEnvio ? "Cerrar envío" : "Enviar"}
-              </button>
-            )}
-
-            {puedeCancelar && (
-              <button
-                onClick={handleCancelarSolicitud}
-                disabled={loading}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 disabled:opacity-60"
-              >
-                Cancelar
-              </button>
-            )}
-          </div>
-        </div>
+          }
+          acciones={
+            <PanelAcciones
+              principal={accionPrincipal}
+              secundarias={accionesSecundarias}
+              destructivas={accionesDestructivas}
+            />
+          }
+        />
 
         {solicitud.estado === "Lista para despacho" && mostrarFormularioEnvio && (
           <div className="bg-white p-6 rounded-lg shadow space-y-3 mb-6">
@@ -782,9 +763,13 @@ export default function SolicitudDetail() {
           </div>
 
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-            <div className="text-xs text-gray-500 font-medium">SOLICITANTE</div>
-            <div className="font-bold text-text mt-1">{solicitanteNombre}</div>
-            <div className="text-xs text-gray-600 mt-2">Insumos: {insumosData.length}</div>
+            <div className="text-xs text-gray-500 font-medium">CONTENIDO</div>
+            <div className="font-bold text-text mt-1">
+              {totales.insumos} insumo{totales.insumos === 1 ? "" : "s"}
+              {" · "}
+              {totales.productosTerminados} PT
+            </div>
+            <div className="text-xs text-gray-600 mt-2">Solicita: {solicitanteNombre}</div>
           </div>
 
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
@@ -794,62 +779,84 @@ export default function SolicitudDetail() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
-          <h2 className="text-lg font-semibold text-text">Resumen</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-            {Object.entries(solicitudInfo).map(([key, value]) => (
-              <div key={key} className="flex items-start justify-between gap-4">
-                <span className="text-gray-500">{key}</span>
-                <span className="text-text font-medium text-right">{value}</span>
+        {/* Resumen: dos bloques con identidad propia en vez de una lista plana de pares
+            clave/valor. Cada uno se muestra solo si la solicitud lleva ese tipo de ítem. */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-white p-5 rounded-lg shadow border-l-4 border-l-blue-500">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Insumos</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">{totales.insumos}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {totales.costoInsumos > 0
+                  ? `${formatCLP(totales.costoInsumos, 0)} despachados`
+                  : "Sin costo registrado"}
+              </p>
+            </div>
+
+            <div className="bg-white p-5 rounded-lg shadow border-l-4 border-l-green-500">
+              <p className="text-xs uppercase tracking-wide text-gray-500">Productos terminados</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">{totales.productosTerminados}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {totales.productosTerminados === 0 ? "Esta solicitud no lleva PT" : resumenPT()}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-white p-5 rounded-lg shadow space-y-2 text-sm">
+            <h2 className="text-base font-semibold text-text">Trazabilidad</h2>
+            {[
+              ["Creación", formatDateTime(solicitud.createdAt)],
+              ["Envío", solicitud.fecha_envio ? formatDateTime(solicitud.fecha_envio) : "Pendiente"],
+              ["Recepción", solicitud.fecha_recepcion ? formatDateTime(solicitud.fecha_recepcion) : "Pendiente"],
+              ["Transporte", solicitud.medio_transporte ?? "—"],
+            ].map(([etiqueta, valor]) => (
+              <div key={etiqueta} className="flex items-start justify-between gap-4">
+                <span className="text-gray-500">{etiqueta}</span>
+                <span className="text-text font-medium text-right">{valor}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
-          <h2 className="text-lg font-semibold text-text">Insumos solicitados</h2>
-          {insumosData.length > 0 ? (
-            <>
-              <Table data={insumosData} columns={insumosColumns} />
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-700">
-                  <span className="text-gray-500">Costo total despachado:</span>{' '}
-                  <span className="font-semibold text-gray-900">
-                    {costoTotalDespachado > 0 ? formatCLP(costoTotalDespachado, 0) : '—'}
-                  </span>
-                </div>
-                <button
-                  onClick={handleDownloadSolicitudInsumosPDF}
-                  disabled={loading}
-                  className="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:opacity-60"
-                >
-                  PDF Insumos
-                </button>
+        {insumos.length > 0 && (
+          <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-lg font-semibold text-text">Insumos</h2>
+              <div className="text-sm text-gray-700">
+                <span className="text-gray-500">Costo despachado:</span>{" "}
+                <span className="font-semibold text-gray-900">
+                  {totales.costoInsumos > 0 ? formatCLP(totales.costoInsumos, 0) : "—"}
+                </span>
               </div>
-            </>
-          ) : (
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-gray-500 text-sm">No hay insumos registrados.</p>
             </div>
-          )}
-        </div>
-
-        {/* ── Sección Guías de Despacho ───────────────────────────────── */}
-        <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-text">Guías de Despacho</h2>
-            {gds.length === 0 && (
-              <button
-                onClick={() => setShowEmitirGDModal(true)}
-                disabled={gdLoading || insumosData.length === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50"
-                title={insumosData.length === 0 ? 'La solicitud no tiene insumos' : ''}
-              >
-                <Plus size={14} />
-                Emitir Guía de Despacho
-              </button>
-            )}
+            <Table data={insumos} columns={insumosColumns} />
           </div>
+        )}
+
+        {productosTerminados.length > 0 && (
+          <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="text-lg font-semibold text-text">Productos terminados</h2>
+              <div className="text-sm text-gray-700">
+                <span className="text-gray-500">Total:</span>{" "}
+                <span className="font-semibold text-gray-900">{resumenPT()}</span>
+              </div>
+            </div>
+            <Table data={productosTerminados} columns={productosTerminadosColumns} />
+          </div>
+        )}
+
+        {lineas.length === 0 && (
+          <div className="bg-white p-6 rounded-lg shadow mb-6">
+            <p className="text-gray-500 text-sm">Esta solicitud no tiene ítems registrados.</p>
+          </div>
+        )}
+
+        {/* ── Sección Guías de Despacho ─────────────────────────────────
+            "Emitir Guía de Despacho" ya no vive acá: subió al panel de acciones de la
+            cabecera, como el resto. Esta sección solo muestra las guías emitidas. */}
+        <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
+          <h2 className="text-lg font-semibold text-text">Guías de Despacho</h2>
 
           {gds.length === 0 ? (
             <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-500">
@@ -941,7 +948,7 @@ export default function SolicitudDetail() {
                   </div>
                   <div className="flex justify-between text-gray-600">
                     <span className="text-gray-500">Total a despachar</span>
-                    <span className="font-semibold text-gray-900">{formatCLP(costoTotalDespachado, 0)}</span>
+                    <span className="font-semibold text-gray-900">{formatCLP(totales.costoInsumos, 0)}</span>
                   </div>
                 </div>
 
