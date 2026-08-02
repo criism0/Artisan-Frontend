@@ -443,7 +443,12 @@ export default function OrdenVentaDetail() {
     }
   };
 
-  const handleDescargarPDF = () => {
+  const handleDescargarPDF = async () => {
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import(jspdf),
+      import(jspdf-autotable),
+    ]);
+
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 

@@ -1,180 +1,182 @@
 // src/Routing.jsx
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import RequireAuth from "./auth/RequireAuth";
+import CargandoVista from "./components/UI/CargandoVista";
 
 import Layout from "./components/Layout/Layout";
-import ProduccionFinal from "./pages/Orden_de_Manufactura/ProduccionFinal";
-import SubproductosDecision from "./pages/Orden_de_Manufactura/SubproductosDecision";
-import RegistrarSubproductos from "./pages/Orden_de_Manufactura/RegistrarSubproductos";
+const ProduccionFinal = lazy(() => import("./pages/Orden_de_Manufactura/ProduccionFinal"));
+const SubproductosDecision = lazy(() => import("./pages/Orden_de_Manufactura/SubproductosDecision"));
+const RegistrarSubproductos = lazy(() => import("./pages/Orden_de_Manufactura/RegistrarSubproductos"));
 
 // Páginas base
 import LandingPage from "./pages/LandingPage";
-import HomePage from "./pages/HomePage";
+const HomePage = lazy(() => import("./pages/HomePage"));
 import Login from "./pages/Login.jsx";
 
 // PAGINA DEMO
 
 // ====== Proveedores ======
-import Proveedores from "./pages/Proveedores/Proveedores";
-import ProviderDetail from "./pages/Proveedores/ProviderDetail";
-import ProviderEdit from "./pages/Proveedores/ProviderEdit";
-import AddProvider from "./pages/Proveedores/AddProvider";
+const Proveedores = lazy(() => import("./pages/Proveedores/Proveedores"));
+const ProviderDetail = lazy(() => import("./pages/Proveedores/ProviderDetail"));
+const ProviderEdit = lazy(() => import("./pages/Proveedores/ProviderEdit"));
+const AddProvider = lazy(() => import("./pages/Proveedores/AddProvider"));
 
 // ====== Bodegas ======
-import Bodegas from "./pages/Bodegas/Bodegas";
-import AddBodega from "./pages/Bodegas/AddBodega";
-import BodegaDetail from "./pages/Bodegas/BodegaDetail";
-import BodegaEdit from "./pages/Bodegas/BodegaEdit";
-import BodegaAsignarEncargados from "./pages/Bodegas/BodegaAsignarEncargados";
+const Bodegas = lazy(() => import("./pages/Bodegas/Bodegas"));
+const AddBodega = lazy(() => import("./pages/Bodegas/AddBodega"));
+const BodegaDetail = lazy(() => import("./pages/Bodegas/BodegaDetail"));
+const BodegaEdit = lazy(() => import("./pages/Bodegas/BodegaEdit"));
+const BodegaAsignarEncargados = lazy(() => import("./pages/Bodegas/BodegaAsignarEncargados"));
 
 
 
 // ====== Recetas ======
-import Recetas from "./pages/Recetas/Recetas";
-import RecetaDetail from "./pages/Recetas/RecetaDetail";
-import RecetaEdit from "./pages/Recetas/RecetaEdit";
-import AddReceta from "./pages/Recetas/AddReceta";
+const Recetas = lazy(() => import("./pages/Recetas/Recetas"));
+const RecetaDetail = lazy(() => import("./pages/Recetas/RecetaDetail"));
+const RecetaEdit = lazy(() => import("./pages/Recetas/RecetaEdit"));
+const AddReceta = lazy(() => import("./pages/Recetas/AddReceta"));
 
 // ====== Pautas de Elaboración ======
-import PautasElaboracion from "./pages/PautasElaboracion/PautasElaboracion";
-import PautaElaboracionDetail from "./pages/PautasElaboracion/PautaElaboracionDetail";
-import PautaElaboracionEdit from "./pages/PautasElaboracion/PautaElaboracionEdit";
-import AddPautaElaboracion from "./pages/PautasElaboracion/AddPautaElaboracion";
+const PautasElaboracion = lazy(() => import("./pages/PautasElaboracion/PautasElaboracion"));
+const PautaElaboracionDetail = lazy(() => import("./pages/PautasElaboracion/PautaElaboracionDetail"));
+const PautaElaboracionEdit = lazy(() => import("./pages/PautasElaboracion/PautaElaboracionEdit"));
+const AddPautaElaboracion = lazy(() => import("./pages/PautasElaboracion/AddPautaElaboracion"));
 
 // ====== Productos ======
-import Productos from "./pages/Productos/Productos";
-import ProductDetail from "./pages/Productos/ProductDetail";
-import ProductoEdit from "./pages/Productos/ProductoEdit";
+const Productos = lazy(() => import("./pages/Productos/Productos"));
+const ProductDetail = lazy(() => import("./pages/Productos/ProductDetail"));
+const ProductoEdit = lazy(() => import("./pages/Productos/ProductoEdit"));
 
 // ====== PIP ======
-import PIPList from "./pages/PIP/PIPList";
+const PIPList = lazy(() => import("./pages/PIP/PIPList"));
 
 // ====== Compras (Órdenes) ======
-import Ordenes from "./pages/Compras/Ordenes";
-import CrearOrden from "./pages/Compras/CrearOrden";
-import EditOrden from "./pages/Compras/EditarOrden";
-import RecepcionarOrden from "./pages/Compras/RecepcionarOrden";
-import OrdenDetail from "./pages/Compras/OrdenDetail";
-import AdquisicionesDashboard from "./pages/Compras/AdquisicionesDashboard";
+const Ordenes = lazy(() => import("./pages/Compras/Ordenes"));
+const CrearOrden = lazy(() => import("./pages/Compras/CrearOrden"));
+const EditOrden = lazy(() => import("./pages/Compras/EditarOrden"));
+const RecepcionarOrden = lazy(() => import("./pages/Compras/RecepcionarOrden"));
+const OrdenDetail = lazy(() => import("./pages/Compras/OrdenDetail"));
+const AdquisicionesDashboard = lazy(() => import("./pages/Compras/AdquisicionesDashboard"));
 
 // ====== Insumos ======
-import Categorias from "./pages/Insumos/Categorias";
-import EditCategoria from "./pages/Insumos/EditCategoria";
-import AddCategoria from "./pages/Insumos/AddCategoria";
-import Insumos from "./pages/Insumos/Insumos";
-import AddInsumo from "./pages/Insumos/AddInsumo";
-import InsumoEdit from "./pages/Insumos/InsumoEdit";
-import InsumoDetail from "./pages/Insumos/InsumoDetail";
-import AddAsociacion from "./pages/Insumos/AddAsociacion.jsx";
-import EditAsociacion from "./pages/Insumos/EditAsociacion";
+const Categorias = lazy(() => import("./pages/Insumos/Categorias"));
+const EditCategoria = lazy(() => import("./pages/Insumos/EditCategoria"));
+const AddCategoria = lazy(() => import("./pages/Insumos/AddCategoria"));
+const Insumos = lazy(() => import("./pages/Insumos/Insumos"));
+const AddInsumo = lazy(() => import("./pages/Insumos/AddInsumo"));
+const InsumoEdit = lazy(() => import("./pages/Insumos/InsumoEdit"));
+const InsumoDetail = lazy(() => import("./pages/Insumos/InsumoDetail"));
+const AddAsociacion = lazy(() => import("./pages/Insumos/AddAsociacion.jsx"));
+const EditAsociacion = lazy(() => import("./pages/Insumos/EditAsociacion"));
 
 // ====== Usuarios / Roles ======
-import Usuarios from "./pages/Usuarios/Usuarios";
-import UsuarioById from "./pages/Usuarios/UsuarioById.jsx";
-import AddUsuario from "./pages/Usuarios/AddUsuario";
-import UsuarioAsignarBodega from "./pages/Usuarios/UsuarioAsignarBodega.jsx";
-import RolManagement from "./pages/Roles/RolManagement";
-import RolDetail from "./pages/Roles/RolDetail";
-import AsignarRoles from "./pages/Roles/AsignarRoles";
+const Usuarios = lazy(() => import("./pages/Usuarios/Usuarios"));
+const UsuarioById = lazy(() => import("./pages/Usuarios/UsuarioById.jsx"));
+const AddUsuario = lazy(() => import("./pages/Usuarios/AddUsuario"));
+const UsuarioAsignarBodega = lazy(() => import("./pages/Usuarios/UsuarioAsignarBodega.jsx"));
+const RolManagement = lazy(() => import("./pages/Roles/RolManagement"));
+const RolDetail = lazy(() => import("./pages/Roles/RolDetail"));
+const AsignarRoles = lazy(() => import("./pages/Roles/AsignarRoles"));
 
 // ====== Inventarios ======
-import Inventario from "./pages/Inventario/Inventario";
-import InventarioDashboard from "./pages/Inventario/InventarioDashboard";
+const Inventario = lazy(() => import("./pages/Inventario/Inventario"));
+const InventarioDashboard = lazy(() => import("./pages/Inventario/InventarioDashboard"));
 
 
 // ====== Solicitudes ======
-import Solicitudes from "./pages/Solicitudes/Solicitudes";
-import AddSolicitud from "./pages/Solicitudes/AddSolicitud";
-import EditSolicitud from "./pages/Solicitudes/EditSolicitud";
-import SolicitudDetail from "./pages/Solicitudes/SolicitudDetail";
+const Solicitudes = lazy(() => import("./pages/Solicitudes/Solicitudes"));
+const AddSolicitud = lazy(() => import("./pages/Solicitudes/AddSolicitud"));
+const EditSolicitud = lazy(() => import("./pages/Solicitudes/EditSolicitud"));
+const SolicitudDetail = lazy(() => import("./pages/Solicitudes/SolicitudDetail"));
 
 // ====== Orden de Manufactura ======
-import AsignarInsumos from "./pages/Orden_de_Manufactura/AsignarInsumos";
-import AsignarInsumosPVA from "./pages/Orden_de_Manufactura/AsignarInsumosPVA";
-import EjecutarPasos from "./pages/Orden_de_Manufactura/EjecutarPasos";
-import OMList from "./pages/Orden_de_Manufactura/OMList";
-import ProduccionDashboard from "./pages/Orden_de_Manufactura/ProduccionDashboard";
-import AddOM from "./pages/Orden_de_Manufactura/AddOM";
-import OMDetail from "./pages/Orden_de_Manufactura/OMDetail";
+const AsignarInsumos = lazy(() => import("./pages/Orden_de_Manufactura/AsignarInsumos"));
+const AsignarInsumosPVA = lazy(() => import("./pages/Orden_de_Manufactura/AsignarInsumosPVA"));
+const EjecutarPasos = lazy(() => import("./pages/Orden_de_Manufactura/EjecutarPasos"));
+const OMList = lazy(() => import("./pages/Orden_de_Manufactura/OMList"));
+const ProduccionDashboard = lazy(() => import("./pages/Orden_de_Manufactura/ProduccionDashboard"));
+const AddOM = lazy(() => import("./pages/Orden_de_Manufactura/AddOM"));
+const OMDetail = lazy(() => import("./pages/Orden_de_Manufactura/OMDetail"));
 
 // ====== Clientes ======
-import ClientesPage from "./pages/Clientes/Clientes.jsx";
-import AddClientes from "./pages/Clientes/AddClientes.jsx";
-import ConsumoGeminiPage from "./pages/Administracion/ConsumoGeminiPage.jsx";
-import EditClientes from "./pages/Clientes/ClienteEdit.jsx";
-import ClienteDetail from "./pages/Clientes/ClienteDetail.jsx";
+const ClientesPage = lazy(() => import("./pages/Clientes/Clientes.jsx"));
+const AddClientes = lazy(() => import("./pages/Clientes/AddClientes.jsx"));
+const ConsumoGeminiPage = lazy(() => import("./pages/Administracion/ConsumoGeminiPage.jsx"));
+const EditClientes = lazy(() => import("./pages/Clientes/ClienteEdit.jsx"));
+const ClienteDetail = lazy(() => import("./pages/Clientes/ClienteDetail.jsx"));
 
 // ====== Ventas ======
-import VentasDashboard from "./pages/Ventas/VentasDashboard";
-import OrdenesVentaPage from "./pages/Ventas/OrdenesVentaPage";
-import ColaIAPage from "./pages/Ventas/ColaIAPage";
-import AddOrdenVenta from "./pages/Ventas/AddOrdenVenta";
-import EditOrdenVenta from "./pages/Ventas/EditOrdenVenta";
-import OrdenVentaDetail from "./pages/Ventas/OrdenVentaDetail";
-import ListasPrecioPage from "./pages/ListasPrecio/ListasPrecioPage";
-import AddListaPrecio from "./pages/ListasPrecio/AddListaPrecio";
-import ListaPrecioDetail from "./pages/ListasPrecio/ListaPrecioDetail";
-import ListaPrecioEdit from "./pages/ListasPrecio/ListaPrecioEdit";
-import LotesList from "./pages/Lotes/LotesList.jsx";
-import LoteDetail from "./pages/Lotes/LotesDetail.jsx";
-import LoteProductoFinalDetail from "./pages/Lotes/LoteProductoFinalDetail.jsx";
+const VentasDashboard = lazy(() => import("./pages/Ventas/VentasDashboard"));
+const OrdenesVentaPage = lazy(() => import("./pages/Ventas/OrdenesVentaPage"));
+const ColaIAPage = lazy(() => import("./pages/Ventas/ColaIAPage"));
+const AddOrdenVenta = lazy(() => import("./pages/Ventas/AddOrdenVenta"));
+const EditOrdenVenta = lazy(() => import("./pages/Ventas/EditOrdenVenta"));
+const OrdenVentaDetail = lazy(() => import("./pages/Ventas/OrdenVentaDetail"));
+const ListasPrecioPage = lazy(() => import("./pages/ListasPrecio/ListasPrecioPage"));
+const AddListaPrecio = lazy(() => import("./pages/ListasPrecio/AddListaPrecio"));
+const ListaPrecioDetail = lazy(() => import("./pages/ListasPrecio/ListaPrecioDetail"));
+const ListaPrecioEdit = lazy(() => import("./pages/ListasPrecio/ListaPrecioEdit"));
+const LotesList = lazy(() => import("./pages/Lotes/LotesList.jsx"));
+const LoteDetail = lazy(() => import("./pages/Lotes/LotesDetail.jsx"));
+const LoteProductoFinalDetail = lazy(() => import("./pages/Lotes/LoteProductoFinalDetail.jsx"));
 
-import LogisticaDashboard from "./pages/Logistica/LogisticaDashboard";
-import AsignarVenta from "./pages/Ventas/AsignarVenta.jsx";
-import ResumenAsignacionVenta from "./pages/Ventas/ResumenAsignacionVenta.jsx";
+const LogisticaDashboard = lazy(() => import("./pages/Logistica/LogisticaDashboard"));
+const AsignarVenta = lazy(() => import("./pages/Ventas/AsignarVenta.jsx"));
+const ResumenAsignacionVenta = lazy(() => import("./pages/Ventas/ResumenAsignacionVenta.jsx"));
 
-import InventarioBultos from "./pages/Inventario/InventarioBultos.jsx";
-import SesionesInventariado from "./pages/Inventario/SesionesInventariado.jsx";
-import SesionInventariadoDetail from "./pages/Inventario/SesionInventariadoDetail.jsx";
-import EditarBulto from "./pages/Inventario/EditarBulto.jsx";
-import UsuariosEdit from "./pages/Usuarios/UsuariosEdit.jsx";
-import CambiarContrasena from "./pages/Usuarios/CambiarContrasena.jsx";
+const InventarioBultos = lazy(() => import("./pages/Inventario/InventarioBultos.jsx"));
+const SesionesInventariado = lazy(() => import("./pages/Inventario/SesionesInventariado.jsx"));
+const SesionInventariadoDetail = lazy(() => import("./pages/Inventario/SesionInventariadoDetail.jsx"));
+const EditarBulto = lazy(() => import("./pages/Inventario/EditarBulto.jsx"));
+const UsuariosEdit = lazy(() => import("./pages/Usuarios/UsuariosEdit.jsx"));
+const CambiarContrasena = lazy(() => import("./pages/Usuarios/CambiarContrasena.jsx"));
 
 // ====== Jumpseller ======
-import OrdenVentaJumpseller from "./pages/Jumpseller/AddOrdenJumpseller";
+const OrdenVentaJumpseller = lazy(() => import("./pages/Jumpseller/AddOrdenJumpseller"));
 
 // ====== Excel ======
-import OrdenVentaExcel from "./pages/Excel/AddExcel";
+const OrdenVentaExcel = lazy(() => import("./pages/Excel/AddExcel"));
 
-import FacturasIA from './pages/Facturas_IA/facturas.jsx';
-import BandejaSII from './pages/Ventas/BandejaSII.jsx';
-import BandejaDTEEmitidos from './pages/Ventas/BandejaDTEEmitidos.jsx';
+const FacturasIA = lazy(() => import('./pages/Facturas_IA/facturas.jsx'));
+const BandejaSII = lazy(() => import('./pages/Ventas/BandejaSII.jsx'));
+const BandejaDTEEmitidos = lazy(() => import('./pages/Ventas/BandejaDTEEmitidos.jsx'));
 // ====== PVA ======
-import AddProcesoValorAgregado from "./pages/ProcesosValorAgregado/AddProcesoValorAgregado.jsx";
-import ProcesosValorAgregado from "./pages/ProcesosValorAgregado/ProcesosValorAgregado.jsx";
-import DetailProcesoValorAgregado from "./pages/ProcesosValorAgregado/DetailProcesoValorAgregado.jsx";
-import EditProcesoValorAgregado from "./pages/ProcesosValorAgregado/EditProcesoValorAgregado.jsx";
-import DeleteProcesoValorAgregado from "./pages/ProcesosValorAgregado/DeleteProcesoValorAgregado.jsx";
-import PVAPorProducto from "./pages/PVAProducto/PVAPorProducto.jsx";
-import AddPVAPorProducto from "./pages/PVAProducto/AddPVAPorProducto.jsx";
-import EditPVAPorProducto from "./pages/PVAProducto/EditPVAPorProducto.jsx";
-import EjecutarPasosPVA from "./pages/Orden_de_Manufactura/EjecutarPasosPVA.jsx";
-import DetailPVAPorProducto from "./pages/PVAProducto/DetailPVAPorProducto.jsx";
-import GenerarQR from "./pages/GenerarQR/GenerarQR.jsx";
+const AddProcesoValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado/AddProcesoValorAgregado.jsx"));
+const ProcesosValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado/ProcesosValorAgregado.jsx"));
+const DetailProcesoValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado/DetailProcesoValorAgregado.jsx"));
+const EditProcesoValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado/EditProcesoValorAgregado.jsx"));
+const DeleteProcesoValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado/DeleteProcesoValorAgregado.jsx"));
+const PVAPorProducto = lazy(() => import("./pages/PVAProducto/PVAPorProducto.jsx"));
+const AddPVAPorProducto = lazy(() => import("./pages/PVAProducto/AddPVAPorProducto.jsx"));
+const EditPVAPorProducto = lazy(() => import("./pages/PVAProducto/EditPVAPorProducto.jsx"));
+const EjecutarPasosPVA = lazy(() => import("./pages/Orden_de_Manufactura/EjecutarPasosPVA.jsx"));
+const DetailPVAPorProducto = lazy(() => import("./pages/PVAProducto/DetailPVAPorProducto.jsx"));
+const GenerarQR = lazy(() => import("./pages/GenerarQR/GenerarQR.jsx"));
 
 // ====== Wizards (admin) ======
-import CreatePipWizard from "./pages/PIP/CreatePipWizard.jsx";
-import CreateProductoWizard from "./pages/Productos/CreateProductoWizard.jsx";
-import CostosIndirectos from "./pages/CostosIndirectos/CostosIndirectos.jsx";
-import NombresFacturacion from "./pages/NombresFacturacion/NombresFacturacion.jsx";
+const CreatePipWizard = lazy(() => import("./pages/PIP/CreatePipWizard.jsx"));
+const CreateProductoWizard = lazy(() => import("./pages/Productos/CreateProductoWizard.jsx"));
+const CostosIndirectos = lazy(() => import("./pages/CostosIndirectos/CostosIndirectos.jsx"));
+const NombresFacturacion = lazy(() => import("./pages/NombresFacturacion/NombresFacturacion.jsx"));
 
 // ====== Calidad ======
-import CalidadDashboard from "./pages/calidad/CalidadDashboard.jsx";
-import NoConformidades from "./pages/calidad/NoConformidades.jsx";
-import FormulariosList from "./pages/calidad/FormulariosList.jsx";
-import FormularioBuilder from "./pages/calidad/FormularioBuilder.jsx";
-import FormularioEdit from "./pages/calidad/FormularioEdit.jsx";
-import CompletarFormulario from "./pages/calidad/CompletarFormulario.jsx";
-import RespuestasList from "./pages/calidad/RespuestasList.jsx";
-import RespuestaDetail from "./pages/calidad/RespuestaDetail.jsx";
-import AprobacionFormularios from "./pages/calidad/AprobacionFormularios.jsx";
-import AprobacionDetail from "./pages/calidad/AprobacionDetail.jsx";
-import POEsList from "./pages/calidad/POEsList.jsx";
+const CalidadDashboard = lazy(() => import("./pages/calidad/CalidadDashboard.jsx"));
+const NoConformidades = lazy(() => import("./pages/calidad/NoConformidades.jsx"));
+const FormulariosList = lazy(() => import("./pages/calidad/FormulariosList.jsx"));
+const FormularioBuilder = lazy(() => import("./pages/calidad/FormularioBuilder.jsx"));
+const FormularioEdit = lazy(() => import("./pages/calidad/FormularioEdit.jsx"));
+const CompletarFormulario = lazy(() => import("./pages/calidad/CompletarFormulario.jsx"));
+const RespuestasList = lazy(() => import("./pages/calidad/RespuestasList.jsx"));
+const RespuestaDetail = lazy(() => import("./pages/calidad/RespuestaDetail.jsx"));
+const AprobacionFormularios = lazy(() => import("./pages/calidad/AprobacionFormularios.jsx"));
+const AprobacionDetail = lazy(() => import("./pages/calidad/AprobacionDetail.jsx"));
+const POEsList = lazy(() => import("./pages/calidad/POEsList.jsx"));
 
 // ===== Olvidar Contraseña =====
-import ForgotPassword from "./pages/OlvidarContrasena/ForgotPassword.jsx";
-import VerifyResetCode from "./pages/OlvidarContrasena/VerifyCode.jsx";
-import ResetPassword from "./pages/OlvidarContrasena/ResetPassword.jsx";
+const ForgotPassword = lazy(() => import("./pages/OlvidarContrasena/ForgotPassword.jsx"));
+const VerifyResetCode = lazy(() => import("./pages/OlvidarContrasena/VerifyCode.jsx"));
+const ResetPassword = lazy(() => import("./pages/OlvidarContrasena/ResetPassword.jsx"));
 
 // ==== ProtectedRoute ====
 import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute.jsx";
@@ -184,6 +186,9 @@ function Routing() {
 
   return (
     <BrowserRouter>
+      {/* Cada vista baja en su propio trozo. Antes toda la app —jsPDF, html2canvas, el
+          visor de PDF— viajaba antes de pintar el login. */}
+      <Suspense fallback={<CargandoVista />}>
       <Routes>
         {/* PÚBLICAS */}
         <Route path="/login" element={<Login />} />
@@ -1266,6 +1271,7 @@ function Routing() {
         {/* 404 */}
         <Route path="*" element={<div style={{ padding: 24 }}>404 — ruta no encontrada</div>} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

@@ -174,16 +174,21 @@ export default function ProductosTerminadosTable({
         </button>
       </div>
 
+      {/* `table-fixed` + anchos por columna: sin eso la columna del producto crece con el
+          nombre y empuja la tabla fuera de la tarjeta. Los nombres de facturación de PT son
+          largos, y el desborde se veía como que la vista entera se corría hacia la derecha.
+          El `overflow-x-auto` es la red: en el peor caso desplaza dentro de la tarjeta.
+          El menú del Selector va en un portal `fixed`, así que no lo recorta. */}
       {filas.length > 0 && (
-        <div className="bg-white rounded-lg shadow overflow-visible">
-          <table className="w-full">
+        <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <table className="w-full table-fixed">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">Producto</th>
-                <th className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">Formato</th>
-                <th className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">Cantidad</th>
-                <th className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">Comentario</th>
-                <th className="pr-3 py-3 text-center text-s font-medium text-text uppercase tracking-wider">Opciones</th>
+                <th className="w-[30%] px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">Producto</th>
+                <th className="w-[20%] px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">Formato</th>
+                <th className="w-[18%] px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">Cantidad</th>
+                <th className="w-[22%] px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">Comentario</th>
+                <th className="w-[10%] pr-3 py-3 text-center text-s font-medium text-text uppercase tracking-wider">Opciones</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-border">
@@ -201,7 +206,7 @@ export default function ProductosTerminadosTable({
                 );
                 return (
                   <tr key={fila._rowId}>
-                    <td className="px-6 py-2 whitespace-nowrap align-top">
+                    <td className="px-6 py-2 align-top">
                       <Selector
                         options={optionsForRow}
                         selectedValue={fila.id_nombre_facturacion}
@@ -211,7 +216,7 @@ export default function ProductosTerminadosTable({
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                       />
                     </td>
-                    <td className="px-6 py-2 whitespace-nowrap align-top">
+                    <td className="px-6 py-2 align-top">
                       <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden">
                         {[
                           { value: "cajas", label: "Cajas" },
@@ -236,7 +241,7 @@ export default function ProductosTerminadosTable({
                         <p className="mt-1 text-xs text-gray-500 leading-tight">{upc} unid. por caja</p>
                       )}
                     </td>
-                    <td className="px-6 py-2 whitespace-nowrap align-top">
+                    <td className="px-6 py-2 align-top">
                       <input
                         type="number"
                         min="1"
@@ -268,7 +273,7 @@ export default function ProductosTerminadosTable({
                         </p>
                       )}
                     </td>
-                    <td className="px-6 py-2 whitespace-nowrap align-top">
+                    <td className="px-6 py-2 align-top">
                       <input
                         type="text"
                         value={fila.comentario}

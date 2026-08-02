@@ -599,24 +599,26 @@ export default function InsumosTable({
 
   return (
     <div className="w-full">
-  <div className="bg-white rounded-lg shadow overflow-visible">
-        <table className="w-full">
+  {/* Ver la nota de ProductosTerminadosTable: `table-fixed` acota la columna del nombre para
+      que un insumo de nombre largo no empuje la tabla fuera de la tarjeta. */}
+  <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <table className="w-full table-fixed">
           {articulos.length > 0 && (
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
+                <th scope="col" className="w-[32%] px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
                   Insumo
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
+                <th scope="col" className="w-[18%] px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
                   Cantidad
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
+                <th scope="col" className="w-[18%] px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
                   Formato
                 </th>
-                <th scope="col" className="px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
+                <th scope="col" className="w-[22%] px-6 py-3 text-left text-s font-medium text-text uppercase tracking-wider">
                   Comentario
                 </th>
-                <th scope="col" className="pr-3 py-3 text-center text-s font-medium text-text uppercase tracking-wider">
+                <th scope="col" className="w-[10%] pr-3 py-3 text-center text-s font-medium text-text uppercase tracking-wider">
                   Opciones
                 </th>
               </tr>
@@ -645,7 +647,7 @@ export default function InsumosTable({
               const optionsForRow = opcionesInsumos.filter(opt => opt.value === articulo.id_articulo || !selectedIds.has(opt.value));
               return (
                 <tr key={articulo?._rowId || index}>
-                  <td className="px-6 py-2 whitespace-nowrap align-top">
+                  <td className="px-6 py-2 align-top">
                     <div>
                       <Selector
                         options={optionsForRow}
@@ -668,7 +670,7 @@ export default function InsumosTable({
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-2 whitespace-nowrap align-top">
+                  <td className="px-6 py-2 align-top">
                     <div>
 
                       <input
@@ -707,7 +709,7 @@ export default function InsumosTable({
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-2 whitespace-nowrap align-top">
+                  <td className="px-6 py-2 align-top">
                                         <div className="mb-1">
                         <Selector
                           options={formatos}
@@ -723,7 +725,7 @@ export default function InsumosTable({
                           )}
                       </div>
                   </td>
-                  <td className="px-6 py-2 whitespace-nowrap align-top">
+                  <td className="px-6 py-2 align-top">
                     <input
                       type="text"
                       value={articulo.comentario}
