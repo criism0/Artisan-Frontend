@@ -119,7 +119,6 @@ import LotesList from "./pages/Lotes/LotesList.jsx";
 import LoteDetail from "./pages/Lotes/LotesDetail.jsx";
 import LoteProductoFinalDetail from "./pages/Lotes/LoteProductoFinalDetail.jsx";
 
-import Pallets from "./pages/Logistica/Pallets";
 import LogisticaDashboard from "./pages/Logistica/LogisticaDashboard";
 import AsignarVenta from "./pages/Ventas/AsignarVenta.jsx";
 import ResumenAsignacionVenta from "./pages/Ventas/ResumenAsignacionVenta.jsx";
@@ -152,7 +151,6 @@ import EditPVAPorProducto from "./pages/PVAProducto/EditPVAPorProducto.jsx";
 import EjecutarPasosPVA from "./pages/Orden_de_Manufactura/EjecutarPasosPVA.jsx";
 import DetailPVAPorProducto from "./pages/PVAProducto/DetailPVAPorProducto.jsx";
 import GenerarQR from "./pages/GenerarQR/GenerarQR.jsx";
-import PalletsDashboard from "./pages/Logistica/PalletsDashboard";
 
 // ====== Wizards (admin) ======
 import CreatePipWizard from "./pages/PIP/CreatePipWizard.jsx";
@@ -410,24 +408,11 @@ function Routing() {
             }
           />
 
-          <Route
-            path="/Pallets"
-            element={
-              <ProtectedRoute permissions={[[ModelType.PALLET, ScopeType.READ]]}>
-                <Pallets />
-              </ProtectedRoute>
-            }
-          />
-          <Route 
-            path="/Pallets/dashboard" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.PALLET, ScopeType.READ]]}>
-                <PalletsDashboard />
-              </ProtectedRoute>
-            } 
-          />
+          {/* /Pallets y /Pallets/dashboard eliminadas el 2026-08-01. El seguimiento de
+              pallets vive en el detalle de la solicitud, que es donde está el contexto: ahí
+              se ven, se descargan sus etiquetas y se sabe qué llevan. */}
 
-          <Route 
+          <Route
             path="/Logistica/dashboard" 
             element={
               <ProtectedRoute permissions={[

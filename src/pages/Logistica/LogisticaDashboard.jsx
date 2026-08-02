@@ -83,17 +83,13 @@ export default function LogisticaDashboard() {
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            {/* "Ver pallets" apuntaba a /Pallets, eliminada: los pallets se ven dentro de su
+                solicitud, que es donde se sabe de dónde salen y a dónde van. */}
             <button
               onClick={() => navigate("/Solicitudes")}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
             >
               Ver solicitudes
-            </button>
-            <button
-              onClick={() => navigate("/Pallets")}
-              className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
-            >
-              Ver pallets
             </button>
           </div>
         </div>

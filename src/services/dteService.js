@@ -80,6 +80,14 @@ export const dteService = {
     return mapDte(res?.data ?? res);
   },
 
+  /**
+   * ⚠️ Sin llamador desde el 2026-08-01, cuando se eliminó la vista /Pallets.
+   *
+   * Se conserva a propósito: el endpoint existe y funciona en el backend, y la guía de
+   * despacho por pallet vuelve a estar sobre la mesa cuando se retome el traspaso a LibreDTE.
+   * Ojo con la historia: la vista eliminada NO usaba este método —llamaba a
+   * `emitirGuiaDespacho`, que no existe— así que su botón "Emitir GD" nunca funcionó.
+   */
   emitirGuiaDespachoPallet: async (idPallet) => {
     const res = await api('/facturacion/emitir-guia-despacho-pallet', {
       method: 'POST',
