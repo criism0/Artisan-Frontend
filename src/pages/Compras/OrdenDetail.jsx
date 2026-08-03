@@ -1,8 +1,8 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// jsPDF y su plugin de tablas pesan ~460 KB juntos y sólo hacen falta al apretar
+// "Descargar PDF". Importados arriba viajaban con la vista entera; acá bajan cuando se piden.
 import logo from "../../assets/logo.png";
 import { toast } from "../../lib/toast";
 import { useApi, apiBlob } from "../../lib/api";
@@ -129,6 +129,11 @@ export default function OrdenDetail() {
 
   const handleDownloadPDF = async () => {
     if (!orden) return;
+
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
 
     const doc = new jsPDF("p", "mm", "a4");
     const x = 18;

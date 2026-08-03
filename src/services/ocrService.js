@@ -8,12 +8,27 @@
  *   folio, fecha_emision, monto_total
  */
 
-import * as pdfjsLib from 'pdfjs-dist';
+/**
+ * pdfjs-dist pesa ~500 KB y sólo hace falta cuando alguien sube un PDF para leerlo.
+ *
+ * Importado arriba viajaba con la cadena `ocrService → DocumentoRecibidoUploadModal →
+ * DTERecibidoPanel → OrdenDetail`, o sea que la biblioteca entera se descargaba al abrir el
+ * detalle de cualquier orden de compra. Se carga una sola vez, en la primera extracción.
+ */
+let pdfjsPromesa = null;
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString();
+function cargarPdfjs() {
+  if (!pdfjsPromesa) {
+    pdfjsPromesa = import('pdfjs-dist').then((pdfjsLib) => {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url,
+      ).toString();
+      return pdfjsLib;
+    });
+  }
+  return pdfjsPromesa;
+}
 
 const IMAGE_TYPES = [
   'image/jpeg', 'image/jpg', 'image/png',
@@ -34,6 +49,7 @@ function esPDF(file) {
 // ── Extracción de texto desde PDF ─────────────────────────────────────────────
 
 async function extraerTextoPDF(file) {
+  const pdfjsLib = await cargarPdfjs();
   const buffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
   const partes = [];

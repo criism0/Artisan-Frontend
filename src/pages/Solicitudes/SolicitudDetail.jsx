@@ -409,8 +409,13 @@ export default function SolicitudDetail() {
     }
   };
 
-  const handleDownloadSolicitudInsumosPDF = () => {
+  const handleDownloadSolicitudInsumosPDF = async () => {
     if (!solicitud) return;
+
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import(jspdf),
+      import(jspdf-autotable),
+    ]);
 
     try {
       // Cambiar a orientación landscape para máximo espacio horizontal

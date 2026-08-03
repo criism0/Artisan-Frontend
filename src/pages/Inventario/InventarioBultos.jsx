@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, apiBlob } from "../../lib/api";
 import { createAndOpenSheet } from "../../lib/googleSheets";
@@ -27,16 +27,35 @@ const CATEGORIAS = [
 
 const STORAGE_KEY = "inventario_bultos_ui_v1";
 
-function toNumberOrNull(value) {
-  if (value === null || value === undefined) return null;
-  const s = String(value).trim();
-  if (s === "") return null;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
-}
-
 function getBodegaNombre(b) {
   return b?.Bodega?.nombre ?? b?.bodega?.nombre ?? "(sin bodega)";
+}
+
+/**
+ * Encabezado de columna que ordena al hacer clic.
+ *
+ * Vive fuera del componente a propósito: definido adentro, cada render creaba un tipo de
+ * componente nuevo y React desmontaba y volvía a montar el `<thead>` entero en vez de
+ * actualizarlo. Es el mismo antipatrón que se corrigió en `StepBar`.
+ */
+function SortHeader({ label, sortKey, className, sort, onToggle }) {
+  const active = sort.key === sortKey;
+  const arrow = !active ? "" : sort.dir === "asc" ? "▲" : "▼";
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(sortKey)}
+      className={`w-full text-left font-semibold ${className || ""}`}
+      title="Ordenar"
+    >
+      <span className="inline-flex items-center gap-1">
+        <span>{label}</span>
+        <span className={`text-[10px] ${active ? "text-gray-700" : "text-gray-300"}`}>
+          {arrow || "▲"}
+        </span>
+      </span>
+    </button>
+  );
 }
 
 function getPalletIdentificador(b) {
@@ -233,24 +252,6 @@ export default function InventarioBultos() {
       if (prev.key !== key) return { key, dir: "asc" };
       return { key, dir: prev.dir === "asc" ? "desc" : "asc" };
     });
-  };
-
-  const SortHeader = ({ label, sortKey, className }) => {
-    const active = sort.key === sortKey;
-    const arrow = !active ? "" : sort.dir === "asc" ? "▲" : "▼";
-    return (
-      <button
-        type="button"
-        onClick={() => toggleSort(sortKey)}
-        className={`w-full text-left font-semibold ${className || ""}`}
-        title="Ordenar"
-      >
-        <span className="inline-flex items-center gap-1">
-          <span>{label}</span>
-          <span className={`text-[10px] ${active ? "text-gray-700" : "text-gray-300"}`}>{arrow || "▲"}</span>
-        </span>
-      </button>
-    );
   };
 
   const generarEtiqueta = async (bulto) => {
@@ -492,15 +493,15 @@ export default function InventarioBultos() {
                     aria-label="Seleccionar todo"
                   />
                 </th>
-                <th className="p-2 border"><SortHeader label="Cat" sortKey="clave_categoria" /></th>
-                <th className="p-2 border"><SortHeader label="ID" sortKey="id" /></th>
-                <th className="p-2 border"><SortHeader label="Identificador" sortKey="identificador" /></th>
-                <th className="p-2 border"><SortHeader label="Item" sortKey="item" /></th>
-                <th className="p-2 border"><SortHeader label="Bodega" sortKey="bodega" /></th>
-                <th className="p-2 border"><SortHeader label="Formato" sortKey="peso_unitario" /></th>
-                <th className="p-2 border"><SortHeader label="Disponible" sortKey="disponible" /></th>
-                <th className="p-2 border"><SortHeader label="Costo" sortKey="costo" /></th>
-                <th className="p-2 border"><SortHeader label="Fecha ingreso" sortKey="fecha_ingreso" /></th>
+                <th className="p-2 border"><SortHeader label="Cat" sortKey="clave_categoria" sort={sort} onToggle={toggleSort} /></th>
+                <th className="p-2 border"><SortHeader label="ID" sortKey="id" sort={sort} onToggle={toggleSort} /></th>
+                <th className="p-2 border"><SortHeader label="Identificador" sortKey="identificador" sort={sort} onToggle={toggleSort} /></th>
+                <th className="p-2 border"><SortHeader label="Item" sortKey="item" sort={sort} onToggle={toggleSort} /></th>
+                <th className="p-2 border"><SortHeader label="Bodega" sortKey="bodega" sort={sort} onToggle={toggleSort} /></th>
+                <th className="p-2 border"><SortHeader label="Formato" sortKey="peso_unitario" sort={sort} onToggle={toggleSort} /></th>
+                <th className="p-2 border"><SortHeader label="Disponible" sortKey="disponible" sort={sort} onToggle={toggleSort} /></th>
+                <th className="p-2 border"><SortHeader label="Costo" sortKey="costo" sort={sort} onToggle={toggleSort} /></th>
+                <th className="p-2 border"><SortHeader label="Fecha ingreso" sortKey="fecha_ingreso" sort={sort} onToggle={toggleSort} /></th>
                 <th className="p-2 border w-28 text-center">Acciones</th>
               </tr>
 

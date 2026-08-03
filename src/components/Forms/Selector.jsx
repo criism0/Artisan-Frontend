@@ -149,7 +149,14 @@ const Selector = ({
         title={selectedOption ? selectedOption.label : ''}
         className={`w-full min-w-0 text-left ${className} ${isDisabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'} flex items-center justify-between gap-2`}
       >
-        <span className={`truncate ${selectedOption ? 'text-gray-900' : 'text-gray-500'}`}>{displayText}</span>
+        {/* `title` para que el nombre completo siga estando a mano cuando se recorta: los
+            nombres de facturación de PT son largos y el recorte deja de ser información. */}
+        <span
+          title={displayText}
+          className={`truncate ${selectedOption ? 'text-gray-900' : 'text-gray-500'}`}
+        >
+          {displayText}
+        </span>
         <ChevronDown className="ml-2 text-gray-500" size={16} />
       </button>
 
