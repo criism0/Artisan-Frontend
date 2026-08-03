@@ -46,7 +46,6 @@ describe("ModelType y ScopeType", () => {
     expect(ModelType.PRODUCTO_ORDEN).toBe("ProductoDeOrden");
     expect(ModelType.CLIENTE).toBe("Cliente");
     expect(ModelType.LOCAL_CLIENTE).toBe("LocalCliente");
-    expect(ModelType.PRECIO_CLIENTE).toBe("PrecioCliente");
     expect(ModelType.PROVEEDOR).toBe("Proveedor");
     expect(ModelType.DIRECCION).toBe("Direccion");
     expect(ModelType.LOTE_PRODUCTO_FINAL).toBe("LoteProductoFinal");
@@ -75,7 +74,6 @@ describe("ModelType y ScopeType", () => {
     expect(ModelType.LISTA_PRECIO).toBe("ListaPrecio");
     expect(ModelType.PRODUCTO_BASE_LISTA_PRECIO).toBe("ProductoBaseListaPrecio");
     expect(ModelType.PRODUCTO_BASE).toBe("ProductoBase");
-    expect(ModelType.PREDICCION).toBe("Prediccion");
     expect(ModelType.OCR_FACTURA).toBe("OCRFactura");
     expect(ModelType.NOMBRE_FACTURACION).toBe("NombreFacturacion");
   });
@@ -91,7 +89,7 @@ describe("ModelType y ScopeType", () => {
   });
 
   it("ModelType tiene exactamente 52 modelos", () => {
-    expect(Object.keys(ModelType)).toHaveLength(52);
+    expect(Object.keys(ModelType)).toHaveLength(50);
   });
 
   it("ScopeType tiene exactamente 3 acciones", () => {

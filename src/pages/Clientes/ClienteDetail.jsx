@@ -18,20 +18,10 @@ export default function ClienteDetail() {
 
   const [cliente, setCliente] = useState(null);
   const [direcciones, setDirecciones] = useState([]);
-  const [precios, setPrecios] = useState([]);
-  const [productos, setProductos] = useState([]);
-  const [showPrecios, setShowPrecios] = useState(false);
-  const [inputValues, setInputValues] = useState({});
-  const [nuevos, setNuevos] = useState([]);
-  const [errores, setErrores] = useState({});
   const [listasPrecio, setListasPrecio] = useState([]);
 
   const canReadClients = checkScope(ModelType.CLIENTE, ScopeType.READ);
   const canDeleteClients = checkScope(ModelType.CLIENTE, ScopeType.DELETE);
-
-  // Actualmente, handleGuardarCambios no esta siendo llamada en ninguna parte
-  // Asi que se verifica este permiso, pero nunca se hace la llamada que lo requeriria
-  const canWritePriceClient = checkScope(ModelType.PRECIO_CLIENTE, ScopeType.WRITE);
 
   useEffect(() => {
     if (!canReadClients) {
@@ -56,29 +46,7 @@ export default function ClienteDetail() {
           .catch(() => toast.error("Error al cargar direcciones"));
       });
 
-    api(`/precio-clientes?clienteId=${clienteId}`)
-      .then((data) => {
-        setPrecios(data);
-        const init = {};
-        data.forEach((p) => {
-          init[p.id] = p.precio_unitario;
-        });
-        setInputValues(init);
-      })
-      .catch(() => toast.error("Error al cargar precios del cliente"));
-
-    api("/productos-base")
-      .then((data) => setProductos(data))
-      .catch(() => toast.error("Error al cargar productos"));
   }, [clienteId]);
-
-  const preciosConNombre = precios.map((p) => {
-    const producto = productos.find((prod) => prod.id === p.id_producto);
-    return {
-      ...p,
-      nombre_producto: producto ? producto.nombre : `Producto #${p.id_producto}`
-    };
-  });
 
   const handleDeleteCliente = async () => {
     if (!canDeleteClients) {
@@ -91,64 +59,6 @@ export default function ClienteDetail() {
       navigate("/clientes");
     } catch (err) {
       toast.error("Error al eliminar cliente: " + (err?.message || ""));
-    }
-  };
-
-  const validarPrecios = () => {
-    const nuevosErrores = {};
-    preciosConNombre.forEach((p) => {
-      const val = inputValues[p.id];
-      if (val === "" || val == null) {
-        nuevosErrores[p.id] = "El precio no puede estar vacío.";
-      } else if (Number(val) < 0) {
-        nuevosErrores[p.id] = "El precio no puede ser negativo.";
-      }
-    });
-    nuevos.forEach((n, i) => {
-      if (!n.id_producto) {
-        nuevosErrores[`nuevo-${i}-id_producto`] = "Debe seleccionar un producto.";
-      }
-      if (!n.precio_unitario) {
-        nuevosErrores[`nuevo-${i}-precio`] = "Debe ingresar un precio.";
-      } else if (Number(n.precio_unitario) < 0) {
-        nuevosErrores[`nuevo-${i}-precio`] = "El precio no puede ser negativo.";
-      }
-    });
-    setErrores(nuevosErrores);
-    return Object.keys(nuevosErrores).length === 0;
-  };
-
-  const handleGuardarCambios = async () => {
-    if (!validarPrecios()) return;
-    if (!canWritePriceClient) {
-      toast.permissionError([ModelType.PRECIO_CLIENTE, ScopeType.WRITE]);
-      return;
-    }
-    try {
-      const updates = preciosConNombre.map((p) =>
-        api(`/precio-clientes/${p.id}`, {
-          method: "PUT",
-          body: JSON.stringify({ precio_unitario: Number(inputValues[p.id]) || 0 })
-        })
-      );
-      const creaciones = nuevos.map((n) =>
-        api("/precio-clientes", {
-          method: "POST",
-          body: JSON.stringify({
-            id_cliente: Number(clienteId),
-            id_producto: Number(n.id_producto),
-            precio_unitario: Number(n.precio_unitario)
-          })
-        })
-      );
-      await Promise.all([...updates, ...creaciones]);
-      toast.success("Cambios guardados correctamente.");
-      const data = await api(`/precio-clientes?clienteId=${clienteId}`);
-      setPrecios(data);
-      setNuevos([]);
-      setErrores({});
-    } catch (err) {
-      toast.error("Error al guardar cambios.");
     }
   };
 

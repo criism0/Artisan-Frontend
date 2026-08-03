@@ -34,7 +34,6 @@ export const ModelType = {
   PRODUCTO_ORDEN: "ProductoDeOrden",
   CLIENTE: "Cliente",
   LOCAL_CLIENTE: "LocalCliente",
-  PRECIO_CLIENTE: "PrecioCliente",
   PROVEEDOR: "Proveedor",
   DIRECCION: "Direccion",
   LOTE_PRODUCTO_FINAL: "LoteProductoFinal",
@@ -66,7 +65,6 @@ export const ModelType = {
   PRODUCTO_BASE_LISTA_PRECIO: "ProductoBaseListaPrecio",
   PRODUCTO_BASE: "ProductoBase",
   NOMBRE_FACTURACION: "NombreFacturacion",
-  PREDICCION: "Prediccion", // RUTA: /predicciones
   POES: "Poes",
   OCR_FACTURA: "OCRFactura",
 };

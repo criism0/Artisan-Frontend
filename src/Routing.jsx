@@ -132,9 +132,6 @@ const EditarBulto = lazy(() => import("./pages/Inventario/EditarBulto.jsx"));
 const UsuariosEdit = lazy(() => import("./pages/Usuarios/UsuariosEdit.jsx"));
 const CambiarContrasena = lazy(() => import("./pages/Usuarios/CambiarContrasena.jsx"));
 
-// ====== Jumpseller ======
-const OrdenVentaJumpseller = lazy(() => import("./pages/Jumpseller/AddOrdenJumpseller"));
-
 // ====== Excel ======
 const OrdenVentaExcel = lazy(() => import("./pages/Excel/AddExcel"));
 
@@ -351,15 +348,8 @@ function Routing() {
             } 
           />
 
-          {/* Jumpseller */}
-          <Route 
-            path="/jumpseller/products" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.READ]]}>
-                <OrdenVentaJumpseller />
-              </ProtectedRoute>
-            } 
-          />
+          {/* La importación desde Jumpseller se retiró el 2026-08-04: los pedidos web
+              ya entran solos por la Cola IA, que los recibe por correo. */}
 
           {/* Excel */}
           <Route 

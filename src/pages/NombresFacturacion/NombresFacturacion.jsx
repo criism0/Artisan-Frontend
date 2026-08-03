@@ -232,9 +232,8 @@ export default function NombresFacturacion() {
 
   // Conflictos de precio al fusionar (409 CONFLICTO_PRECIOS)
   const [conflictOpen, setConflictOpen] = useState(false);
-  const [conflictos, setConflictos] = useState({ lista: [], precioCliente: [] });
+  const [conflictos, setConflictos] = useState({ lista: [] });
   const [conflictSelLista, setConflictSelLista] = useState({});
-  const [conflictSelPc, setConflictSelPc] = useState({});
   const [listasById, setListasById] = useState({});
   const [clientesById, setClientesById] = useState({});
 
@@ -469,7 +468,7 @@ export default function NombresFacturacion() {
     }
   };
 
-  const handleMerge = async ({ idsListaMantener = [], idsPcMantener = [] } = {}) => {
+  const handleMerge = async ({ idsListaMantener = [] } = {}) => {
     const destinoId = mergeDestinoId;
     const idsOrigen = selectedIds.filter((id) => id !== destinoId);
     if (!destinoId || idsOrigen.length === 0) return;
@@ -481,7 +480,6 @@ export default function NombresFacturacion() {
         body: JSON.stringify({
           ids_origen: idsOrigen,
           ids_entradas_lista_mantener: idsListaMantener,
-          ids_precios_cliente_mantener: idsPcMantener,
         }),
       });
       toast.success(`Nombres fusionados en "${res?.nombre ?? "destino"}"`);
@@ -492,12 +490,8 @@ export default function NombresFacturacion() {
       await fetchAll();
     } catch (e) {
       if (e instanceof ApiError && e.status === 409 && e.data?.code === "CONFLICTO_PRECIOS") {
-        setConflictos({
-          lista: e.data?.conflictos_lista || [],
-          precioCliente: e.data?.conflictos_precio_cliente || [],
-        });
+        setConflictos({ lista: e.data?.conflictos_lista || [] });
         setConflictSelLista({});
-        setConflictSelPc({});
         setMergeOpen(false);
         setConflictOpen(true);
         void cargarCatalogosConflicto();
@@ -510,19 +504,16 @@ export default function NombresFacturacion() {
     }
   };
 
-  const conflictosResueltos =
-    conflictos.lista.every((c) => conflictSelLista[c.id_lista_precio] != null) &&
-    conflictos.precioCliente.every((c) => conflictSelPc[c.id_cliente] != null);
+  const conflictosResueltos = conflictos.lista.every(
+    (c) => conflictSelLista[c.id_lista_precio] != null,
+  );
 
   const handleResolverConflictos = () => {
     if (!conflictosResueltos) {
       toast.error("Elige qué precio conservar en cada conflicto");
       return;
     }
-    void handleMerge({
-      idsListaMantener: Object.values(conflictSelLista),
-      idsPcMantener: Object.values(conflictSelPc),
-    });
+    void handleMerge({ idsListaMantener: Object.values(conflictSelLista) });
   };
 
   const toggleExpanded = (id) => {
@@ -925,46 +916,6 @@ export default function NombresFacturacion() {
                         <span className="text-sm text-gray-600">
                           ${formatNumberCL(e.precio_unidad ?? 0, 0)} unid.
                           {e.precio_caja != null ? ` · $${formatNumberCL(e.precio_caja, 0)} caja` : ""}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {conflictos.precioCliente.length > 0 && (
-          <div className="mb-4">
-            <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Precios por cliente</div>
-            <div className="space-y-3">
-              {conflictos.precioCliente.map((c) => (
-                <div key={c.id_cliente} className="border rounded-lg p-3">
-                  <div className="text-sm font-medium text-gray-900 mb-2">
-                    {clientesById[c.id_cliente]?.nombre_empresa || `Cliente #${c.id_cliente}`}
-                  </div>
-                  <div className="space-y-1">
-                    {c.precios.map((p) => (
-                      <label
-                        key={p.id}
-                        className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer"
-                      >
-                        <input
-                          type="radio"
-                          name={`conf-pc-${c.id_cliente}`}
-                          checked={conflictSelPc[c.id_cliente] === p.id}
-                          onChange={() =>
-                            setConflictSelPc((prev) => ({ ...prev, [c.id_cliente]: p.id }))
-                          }
-                          className="text-primary focus:ring-primary"
-                        />
-                        <span className="text-sm text-gray-800 flex-1">
-                          {nombresById[p.id_nombre_facturacion]?.nombre ||
-                            `Nombre #${p.id_nombre_facturacion}`}
-                        </span>
-                        <span className="text-sm text-gray-600">
-                          ${formatNumberCL(p.precio_unitario ?? 0, 0)}
                         </span>
                       </label>
                     ))}
