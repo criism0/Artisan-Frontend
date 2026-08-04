@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
+import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
 // jsPDF y su plugin de tablas pesan ~460 KB juntos y sólo hacen falta al apretar
 // "Descargar PDF". Importados arriba viajaban con la vista entera; acá bajan cuando se piden.
 import logo from "../../assets/logo.png";
@@ -330,12 +331,12 @@ export default function OrdenDetail() {
     }
   };
 
-  const handleVerDetalle = async () => {
+  const handleVerHistorial = async () => {
     if (showHistorial) {
       setshowHistorial(false);
       return;
     }
-    
+
     try {
       const data = await api(`/proceso-compra/ordenes/${ordenId}/historial`, { method: "GET" });
       setHistorial(data ?? []);
@@ -343,6 +344,21 @@ export default function OrdenDetail() {
 
     } catch (error) {
       toast.error(`Error al obtener el historial de la solicitud: ${error.message}`);
+    }
+  };
+
+  // Las acciones que mueven el estado vivían sólo en la lista (`Ordenes.jsx`), dentro de la
+  // fila de la tabla: para validar o recepcionar había que salir del detalle y volver atrás.
+  const ejecutarTransicion = async (ruta, exito) => {
+    setLoading(true);
+    try {
+      await api(`/proceso-compra/ordenes/${ordenId}/${ruta}`, { method: "PUT" });
+      setOrden(await api(`/proceso-compra/ordenes/${ordenId}`));
+      toast.success(exito);
+    } catch (error) {
+      toast.error(error?.message || "No se pudo completar la acción");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -368,14 +384,94 @@ export default function OrdenDetail() {
     return acc + (costoUnitario * unidades);
   }, 0);
 
+  // ── Acciones de la orden ────────────────────────────────────────────────────────────────
+  //
+  // El flujo real de una OC es Creada → Validada → Recepcionada, con una parada intermedia
+  // en «Parcialmente recepcionada» cuando llega sólo una parte. `retroceder` deshace un paso.
+  //
+  // ⚠️ El pago es un EJE APARTE, no una etapa: `pagada` es un booleano que se mueve en
+  // cualquier momento. En producción hay órdenes Validadas ya pagadas y Creadas ya pagadas,
+  // así que Pagar no puede colgar del estado. (El ENUM declara además 'Pagada', 'Rechazada'
+  // y 'En tránsito', que en producción no tiene ninguna orden.)
+  const enFlujo = {
+    Creada: {
+      label: "Validar orden",
+      onClick: () => ejecutarTransicion("validar", "Orden validada"),
+      confirmar: {
+        titulo: "¿Validar esta orden de compra?",
+        mensaje: "Queda lista para recepcionar y se le avisa al proveedor.",
+        textoBoton: "Validar",
+      },
+    },
+    Validada: {
+      label: "Recepcionar",
+      onClick: () => navigate(`/Ordenes/recepcionar/${orden.id}`),
+    },
+    "Parcialmente recepcionada": {
+      label: "Recepcionar lo que falta",
+      onClick: () => navigate(`/Ordenes/recepcionar/${orden.id}`),
+    },
+  };
+  const accionPrincipal = canWritePurchaseOrder ? enFlujo[orden.estado] ?? null : null;
+
+  const accionesSecundarias = [
+    canWritePurchaseOrder && {
+      label: orden.pagada ? "Revertir pago" : "Marcar como pagada",
+      onClick: orden.pagada
+        ? () => ejecutarTransicion("revertir-pago", "Pago revertido")
+        : handlePagar,
+      disabled: loading,
+      confirmar: orden.pagada
+        ? { titulo: "¿Revertir el pago?", textoBoton: "Revertir" }
+        : null,
+    },
+    orden.estado === "Creada" &&
+      canWritePurchaseOrder && {
+        label: "Editar",
+        onClick: () => navigate(`/Ordenes/edit/${orden.id}`),
+      },
+    { label: "Descargar PDF", onClick: handleDownloadPDF },
+    orden.bultos?.length > 0 && {
+      label: "Descargar etiquetas",
+      onClick: handleDownloadEtiquetas,
+    },
+    {
+      // Antes decía «Ver Detalle» estando ya en el detalle. Muestra el historial de cambios.
+      label: showHistorial ? "Ocultar historial" : "Historial de cambios",
+      onClick: handleVerHistorial,
+    },
+    { label: "Adjuntar archivos", onClick: () => setMostrarModalArchivos(true) },
+  ].filter(Boolean);
+
+  const accionesDestructivas = [
+    orden.estado !== "Creada" &&
+      canWritePurchaseOrder && {
+        label: "Retroceder estado",
+        onClick: () => ejecutarTransicion("retroceder", "Orden retrocedida"),
+        confirmar: {
+          titulo: "¿Retroceder la orden un paso?",
+          mensaje:
+            orden.estado === "Validada"
+              ? "Vuelve a «Creada» y se podrá editar de nuevo."
+              : "Vuelve a «Validada» y se eliminan los bultos que generó la recepción.",
+          textoBoton: "Retroceder",
+        },
+      },
+  ].filter(Boolean);
+
   return (
     <div>
       <div className="mb-4">
         <BackButton to="/Ordenes" />
       </div>
 
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="text-2xl font-bold text-text">Detalle de compra: {orden.id}</h1>
+        <PanelAcciones
+          principal={accionPrincipal}
+          secundarias={accionesSecundarias}
+          destructivas={accionesDestructivas}
+        />
       </div>
 
       <div className="bg-gray-200 p-4 rounded-lg">
@@ -681,54 +777,9 @@ export default function OrdenDetail() {
       {/* ── DTE Recibido: Guías de Despacho + Factura del proveedor ──────── */}
       <DTERecibidoPanel ordenId={ordenId} orden={orden} />
 
-      <div className="mt-6 flex gap-2 flex-wrap">
-        {!orden.pagada && (
-          <button
-            className={`px-4 py-2 text-white rounded ${
-              loading ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
-            }`}
-            onClick={handlePagar}
-            disabled={loading || !canWritePurchaseOrder}
-          >
-            {loading ? "Procesando..." : "Pagar"}
-          </button>
-        )}
-        <button
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          onClick={handleDownloadPDF}
-        >
-          Descargar PDF Orden
-        </button>
-        {orden.bultos?.length > 0 && (
-          <button
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-            onClick={handleDownloadEtiquetas}
-          >
-            Descargar Etiquetas Bultos
-          </button>
-        )}
-        {orden.estado === "Creada" && (
-          <button
-            className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
-            onClick={() => navigate(`/Ordenes/edit/${orden.id}`)}
-          >
-            Editar
-          </button>
-        )}
-         <button
-          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-400"
-          onClick={handleVerDetalle}
-        >
-          Ver Detalle
-        </button>
-        <button
-          className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-2"
-          onClick={() => setMostrarModalArchivos(true)}
-        >
-          <span>📎</span>
-          Adjuntar Archivos
-        </button>
-      </div>
+      {/* Las acciones de la orden viven en el PanelAcciones de la cabecera. Estaban acá
+          abajo, después de la tabla de bultos y del panel de DTE: para pagar una orden
+          había que bajar 900 líneas de página. */}
 
       {/* Modal para adjuntar archivos */}
       {mostrarModalArchivos && (
