@@ -2,6 +2,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
+import Tabs from "../../components/UI/Tabs.jsx";
+import HistorialCambiosModal from "../../components/Compras/HistorialCambiosModal.jsx";
 // jsPDF y su plugin de tablas pesan ~460 KB juntos y sólo hacen falta al apretar
 // "Descargar PDF". Importados arriba viajaban con la vista entera; acá bajan cuando se piden.
 import logo from "../../assets/logo.png";
@@ -13,6 +15,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import DTERecibidoPanel from "../../components/DTE/DTERecibidoPanel.jsx";
 import { formatCLP } from "../../services/formatHelpers";
+import DataTable from "../../components/Tables/DataTable";
 import AvanceItems from "../../components/AvanceItems";
 
 export default function OrdenDetail() {
@@ -26,6 +29,7 @@ export default function OrdenDetail() {
   const [nuevosArchivos, setNuevosArchivos] = useState([]);
   const [subiendoArchivos, setSubiendoArchivos] = useState(false);
   const [mostrarModalArchivos, setMostrarModalArchivos] = useState(false);
+  const [tab, setTab] = useState("datos");
   const navigate = useNavigate();
 
   const canWritePurchaseOrder = checkScope(ModelType.ORDEN_COMPRA, ScopeType.WRITE);
@@ -332,11 +336,6 @@ export default function OrdenDetail() {
   };
 
   const handleVerHistorial = async () => {
-    if (showHistorial) {
-      setshowHistorial(false);
-      return;
-    }
-
     try {
       const data = await api(`/proceso-compra/ordenes/${ordenId}/historial`, { method: "GET" });
       setHistorial(data ?? []);
@@ -436,8 +435,9 @@ export default function OrdenDetail() {
       onClick: handleDownloadEtiquetas,
     },
     {
-      // Antes decía «Ver Detalle» estando ya en el detalle. Muestra el historial de cambios.
-      label: showHistorial ? "Ocultar historial" : "Historial de cambios",
+      // Antes decía «Ver Detalle» estando ya en el detalle, y desplegaba una tabla al final
+      // de la página sin avisar que algo había aparecido. Ahora abre un modal.
+      label: "Historial de cambios",
       onClick: handleVerHistorial,
     },
     { label: "Adjuntar archivos", onClick: () => setMostrarModalArchivos(true) },
@@ -474,6 +474,22 @@ export default function OrdenDetail() {
         />
       </div>
 
+
+      {/* La vista era una sola columna: información, insumos anidados dentro de una fila
+          de esa tabla, bultos y documentos, uno tras otro. Con muchos bultos el scroll se
+          volvía enorme y no se podía saltar a lo que uno viene a mirar. */}
+      <Tabs
+        activa={tab}
+        onCambiar={setTab}
+        pestanas={[
+          { id: "datos", label: "Datos de la orden" },
+          { id: "insumos", label: "Insumos", cantidad: (orden.materiasPrimas || []).length, deshabilitadaSiVacia: true },
+          { id: "bultos", label: "Bultos", cantidad: bultosList.length, deshabilitadaSiVacia: true },
+          { id: "documentos", label: "Documentos" },
+        ]}
+      />
+
+      {tab === "datos" && (
       <div className="bg-gray-200 p-4 rounded-lg">
         <table className="w-full bg-white rounded-lg shadow overflow-hidden">
           
@@ -630,9 +646,13 @@ export default function OrdenDetail() {
               </td>
             </tr>
 
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text align-top">Insumos</td>
-              <td className="px-6 py-4">
+            </tbody>
+        </table>
+      </div>
+      )}
+
+      {tab === "insumos" && (
+        <div className="bg-gray-200 p-4 rounded-lg">
                 {orden.materiasPrimas?.length > 0 && (
                   <div className="p-4 rounded-lg">
 
@@ -706,76 +726,111 @@ export default function OrdenDetail() {
                   </table>
                 </div>
                 )}
-              </td>
-            </tr>
-            </tbody>
-        </table>
-      </div>
-
-      {orden.bultos?.length > 0 && (
-        <div className="bg-gray-200 p-4 rounded-lg mt-6">
-          <h2 className="text-xl font-semibold text-text mb-2">Bultos</h2>
-          <table className="w-full bg-white rounded-lg shadow overflow-hidden">
-            <thead className="bg-gray-100 text-sm text-gray-600">
-              <tr>
-                <th className="px-6 py-3 text-left">Bulto</th>
-                <th className="px-6 py-3 text-left">Item</th>
-                <th className="px-6 py-3 text-left">Cantidad</th>
-                <th className="px-6 py-3 text-left">Disponible</th>
-                <th className="px-6 py-3 text-left">Lote proveedor</th>
-                <th className="px-6 py-3 text-left">Pallet</th>
-                <th className="px-6 py-3 text-left">Costo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orden.bultos.map((bulto, idx) => (
-                <tr key={idx} className="border-t border-border">
-                  <td className="px-6 py-4 text-sm">
-                    <div className="font-medium">{bulto.identificador || `#${bulto.id}`}</div>
-                    <div className="text-xs text-gray-500">ID: {bulto.id}</div>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    {bulto.materiaPrima?.nombre || "—"}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="font-medium">{bulto.cantidad_unidades ?? "—"} un.</div>
-                    {bulto.peso_unitario ? (
-                      <div className="text-xs text-gray-500">
-                        {(Number(bulto.cantidad_unidades || 0) * Number(bulto.peso_unitario || 0)).toFixed(2)} {bulto.materiaPrima?.unidad_medida || ""}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="font-medium">{bulto.unidades_disponibles ?? "—"} un.</div>
-                    {bulto.peso_unitario ? (
-                      <div className="text-xs text-gray-500">
-                        {(Number(bulto.unidades_disponibles || 0) * Number(bulto.peso_unitario || 0)).toFixed(2)} {bulto.materiaPrima?.unidad_medida || ""}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    {bulto.lote?.identificador_proveedor || "—"}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    {bulto.pallet?.identificador || (bulto.id_pallet ?? "—")}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div>
-                      Unit: {bulto.costo_unitario ? formatCLP(bulto.costo_unitario, 0) : "—"}
-                    </div>
-                    <div className="font-medium">
-                      Total: {bulto.costo_unitario ? formatCLP(Number(bulto.costo_unitario) * Number(bulto.cantidad_unidades || 0), 0) : "—"}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
 
-      {/* ── DTE Recibido: Guías de Despacho + Factura del proveedor ──────── */}
+      {tab === "bultos" && (
+        <DataTable
+          title="Bultos recepcionados"
+          data={bultosList}
+          defaultRowsPerPage={25}
+          emptyMessage="Esta orden todavía no generó bultos."
+          getSearchText={(b) =>
+            [b?.identificador, b?.id, b?.materiaPrima?.nombre, b?.lote?.identificador_proveedor,
+             b?.pallet?.identificador].filter(Boolean).join(" ")
+          }
+          initialSort={{ key: "identificador", direction: "asc" }}
+          columns={[
+            {
+              header: "Bulto",
+              accessor: "identificador",
+              sortable: true,
+              Cell: ({ row: b }) => (
+                <>
+                  <div className="font-medium">{b.identificador || `#${b.id}`}</div>
+                  <div className="text-xs text-gray-500">ID: {b.id}</div>
+                </>
+              ),
+            },
+            {
+              header: "Item",
+              accessor: "item",
+              sortable: true,
+              sortValue: (b) => b?.materiaPrima?.nombre ?? "",
+              Cell: ({ row: b }) => b.materiaPrima?.nombre || "—",
+            },
+            {
+              header: "Cantidad",
+              accessor: "cantidad_unidades",
+              sortable: true,
+              Cell: ({ row: b }) => (
+                <>
+                  <div className="font-medium">{b.cantidad_unidades ?? "—"} un.</div>
+                  {b.peso_unitario ? (
+                    <div className="text-xs text-gray-500">
+                      {(Number(b.cantidad_unidades || 0) * Number(b.peso_unitario || 0)).toFixed(2)}{" "}
+                      {b.materiaPrima?.unidad_medida || ""}
+                    </div>
+                  ) : null}
+                </>
+              ),
+            },
+            {
+              header: "Disponible",
+              accessor: "unidades_disponibles",
+              sortable: true,
+              Cell: ({ row: b }) => (
+                <>
+                  <div className="font-medium">{b.unidades_disponibles ?? "—"} un.</div>
+                  {b.peso_unitario ? (
+                    <div className="text-xs text-gray-500">
+                      {(Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0)).toFixed(2)}{" "}
+                      {b.materiaPrima?.unidad_medida || ""}
+                    </div>
+                  ) : null}
+                </>
+              ),
+            },
+            {
+              header: "Lote proveedor",
+              accessor: "lote",
+              sortValue: (b) => b?.lote?.identificador_proveedor ?? "",
+              sortable: true,
+              Cell: ({ row: b }) => b.lote?.identificador_proveedor || "—",
+            },
+            {
+              header: "Pallet",
+              accessor: "pallet",
+              sortValue: (b) => b?.pallet?.identificador ?? b?.id_pallet ?? "",
+              sortable: true,
+              Cell: ({ row: b }) => b.pallet?.identificador || (b.id_pallet ?? "—"),
+            },
+            {
+              header: "Costo",
+              accessor: "costo_unitario",
+              sortable: true,
+              Cell: ({ row: b }) => (
+                <>
+                  <div>Unit: {b.costo_unitario ? formatCLP(b.costo_unitario, 0) : "—"}</div>
+                  <div className="font-medium">
+                    Total:{" "}
+                    {b.costo_unitario
+                      ? formatCLP(Number(b.costo_unitario) * Number(b.cantidad_unidades || 0), 0)
+                      : "—"}
+                  </div>
+                </>
+              ),
+            },
+          ]}
+        />
+      )}
+
+      {tab === "documentos" && (
+        <div className="space-y-6">
       <DTERecibidoPanel ordenId={ordenId} orden={orden} />
+        </div>
+      )}
+
 
       {/* Las acciones de la orden viven en el PanelAcciones de la cabecera. Estaban acá
           abajo, después de la tabla de bultos y del panel de DTE: para pagar una orden
@@ -908,78 +963,12 @@ export default function OrdenDetail() {
         </div>
       )}
 
-      {showHistorial && (
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold mb-3 text-gray-800 text-center">
-            Historial de Estados
-          </h2>
-
-          {historial.length > 0 ? (
-            <table className="min-w-full border border-gray-300 border-collapse divide-y divide-gray-300 divide-x text-sm bg-white rounded-lg shadow-sm">
-              <thead className="bg-gray-100 text-gray-700">
-                <tr>
-                  <th className="p-2 border">Fecha de Cambio</th>
-                  <th className="p-2 border">ID Cambio</th>
-                  <th className="p-2 border">Acción</th>
-                  <th className="p-2 border">Qué cambió</th>
-                  <th className="p-2 border">Antes</th>
-                  <th className="p-2 border">Después</th>
-                  <th className="p-2 border">Usuario</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historial.flatMap((h, idx) => {
-                  const cambios = h?.cambios || {};
-                  const omitidos = new Set(["created_by", "updated_by", "archivos"]);
-                  const entries = Object.entries(cambios).filter(
-                    ([campo]) => !omitidos.has(campo)
-                  );
-                  const rows = entries.length > 0 ? entries : [["—", { before: "—", after: "—" }]];
-
-                  return rows.map(([campo, valores], cambioIdx) => {
-                    // Sin formatear, un valor que sea array u objeto (recepciones,
-                    // numero_factura) rompe el render y deja la página en blanco.
-                    const before = formatValorCambio(valores?.before);
-                    const after = formatValorCambio(valores?.after);
-                    return (
-                      <tr
-                        key={`${idx}-${campo}-${cambioIdx}`}
-                        className={`border-b ${ (idx + cambioIdx) % 2 === 0 ? "bg-white" : "bg-gray-50" }`}
-                      >
-                        <td className="p-2 border text-center text-gray-800">
-                          {formatFechaCambio(h)}
-                        </td>
-                        <td className="p-2 border text-center text-gray-800">
-                          {h.id ?? "—"}
-                        </td>
-                        <td className="p-2 border text-center text-gray-700">
-                          {h.accion || "—"}
-                        </td>
-                        <td className="p-2 border text-center text-gray-700">
-                          {campo}
-                        </td>
-                        <td className="p-2 border text-center text-gray-700">
-                          {before}
-                        </td>
-                        <td className="p-2 border text-center text-gray-700">
-                          {after}
-                        </td>
-                        <td className="p-2 border text-center text-gray-700">
-                          {formatValorCambio(h.usuario?.nombre ?? h.usuario)}
-                        </td>
-                      </tr>
-                    );
-                  });
-                })}
-              </tbody>
-            </table>
-          ) : (
-            <p className="text-gray-600 text-center italic mt-2">
-              No hay historial disponible para esta solicitud.
-            </p>
-          )}
-        </div>
-      )}
+      <HistorialCambiosModal
+        abierto={showHistorial}
+        onCerrar={() => setshowHistorial(false)}
+        historial={historial}
+        formatFecha={formatFechaCambio}
+      />
 
 
     </div>
