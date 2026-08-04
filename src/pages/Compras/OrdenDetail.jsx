@@ -736,88 +736,92 @@ export default function OrdenDetail() {
           defaultRowsPerPage={25}
           emptyMessage="Esta orden todavía no generó bultos."
           getSearchText={(b) =>
-            [b?.identificador, b?.id, b?.materiaPrima?.nombre, b?.lote?.identificador_proveedor,
-             b?.pallet?.identificador].filter(Boolean).join(" ")
+            [b?.identificador, b?.id, b?.materiaPrima?.nombre, b?.lote?.identificador_proveedor]
+              .filter(Boolean)
+              .join(" ")
           }
           initialSort={{ key: "identificador", direction: "asc" }}
           columns={[
             {
               header: "Bulto",
               accessor: "identificador",
+              cellClassName: "!px-3",
+              headerClassName: "!px-3",
               sortable: true,
               Cell: ({ row: b }) => (
-                <>
-                  <div className="font-medium">{b.identificador || `#${b.id}`}</div>
-                  <div className="text-xs text-gray-500">ID: {b.id}</div>
-                </>
+                <span className="font-medium">{b.identificador || `#${b.id}`}</span>
               ),
             },
             {
+              // `Table` pone whitespace-nowrap en todas las celdas: sin acotar acá, un nombre
+              // largo se lleva media tabla y aparece el deslizante horizontal.
               header: "Item",
               accessor: "item",
               sortable: true,
               sortValue: (b) => b?.materiaPrima?.nombre ?? "",
+              cellClassName: "!whitespace-normal !px-3 max-w-[11rem] lg:max-w-[15rem] xl:max-w-[20rem]",
+              headerClassName: "!px-3",
               Cell: ({ row: b }) => b.materiaPrima?.nombre || "—",
             },
             {
-              header: "Cantidad",
-              accessor: "cantidad_unidades",
-              sortable: true,
-              Cell: ({ row: b }) => (
-                <>
-                  <div className="font-medium">{b.cantidad_unidades ?? "—"} un.</div>
-                  {b.peso_unitario ? (
-                    <div className="text-xs text-gray-500">
-                      {(Number(b.cantidad_unidades || 0) * Number(b.peso_unitario || 0)).toFixed(2)}{" "}
-                      {b.materiaPrima?.unidad_medida || ""}
-                    </div>
-                  ) : null}
-                </>
-              ),
-            },
-            {
+              // Antes eran dos columnas, «Cantidad» y «Disponible», con el peso repetido
+              // debajo de cada una. Lo que se quiere saber es cuánto queda de cuánto llegó.
               header: "Disponible",
               accessor: "unidades_disponibles",
+              cellClassName: "!px-3",
+              headerClassName: "!px-3",
               sortable: true,
-              Cell: ({ row: b }) => (
-                <>
-                  <div className="font-medium">{b.unidades_disponibles ?? "—"} un.</div>
-                  {b.peso_unitario ? (
-                    <div className="text-xs text-gray-500">
-                      {(Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0)).toFixed(2)}{" "}
-                      {b.materiaPrima?.unidad_medida || ""}
+              Cell: ({ row: b }) => {
+                const total = Number(b.cantidad_unidades || 0);
+                const quedan = Number(b.unidades_disponibles || 0);
+                const peso = Number(b.peso_unitario || 0);
+                const unidad = b.materiaPrima?.unidad_medida || "";
+                // Con peso unitario 1 la línea de abajo repite la de arriba («1 / 1 un.» y
+                // «1.00 de 1.00 unidades»). Sólo aporta cuando el bulto pesa kg o litros.
+                const aportaElPeso = peso > 0 && peso !== 1;
+                return (
+                  <>
+                    <div className="font-medium">
+                      {b.unidades_disponibles ?? "—"}
+                      <span className="text-gray-500 font-normal"> / {b.cantidad_unidades ?? "—"} un.</span>
                     </div>
-                  ) : null}
-                </>
-              ),
+                    {aportaElPeso ? (
+                      <div className="text-xs text-gray-500">
+                        {(quedan * peso).toFixed(2)} de {(total * peso).toFixed(2)} {unidad}
+                      </div>
+                    ) : null}
+                  </>
+                );
+              },
             },
             {
               header: "Lote proveedor",
               accessor: "lote",
+              cellClassName: "!px-3",
+              headerClassName: "!px-3",
               sortValue: (b) => b?.lote?.identificador_proveedor ?? "",
               sortable: true,
               Cell: ({ row: b }) => b.lote?.identificador_proveedor || "—",
             },
             {
-              header: "Pallet",
-              accessor: "pallet",
-              sortValue: (b) => b?.pallet?.identificador ?? b?.id_pallet ?? "",
-              sortable: true,
-              Cell: ({ row: b }) => b.pallet?.identificador || (b.id_pallet ?? "—"),
-            },
-            {
               header: "Costo",
               accessor: "costo_unitario",
+              cellClassName: "!px-3",
+              headerClassName: "!px-3",
               sortable: true,
+              align: "right",
               Cell: ({ row: b }) => (
                 <>
-                  <div>Unit: {b.costo_unitario ? formatCLP(b.costo_unitario, 0) : "—"}</div>
                   <div className="font-medium">
-                    Total:{" "}
                     {b.costo_unitario
                       ? formatCLP(Number(b.costo_unitario) * Number(b.cantidad_unidades || 0), 0)
                       : "—"}
                   </div>
+                  {b.costo_unitario ? (
+                    <div className="text-xs text-gray-500">
+                      {formatCLP(b.costo_unitario, 0)} c/u
+                    </div>
+                  ) : null}
                 </>
               ),
             },
