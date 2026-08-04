@@ -14,7 +14,7 @@ import { formatValorCambio } from "../../utils/formatValorCambio";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import DTERecibidoPanel from "../../components/DTE/DTERecibidoPanel.jsx";
-import { formatCLP } from "../../services/formatHelpers";
+import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import DataTable from "../../components/Tables/DataTable";
 import AvanceItems from "../../components/AvanceItems";
 
@@ -766,33 +766,46 @@ export default function OrdenDetail() {
             {
               // Antes eran dos columnas, «Cantidad» y «Disponible», con el peso repetido
               // debajo de cada una. Lo que se quiere saber es cuánto queda de cuánto llegó.
+              // Mismo formato que la vista de Inventario, que es la canonica para bultos:
+              // el numero grande es el CONTENIDO (bultos x formato) en la unidad del insumo,
+              // y entre parentesis cuantos bultos de cuantos quedan.
+              //
+              // Antes el grande era el conteo de bultos con "un." detras y debajo el
+              // contenido tambien con "unidades": la misma palabra para dos cosas distintas.
+              header: "Formato",
+              accessor: "peso_unitario",
+              cellClassName: "!px-3",
+              headerClassName: "!px-3",
+              sortable: true,
+              Cell: ({ row: b }) => (
+                <>
+                  {formatNumberCL(b.peso_unitario, 2)}{" "}
+                  <span className="text-gray-500">{b.materiaPrima?.unidad_medida || ""}</span>
+                </>
+              ),
+            },
+            {
               header: "Disponible",
               accessor: "unidades_disponibles",
               cellClassName: "!px-3",
               headerClassName: "!px-3",
               sortable: true,
-              Cell: ({ row: b }) => {
-                const total = Number(b.cantidad_unidades || 0);
-                const quedan = Number(b.unidades_disponibles || 0);
-                const peso = Number(b.peso_unitario || 0);
-                const unidad = b.materiaPrima?.unidad_medida || "";
-                // Con peso unitario 1 la línea de abajo repite la de arriba («1 / 1 un.» y
-                // «1.00 de 1.00 unidades»). Sólo aporta cuando el bulto pesa kg o litros.
-                const aportaElPeso = peso > 0 && peso !== 1;
-                return (
-                  <>
-                    <div className="font-medium">
-                      {b.unidades_disponibles ?? "—"}
-                      <span className="text-gray-500 font-normal"> / {b.cantidad_unidades ?? "—"} un.</span>
-                    </div>
-                    {aportaElPeso ? (
-                      <div className="text-xs text-gray-500">
-                        {(quedan * peso).toFixed(2)} de {(total * peso).toFixed(2)} {unidad}
-                      </div>
-                    ) : null}
-                  </>
-                );
-              },
+              sortValue: (b) =>
+                Number(b?.unidades_disponibles || 0) * Number(b?.peso_unitario || 0),
+              Cell: ({ row: b }) => (
+                <>
+                  <div className="font-medium">
+                    {formatNumberCL(
+                      Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0),
+                      2,
+                    )}{" "}
+                    {b.materiaPrima?.unidad_medida || ""}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    ({b.unidades_disponibles ?? "—"}/{b.cantidad_unidades ?? "—"} bultos)
+                  </div>
+                </>
+              ),
             },
             {
               header: "Lote proveedor",
