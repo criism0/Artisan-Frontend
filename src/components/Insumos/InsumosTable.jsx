@@ -28,6 +28,10 @@ export default function InsumosTable({
   const lastAddSignal = useRef(addSignal);
   const lastImportSignal = useRef(importSignal);
   const didInitFromPropsRef = useRef(false);
+  // Ids con una petición de formatos en curso. Va en un ref y no en estado porque la guarda
+  // tiene que ser síncrona: `formatosByMateriaPrimaId` recién existe en el render siguiente,
+  // así que mientras la respuesta viaja no protege nada y la fila se vuelve a pedir sola.
+  const formatosEnVuelo = useRef(new Set());
   const api = useApi();
 
   const normalizeInventario = (response) => {
@@ -218,7 +222,9 @@ export default function InsumosTable({
     const idStr = String(idMateriaPrima);
     if (!idStr) return;
     if (Object.prototype.hasOwnProperty.call(formatosByMateriaPrimaId, idStr)) return;
+    if (formatosEnVuelo.current.has(idStr)) return;
 
+    formatosEnVuelo.current.add(idStr);
     try {
       const data = await api(
         `/proveedor-materia-prima/por-materia-prima?id_materia_prima=${encodeURIComponent(idStr)}`
@@ -274,6 +280,8 @@ export default function InsumosTable({
     } catch (e) {
       console.error('Error fetching formatos por materia prima:', e);
       setFormatosByMateriaPrimaId((prev) => ({ ...prev, [idStr]: [] }));
+    } finally {
+      formatosEnVuelo.current.delete(idStr);
     }
   };
 
@@ -547,16 +555,21 @@ export default function InsumosTable({
     }
   }, [addSignal, isAddDisabled]);
 
+  // Qué insumos hay elegidos hoy. Se compara por su texto para que el efecto de abajo sólo
+  // corra cuando cambia el CONJUNTO, y no en cada tecleo de una cantidad o un comentario.
+  const idsInsumosElegidos = useMemo(
+    () => Array.from(new Set(articulos.map((a) => a?.id_articulo).filter(Boolean))).sort().join(','),
+    [articulos]
+  );
+
   // Cargar formatos para las filas existentes
   useEffect(() => {
-    const uniqueIds = Array.from(
-      new Set(articulos.map((a) => a?.id_articulo).filter(Boolean))
-    );
-    uniqueIds.forEach((id) => {
+    if (!idsInsumosElegidos) return;
+    idsInsumosElegidos.split(',').forEach((id) => {
       fetchFormatosIfNeeded(id);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [articulos, opcionesInsumos]);
+  }, [idsInsumosElegidos, opcionesInsumos]);
 
   // Inferir formato/cantidad desde cantidad base precargada una vez que existan formatos
   useEffect(() => {
