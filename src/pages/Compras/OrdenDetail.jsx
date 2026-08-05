@@ -790,22 +790,26 @@ export default function OrdenDetail() {
               cellClassName: "!px-3",
               headerClassName: "!px-3",
               sortable: true,
-              sortValue: (b) =>
-                Number(b?.unidades_disponibles || 0) * Number(b?.peso_unitario || 0),
-              Cell: ({ row: b }) => (
-                <>
+              // `cantidad_unidades` es la cantidad INICIAL del bulto: se fija al
+              // recepcionarlo y no vuelve a moverse — la edición administrativa incluso
+              // valida que `unidades_disponibles` nunca la supere. `unidades_disponibles`
+              // es lo que va quedando. Así que «queda de cuánto vino» se lee directo.
+              sortValue: (b) => Number(b?.unidades_disponibles || 0),
+              Cell: ({ row: b }) => {
+                const quedan = Number(b.unidades_disponibles ?? 0);
+                const inicial = Number(b.cantidad_unidades ?? 0);
+                const consumido = inicial > 0 && quedan < inicial;
+                return (
                   <div className="font-medium">
-                    {formatNumberCL(
-                      Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0),
-                      2,
-                    )}{" "}
-                    {b.materiaPrima?.unidad_medida || ""}
+                    <span className={consumido ? "text-amber-700" : undefined}>
+                      {formatNumberCL(quedan, 2)}
+                    </span>
+                    <span className="text-gray-500 font-normal">
+                      {" "}/ {formatNumberCL(inicial, 2)}
+                    </span>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    ({b.unidades_disponibles ?? "—"}/{b.cantidad_unidades ?? "—"} bultos)
-                  </div>
-                </>
-              ),
+                );
+              },
             },
             {
               header: "Lote proveedor",
