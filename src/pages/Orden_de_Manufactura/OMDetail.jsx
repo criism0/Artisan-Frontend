@@ -18,7 +18,8 @@ import HistorialPasosModal from "../../components/OrdenDeManufactura/HistorialPa
 import HistorialBultosModal from "../../components/OrdenDeManufactura/HistorialBultosModal";
 import HistorialCostosModal from "../../components/OrdenDeManufactura/HistorialCostosModal";
 import ModalAnalisisSensorial from "../../components/AnalisisSensorial/ModalRegistro";
-import TabButton from "../../components/Wizard/TabButton";
+import Tabs from "../../components/UI/Tabs.jsx";
+import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
 import { useApi } from "../../lib/api";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
@@ -377,6 +378,61 @@ export default function OMDetail() {
     return ["esperando salidas", "esperando pvas", "cerrada"].includes(normalized);
   })();
 
+  // ── Acciones de la OM ───────────────────────────────────────────────────────────────────
+  //
+  // El flujo real, leído de los controladores:
+  //
+  //   Borrador ──asignar insumos──> Insumos Asignados ──1er paso──> En ejecución
+  //                                        │                             │
+  //                     (si no hay pasos) ─┴──> Esperando Salidas <───────┘ (último paso)
+  //                                                     │
+  //                                          producción final (cerrarOrden)
+  //                                                     ├──> Esperando PVAs ──> Cerrada
+  //                                                     └──> Cerrada  (si no hay PVAs)
+  //
+  // ⚠️ Las guardas anteriores mezclaban dos máquinas de estado distintas: pedían que la OM
+  // estuviera en 'Validada' o 'Completado', que son estados de un PASO
+  // (RegistroPasoProduccion), no de la orden. `OMStatesType` no los tiene, así que esas
+  // condiciones nunca podían ser verdaderas y sólo confundían al leer el código.
+  const puedeEjecutarPasos =
+    hasPasos && ["Insumos Asignados", "En ejecución"].includes(estado);
+  const puedeCerrar =
+    estado === "Esperando Salidas" || (!hasPasos && estado === "Insumos Asignados");
+
+  const irA = (ruta) => () => navigate(`/Orden_de_Manufactura/${id}/${ruta}`);
+
+  const accionPrincipal =
+    estado === "Borrador" && !insumosAsignados && tieneRegistrosInsumo
+      ? { label: "Asignar insumos", onClick: irA("insumos") }
+      : puedeEjecutarPasos
+        ? { label: estado === "En ejecución" ? "Continuar pasos" : "Ejecutar pasos", onClick: irA("pasos") }
+        : puedeCerrar
+          ? { label: "Producción final", onClick: irA("produccion-final") }
+          : null;
+
+  const accionesSecundarias = [
+    estado === "Borrador" &&
+      !editandoCantidad && {
+        label: "Modificar cantidad",
+        onClick: () => {
+          setNuevaCantidad(String(om?.peso_objetivo ?? ""));
+          setEditandoCantidad(true);
+        },
+      },
+    estado === "Esperando Salidas" &&
+      subproductos.length > 0 && {
+        label: "Verificar subproductos",
+        onClick: irA("subproductos-decision"),
+      },
+    analisisSensorialStatus?.requiere_analisis &&
+      puedeMostrarAnalisisSensorialPorEstado && {
+        label: analisisSensorialStatus.analisis_completado
+          ? "Análisis de calidad"
+          : "Análisis de calidad · pendiente",
+        onClick: () => setShowModalAnalisisSensorial(true),
+      },
+  ].filter(Boolean);
+
   const pesoObjetivo = Number(om?.peso_objetivo || 0);
   const pesoObtenido = Number(om?.peso_obtenido || 0);
   const pesoSubproductos = (Array.isArray(subproductos) ? subproductos : [])
@@ -509,128 +565,55 @@ export default function OMDetail() {
         </div>
       </div>
 
-      {/* Acciones de la OM (siempre visibles, sobre los tabs) */}
-      <div className="mb-6 flex flex-wrap gap-3 items-center">
-        {estado === "Borrador" &&
-          (editandoCantidad ? (
-            <div className="flex items-center gap-2 bg-white border border-border rounded-lg px-3 py-2 shadow">
-              <label className="text-sm font-medium text-text">Cantidad objetivo:</label>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={nuevaCantidad}
-                onChange={(e) => setNuevaCantidad(e.target.value)}
-                className="w-28 border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                autoFocus
-              />
-              <button
-                className="px-3 py-1 bg-primary text-white rounded hover:bg-hover text-sm font-medium disabled:opacity-60"
-                onClick={handleGuardarCantidad}
-                disabled={guardandoCantidad}
-              >
-                {guardandoCantidad ? "Guardando…" : "Guardar"}
-              </button>
-              <button
-                className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
-                onClick={() => setEditandoCantidad(false)}
-                disabled={guardandoCantidad}
-              >
-                Cancelar
-              </button>
-            </div>
-          ) : (
-            <button
-              className="px-4 py-2 bg-white border border-border text-text rounded-lg hover:bg-gray-100 font-medium shadow flex items-center gap-2"
-              onClick={() => {
-                setNuevaCantidad(String(om?.peso_objetivo ?? ""));
-                setEditandoCantidad(true);
-              }}
-            >
-              <Pencil size={16} /> Modificar cantidad
-            </button>
-          ))}
-
-        {estado === "Borrador" && !insumosAsignados && tieneRegistrosInsumo && (
-          <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium shadow flex items-center gap-2"
-            onClick={() => navigate(`/Orden_de_Manufactura/${id}/insumos`)}
-          >
-            <ArrowRight className="w-4 h-4" /> Asignar Insumos
-          </button>
-        )}
-
-        {(hasPasos && (insumosAsignados || [
-          "Insumos Asignados",
-          "En ejecución",
-          "Validada",
-          "Completado",
-          "Esperando Salidas",
-        ].includes(estado)) && !["Cerrada", "Esperando PVAs"].includes(estado)) && (
-            <button
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium shadow flex items-center gap-2"
-              onClick={() => navigate(`/Orden_de_Manufactura/${id}/pasos`)}
-            >
-              <Play className="w-4 h-4" /> Ejecutar Pasos
-            </button>
-          )}
-
-        {["Esperando Salidas"].includes(estado) && subproductos.length > 0 && (
-          <button
-            className="px-4 py-2 bg-yellow-400 text-yellow-700 rounded-lg hover:bg-yellow-500 font-medium shadow flex items-center gap-2"
-            onClick={() =>
-              navigate(`/Orden_de_Manufactura/${id}/subproductos-decision`)
-            }
-          >
-            <AlertTriangle className="w-4 h-4" /> Verificar Subproductos
-          </button>
-        )}
-
-        {(
-          ["Completado", "Esperando Salidas"].includes(estado) ||
-          (!hasPasos && estado === "Insumos Asignados")
-        ) && (
-          <button
-            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium shadow flex items-center gap-2"
-            onClick={() =>
-              navigate(`/Orden_de_Manufactura/${id}/produccion-final`)
-            }
-          >
-            <Check className="w-4 h-4" /> Producción Final
-          </button>
-        )}
-
-        {analisisSensorialStatus?.requiere_analisis && puedeMostrarAnalisisSensorialPorEstado && (
-          <button
-            onClick={() => setShowModalAnalisisSensorial(true)}
-            className={`px-4 py-2 rounded-lg font-medium shadow flex items-center gap-2 transition-colors ${
-              analisisSensorialStatus.analisis_completado
-                ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300'
-                : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border border-yellow-300'
-            }`}
-          >
-            <ClipboardPen className="w-4 h-4" /> Análisis de Calidad
-            {!analisisSensorialStatus.analisis_completado && (
-              <span className="ml-2 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
-                Pendiente
-              </span>
-            )}
-          </button>
-        )}
+      {/* Acciones de la OM, en el panel estándar y sobre las pestañas. Antes eran seis
+          botones sueltos de cinco colores distintos —blanco, primary, azul, amarillo,
+          verde— sin decir cuál correspondía al estado actual. */}
+      <div className="mb-6 flex flex-wrap justify-end">
+        <PanelAcciones principal={accionPrincipal} secundarias={accionesSecundarias} />
       </div>
 
-      {/* Tabs (mismo patrón que el detalle de producto/PIP) */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-2 flex flex-wrap gap-2 mb-6">
-        <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>Datos generales</TabButton>
-        <TabButton active={tab === "bultos"} onClick={() => setTab("bultos")}>
-          Bultos creados{(bultosAsociados || []).length > 0 ? ` (${bultosAsociados.length})` : ""}
-        </TabButton>
-        <TabButton active={tab === "costos"} onClick={() => setTab("costos")}>Historial de costos</TabButton>
-        <TabButton active={tab === "pasos"} onClick={() => setTab("pasos")}>Pasos</TabButton>
-        <TabButton active={tab === "salidas"} onClick={() => setTab("salidas")}>
-          Subproductos y rendimiento
-        </TabButton>
-      </div>
+      {/* El editor de cantidad se abre desde el panel y aparece acá, en vez de vivir
+          permanentemente dentro de la barra de acciones. */}
+      {estado === "Borrador" && editandoCantidad && (
+        <div className="mb-6 flex flex-wrap items-center gap-2 bg-white border border-border rounded-lg px-3 py-2 shadow">
+          <label className="text-sm font-medium text-text">Cantidad objetivo:</label>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            value={nuevaCantidad}
+            onChange={(e) => setNuevaCantidad(e.target.value)}
+            className="w-28 border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            autoFocus
+          />
+          <button
+            className="px-3 py-1 bg-primary text-white rounded hover:bg-hover text-sm font-medium disabled:opacity-60"
+            onClick={handleGuardarCantidad}
+            disabled={guardandoCantidad}
+          >
+            {guardandoCantidad ? "Guardando…" : "Guardar"}
+          </button>
+          <button
+            className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+            onClick={() => setEditandoCantidad(false)}
+            disabled={guardandoCantidad}
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      <Tabs
+        activa={tab}
+        onCambiar={setTab}
+        pestanas={[
+          { id: "datos", label: "Datos generales" },
+          { id: "bultos", label: "Bultos creados", cantidad: (bultosAsociados || []).length },
+          { id: "costos", label: "Historial de costos" },
+          { id: "pasos", label: "Pasos" },
+          { id: "salidas", label: "Subproductos y rendimiento" },
+        ]}
+      />
 
       {tab === "salidas" && !esPostCierre ? (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6 text-sm text-gray-600">

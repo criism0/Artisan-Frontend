@@ -1,6 +1,9 @@
 import { useNavigate, useParams } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
+import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
+import Tabs from "../../components/UI/Tabs.jsx";
+import HistorialCambiosModal from "../../components/Compras/HistorialCambiosModal.jsx";
 // jsPDF y su plugin de tablas pesan ~460 KB juntos y sólo hacen falta al apretar
 // "Descargar PDF". Importados arriba viajaban con la vista entera; acá bajan cuando se piden.
 import logo from "../../assets/logo.png";
@@ -11,7 +14,8 @@ import { formatValorCambio } from "../../utils/formatValorCambio";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import DTERecibidoPanel from "../../components/DTE/DTERecibidoPanel.jsx";
-import { formatCLP } from "../../services/formatHelpers";
+import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
+import DataTable from "../../components/Tables/DataTable";
 import AvanceItems from "../../components/AvanceItems";
 
 export default function OrdenDetail() {
@@ -25,6 +29,7 @@ export default function OrdenDetail() {
   const [nuevosArchivos, setNuevosArchivos] = useState([]);
   const [subiendoArchivos, setSubiendoArchivos] = useState(false);
   const [mostrarModalArchivos, setMostrarModalArchivos] = useState(false);
+  const [tab, setTab] = useState("datos");
   const navigate = useNavigate();
 
   const canWritePurchaseOrder = checkScope(ModelType.ORDEN_COMPRA, ScopeType.WRITE);
@@ -330,12 +335,7 @@ export default function OrdenDetail() {
     }
   };
 
-  const handleVerDetalle = async () => {
-    if (showHistorial) {
-      setshowHistorial(false);
-      return;
-    }
-    
+  const handleVerHistorial = async () => {
     try {
       const data = await api(`/proceso-compra/ordenes/${ordenId}/historial`, { method: "GET" });
       setHistorial(data ?? []);
@@ -343,6 +343,21 @@ export default function OrdenDetail() {
 
     } catch (error) {
       toast.error(`Error al obtener el historial de la solicitud: ${error.message}`);
+    }
+  };
+
+  // Las acciones que mueven el estado vivían sólo en la lista (`Ordenes.jsx`), dentro de la
+  // fila de la tabla: para validar o recepcionar había que salir del detalle y volver atrás.
+  const ejecutarTransicion = async (ruta, exito) => {
+    setLoading(true);
+    try {
+      await api(`/proceso-compra/ordenes/${ordenId}/${ruta}`, { method: "PUT" });
+      setOrden(await api(`/proceso-compra/ordenes/${ordenId}`));
+      toast.success(exito);
+    } catch (error) {
+      toast.error(error?.message || "No se pudo completar la acción");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -368,16 +383,113 @@ export default function OrdenDetail() {
     return acc + (costoUnitario * unidades);
   }, 0);
 
+  // ── Acciones de la orden ────────────────────────────────────────────────────────────────
+  //
+  // El flujo real de una OC es Creada → Validada → Recepcionada, con una parada intermedia
+  // en «Parcialmente recepcionada» cuando llega sólo una parte. `retroceder` deshace un paso.
+  //
+  // ⚠️ El pago es un EJE APARTE, no una etapa: `pagada` es un booleano que se mueve en
+  // cualquier momento. En producción hay órdenes Validadas ya pagadas y Creadas ya pagadas,
+  // así que Pagar no puede colgar del estado. (El ENUM declara además 'Pagada', 'Rechazada'
+  // y 'En tránsito', que en producción no tiene ninguna orden.)
+  const enFlujo = {
+    Creada: {
+      label: "Validar orden",
+      onClick: () => ejecutarTransicion("validar", "Orden validada"),
+      confirmar: {
+        titulo: "¿Validar esta orden de compra?",
+        mensaje: "Queda lista para recepcionar y se le avisa al proveedor.",
+        textoBoton: "Validar",
+      },
+    },
+    Validada: {
+      label: "Recepcionar",
+      onClick: () => navigate(`/Ordenes/recepcionar/${orden.id}`),
+    },
+    "Parcialmente recepcionada": {
+      label: "Recepcionar lo que falta",
+      onClick: () => navigate(`/Ordenes/recepcionar/${orden.id}`),
+    },
+  };
+  const accionPrincipal = canWritePurchaseOrder ? enFlujo[orden.estado] ?? null : null;
+
+  const accionesSecundarias = [
+    canWritePurchaseOrder && {
+      label: orden.pagada ? "Revertir pago" : "Marcar como pagada",
+      onClick: orden.pagada
+        ? () => ejecutarTransicion("revertir-pago", "Pago revertido")
+        : handlePagar,
+      disabled: loading,
+      confirmar: orden.pagada
+        ? { titulo: "¿Revertir el pago?", textoBoton: "Revertir" }
+        : null,
+    },
+    orden.estado === "Creada" &&
+      canWritePurchaseOrder && {
+        label: "Editar",
+        onClick: () => navigate(`/Ordenes/edit/${orden.id}`),
+      },
+    { label: "Descargar PDF", onClick: handleDownloadPDF },
+    orden.bultos?.length > 0 && {
+      label: "Descargar etiquetas",
+      onClick: handleDownloadEtiquetas,
+    },
+    {
+      // Antes decía «Ver Detalle» estando ya en el detalle, y desplegaba una tabla al final
+      // de la página sin avisar que algo había aparecido. Ahora abre un modal.
+      label: "Historial de cambios",
+      onClick: handleVerHistorial,
+    },
+    { label: "Adjuntar archivos", onClick: () => setMostrarModalArchivos(true) },
+  ].filter(Boolean);
+
+  const accionesDestructivas = [
+    orden.estado !== "Creada" &&
+      canWritePurchaseOrder && {
+        label: "Retroceder estado",
+        onClick: () => ejecutarTransicion("retroceder", "Orden retrocedida"),
+        confirmar: {
+          titulo: "¿Retroceder la orden un paso?",
+          mensaje:
+            orden.estado === "Validada"
+              ? "Vuelve a «Creada» y se podrá editar de nuevo."
+              : "Vuelve a «Validada» y se eliminan los bultos que generó la recepción.",
+          textoBoton: "Retroceder",
+        },
+      },
+  ].filter(Boolean);
+
   return (
     <div>
       <div className="mb-4">
         <BackButton to="/Ordenes" />
       </div>
 
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
         <h1 className="text-2xl font-bold text-text">Detalle de compra: {orden.id}</h1>
+        <PanelAcciones
+          principal={accionPrincipal}
+          secundarias={accionesSecundarias}
+          destructivas={accionesDestructivas}
+        />
       </div>
 
+
+      {/* La vista era una sola columna: información, insumos anidados dentro de una fila
+          de esa tabla, bultos y documentos, uno tras otro. Con muchos bultos el scroll se
+          volvía enorme y no se podía saltar a lo que uno viene a mirar. */}
+      <Tabs
+        activa={tab}
+        onCambiar={setTab}
+        pestanas={[
+          { id: "datos", label: "Datos de la orden" },
+          { id: "insumos", label: "Insumos", cantidad: (orden.materiasPrimas || []).length, deshabilitadaSiVacia: true },
+          { id: "bultos", label: "Bultos", cantidad: bultosList.length, deshabilitadaSiVacia: true },
+          { id: "documentos", label: "Documentos" },
+        ]}
+      />
+
+      {tab === "datos" && (
       <div className="bg-gray-200 p-4 rounded-lg">
         <table className="w-full bg-white rounded-lg shadow overflow-hidden">
           
@@ -534,9 +646,13 @@ export default function OrdenDetail() {
               </td>
             </tr>
 
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text align-top">Insumos</td>
-              <td className="px-6 py-4">
+            </tbody>
+        </table>
+      </div>
+      )}
+
+      {tab === "insumos" && (
+        <div className="bg-gray-200 p-4 rounded-lg">
                 {orden.materiasPrimas?.length > 0 && (
                   <div className="p-4 rounded-lg">
 
@@ -610,125 +726,136 @@ export default function OrdenDetail() {
                   </table>
                 </div>
                 )}
-              </td>
-            </tr>
-            </tbody>
-        </table>
-      </div>
-
-      {orden.bultos?.length > 0 && (
-        <div className="bg-gray-200 p-4 rounded-lg mt-6">
-          <h2 className="text-xl font-semibold text-text mb-2">Bultos</h2>
-          <table className="w-full bg-white rounded-lg shadow overflow-hidden">
-            <thead className="bg-gray-100 text-sm text-gray-600">
-              <tr>
-                <th className="px-6 py-3 text-left">Bulto</th>
-                <th className="px-6 py-3 text-left">Item</th>
-                <th className="px-6 py-3 text-left">Cantidad</th>
-                <th className="px-6 py-3 text-left">Disponible</th>
-                <th className="px-6 py-3 text-left">Lote proveedor</th>
-                <th className="px-6 py-3 text-left">Pallet</th>
-                <th className="px-6 py-3 text-left">Costo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orden.bultos.map((bulto, idx) => (
-                <tr key={idx} className="border-t border-border">
-                  <td className="px-6 py-4 text-sm">
-                    <div className="font-medium">{bulto.identificador || `#${bulto.id}`}</div>
-                    <div className="text-xs text-gray-500">ID: {bulto.id}</div>
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    {bulto.materiaPrima?.nombre || "—"}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="font-medium">{bulto.cantidad_unidades ?? "—"} un.</div>
-                    {bulto.peso_unitario ? (
-                      <div className="text-xs text-gray-500">
-                        {(Number(bulto.cantidad_unidades || 0) * Number(bulto.peso_unitario || 0)).toFixed(2)} {bulto.materiaPrima?.unidad_medida || ""}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div className="font-medium">{bulto.unidades_disponibles ?? "—"} un.</div>
-                    {bulto.peso_unitario ? (
-                      <div className="text-xs text-gray-500">
-                        {(Number(bulto.unidades_disponibles || 0) * Number(bulto.peso_unitario || 0)).toFixed(2)} {bulto.materiaPrima?.unidad_medida || ""}
-                      </div>
-                    ) : null}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    {bulto.lote?.identificador_proveedor || "—"}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    {bulto.pallet?.identificador || (bulto.id_pallet ?? "—")}
-                  </td>
-                  <td className="px-6 py-4 text-sm">
-                    <div>
-                      Unit: {bulto.costo_unitario ? formatCLP(bulto.costo_unitario, 0) : "—"}
-                    </div>
-                    <div className="font-medium">
-                      Total: {bulto.costo_unitario ? formatCLP(Number(bulto.costo_unitario) * Number(bulto.cantidad_unidades || 0), 0) : "—"}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
 
-      {/* ── DTE Recibido: Guías de Despacho + Factura del proveedor ──────── */}
-      <DTERecibidoPanel ordenId={ordenId} orden={orden} />
+      {tab === "bultos" && (
+        <DataTable
+          title="Bultos recepcionados"
+          data={bultosList}
+          defaultRowsPerPage={25}
+          emptyMessage="Esta orden todavía no generó bultos."
+          getSearchText={(b) =>
+            [b?.identificador, b?.id, b?.materiaPrima?.nombre, b?.lote?.identificador_proveedor]
+              .filter(Boolean)
+              .join(" ")
+          }
+          initialSort={{ key: "identificador", direction: "asc" }}
+          columns={[
+            {
+              header: "Bulto",
+              accessor: "identificador",
+              cellClassName: "!px-3",
+              headerClassName: "!px-3",
+              sortable: true,
+              Cell: ({ row: b }) => (
+                <span className="font-medium">{b.identificador || `#${b.id}`}</span>
+              ),
+            },
+            {
+              // `Table` pone whitespace-nowrap en todas las celdas: sin acotar acá, un nombre
+              // largo se lleva media tabla y aparece el deslizante horizontal.
+              header: "Item",
+              accessor: "item",
+              sortable: true,
+              sortValue: (b) => b?.materiaPrima?.nombre ?? "",
+              cellClassName: "!whitespace-normal !px-3 max-w-[11rem] lg:max-w-[15rem] xl:max-w-[20rem]",
+              headerClassName: "!px-3",
+              Cell: ({ row: b }) => b.materiaPrima?.nombre || "—",
+            },
+            {
+              // Antes eran dos columnas, «Cantidad» y «Disponible», con el peso repetido
+              // debajo de cada una. Lo que se quiere saber es cuánto queda de cuánto llegó.
+              // Mismo formato que la vista de Inventario, que es la canonica para bultos:
+              // el numero grande es el CONTENIDO (bultos x formato) en la unidad del insumo,
+              // y entre parentesis cuantos bultos de cuantos quedan.
+              //
+              // Antes el grande era el conteo de bultos con "un." detras y debajo el
+              // contenido tambien con "unidades": la misma palabra para dos cosas distintas.
+              header: "Formato",
+              accessor: "peso_unitario",
+              cellClassName: "!px-3",
+              headerClassName: "!px-3",
+              sortable: true,
+              Cell: ({ row: b }) => (
+                <>
+                  {formatNumberCL(b.peso_unitario, 2)}{" "}
+                  <span className="text-gray-500">{b.materiaPrima?.unidad_medida || ""}</span>
+                </>
+              ),
+            },
+            {
+              header: "Disponible",
+              accessor: "unidades_disponibles",
+              cellClassName: "!px-3",
+              headerClassName: "!px-3",
+              sortable: true,
+              // `cantidad_unidades` es la cantidad INICIAL del bulto: se fija al
+              // recepcionarlo y no vuelve a moverse — la edición administrativa incluso
+              // valida que `unidades_disponibles` nunca la supere. `unidades_disponibles`
+              // es lo que va quedando. Así que «queda de cuánto vino» se lee directo.
+              sortValue: (b) => Number(b?.unidades_disponibles || 0),
+              Cell: ({ row: b }) => {
+                const quedan = Number(b.unidades_disponibles ?? 0);
+                const inicial = Number(b.cantidad_unidades ?? 0);
+                const consumido = inicial > 0 && quedan < inicial;
+                return (
+                  <div className="font-medium">
+                    <span className={consumido ? "text-amber-700" : undefined}>
+                      {formatNumberCL(quedan, 2)}
+                    </span>
+                    <span className="text-gray-500 font-normal">
+                      {" "}/ {formatNumberCL(inicial, 2)}
+                    </span>
+                  </div>
+                );
+              },
+            },
+            {
+              header: "Lote proveedor",
+              accessor: "lote",
+              cellClassName: "!px-3",
+              headerClassName: "!px-3",
+              sortValue: (b) => b?.lote?.identificador_proveedor ?? "",
+              sortable: true,
+              Cell: ({ row: b }) => b.lote?.identificador_proveedor || "—",
+            },
+            {
+              header: "Costo",
+              accessor: "costo_unitario",
+              cellClassName: "!px-3",
+              headerClassName: "!px-3",
+              sortable: true,
+              align: "right",
+              Cell: ({ row: b }) => (
+                <>
+                  <div className="font-medium">
+                    {b.costo_unitario
+                      ? formatCLP(Number(b.costo_unitario) * Number(b.cantidad_unidades || 0), 0)
+                      : "—"}
+                  </div>
+                  {b.costo_unitario ? (
+                    <div className="text-xs text-gray-500">
+                      {formatCLP(b.costo_unitario, 0)} c/u
+                    </div>
+                  ) : null}
+                </>
+              ),
+            },
+          ]}
+        />
+      )}
 
-      <div className="mt-6 flex gap-2 flex-wrap">
-        {!orden.pagada && (
-          <button
-            className={`px-4 py-2 text-white rounded ${
-              loading ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
-            }`}
-            onClick={handlePagar}
-            disabled={loading || !canWritePurchaseOrder}
-          >
-            {loading ? "Procesando..." : "Pagar"}
-          </button>
-        )}
-        <button
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          onClick={handleDownloadPDF}
-        >
-          Descargar PDF Orden
-        </button>
-        {orden.bultos?.length > 0 && (
-          <button
-            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-            onClick={handleDownloadEtiquetas}
-          >
-            Descargar Etiquetas Bultos
-          </button>
-        )}
-        {orden.estado === "Creada" && (
-          <button
-            className="px-4 py-2 bg-gray-400 text-white rounded hover:bg-gray-500"
-            onClick={() => navigate(`/Ordenes/edit/${orden.id}`)}
-          >
-            Editar
-          </button>
-        )}
-         <button
-          className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-400"
-          onClick={handleVerDetalle}
-        >
-          Ver Detalle
-        </button>
-        <button
-          className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center gap-2"
-          onClick={() => setMostrarModalArchivos(true)}
-        >
-          <span>📎</span>
-          Adjuntar Archivos
-        </button>
-      </div>
+      {tab === "documentos" && (
+        <div className="space-y-6">
+      <DTERecibidoPanel ordenId={ordenId} orden={orden} />
+        </div>
+      )}
+
+
+      {/* Las acciones de la orden viven en el PanelAcciones de la cabecera. Estaban acá
+          abajo, después de la tabla de bultos y del panel de DTE: para pagar una orden
+          había que bajar 900 líneas de página. */}
 
       {/* Modal para adjuntar archivos */}
       {mostrarModalArchivos && (
@@ -857,78 +984,12 @@ export default function OrdenDetail() {
         </div>
       )}
 
-      {showHistorial && (
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold mb-3 text-gray-800 text-center">
-            Historial de Estados
-          </h2>
-
-          {historial.length > 0 ? (
-            <table className="min-w-full border border-gray-300 border-collapse divide-y divide-gray-300 divide-x text-sm bg-white rounded-lg shadow-sm">
-              <thead className="bg-gray-100 text-gray-700">
-                <tr>
-                  <th className="p-2 border">Fecha de Cambio</th>
-                  <th className="p-2 border">ID Cambio</th>
-                  <th className="p-2 border">Acción</th>
-                  <th className="p-2 border">Qué cambió</th>
-                  <th className="p-2 border">Antes</th>
-                  <th className="p-2 border">Después</th>
-                  <th className="p-2 border">Usuario</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historial.flatMap((h, idx) => {
-                  const cambios = h?.cambios || {};
-                  const omitidos = new Set(["created_by", "updated_by", "archivos"]);
-                  const entries = Object.entries(cambios).filter(
-                    ([campo]) => !omitidos.has(campo)
-                  );
-                  const rows = entries.length > 0 ? entries : [["—", { before: "—", after: "—" }]];
-
-                  return rows.map(([campo, valores], cambioIdx) => {
-                    // Sin formatear, un valor que sea array u objeto (recepciones,
-                    // numero_factura) rompe el render y deja la página en blanco.
-                    const before = formatValorCambio(valores?.before);
-                    const after = formatValorCambio(valores?.after);
-                    return (
-                      <tr
-                        key={`${idx}-${campo}-${cambioIdx}`}
-                        className={`border-b ${ (idx + cambioIdx) % 2 === 0 ? "bg-white" : "bg-gray-50" }`}
-                      >
-                        <td className="p-2 border text-center text-gray-800">
-                          {formatFechaCambio(h)}
-                        </td>
-                        <td className="p-2 border text-center text-gray-800">
-                          {h.id ?? "—"}
-                        </td>
-                        <td className="p-2 border text-center text-gray-700">
-                          {h.accion || "—"}
-                        </td>
-                        <td className="p-2 border text-center text-gray-700">
-                          {campo}
-                        </td>
-                        <td className="p-2 border text-center text-gray-700">
-                          {before}
-                        </td>
-                        <td className="p-2 border text-center text-gray-700">
-                          {after}
-                        </td>
-                        <td className="p-2 border text-center text-gray-700">
-                          {formatValorCambio(h.usuario?.nombre ?? h.usuario)}
-                        </td>
-                      </tr>
-                    );
-                  });
-                })}
-              </tbody>
-            </table>
-          ) : (
-            <p className="text-gray-600 text-center italic mt-2">
-              No hay historial disponible para esta solicitud.
-            </p>
-          )}
-        </div>
-      )}
+      <HistorialCambiosModal
+        abierto={showHistorial}
+        onCerrar={() => setshowHistorial(false)}
+        historial={historial}
+        formatFecha={formatFechaCambio}
+      />
 
 
     </div>
