@@ -5,6 +5,8 @@ import { toast } from "../../lib/toast";
 import Selector from "../../components/Forms/Selector";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import Pagination from "../../components/UI/Pagination";
+import Tabs from "../../components/UI/Tabs";
+import PanelApartados from "../../components/DTE/PanelApartados";
 
 const PRODUCTOS_VISIBLES = 4;
 const PAGE_SIZE = 6;
@@ -775,6 +777,9 @@ export default function ColaIAPage() {
   const [rechazarId, setRechazarId] = useState(null);
   const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina]     = useState(1);
+  const [tab, setTab]           = useState("validar");
+  const [apartados, setApartados] = useState([]);
+  const [errorApartados, setErrorApartados] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -812,6 +817,22 @@ export default function ColaIAPage() {
   }, [api]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Los apartados se piden aparte y en su propio try: si esta consulta falla, la cola de
+  // validación —que es el trabajo diario— tiene que seguir funcionando igual.
+  useEffect(() => {
+    let cancelado = false;
+    api("/ordenes-venta/cola-ia/apartados")
+      .then((res) => {
+        if (cancelado) return;
+        setApartados(res?.apartados ?? res?.data?.apartados ?? []);
+        setErrorApartados(null);
+      })
+      .catch((err) => {
+        if (!cancelado) setErrorApartados(err?.message ?? "error desconocido");
+      });
+    return () => { cancelado = true; };
+  }, [api]);
 
   // Opciones del catálogo para Selector
   const catalogoOpts = catalogo.map((p) => ({
@@ -910,6 +931,19 @@ export default function ColaIAPage() {
         </Link>
       </div>
 
+      <Tabs
+        pestanas={[
+          { id: "validar", label: "Por validar", cantidad: ordenes.length },
+          { id: "apartados", label: "Apartados", cantidad: apartados.length },
+        ]}
+        activa={tab}
+        onCambiar={setTab}
+      />
+
+      {tab === "apartados" ? (
+        <PanelApartados apartados={apartados} loading={false} error={errorApartados} />
+      ) : (
+      <>
       {!loading && ordenes.length > 0 && (
         <div className="relative mb-5">
           <input
@@ -969,6 +1003,8 @@ export default function ColaIAPage() {
             </div>
           )}
         </>
+      )}
+      </>
       )}
 
       <ConfirmActionModal
