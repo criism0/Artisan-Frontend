@@ -88,8 +88,11 @@ describe("ModelType y ScopeType", () => {
     expect(ScopeType.DELETE).toBe("Delete");
   });
 
-  it("ModelType tiene exactamente 52 modelos", () => {
-    expect(Object.keys(ModelType)).toHaveLength(50);
+  // Canario contra adiciones accidentales: si sube, es porque alguien agregó un ModelType y
+  // tiene que confirmar que el scope existe de verdad del lado del backend.
+  // 50 → 51 el 2026-08-07 con DOCUMENTO_TRIBUTARIO (scopes 191/192/193, verificados en producción).
+  it("ModelType tiene exactamente 51 modelos", () => {
+    expect(Object.keys(ModelType)).toHaveLength(51);
   });
 
   it("ScopeType tiene exactamente 3 acciones", () => {

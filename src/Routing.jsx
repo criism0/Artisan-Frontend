@@ -138,6 +138,7 @@ const OrdenVentaExcel = lazy(() => import("./pages/Excel/AddExcel"));
 const FacturasIA = lazy(() => import('./pages/Facturas_IA/facturas.jsx'));
 const BandejaSII = lazy(() => import('./pages/Ventas/BandejaSII.jsx'));
 const BandejaDTEEmitidos = lazy(() => import('./pages/Ventas/BandejaDTEEmitidos.jsx'));
+const ConciliacionLibreDTE = lazy(() => import('./pages/Ventas/ConciliacionLibreDTE.jsx'));
 // ====== PVA ======
 const AddProcesoValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado/AddProcesoValorAgregado.jsx"));
 const ProcesosValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado/ProcesosValorAgregado.jsx"));
@@ -972,6 +973,16 @@ function Routing() {
 
           {/* Bandeja DTE Emitidos — documentos emitidos a clientes vía LibreDTE */}
           <Route path="/ventas/bandeja-dte-emitidos" element={<BandejaDTEEmitidos />} />
+
+          {/* Conciliación (B5) — cruza nuestros documentos con los de LibreDTE y sus borradores */}
+          <Route
+            path="/ventas/conciliacion-libredte"
+            element={
+              <ProtectedRoute permissions={[[ModelType.DOCUMENTO_TRIBUTARIO, ScopeType.READ]]}>
+                <ConciliacionLibreDTE />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Ventas */}
           <Route

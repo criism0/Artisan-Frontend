@@ -8,6 +8,7 @@ import {
   DollarSign,
   FileText,
   Filter,
+  Scale,
   Send,
   ShoppingCart,
   Truck,
@@ -15,6 +16,7 @@ import {
   UserCheck,
   X,
 } from "lucide-react";
+import { dteService } from "../../services/dteService.js";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
@@ -49,6 +51,23 @@ export default function VentasDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  const [emisionesTrabadas, setEmisionesTrabadas] = useState(0);
+
+  // Consulta aparte y barata: no consulta LibreDTE, sólo nuestra tabla. Si falla, el
+  // dashboard no se cae ni avisa — el aviso vive en la vista de conciliación, y una
+  // alerta rota acá haría dudar del resto del tablero.
+  useEffect(() => {
+    let cancelled = false;
+    dteService
+      .listarEmisionesAbiertas()
+      .then((abiertas) => {
+        if (!cancelled) setEmisionesTrabadas(Array.isArray(abiertas) ? abiertas.length : 0);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,13 +134,15 @@ export default function VentasDashboard() {
           </div>
         )}
 
-        {!error && data && <DashboardContent data={data} navigate={navigate} api={api} />}
+        {!error && data && (
+          <DashboardContent data={data} navigate={navigate} api={api} emisionesTrabadas={emisionesTrabadas} />
+        )}
       </div>
     </div>
   );
 }
 
-function DashboardContent({ data, navigate, api }) {
+function DashboardContent({ data, navigate, api, emisionesTrabadas = 0 }) {
   const { ordenes, direccionToCliente, filtros, bodegas } = data;
 
   const [filtroCliente, setFiltroCliente] = useState("");
@@ -264,6 +285,52 @@ function DashboardContent({ data, navigate, api }) {
             </p>
           </div>
           <span className="text-gray-400 group-hover:text-green-500 transition-colors text-lg shrink-0">→</span>
+        </button>
+      </div>
+
+      {/*
+        Conciliación con LibreDTE. La tarjeta trae el conteo de emisiones trabadas para que se
+        vea desde acá que hay algo bloqueado, sin tener que entrar: una emisión trabada impide
+        volver a facturar esa orden, y antes de esto sólo se detectaba al intentarlo.
+      */}
+      <div className="mb-6">
+        <button
+          onClick={() => navigate("/ventas/conciliacion-libredte")}
+          className={`w-full flex items-center gap-4 p-5 bg-white rounded-lg shadow border transition-all group ${
+            emisionesTrabadas > 0
+              ? "border-red-300 hover:border-red-400"
+              : "border-gray-200 hover:border-indigo-400"
+          } hover:shadow-md`}
+        >
+          <div
+            className={`p-3 rounded-lg transition-colors shrink-0 ${
+              emisionesTrabadas > 0 ? "bg-red-50 group-hover:bg-red-100" : "bg-indigo-50 group-hover:bg-indigo-100"
+            }`}
+          >
+            <Scale size={24} className={emisionesTrabadas > 0 ? "text-red-600" : "text-indigo-600"} />
+          </div>
+          <div className="text-left min-w-0 flex-1">
+            <p className="font-semibold text-gray-800 text-sm">Conciliación con LibreDTE</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {emisionesTrabadas > 0
+                ? `${emisionesTrabadas} emisión${emisionesTrabadas === 1 ? "" : "es"} trabada${
+                    emisionesTrabadas === 1 ? "" : "s"
+                  }: esas órdenes no se pueden volver a facturar hasta revisarlas`
+                : "Compara nuestros documentos con los emitidos y los borradores de LibreDTE"}
+            </p>
+          </div>
+          {emisionesTrabadas > 0 && (
+            <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-700 text-xs font-semibold shrink-0">
+              {emisionesTrabadas}
+            </span>
+          )}
+          <span
+            className={`transition-colors text-lg shrink-0 ${
+              emisionesTrabadas > 0 ? "text-red-400 group-hover:text-red-600" : "text-gray-400 group-hover:text-indigo-500"
+            }`}
+          >
+            →
+          </span>
         </button>
       </div>
 
