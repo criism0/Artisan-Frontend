@@ -208,6 +208,40 @@ export const dteService = {
   },
 
   /**
+   * Conciliación con LibreDTE (B5): cruza nuestros documentos, sus emitidos y SUS TEMPORALES.
+   * Sólo lee — no emite, no anula y no corrige nada.
+   */
+  conciliar: async ({ desde, hasta } = {}) => {
+    const params = new URLSearchParams();
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    const query = params.toString() ? `?${params}` : '';
+    const res = await api(`/facturacion/conciliacion${query}`);
+    return res?.data ?? res ?? null;
+  },
+
+  /**
+   * Las emisiones que quedaron trabadas, sin consultar a LibreDTE.
+   * Es la consulta barata, para el aviso del dashboard.
+   */
+  listarEmisionesAbiertas: async () => {
+    const res = await api('/facturacion/emisiones-abiertas');
+    return res?.data ?? res ?? [];
+  },
+
+  /**
+   * Libera una emisión trabada. ⚠️ NO emite ni anula nada: sólo deja de bloquear el reintento.
+   * La nota es obligatoria porque quien libera está afirmando que fue a mirar LibreDTE.
+   */
+  liberarEmision: async (id, nota) => {
+    const res = await api(`/facturacion/emisiones/${id}/revisar`, {
+      method: 'POST',
+      body: { nota },
+    });
+    return res?.data ?? res ?? null;
+  },
+
+  /**
    * Abre el PDF de un DTE en una nueva pestaña del navegador.
    */
   verPDF: async (dte) => {

@@ -67,6 +67,8 @@ export const ModelType = {
   NOMBRE_FACTURACION: "NombreFacturacion",
   POES: "Poes",
   OCR_FACTURA: "OCRFactura",
+  // Scopes 191/192/193 en producción; sólo Administrador y Super Admin los tienen.
+  DOCUMENTO_TRIBUTARIO: "DocumentoTributario",
 };
 // Nota: Los ModelType para los cuales las rutas asociadas no estan siendo usadas
 //       fueron marcados con un comentario, el cual contiene esa ruta
