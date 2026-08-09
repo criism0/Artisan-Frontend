@@ -43,6 +43,7 @@ export function agruparBultosPorProducto(bultos) {
         bultos: 0,
         unidades: 0,
         peso: 0,
+        costo: 0,
         identificadores: [],
         detalle: [],
       });
@@ -53,6 +54,11 @@ export function agruparBultosPorProducto(bultos) {
     grupo.unidades += aNumero(bulto?.unidades_disponibles);
     // El peso del bulto es `peso_unitario` por cada unidad que quede dentro.
     grupo.peso += aNumero(bulto?.peso_unitario) * aNumero(bulto?.unidades_disponibles);
+    // Y su valor es `costo_unitario` por esas mismas unidades. Es exactamente la cuenta que
+    // hace `calcularValorDespacho` en el backend, así que los costos que se ven acá suman el
+    // "Valor despachado" de la cabecera — quien emite la guía puede comprobarlo bulto a bulto.
+    const costoBulto = aNumero(bulto?.costo_unitario) * aNumero(bulto?.unidades_disponibles);
+    grupo.costo += costoBulto;
     grupo.identificadores.push(bulto?.identificador ?? `#${bulto?.id ?? "—"}`);
     // El detalle completo lo necesita el modal, que además imprime las etiquetas y para eso
     // le hacen falta los ids.
@@ -61,6 +67,8 @@ export function agruparBultosPorProducto(bultos) {
       identificador: bulto?.identificador ?? `#${bulto?.id ?? "—"}`,
       unidades: aNumero(bulto?.unidades_disponibles),
       pesoUnitario: aNumero(bulto?.peso_unitario),
+      costoUnitario: aNumero(bulto?.costo_unitario),
+      costo: costoBulto,
       // Nació de una división y todavía no tiene su QR pegado: sin etiqueta física nadie
       // puede escanearlo al recepcionar.
       requiereEtiqueta: Boolean(bulto?.requiere_etiqueta),
@@ -95,6 +103,17 @@ export function contar(cantidad, singular, plural) {
 export function tienePesoUtil(grupo) {
   if (!grupo?.peso || !grupo?.unidad) return false;
   return !/^unidad/i.test(String(grupo.unidad).trim());
+}
+
+/**
+ * ¿Hay costo que mostrar?
+ *
+ * Un bulto sin `costo_unitario` no aporta una columna de ceros: aporta la duda de si el
+ * insumo vale cero o si el dato falta. Cuando ningún bulto del grupo tiene costo, la columna
+ * simplemente no se dibuja.
+ */
+export function tieneCostoUtil(grupo) {
+  return Number(grupo?.costo) > 0;
 }
 
 export function resumirPallet(pallet) {

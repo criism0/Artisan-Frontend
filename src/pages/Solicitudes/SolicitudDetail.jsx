@@ -188,15 +188,17 @@ export default function SolicitudDetail() {
     Cell: ({ value }) => (value ? value : <span className="text-gray-400">—</span>),
   };
 
-  // Sólo para saber si el despacho fue completo o parcial. **No condiciona que se muestre el
-  // monto**: un despacho parcial no es una operación a medias, es un envío completo de parte
-  // del pedido, y el resto viaja después con su propia guía.
-  const todoDespachado =
-    insumos.length > 0 && insumos.every((l) => l.cantidad_despachada != null);
-
   // `valor_despacho` lo calcula el backend sumando el costo de los bultos que van arriba de
   // los pallets. Es el valor real de lo que sale, e incluye los PT — a diferencia del costo
   // por línea, que estima con el precio de lista del insumo y deja los PT en cero.
+  //
+  // ⚠️ Se muestra SIEMPRE que haya bultos cargados, también con el despacho a medias. Antes se
+  // escondía hasta que todas las líneas tuvieran cantidad despachada, con el argumento de que
+  // si no era "una proyección sobre cantidades que todavía pueden cambiar" — pero eso describe
+  // al costo estimado por línea, no a éste, que mide los bultos que están físicamente sobre el
+  // pallet. Es justo el número que hay que declarar en la guía de despacho, y un despacho
+  // parcial no es una operación a medias: es un envío completo de parte del pedido, y el resto
+  // viaja después con su propia guía. El desglose bulto por bulto está en el modal del pallet.
   const valorDespacho = Number(solicitud?.valor_despacho) || 0;
 
   // Bultos nacidos de una división que todavía no tienen su QR pegado. Si salen así, en la
@@ -804,15 +806,6 @@ export default function SolicitudDetail() {
                   <span className="font-semibold text-gray-900">
                     {formatCLP(valorDespacho, 0)}
                   </span>
-                  {!todoDespachado && (
-                    <span
-                      className="ml-1.5 text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 align-middle"
-                      title="Es el valor de los bultos que ya están cargados. Quedan líneas sin despachar, que viajarán en otro envío con su propia guía."
-                    >
-                      parcial
-                    </span>
-                  )}
-                  <span className="text-xs text-gray-400"> · suma de los bultos</span>
                 </div>
               )}
             </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { agruparBultosPorProducto, resumirPallet } from "../contenidoPallet";
+import { agruparBultosPorProducto, resumirPallet, tieneCostoUtil } from "../contenidoPallet";
 
 const bultoInsumo = (id, unidades, peso) => ({
   id,
@@ -101,5 +101,46 @@ describe("resumirPallet", () => {
     const resumen = resumirPallet({ id: 3, estado: "Preparando" });
     expect(resumen.totalBultos).toBe(0);
     expect(resumen.productos).toEqual([]);
+  });
+});
+
+/**
+ * El costo del pallet alimenta la guía de despacho, así que tiene que cuadrar exactamente con
+ * `calcularValorDespacho` del backend: `costo_unitario × unidades_disponibles` por bulto.
+ */
+describe("costo de los bultos", () => {
+  const conCosto = (id, unidades, costoUnitario) => ({
+    id,
+    identificador: `BULTO-I-260808-${id}`,
+    MateriaPrima: { nombre: "Etiqueta termotransferencia", unidad_medida: "Unidades" },
+    unidades_disponibles: unidades,
+    costo_unitario: costoUnitario,
+  });
+
+  it("calcula el costo por bulto y lo suma en el grupo", () => {
+    // El caso real de la solicitud #192: 860 unidades a $6 → $5.160.
+    const [grupo] = agruparBultosPorProducto([conCosto("A", 860, 6), conCosto("B", 100, 6)]);
+
+    expect(grupo.costo).toBe(5760);
+    expect(grupo.detalle[0]).toMatchObject({ costo: 5160, costoUnitario: 6 });
+    expect(grupo.detalle[1]).toMatchObject({ costo: 600, costoUnitario: 6 });
+  });
+
+  it("acepta el costo como string, que es como lo entrega Postgres en un DECIMAL", () => {
+    const [grupo] = agruparBultosPorProducto([conCosto("A", 10, "6.5")]);
+    expect(grupo.costo).toBe(65);
+  });
+
+  it("un bulto sin costo suma cero y no rompe el grupo", () => {
+    const [grupo] = agruparBultosPorProducto([conCosto("A", 10, 5), conCosto("B", 10, null)]);
+    expect(grupo.costo).toBe(50);
+    expect(grupo.detalle[1].costo).toBe(0);
+  });
+
+  it("tieneCostoUtil sólo es cierto cuando hay algo que mostrar", () => {
+    // Una columna de ceros no informa que el insumo vale cero: informa que falta el dato.
+    expect(tieneCostoUtil(agruparBultosPorProducto([conCosto("A", 10, 5)])[0])).toBe(true);
+    expect(tieneCostoUtil(agruparBultosPorProducto([conCosto("A", 10, 0)])[0])).toBe(false);
+    expect(tieneCostoUtil(undefined)).toBe(false);
   });
 });

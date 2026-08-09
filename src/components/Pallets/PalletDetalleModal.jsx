@@ -3,7 +3,8 @@ import { Printer, Loader2 } from "lucide-react";
 import Modal from "../UI/Modal";
 import { apiBlob } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { contar, resumirPallet, tienePesoUtil } from "../../utils/contenidoPallet";
+import { contar, resumirPallet, tienePesoUtil, tieneCostoUtil } from "../../utils/contenidoPallet";
+import { formatCLP } from "../../services/formatHelpers";
 
 const formatNum = (n) => Number(n || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
 
@@ -105,6 +106,9 @@ export default function PalletDetalleModal({ pallet, abierto, onCerrar }) {
                     {" "}
                     · {contar(p.bultos, "bulto", "bultos")}
                   </span>
+                  {tieneCostoUtil(p) && (
+                    <span className="text-xs text-gray-500"> · {formatCLP(p.costo, 0)}</span>
+                  )}
                 </span>
               </div>
 
@@ -120,6 +124,10 @@ export default function PalletDetalleModal({ pallet, abierto, onCerrar }) {
                         Peso ({String(p.unidad).toLowerCase()})
                       </th>
                     )}
+                    {/* Lo que vale cada bulto. Es la misma cuenta que suma el "Valor
+                        despachado" de la solicitud, así que quien emite la guía puede
+                        comprobar el monto bulto por bulto en vez de creerle a un total. */}
+                    {tieneCostoUtil(p) && <th className="text-right font-medium pb-1">Costo</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -139,6 +147,21 @@ export default function PalletDetalleModal({ pallet, abierto, onCerrar }) {
                       {tienePesoUtil(p) && (
                         <td className="py-1.5 text-right text-gray-500">
                           {b.pesoUnitario > 0 ? formatNum(b.pesoUnitario * b.unidades) : "—"}
+                        </td>
+                      )}
+                      {tieneCostoUtil(p) && (
+                        <td className="py-1.5 text-right text-gray-700 whitespace-nowrap">
+                          {b.costo > 0 ? (
+                            <>
+                              {formatCLP(b.costo, 0)}
+                              <span className="text-xs text-gray-400">
+                                {" "}
+                                · {formatCLP(b.costoUnitario, 0)} c/u
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-gray-400">—</span>
+                          )}
                         </td>
                       )}
                     </tr>
