@@ -26,6 +26,7 @@ import PanelFacturacion from "../../components/DTE/PanelFacturacion.jsx";
 import Selector from "../../components/Forms/Selector";
 import AvanceItems from "../../components/AvanceItems";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
+import { mensajeError } from "../../utils/mensajeError.js";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -42,30 +43,12 @@ const btnCls = (...keys) => [btn.base, ...keys.map((k) => btn[k])].join(" ");
 // ── Estilos de inputs consistentes ───────────────────────────────────────────
 const inputCls = "border border-gray-300 px-3 py-2 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary w-full";
 
-// ── Extrae un mensaje de error legible desde una respuesta de API ─────────────
-// Maneja: 403 sin permiso · mensaje del backend · detalles de items afectados · red caída
-function apiErrorMsg(err, actionLabel = "realizar esta acción") {
-  const status = err?.response?.status;
-  const data   = err?.response?.data;
-
-  if (status === 403) {
-    return `Sin permiso para ${actionLabel}. Contacta al administrador.`;
-  }
-
-  const msg = data?.error;
-  if (!msg) {
-    return `Error al ${actionLabel}. Verifica tu conexión e intenta nuevamente.`;
-  }
-
-  // Si el backend envía un arreglo de detalles (ej. productos faltantes en picking),
-  // agrega el conteo para darle al usuario más contexto sin desbordar el toast.
-  const details = data?.details;
-  if (Array.isArray(details) && details.length > 0) {
-    return `${msg} (${details.length} ${details.length === 1 ? "ítem" : "ítems"})`;
-  }
-
-  return msg;
-}
+// ── Mensaje de error legible ──────────────────────────────────────────────────
+// 🔴 Esta función leía `err.response.data.error` —la forma de axios, que no es dependencia de
+// este proyecto— así que NUNCA mostraba lo que decía el backend: caía siempre en el genérico
+// "Verifica tu conexión". Al facturar, eso escondía el mensaje que dice exactamente qué falta
+// ("al cliente X le falta razón social, giro"). La lógica correcta vive en utils/mensajeError.
+const apiErrorMsg = mensajeError;
 
 // ── Datos de la empresa emisora ───────────────────────────────────────────────
 const COMPANY = {

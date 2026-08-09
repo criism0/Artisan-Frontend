@@ -6,6 +6,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { ChevronDown, ChevronRight, AlertTriangle, CheckCircle } from "lucide-react";
+import { mensajeDelBackend } from "../../utils/mensajeError.js";
 
 const fmt = (n) => (n == null ? "—" : Number(n).toLocaleString("es-CL", { maximumFractionDigits: 4 }));
 
@@ -143,7 +144,7 @@ export default function SesionInventariadoDetail() {
       setConfirmando(false);
       await cargar();
     } catch (err) {
-      toast.error(err?.response?.data?.error ?? "No se pudo validar la sesión (¿tienes el permiso privilegiado?)");
+      toast.error(mensajeDelBackend(err) ?? "No se pudo validar la sesión (¿tienes el permiso privilegiado?)");
     } finally {
       setValidando(false);
     }

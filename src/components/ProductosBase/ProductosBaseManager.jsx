@@ -5,6 +5,7 @@ import { api } from "../../lib/api";
 import toast from "../../lib/toast";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 import { getNombreComercial } from "../../utils/nombreComercial";
+import { mensajeDelBackend, estadoHttp } from "../../utils/mensajeError.js";
 
 export default function ProductosBaseManager({ 
   listaPrecioId, 
@@ -128,8 +129,8 @@ export default function ProductosBaseManager({
         onProductosBaseChange(updatedProductos);
       }
     } catch (error) {
-      const backendMsg = error?.response?.data?.error || error?.response?.data?.message || "";
-      if (error?.response?.status === 409 || /unique|duplicado|ya existe/i.test(backendMsg)) {
+      const backendMsg = mensajeDelBackend(error) ?? "";
+      if (estadoHttp(error) === 409 || /unique|duplicado|ya existe/i.test(backendMsg)) {
         toast.warning("Solo se puede agregar 1 vez el producto");
       } else {
         toast.error("Error al guardar el producto");
