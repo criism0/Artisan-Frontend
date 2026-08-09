@@ -9,6 +9,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { esEmailValido, formatPhoneInput, validarTelefonoCL } from "../../services/formatHelpers";
+import RutLookupField from "../../components/RUT/RutLookupField.jsx";
 
 function DynamicCombobox({ value, onChange, options, onSelect, placeholder }) {
   const inputRef = useRef(null);
@@ -274,6 +275,45 @@ export default function EditClientes() {
     setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
+  /**
+   * Lo que devuelve el SII al buscar por RUT.
+   *
+   * ⚠️ Al EDITAR, a diferencia de al crear, sólo se rellena lo que está vacío. Si alguien ya
+   * corrigió a mano la razón social o el giro —porque el SII los trae con otra redacción, o
+   * porque el cliente opera con otro nombre— buscar el RUT no puede pisárselo. Para
+   * reemplazarlo, se borra el campo y se busca de nuevo.
+   */
+  const handleRutFound = (info) => {
+    const nuevos = [];
+    setFormData((prev) => {
+      const sig = { ...prev };
+      if (!prev.razon_social?.trim() && info.razon_social) {
+        sig.razon_social = info.razon_social;
+        nuevos.push("razón social");
+      }
+      if (!prev.giro?.trim() && info.giro) {
+        sig.giro = info.giro;
+        nuevos.push("giro");
+      }
+      if (!prev.nombre_empresa?.trim() && info.razon_social) {
+        sig.nombre_empresa = info.razon_social;
+        nuevos.push("nombre");
+      }
+      return sig;
+    });
+    setErrors((prev) => ({ ...prev, razon_social: "", giro: "" }));
+
+    // El aviso dice qué se completó, no sólo que "se encontró": con los campos ya llenos la
+    // búsqueda no cambia nada, y decir sólo "empresa encontrada" haría creer que sí.
+    setTimeout(() => {
+      toast.success(
+        nuevos.length
+          ? `${info.razon_social} — se completó ${nuevos.join(", ")}. Recuerda guardar.`
+          : `${info.razon_social} — los datos ya estaban completos, no se cambió nada.`,
+      );
+    }, 0);
+  };
+
   const validateAll = () => {
     const newErrors = {};
     if (!selectedCanal) newErrors.canal = "Debes seleccionar un canal.";
@@ -440,23 +480,27 @@ export default function EditClientes() {
               {errors.razon_social && <p className="text-red-500 text-sm mt-1">{errors.razon_social}</p>}
       </div>
 
+            {/*
+              El mismo buscador del SII que ya usaba "Crear cliente". Faltaba justamente acá,
+              que es adonde manda el error al intentar facturar: "al cliente X le falta razón
+              social, giro. Completa sus datos en Administración → Clientes". Llegabas y tenías
+              que escribirlo todo a mano.
+            */}
             <div>
               <label className="block text-gray-700 font-medium mb-2">
                 RUT <span className="text-red-500">*</span>
               </label>
-              <input
-                type="text"
+              {/* `name="rut"` es lo que permite reusar `handleChange`, que además ya formatea
+                  el RUT. Sin él el evento llega sin `name` y el campo se vuelve inescribible. */}
+              <RutLookupField
                 name="rut"
                 value={formData.rut}
                 onChange={handleChange}
+                onFound={handleRutFound}
+                error={errors.rut}
                 placeholder={placeholders.rut}
-                maxLength="12"
-                className={`border px-4 py-2 w-full rounded text-gray-700 placeholder-gray-400 ${
-                  errors.rut ? "border-red-500" : "border-gray-300"
-                }`}
               />
-              {errors.rut && <p className="text-red-500 text-sm mt-1">{errors.rut}</p>}
-      </div>
+            </div>
 
             <div>
               <label className="block text-gray-700 font-medium mb-2">
