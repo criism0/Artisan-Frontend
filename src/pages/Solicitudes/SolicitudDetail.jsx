@@ -188,14 +188,17 @@ export default function SolicitudDetail() {
     Cell: ({ value }) => (value ? value : <span className="text-gray-400">—</span>),
   };
 
-  // El costo solo tiene sentido cuando ya se sabe qué salió: mientras haya líneas sin
-  // despachar es una proyección sobre cantidades que todavía pueden cambiar.
-  const todoDespachado =
-    insumos.length > 0 && insumos.every((l) => l.cantidad_despachada != null);
-
   // `valor_despacho` lo calcula el backend sumando el costo de los bultos que van arriba de
   // los pallets. Es el valor real de lo que sale, e incluye los PT — a diferencia del costo
   // por línea, que estima con el precio de lista del insumo y deja los PT en cero.
+  //
+  // ⚠️ Se muestra SIEMPRE que haya bultos cargados, también con el despacho a medias. Antes se
+  // escondía hasta que todas las líneas tuvieran cantidad despachada, con el argumento de que
+  // si no era "una proyección sobre cantidades que todavía pueden cambiar" — pero eso describe
+  // al costo estimado por línea, no a éste, que mide los bultos que están físicamente sobre el
+  // pallet. Es justo el número que hay que declarar en la guía de despacho, y un despacho
+  // parcial no es una operación a medias: es un envío completo de parte del pedido, y el resto
+  // viaja después con su propia guía. El desglose bulto por bulto está en el modal del pallet.
   const valorDespacho = Number(solicitud?.valor_despacho) || 0;
 
   // Bultos nacidos de una división que todavía no tienen su QR pegado. Si salen así, en la
@@ -780,15 +783,29 @@ export default function SolicitudDetail() {
           <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="text-lg font-semibold text-text">Insumos</h2>
-              {/* El costo aparece recién cuando ya está todo despachado: antes es una
-                  proyección sobre cantidades que todavía pueden cambiar. */}
-              {todoDespachado && valorDespacho > 0 && (
+              {/*
+                🔴 EL MONTO SE MUESTRA AUNQUE EL DESPACHO SEA PARCIAL.
+
+                Antes se escondía hasta que todas las líneas tuvieran cantidad despachada, con
+                el argumento de que si no era "una proyección sobre cantidades que todavía
+                pueden cambiar". Eso describe al costo estimado POR LÍNEA —que multiplica lo
+                pedido por el precio de lista del proveedor— pero no a `valor_despacho`, que el
+                backend calcula sumando el costo real de los bultos montados en los pallets.
+                No es una proyección: es la medición de lo que va arriba del camión, que es
+                justo lo que hay que declarar en la guía de despacho.
+
+                Y esconderlo dejaba a Logística sin el dato en el momento exacto en que lo
+                necesita: medido el 2026-08-08, 5 de las 7 solicitudes En tránsito y las 6
+                Validadas ocultaban un monto que estaba bien calculado. Un despacho parcial no
+                es una operación a medias — es un envío completo de parte del pedido, y el
+                resto viaja después con su propia guía.
+              */}
+              {valorDespacho > 0 && (
                 <div className="text-sm text-gray-700">
                   <span className="text-gray-500">Valor despachado:</span>{" "}
                   <span className="font-semibold text-gray-900">
                     {formatCLP(valorDespacho, 0)}
                   </span>
-                  <span className="text-xs text-gray-400"> · suma de los bultos</span>
                 </div>
               )}
             </div>
