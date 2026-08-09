@@ -81,12 +81,24 @@ export const dteService = {
   },
 
   /**
-   * ⚠️ Sin llamador desde el 2026-08-01, cuando se eliminó la vista /Pallets.
+   * 🔴 NO USAR: LA RUTA ESTÁ CERRADA EN EL BACKEND DESDE EL 2026-08-08. Devuelve 404.
    *
-   * Se conserva a propósito: el endpoint existe y funciona en el backend, y la guía de
-   * despacho por pallet vuelve a estar sobre la mesa cuando se retome el traspaso a LibreDTE.
-   * Ojo con la historia: la vista eliminada NO usaba este método —llamaba a
-   * `emitirGuiaDespacho`, que no existe— así que su botón "Emitir GD" nunca funcionó.
+   * (El comentario anterior decía que "el endpoint existe y funciona"; ya no es cierto.)
+   *
+   * Sin llamador desde el 2026-08-01, cuando se eliminó la vista /Pallets — y aquel botón
+   * "Emitir GD" **nunca funcionó**: llamaba a un método inexistente. O sea que esta función
+   * jamás emitió un documento.
+   *
+   * Se cerró en el backend por tres motivos, además de no tener uso:
+   *   · permitía declararle al SII la misma mercadería dos veces (la guía de la solicitud no
+   *     bloqueaba las de sus pallets);
+   *   · si el pallet no tenía solicitud, emitía con las bodegas literales "Bodega origen" y
+   *     "Bodega destino";
+   *   · el modelo cambió: un solo pallet abierto por solicitud, y los pallets se eliminan al
+   *     recepcionarlos. La unidad de envío es la solicitud.
+   *
+   * Se conserva por si la guía por pallet vuelve a hacer falta. Antes de cablearla hay que
+   * reabrir la ruta en `facturacion-router.ts` y resolver lo de arriba.
    */
   emitirGuiaDespachoPallet: async (idPallet) => {
     const res = await api('/facturacion/emitir-guia-despacho-pallet', {
