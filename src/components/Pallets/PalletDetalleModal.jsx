@@ -8,6 +8,18 @@ import { formatCLP } from "../../services/formatHelpers";
 
 const formatNum = (n) => Number(n || 0).toLocaleString("es-CL", { maximumFractionDigits: 3 });
 
+/**
+ * El costo unitario, con los decimales que realmente tenga.
+ *
+ * 🔴 Redondearlo rompe la comprobación. Un bulto real de producción: 300 unidades a $163,4 =
+ * $49.020. Mostrando "$163 c/u" junto a "$49.020", quien multiplica obtiene $48.900 y concluye
+ * que el sistema no cuadra — que es exactamente el reclamo que originó todo este cambio. El
+ * total es el número que va a la guía; el unitario está para poder verificarlo, así que tiene
+ * que multiplicar exacto.
+ */
+const formatCostoUnitario = (n) =>
+  formatCLP(n, Number.isInteger(Number(n)) ? 0 : 2);
+
 function descargarBlob(blob, nombre) {
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -156,7 +168,7 @@ export default function PalletDetalleModal({ pallet, abierto, onCerrar }) {
                               {formatCLP(b.costo, 0)}
                               <span className="text-xs text-gray-400">
                                 {" "}
-                                · {formatCLP(b.costoUnitario, 0)} c/u
+                                · {formatCostoUnitario(b.costoUnitario)} c/u
                               </span>
                             </>
                           ) : (
