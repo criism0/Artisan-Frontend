@@ -25,6 +25,10 @@ export default function RutLookupField({
   error,
   disabled = false,
   placeholder = 'Ej: 76.059.975-1',
+  // Sin `name`, el evento llega con `e.target.name === undefined` y un handler genérico
+  // —`const { name, value } = e.target`— escribe en una clave inexistente: el campo se ve
+  // pero no se puede editar. Pasarlo es lo que permite reusar el handler del formulario.
+  name,
 }) {
   const [estado, setEstado] = useState('idle'); // idle | loading | found | not_found | error
   const [mensaje, setMensaje] = useState('');
@@ -73,6 +77,7 @@ export default function RutLookupField({
       <div className="flex gap-2">
         <input
           type="text"
+          name={name}
           value={value}
           onChange={onChange}
           disabled={disabled}

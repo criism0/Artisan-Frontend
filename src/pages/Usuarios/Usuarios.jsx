@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import { mensajeDelBackend } from "../../utils/mensajeError.js";
 
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState([]);
@@ -38,7 +39,7 @@ export default function UsuariosPage() {
       const res = await api(`/roles`, { auth: true });
       setRoles(res);
     } catch (err) {
-      toast.error(`Error cargando roles: ${err.response?.data || err.message}`);
+      toast.error(`Error cargando roles: ${mensajeDelBackend(err) ?? err.message}`);
     } finally {
       setLoadingRoles(false);
     }
@@ -50,7 +51,7 @@ export default function UsuariosPage() {
       setUsuarios(Array.isArray(res) ? res : []);
     } catch (err) {
       toast.error(
-        `Error cargando usuarios: ${err.response?.data || err.message}`
+        `Error cargando usuarios: ${mensajeDelBackend(err) ?? err.message}`
       );
     } finally {
       setLoadingUsers(false);
@@ -68,7 +69,7 @@ export default function UsuariosPage() {
       toast.success("Usuario eliminado con éxito.");
       fetchUsuarios();
     } catch (err) {
-      toast.error(`Error al eliminar: ${err.response?.data || err.message}`);
+      toast.error(`Error al eliminar: ${mensajeDelBackend(err) ?? err.message}`);
     }
   };
 

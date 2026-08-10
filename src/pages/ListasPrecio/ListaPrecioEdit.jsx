@@ -7,6 +7,7 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import toast from "../../lib/toast.js";
+import { mensajeDelBackend } from "../../utils/mensajeError.js";
 
 export default function ListaPrecioEdit() {
   const { id } = useParams();
@@ -105,8 +106,7 @@ export default function ListaPrecioEdit() {
       });
       navigate(`/lista-precio/${id}`);
     } catch (error) {
-      const errorMessage = error.response?.data?.message || 
-                          error.response?.data?.error || 
+      const errorMessage = mensajeDelBackend(error) || 
                           "Error al actualizar la lista de precio. Por favor, verifica los datos e intenta nuevamente.";
       setError(errorMessage);
     }

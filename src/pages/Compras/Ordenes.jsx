@@ -17,6 +17,7 @@ import { buildOcEmailItemsFromOrden, notifyOrderChange } from "../../services/em
 import { useAuth } from "../../auth/AuthContext";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatCLP } from "../../services/formatHelpers";
+import { mensajeDelBackend } from "../../utils/mensajeError.js";
 
 export default function Ordenes() {
   const { user } = useAuth();
@@ -134,8 +135,7 @@ export default function Ordenes() {
       fetchOrdenes();
     } catch (err) {
       const errorMessage =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
+        mensajeDelBackend(err) ||
         "No se pudo retroceder la orden. Intente nuevamente.";
       toast.error(errorMessage);
     } finally {
@@ -170,8 +170,7 @@ export default function Ordenes() {
       fetchOrdenes();
     } catch (err) {
       const errorMessage =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
+        mensajeDelBackend(err) ||
         "No se pudo validar la orden. Intente nuevamente.";
       toast.error(errorMessage);
     } finally {
@@ -402,8 +401,7 @@ export default function Ordenes() {
 
     } catch (err) {
       const errorMessage =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
+        mensajeDelBackend(err) ||
         "No se pudo pagar la orden. Por favor, intente nuevamente.";
       toast.error(errorMessage);
     }
@@ -422,8 +420,7 @@ export default function Ordenes() {
       fetchOrdenes();
     } catch (err) {
       const errorMessage =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
+        mensajeDelBackend(err) ||
         "No se pudo revertir el pago. Por favor, intente nuevamente.";
       toast.error(errorMessage);
     }
