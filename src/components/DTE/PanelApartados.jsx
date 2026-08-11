@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Copy, Check } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { AlertTriangle, ChevronDown, ChevronRight, Copy, Check, ArrowRight } from "lucide-react";
 
 /**
  * Los correos que la Cola IA apartó sin poder crear la orden.
@@ -174,6 +175,7 @@ function Borrador({ b }) {
 
 function TarjetaApartado({ a }) {
   const [abierto, setAbierto] = useState(false);
+  const navigate = useNavigate();
   const motivo = explicar(a);
 
   return (
@@ -215,6 +217,21 @@ function TarjetaApartado({ a }) {
           <p className="text-xs text-gray-600">{motivo.queHacer}</p>
 
           {a.borrador && <Borrador b={a.borrador} />}
+
+          {/*
+            Lleva al formulario de crear OV con lo rescatado precargado. Es el punto: apartar un
+            correo no debería significar transcribirlo. Sólo aparece cuando hay algo que
+            precargar — un botón que abre un formulario vacío no ahorra nada.
+          */}
+          {a.borrador && (
+            <button
+              onClick={() => navigate("/ventas/ordenes/add", { state: { borrador: a.borrador } })}
+              className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary hover:bg-primary-dark text-white"
+            >
+              Crear orden con estos datos
+              <ArrowRight size={13} />
+            </button>
+          )}
 
           <details className="group">
             <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700 list-none">

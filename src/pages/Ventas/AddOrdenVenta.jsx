@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { getTodayDate } from "../../lib/dateUtils";
@@ -15,7 +15,24 @@ export default function AddOrdenVenta() {
   const canWriteSaleOrderProduct = checkScope(ModelType.PRODUCTO_ORDEN, ScopeType.WRITE);
   const canReadClients = checkScope(ModelType.CLIENTE, ScopeType.READ);
   const navigate = useNavigate();
+  const location = useLocation();
   const api = useApi();
+
+  /**
+   * Borrador que llega desde un correo apartado de la Cola IA (`PanelApartados`).
+   *
+   * La precarga es DELIBERADAMENTE PARCIAL: se llenan la cabecera y el cliente, y las líneas
+   * quedan en un panel aparte con un botón "Usar" que carga el formulario de producto. No se
+   * insertan directo en la orden a propósito — el precio correcto sale de la lista del cliente,
+   * no del correo, y ese cálculo ya vive en `handleProductChange`. Meterlas por fuera obligaría
+   * a duplicar la lógica de precios, que es justo donde se cometen los errores caros.
+   */
+  const borrador = location.state?.borrador ?? null;
+  const [lineasDelCorreo, setLineasDelCorreo] = useState(() =>
+    (borrador?.lineas ?? []).map((l, i) => ({ ...l, _key: i })),
+  );
+  // La precarga corre una sola vez: si el operario borra el número de OC, no se lo reponemos.
+  const yaPrecargado = useRef(false);
   const [clients, setClients] = useState([]);
   const [direcciones, setDirecciones] = useState([]);
   // La OV se pide por nombre de facturación (agrupa productos físicos equivalentes)
@@ -66,6 +83,52 @@ export default function AddOrdenVenta() {
       })
       .finally(() => setIsLoading(false));
   }, [api, canReadClients]);
+
+  // Precarga desde el correo apartado. Corre después de la carga inicial porque
+  // `handleClientChange` va a buscar la lista de precios del cliente.
+  useEffect(() => {
+    if (!borrador || isLoading || yaPrecargado.current) return;
+    yaPrecargado.current = true;
+
+    setForm((prev) => ({
+      ...prev,
+      numero_oc: borrador.numero_oc || prev.numero_oc,
+      fecha_orden: borrador.fecha_orden || prev.fecha_orden,
+    }));
+
+    if (borrador.id_cliente) handleClientChange(String(borrador.id_cliente));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [borrador, isLoading]);
+
+  /** Carga una línea del correo en el formulario de producto, para revisarla y agregarla. */
+  const usarLineaDelCorreo = (linea) => {
+    if (!form.id_cliente) {
+      toast.error("Elige primero el cliente: el precio sale de su lista");
+      return;
+    }
+    // ⚠️ Se arma UNA sola actualización a propósito. `setProductoField` construye el objeto
+    // desde `productoForm` del closure, así que dos llamadas seguidas hacen que la segunda
+    // parta del estado viejo y pise a la primera.
+    setProductErrors({});
+    setProductoForm((prev) => {
+      const siguiente = { ...prev };
+      if (linea.id_nombre_facturacion) {
+        siguiente.id_nombre_facturacion = String(linea.id_nombre_facturacion);
+        // El precio sale de la lista del cliente, NO del correo: es el mismo cálculo que hace
+        // elegir el producto a mano.
+        siguiente.precio_unitario = calcularPrecioProducto(
+          Number(linea.id_nombre_facturacion), preciosLista, clienteConfig,
+        );
+      }
+      if (linea.cantidad != null) siguiente.cantidad = String(linea.cantidad);
+      return siguiente;
+    });
+
+    setLineasDelCorreo((prev) => prev.filter((l) => l._key !== linea._key));
+    if (!linea.id_nombre_facturacion) {
+      toast.info("La IA no reconoció este producto: elígelo del catálogo");
+    }
+  };
 
   // Busca la entrada de la lista de precios para un nombre de facturación
   // (entradas nuevas van por id_nombre_facturacion; las legacy por producto del grupo)
@@ -448,6 +511,45 @@ export default function AddOrdenVenta() {
               <span className="text-sm text-gray-400">Selecciona un cliente para agregar productos</span>
             )}
           </div>
+
+          {/*
+            Líneas que venían en el correo apartado. Se muestran acá, al lado del formulario,
+            en vez de obligar a tener Gmail abierto en otra ventana. "Usar" carga la línea en
+            el formulario para revisarla; el precio lo pone la lista del cliente, no el correo.
+          */}
+          {lineasDelCorreo.length > 0 && (
+            <div className="mb-5 border border-amber-200 bg-amber-50 rounded-lg overflow-hidden">
+              <div className="px-4 py-2 border-b border-amber-200">
+                <p className="text-sm font-medium text-amber-900">
+                  Del correo: {lineasDelCorreo.length}{" "}
+                  {lineasDelCorreo.length === 1 ? "línea por cargar" : "líneas por cargar"}
+                </p>
+              </div>
+              <ul className="divide-y divide-amber-100">
+                {lineasDelCorreo.map((l) => (
+                  <li key={l._key} className="flex items-center gap-3 px-4 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-gray-800 truncate">
+                        {l.descripcion || "(sin descripción)"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Cantidad: {l.cantidad ?? "—"}
+                        {l.precio_unitario != null && ` · en el correo: $${l.precio_unitario}`}
+                        {!l.id_nombre_facturacion && " · producto no reconocido"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => usarLineaDelCorreo(l)}
+                      className="shrink-0 text-xs px-2.5 py-1 rounded-md border border-amber-300 bg-white hover:bg-amber-100 text-amber-900 font-medium"
+                    >
+                      Usar
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Formulario agregar producto */}
           <div className="grid grid-cols-3 gap-x-6 gap-y-4 mb-4">
