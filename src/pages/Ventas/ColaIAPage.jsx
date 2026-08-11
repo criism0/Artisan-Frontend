@@ -7,6 +7,7 @@ import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import Pagination from "../../components/UI/Pagination";
 import Tabs from "../../components/UI/Tabs";
 import PanelApartados from "../../components/DTE/PanelApartados";
+import { compararFormato } from "../../utils/formatoProducto";
 
 const PRODUCTOS_VISIBLES = 4;
 const PAGE_SIZE = 6;
@@ -94,6 +95,13 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
   const simPct      = sugerido && prod.similitud_sugerencia != null
     ? Math.round(prod.similitud_sugerencia * 100)
     : null;
+
+  // 🔴 La similitud se calcula sobre el texto e IGNORA los números, así que un formato
+  // distinto no le baja el puntaje: en producción hay sugerencias al 100% de "Camembert
+  // 100 g" apuntando al de 150 g. Otro gramaje es otro producto, con otro precio. El puntaje
+  // no se toca acá —eso es del backend— pero el desacuerdo se avisa antes de aceptar.
+  const formato = sugerido ? compararFormato(prod.descripcion_original, sugerido.nombre) : null;
+  const formatoDifiere = formato?.estado === "difiere";
 
   // Acepta la sugerencia fuzzy directamente (sin abrir el editor)
   const handleAcceptSuggestion = async () => {
@@ -246,26 +254,38 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
 
         {/* Sugerencia fuzzy — visible solo cuando sin match y hay candidato */}
         {sinMatch && sugerido && simPct !== null && (
-          <div className="flex items-center justify-between gap-2 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-xs">
-            <span className="text-gray-700 truncate">
-              ¿Es <strong>{sugerido.nombre}</strong>?{" "}
-              <span className={
-                simPct >= 80
-                  ? "text-green-600 font-semibold"
-                  : simPct >= 65
-                  ? "text-yellow-600 font-semibold"
-                  : "text-gray-500"
-              }>
-                ({simPct}%)
+          <div className={`rounded-lg border px-2 py-1 text-xs ${
+            formatoDifiere ? "bg-amber-50 border-amber-300" : "bg-gray-50 border-gray-200"
+          }`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-700 truncate">
+                ¿Es <strong>{sugerido.nombre}</strong>?{" "}
+                <span className={
+                  formatoDifiere
+                    ? "text-amber-700 font-semibold"
+                    : simPct >= 80
+                    ? "text-green-600 font-semibold"
+                    : simPct >= 65
+                    ? "text-yellow-600 font-semibold"
+                    : "text-gray-500"
+                }>
+                  ({simPct}%)
+                </span>
               </span>
-            </span>
-            <button
-              onClick={handleAcceptSuggestion}
-              disabled={saving}
-              className="shrink-0 flex items-center gap-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-0.5 rounded font-medium"
-            >
-              Aceptar
-            </button>
+              <button
+                onClick={handleAcceptSuggestion}
+                disabled={saving}
+                className="shrink-0 flex items-center gap-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-0.5 rounded font-medium"
+              >
+                Aceptar
+              </button>
+            </div>
+            {formatoDifiere && (
+              <p className="text-amber-800 mt-0.5">
+                El formato no coincide: pidieron <strong>{formato.pedido.texto}</strong> y el
+                sugerido es de <strong>{formato.sugerido.texto}</strong>.
+              </p>
+            )}
           </div>
         )}
       </li>
