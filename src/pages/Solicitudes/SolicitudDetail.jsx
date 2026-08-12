@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "../../lib/toast.js";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { FileText, Loader2, Download, Pencil, Send, XCircle, CheckCircle2 } from "lucide-react";
+import { FileText, FileSearch, Loader2, Download, Pencil, Send, XCircle, CheckCircle2 } from "lucide-react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import Table from "../../components/Tables/Table";
 import logo from "../../assets/logo.png";
@@ -302,12 +302,48 @@ export default function SolicitudDetail() {
   );
 
 
-  // La emisión electrónica de la Guía de Despacho se retiró de esta vista a propósito: la
-  // guía es una sola y hoy se registra a mano al enviar (ver el modal de envío). Emitir
-  // desde acá abría un segundo camino con sus propios campos —número, fecha,
-  // transportista— que no se relacionaba con los de la solicitud, y además fallaba en
-  // producción, porque `emitirDte` está detrás del bloqueo del traspaso a LibreDTE.
-  // Al levantar ese bloqueo, la emisión debe salir de los datos ya registrados en `enviar`.
+  // 🔴 LA EMISIÓN ELECTRÓNICA VUELVE A ESTA VISTA (2026-08-12).
+  //
+  // Se había retirado mientras duraba el bloqueo del traspaso a LibreDTE, con la idea de que
+  // la emisión saliera después de los datos ya registrados en `enviar`. Eso último nunca se
+  // hizo, así que el endpoint `POST /facturacion/emitir-guia-despacho` quedó vivo y **sin un
+  // solo llamador en la web ni en el móvil**: las guías de traslado se emitían fuera del ERP y
+  // el folio se escribía a mano acá. Con el portal MIPYME desapareciendo, no había dónde.
+  //
+  // Ahora se emite desde el mismo flujo de envío y NO abre un segundo camino: usa el
+  // transportista y la fecha de esta misma solicitud, y el folio que devuelve LibreDTE es el
+  // que queda escrito en `numero_guia_despacho`. Un solo número, un solo documento.
+  const [emitiendoGD, setEmitiendoGD] = useState(false);
+  const [viendoBorradorGD, setViendoBorradorGD] = useState(false);
+
+  // Ver la guía como saldrá, antes de gastar el folio. Una guía emitida no se edita.
+  const handleVerBorradorGD = async () => {
+    setViendoBorradorGD(true);
+    try {
+      await dteService.verPrevisualizacion('guia-solicitud', solicitudId);
+    } catch (err) {
+      toast.error('No se pudo generar el borrador: ' + (err?.message ?? err));
+    } finally {
+      setViendoBorradorGD(false);
+    }
+  };
+
+  const handleEmitirGD = async () => {
+    setEmitiendoGD(true);
+    try {
+      const gd = await dteService.emitirGuiaDespachoSolicitud(solicitudId, {
+        transportista: medioTransporte.trim() || undefined,
+      });
+      toast.success(`Guía de despacho N° ${gd?.folio ?? ''} emitida ✓`);
+      // El folio es EL número de la guía: se escribe solo para que nadie lo transcriba mal.
+      if (gd?.folio) setGuiaDespacho(String(gd.folio));
+      await cargarGDs();
+    } catch (err) {
+      toast.error('No se pudo emitir la guía: ' + (err?.message ?? err));
+    } finally {
+      setEmitiendoGD(false);
+    }
+  };
 
   const handleConfirmarLlegadaGD = async (gdId) => {
     try {
@@ -860,11 +896,38 @@ export default function SolicitudDetail() {
 
         {tab === "guias" && (
         <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
-          <h2 className="text-lg font-semibold text-text">Guías de Despacho</h2>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="text-lg font-semibold text-text">Guías de Despacho</h2>
+            {gds.length === 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={handleVerBorradorGD}
+                  disabled={viendoBorradorGD || loading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <FileSearch className="w-4 h-4" />
+                  {viendoBorradorGD ? "Generando…" : "Ver cómo saldrá"}
+                </button>
+                <button
+                  onClick={handleEmitirGD}
+                  disabled={emitiendoGD || loading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+                >
+                  <FileText className="w-4 h-4" />
+                  {emitiendoGD ? "Emitiendo…" : "Emitir guía de despacho"}
+                </button>
+              </div>
+            )}
+          </div>
 
           {gds.length === 0 ? (
-            <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-500">
-              No hay guías de despacho emitidas para esta solicitud.
+            <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-500 space-y-1">
+              <p>No hay guías de despacho emitidas para esta solicitud.</p>
+              <p className="text-xs text-gray-400">
+                La guía declara <strong>sólo lo que se despachó</strong>, con el valor de los
+                bultos cargados en los pallets. Emítela antes de marcar la solicitud como
+                enviada: su folio queda como el número de la guía.
+              </p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -985,31 +1048,44 @@ export default function SolicitudDetail() {
           }
         >
           <div className="space-y-4">
-            {/* La guía de despacho es UNA sola. Hoy se registra a mano acá; cuando se
-                levante el bloqueo del traspaso a LibreDTE, la emisión electrónica saldrá
-                de estos mismos datos, sin un segundo formulario ni un segundo número. */}
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
-              <p className="font-medium">La guía se registra a mano.</p>
-              <p className="mt-1 text-amber-800">
-                La emisión electrónica al SII está deshabilitada hasta el traspaso a LibreDTE.
-                Escribe acá el número de la guía emitida en el portal del SII: cuando se
-                habilite la emisión, se generará desde estos mismos datos.
-              </p>
-            </div>
-
-            {/* Si esta solicitud alcanzó a tener una GD electrónica, su folio es el número
-                que corresponde: escribir otro a mano deja el papel y el documento sin relación. */}
-            {gds.length > 0 && gds[0]?.folio && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-900">
-                Esta solicitud tiene la Guía de Despacho electrónica{" "}
-                <strong>N° {gds[0].folio}</strong>.{" "}
+            {/* 🔴 EMITIR LA GUÍA ES EL PASO ANTERIOR A ENVIAR, y por eso vive acá dentro.
+                La guía es UNA sola: su folio es el número de la guía, así que emitirla llena
+                el campo de abajo y nadie transcribe nada. */}
+            {gds.length === 0 ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+                <p className="font-medium">Esta solicitud todavía no tiene guía de despacho.</p>
+                <p className="mt-1 text-amber-800">
+                  Emítela acá: declara lo que se despachó, con el valor de los bultos cargados,
+                  y su folio queda como número de la guía.
+                </p>
                 <button
                   type="button"
-                  onClick={() => setGuiaDespacho(String(gds[0].folio))}
-                  className="underline font-medium"
+                  onClick={handleEmitirGD}
+                  disabled={emitiendoGD}
+                  className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
                 >
-                  Usar ese folio
+                  <FileText className="w-4 h-4" />
+                  {emitiendoGD ? "Emitiendo…" : "Emitir guía de despacho"}
                 </button>
+                <p className="mt-2 text-xs text-amber-700">
+                  Si la guía se emitió fuera del sistema, escribe su número abajo y continúa.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-900">
+                Guía de Despacho electrónica <strong>N° {gds[0]?.folio ?? "—"}</strong> emitida.
+                {gds[0]?.folio && String(gds[0].folio) !== guiaDespacho.trim() && (
+                  <>
+                    {" "}
+                    <button
+                      type="button"
+                      onClick={() => setGuiaDespacho(String(gds[0].folio))}
+                      className="underline font-medium"
+                    >
+                      Usar ese folio
+                    </button>
+                  </>
+                )}
               </div>
             )}
 

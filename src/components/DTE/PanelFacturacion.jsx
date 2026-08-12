@@ -13,7 +13,7 @@ import { DTEStatusBadge } from './DTEStatusBadge.jsx';
 import NotaCreditoModal from './NotaCreditoModal.jsx';
 import NotaDebitoModal from './NotaDebitoModal.jsx';
 import DTEDetallesModal from './DTEDetallesModal.jsx';
-import DTEPreviewModal from './DTEPreviewModal.jsx';
+import DTEPreview from './DTEPreview.jsx';
 import { useDTE } from '../../hooks/useDTE.js';
 import { dteService } from '../../services/dteService.js';
 import { formatCLP } from '../../services/formatHelpers.js';
@@ -60,7 +60,7 @@ function Step({ estado, label, detalle }) {
 export default function PanelFacturacion({ orden, accionPrincipal = null }) {
   const {
     documentos, loading, error,
-    cargarDocumentos, emitirGuiaDespacho, emitirFactura,
+    cargarDocumentos, emitirGuiaDespacho,
   } = useDTE(orden?.id);
 
   const [modalNC,       setModalNC]       = useState(null);
@@ -68,7 +68,6 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
   const [modalDetalles, setModalDetalles] = useState(null);
   const [modalRechazo,  setModalRechazo]  = useState(null);
   const [preEmitiendo,  setPreEmitiendo]  = useState(false);
-  const [showPreview,   setShowPreview]   = useState(false);
 
   if (!orden) return null;
 
@@ -83,12 +82,25 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
 
   // ── Guards de acciones secundarias ──
   const puedeEmitirGD = !guiaEmitida && estadoIncludes(estado, 'pend', 'asig', 'list', 'listo', 'factur');
-  // "Facturar orden" es LA vía de emisión de la factura; este botón queda solo
-  // como reparación de OVs legacy que quedaron Facturadas sin documento (pre-B5).
-  // OJO: 'facturada'/'entregada' exactos — 'factur' también matchea "Lista para
-  // facturación" y duplicaría la vía de emisión.
-  const puedeEmitirFacturaLegacy =
-    !facturaEmitida && tieneRUT && estadoIncludes(estado, 'facturada', 'entregada');
+
+  // 🔴 EL BOTÓN "EMITIR FACTURA" SOBRE UNA ORDEN YA FACTURADA SE RETIRÓ (2026-08-12).
+  //
+  // Existía como reparación de OVs legacy que quedaron en Facturada sin documento, y la
+  // condición era `!facturaEmitida && estado in (facturada, entregada)`. El problema es que
+  // esa condición describe **todas** las órdenes facturadas hasta ahora: `DocumentoTributarios`
+  // está en 0 porque hasta el traspaso se facturó en el portal MIPYME.
+  //
+  // Medido en producción antes de retirarlo: 3 órdenes mostraban el botón, entre ellas la
+  // OV 698 (la de Jumbo con la cantidad 20 veces menor) y la 726 (con ingreso en $0). Apretarlo
+  // en cualquiera de las dos habría emitido al SII un documento equivocado, gastando un folio
+  // por una venta que ya tenía su factura emitida fuera del ERP.
+  //
+  // La vía de emisión es una sola: "Facturar orden" desde `Lista para facturación`. Si alguna
+  // orden vieja necesitara de verdad su documento electrónico, es un acto deliberado y no
+  // corresponde que sea un botón al lado de la operación normal.
+  const facturadaSinDocumento =
+    !facturaEmitida && estadoIncludes(estado, 'facturada', 'entregada');
+
   const puedeEmitirNC = !!facturaEmitida && !ncEmitida;
   const puedeEmitirND = !!facturaEmitida && !ndEmitida;
 
@@ -194,6 +206,15 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
         </div>
       )}
 
+      {/* Facturada fuera del ERP: se explica en vez de ofrecer un botón que gastaría un folio */}
+      {facturadaSinDocumento && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 mb-3">
+          Esta orden está <strong>{estado.toLowerCase()}</strong> y no tiene documento electrónico
+          en el sistema: se facturó fuera del ERP. No se emite uno nuevo desde acá, porque sería
+          un segundo documento para una venta ya facturada.
+        </div>
+      )}
+
       {/* Sin RUT */}
       {!tieneRUT && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800 mb-3">
@@ -215,18 +236,6 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
           >
             <Truck size={14} />
             {loading ? 'Generando…' : 'Emitir Guía de Despacho'}
-          </button>
-        )}
-
-        {puedeEmitirFacturaLegacy && (
-          <button
-            onClick={() => setShowPreview(true)}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
-            <FileText size={14} />
-            {loading ? 'Generando…' : 'Emitir Factura'}
-            {guiaEmitida && <span className="text-xs opacity-80 ml-1">(ref. GD)</span>}
           </button>
         )}
 
@@ -252,6 +261,18 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
           </button>
         )}
       </div>
+
+      {/* Lo que va a decir la factura, si todavía no se emite. Es EL MISMO componente que ve el
+          operario al apretar "Facturar orden": la pestaña de documentos y el modal de emisión
+          dejan de mostrar cosas distintas para la misma acción. */}
+      {!facturaEmitida && tieneRUT && estadoIncludes(estado, 'lista') && (
+        <div className="mb-4">
+          <div className="text-xs text-gray-500 font-medium uppercase mb-2">
+            Vista previa de la factura
+          </div>
+          <DTEPreview ordenId={orden.id} tipo="factura" />
+        </div>
+      )}
 
       {/* Tabla de documentos */}
       {loading && documentos.length === 0 ? (
@@ -331,20 +352,6 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
             </tbody>
           </table>
         </div>
-      )}
-
-      {/* Modal preview de factura (vía legacy) antes de emitir */}
-      {showPreview && (
-        <DTEPreviewModal
-          ordenId={orden.id}
-          tipo="factura"
-          emitting={loading}
-          onClose={() => setShowPreview(false)}
-          onConfirm={async () => {
-            const fac = await emitirFactura();
-            if (fac) setShowPreview(false);
-          }}
-        />
       )}
 
       {/* Modal NC */}
