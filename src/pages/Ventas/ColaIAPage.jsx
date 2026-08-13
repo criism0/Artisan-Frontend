@@ -548,7 +548,27 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
   };
 
   const todosLosProductos = ov.productos ?? [];
-  const sinMatchCount = todosLosProductos.filter((p) => !p.id_producto).length;
+
+  // 🔴 UNA LÍNEA ESTÁ "SIN ASOCIAR" CUANDO NO TIENE NI PRODUCTO NI NOMBRE COMERCIAL.
+  //
+  // No basta con `!id_producto`: el DTE arma cada línea por NOMBRE DE FACTURACIÓN
+  // (`ovLineas.ts`: `NombreFacturacion?.nombre || ProductoBase?.nombre || 'Producto'`), así que
+  // una línea con nombre comercial y sin producto físico se factura perfecto — es el caso
+  // normal cuando el nombre agrupa varios productos y la IA no puede elegir uno.
+  //
+  // La primera versión de este contador miraba sólo `id_producto` y decía «3 sin asociar»
+  // mientras la lista mostraba 2 (visto en la OV 731): la tercera tenía su nombre comercial y
+  // se veía perfectamente asociada. La tarjeta se contradecía sola.
+  //
+  // Lo que sí rompe es una línea sin ninguno de los dos: en la factura sale con el literal
+  // «Producto».
+  //
+  // ⚠️ Es LA MISMA condición que usa `ProductoRow` para pintar «Sin asociar»
+  // (`nombreFact || nombre`), y a propósito: el contador y la fila mirando cosas distintas es
+  // exactamente lo que hacía que la tarjeta se contradijera. Se compara por NOMBRE y no por id
+  // porque el nombre es lo que termina en el documento.
+  const sinAsociar = (p) => !(p.NombreFacturacion?.nombre || p.ProductoBase?.nombre);
+  const sinMatchCount = todosLosProductos.filter(sinAsociar).length;
   const sinPrecioCount = todosLosProductos.filter((p) => !(Number(p.precio_venta) > 0)).length;
 
   // 🔴 LO QUE FALTA PARA VALIDAR, EN UN SOLO LUGAR.
@@ -568,7 +588,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
   // Las líneas que necesitan atención se muestran siempre; las correctas se pliegan. Es lo que
   // corta el crecimiento de la tarjeta: una orden de 14 líneas con 2 problemas ocupa 2 filas,
   // no 14.
-  const necesitaAtencion = (p) => !p.id_producto || !(Number(p.precio_venta) > 0);
+  const necesitaAtencion = (p) => sinAsociar(p) || !(Number(p.precio_venta) > 0);
   const conProblema = todosLosProductos.filter(necesitaAtencion);
   const sinProblema = todosLosProductos.filter((p) => !necesitaAtencion(p));
   const productosMostrados = productosExpandido
