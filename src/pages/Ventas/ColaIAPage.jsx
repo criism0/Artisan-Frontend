@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
@@ -8,9 +8,49 @@ import Pagination from "../../components/UI/Pagination";
 import Tabs from "../../components/UI/Tabs";
 import PanelApartados from "../../components/DTE/PanelApartados";
 import { compararFormato } from "../../utils/formatoProducto";
+import {
+  indexarPreciosPorNombre,
+  precioUnitarioDeLista,
+  precioUtil,
+  formatearPesos,
+} from "../../utils/preciosLista";
 
 const PRODUCTOS_VISIBLES = 4;
 const PAGE_SIZE = 6;
+
+// ── Precios de la lista del cliente ─────────────────────────────────────────
+//
+// Una lista trae ~17 entradas (~10 KB), y las 267 órdenes de la cola se reparten entre 18
+// listas: cargarlas por tarjeta sería pedir la misma lista decenas de veces.
+//
+// ⚠️ El caché guarda la PROMESA, no el resultado. Si varias filas abren su editor antes de que
+// llegue la respuesta, todas esperan la MISMA petición; guardando el resultado, cada una
+// dispararía la suya y recién la última poblaría el caché. Es el mismo error que produjo la
+// ráfaga de 136 peticiones al abrir una solicitud (§0-quadragies): la guarda miraba estado, que
+// todavía no existe mientras las respuestas viajan.
+function usePreciosDeLista() {
+  const api = useApi();
+  const cache = useRef(new Map());
+
+  return useCallback(
+    (idLista) => {
+      if (!idLista) return Promise.resolve(null);
+      const clave = String(idLista);
+      if (!cache.current.has(clave)) {
+        const promesa = api(`/producto-base-lista-precio/lista/${clave}`)
+          .then((resp) => indexarPreciosPorNombre(Array.isArray(resp) ? resp : resp?.data))
+          // Un fallo no se cachea: si la red falló, el siguiente intento debe volver a pedir.
+          .catch((err) => {
+            cache.current.delete(clave);
+            throw err;
+          });
+        cache.current.set(clave, promesa);
+      }
+      return cache.current.get(clave);
+    },
+    [api]
+  );
+}
 
 // ── Flags IA: mapeo a etiquetas legibles ────────────────────────────────────
 //
@@ -103,7 +143,68 @@ function ConfianzaBadge({ valor }) {
 }
 
 // ── Fila de producto editable ────────────────────────────────────────────────
-function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
+// Bajo el campo de precio: de dónde salió el número que se está viendo.
+//
+// El caso que importa no es el feliz, es «este producto no está en la lista del cliente»: hoy eso
+// se descubre facturando. Y cuando la lista dice otra cosa que el campo, se muestran los dos y se
+// deja elegir — pisarlo en silencio sería decidir por el operario.
+function OrigenPrecio({ origen, nombreLista, precioActual, onUsarDeLista }) {
+  if (!origen) return null;
+  const lista = nombreLista ? `«${nombreLista}»` : "del cliente";
+
+  if (origen.tipo === "cargando") {
+    return <p className="text-[11px] text-gray-400 mt-0.5">Buscando en la lista de precios…</p>;
+  }
+  if (origen.tipo === "sin_lista") {
+    return (
+      <p className="text-[11px] text-amber-700 mt-0.5">
+        El cliente no tiene lista de precios asignada
+      </p>
+    );
+  }
+  if (origen.tipo === "no_en_lista") {
+    return (
+      <p className="text-[11px] text-amber-700 mt-0.5">
+        Este producto no está en la lista {lista} — escribe el precio
+      </p>
+    );
+  }
+  if (origen.tipo === "error") {
+    return (
+      <p className="text-[11px] text-red-600 mt-0.5">No se pudo leer la lista de precios</p>
+    );
+  }
+
+  const coincide = Number(precioActual) === Number(origen.precio);
+  if (origen.tipo === "lista" && coincide) {
+    return (
+      <p className="text-[11px] text-gray-500 mt-0.5">Precio de la lista {lista}</p>
+    );
+  }
+  return (
+    <p className="text-[11px] text-gray-500 mt-0.5">
+      La lista {lista} dice {formatearPesos(origen.precio)}
+      <button
+        type="button"
+        onClick={() => onUsarDeLista(origen.precio)}
+        className="ml-1 font-medium text-[#7A5AF8] hover:text-[#6648e0] underline"
+      >
+        usar
+      </button>
+    </p>
+  );
+}
+
+function ProductoRow({
+  prod,
+  catalogoOpts,
+  ovId,
+  onUpdated,
+  onDeleted,
+  idListaPrecio,
+  nombreLista,
+  cargarPrecios,
+}) {
   const api = useApi();
   const [editing, setEditing]       = useState(false);
   const [saving, setSaving]         = useState(false);
@@ -117,6 +218,9 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
   const [cantidad, setCantidad]     = useState(String(prod.cantidad ?? ""));
   const [precio, setPrecio]         = useState(String(prod.precio_venta ?? ""));
   const [confirmDel, setConfirmDel] = useState(false);
+  // De dónde salió el precio que se está mostrando. Es la mitad que faltaba: el número solo no
+  // dice si es el acordado con el cliente o el que la IA leyó del correo.
+  const [origenPrecio, setOrigenPrecio] = useState(null);
 
   const sinMatch    = !prod.id_producto;
   const nombre      = prod.ProductoBase?.nombre ?? null;
@@ -161,6 +265,57 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
       setSaving(false);
     }
   };
+
+  // 🔴 EL PRECIO DE UNA LÍNEA ES EL DE ESE PRODUCTO PARA ESE CLIENTE, no el que traía antes.
+  //
+  // El campo se precargaba con `prod.precio_venta`, que es lo que la IA leyó del correo o lo que
+  // quedó del producto ANTERIOR. Al cambiar el producto, ese número deja de corresponder: sigue
+  // ahí, con pinta de dato bueno, apuntando a otra cosa.
+  //
+  // `sobrescribir` distingue los dos momentos. Al CAMBIAR el producto se sobrescribe siempre —el
+  // precio viejo es de otro producto—. Al ABRIR el editor no: si ya hay un precio puesto puede
+  // ser una excepción acordada, así que se muestra lo que dice la lista y se deja decidir.
+  const aplicarPrecioDeLista = useCallback(
+    async (idNombreFacturacion, { sobrescribir }) => {
+      if (!idNombreFacturacion) { setOrigenPrecio(null); return; }
+      if (!idListaPrecio) { setOrigenPrecio({ tipo: "sin_lista" }); return; }
+
+      setOrigenPrecio({ tipo: "cargando" });
+      try {
+        const indice = await cargarPrecios(idListaPrecio);
+        const deLista = precioUnitarioDeLista(indice, idNombreFacturacion);
+        if (deLista == null) { setOrigenPrecio({ tipo: "no_en_lista" }); return; }
+
+        // Al abrir, un precio vacío o en 0 no es una decisión de nadie: se completa solo. Es el
+        // caso de 139 de las 296 líneas sin precio de la cola.
+        setPrecio((actual) => {
+          if (sobrescribir || !precioUtil(actual)) return String(deLista);
+          return actual;
+        });
+        setOrigenPrecio({ tipo: "lista", precio: deLista });
+      } catch {
+        setOrigenPrecio({ tipo: "error" });
+      }
+    },
+    [idListaPrecio, cargarPrecios]
+  );
+
+  // Cambiar el producto es el evento que obliga a recalcular el precio; va en el handler y no en
+  // un efecto sobre `prodIdSel`, que además se dispararía en el primer render.
+  const handleSelectProducto = (valor) => {
+    setProdIdSel(valor);
+    aplicarPrecioDeLista(valor ? Number(valor) : null, { sobrescribir: true });
+  };
+
+  // Al abrir el editor se consulta la lista para la línea que ya está puesta: así el operario ve
+  // de entrada si el precio que trae coincide con el del cliente.
+  useEffect(() => {
+    if (!editing) return;
+    aplicarPrecioDeLista(prodIdSel ? Number(prodIdSel) : null, { sobrescribir: false });
+    // `prodIdSel` no va en las dependencias a propósito: sus cambios los maneja el handler, y
+    // ponerlo acá volvería a pisar el precio que el operario acaba de escribir a mano.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing, aplicarPrecioDeLista]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -221,7 +376,7 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
           <Selector
             options={[{ value: "", label: "— Sin asociar —" }, ...catalogoOpts]}
             selectedValue={prodIdSel}
-            onSelect={setProdIdSel}
+            onSelect={handleSelectProducto}
             disabled={saving}
           />
         </div>
@@ -239,9 +394,23 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
             <label className="text-xs text-gray-500 mb-0.5 block">Precio unitario</label>
             <input
               type="number" min="0" value={precio}
-              onChange={(e) => setPrecio(e.target.value)}
+              onChange={(e) => {
+                setPrecio(e.target.value);
+                // Escrito a mano deja de ser «el de la lista». Decirlo evita que alguien lea un
+                // número tecleado como si viniera del acuerdo con el cliente.
+                setOrigenPrecio((o) => (o?.tipo === "lista" ? { ...o, tipo: "editado" } : o));
+              }}
               className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
               disabled={saving}
+            />
+            <OrigenPrecio
+              origen={origenPrecio}
+              nombreLista={nombreLista}
+              precioActual={precio}
+              onUsarDeLista={(p) => {
+                setPrecio(String(p));
+                setOrigenPrecio({ tipo: "lista", precio: p });
+              }}
             />
           </div>
         </div>
@@ -401,13 +570,40 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
 }
 
 // ── Fila para agregar producto nuevo ─────────────────────────────────────────
-function AgregarProductoRow({ ovId, catalogoOpts, onAdded, onCancel }) {
+function AgregarProductoRow({
+  ovId,
+  catalogoOpts,
+  onAdded,
+  onCancel,
+  idListaPrecio,
+  nombreLista,
+  cargarPrecios,
+}) {
   const api = useApi();
   const [saving, setSaving]       = useState(false);
   const [prodIdSel, setProdIdSel] = useState("");
   const [cantidad, setCantidad]   = useState("1");
   const [precio, setPrecio]       = useState("0");
   const [descOrig, setDescOrig]   = useState("");
+  const [origenPrecio, setOrigenPrecio] = useState(null);
+
+  // Una línea nueva parte en 0, que es justo el valor que la guarda de validación rechaza. Elegir
+  // el producto es el momento en que el precio se sabe.
+  const handleSelectProducto = async (valor) => {
+    setProdIdSel(valor);
+    if (!valor) { setOrigenPrecio(null); return; }
+    if (!idListaPrecio) { setOrigenPrecio({ tipo: "sin_lista" }); return; }
+    setOrigenPrecio({ tipo: "cargando" });
+    try {
+      const indice = await cargarPrecios(idListaPrecio);
+      const deLista = precioUnitarioDeLista(indice, Number(valor));
+      if (deLista == null) { setOrigenPrecio({ tipo: "no_en_lista" }); return; }
+      setPrecio(String(deLista));
+      setOrigenPrecio({ tipo: "lista", precio: deLista });
+    } catch {
+      setOrigenPrecio({ tipo: "error" });
+    }
+  };
 
   const handleAdd = async () => {
     if (!cantidad || Number(cantidad) <= 0) {
@@ -443,7 +639,7 @@ function AgregarProductoRow({ ovId, catalogoOpts, onAdded, onCancel }) {
         <Selector
           options={[{ value: "", label: "— Sin asociar / manual —" }, ...catalogoOpts]}
           selectedValue={prodIdSel}
-          onSelect={setProdIdSel}
+          onSelect={handleSelectProducto}
           disabled={saving}
         />
       </div>
@@ -471,9 +667,21 @@ function AgregarProductoRow({ ovId, catalogoOpts, onAdded, onCancel }) {
           <label className="text-xs text-gray-500 mb-0.5 block">Precio unitario</label>
           <input
             type="number" min="0" value={precio}
-            onChange={(e) => setPrecio(e.target.value)}
+            onChange={(e) => {
+              setPrecio(e.target.value);
+              setOrigenPrecio((o) => (o?.tipo === "lista" ? { ...o, tipo: "editado" } : o));
+            }}
             className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
             disabled={saving}
+          />
+          <OrigenPrecio
+            origen={origenPrecio}
+            nombreLista={nombreLista}
+            precioActual={precio}
+            onUsarDeLista={(p) => {
+              setPrecio(String(p));
+              setOrigenPrecio({ tipo: "lista", precio: p });
+            }}
           />
         </div>
       </div>
@@ -563,7 +771,17 @@ function EmailModal({ log, onClose }) {
 }
 
 // ── Tarjeta de una OV IA ─────────────────────────────────────────────────────
-function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValidar, onRechazar, procesando }) {
+function OVIACard({
+  ov: ovInicial,
+  bodegas,
+  catalogoOpts,
+  clientesOpts,
+  clientesPorId,
+  cargarPrecios,
+  onValidar,
+  onRechazar,
+  procesando,
+}) {
   const api = useApi();
   const navigate = useNavigate();
   const [ov, setOv]                   = useState(ovInicial);
@@ -614,6 +832,16 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
   const clienteElegido = clienteIdLocal
     ? clientesOpts.find((c) => String(c.value) === String(clienteIdLocal))
     : null;
+
+  // 🔴 LA LISTA DE PRECIOS ES LA DEL CLIENTE QUE VA A QUEDAR, no la del que la IA adivinó.
+  //
+  // Si el operario está corrigiendo el cliente —el caso de las 57 órdenes que quedaron con
+  // «Artisan»— los precios que corresponden son los del cliente nuevo. Tomarlos del anterior
+  // sería facturarle a uno con la lista de otro.
+  const clienteEfectivoId = clienteIdLocal || (ov.id_cliente != null ? String(ov.id_cliente) : "");
+  const clienteEfectivo = clienteEfectivoId ? clientesPorId.get(clienteEfectivoId) : null;
+  const idListaPrecio = clienteEfectivo?.id_lista_precio ?? null;
+  const nombreLista = clienteEfectivo?.listaPrecio?.nombre ?? null;
 
   const handleCrearCliente = () => {
     navigate("/clientes/add", {
@@ -696,6 +924,12 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
       ? [{ ok: false, bloquea: false, okTxt: "", faltaTxt: `${porConfirmarCount} por confirmar` }]
       : []),
     { ok: sinPrecioCount === 0, okTxt: "Precios", faltaTxt: `${sinPrecioCount} sin precio` },
+    // Ámbar: no impide validar —el precio se puede escribir a mano— pero explica POR QUÉ los
+    // precios no se están completando solos, que si no parece que la pantalla no funciona.
+    // Medido en la copia de producción: 5 de las 201 órdenes con cliente están así.
+    ...(clienteEfectivo && !idListaPrecio
+      ? [{ ok: false, bloquea: false, okTxt: "", faltaTxt: "Cliente sin lista de precios" }]
+      : []),
     { ok: !!bodegaId, okTxt: "Bodega", faltaTxt: "Falta la bodega" },
   ];
   // Lo que impide validar. `bloquea: false` sólo avisa (la sugerencia sin confirmar), porque
@@ -895,6 +1129,9 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
               ovId={ov.id}
               onUpdated={handleUpdatedProd}
               onDeleted={handleDeletedProd}
+              idListaPrecio={idListaPrecio}
+              nombreLista={nombreLista}
+              cargarPrecios={cargarPrecios}
             />
           ))}
           {todosLosProductos.length === 0 && !agregando && (
@@ -908,6 +1145,9 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
               catalogoOpts={catalogoOpts}
               onAdded={handleAddedProd}
               onCancel={() => setAgregando(false)}
+              idListaPrecio={idListaPrecio}
+              nombreLista={nombreLista}
+              cargarPrecios={cargarPrecios}
             />
           )}
         </ul>
@@ -1025,6 +1265,9 @@ export default function ColaIAPage() {
   const [tab, setTab]           = useState("validar");
   const [apartados, setApartados] = useState([]);
   const [errorApartados, setErrorApartados] = useState(null);
+  // Se pide bajo demanda —al abrir el editor de una línea— y una sola vez por lista. Cargarlas
+  // todas al entrar sería traer 18 listas que casi nadie va a mirar.
+  const cargarPrecios = usePreciosDeLista();
 
   const fetchData = useCallback(async () => {
     try {
@@ -1098,6 +1341,13 @@ export default function ColaIAPage() {
     value: String(c.id),
     label: c.nombre_empresa ?? `Cliente #${c.id}`,
   }));
+
+  // El cliente completo, para llegar a su lista de precios. `clientesOpts` sólo lleva
+  // value/label, que es lo que el Selector necesita y no alcanza para resolver un precio.
+  const clientesPorId = useMemo(
+    () => new Map(clientes.map((c) => [String(c.id), c])),
+    [clientes]
+  );
 
   // Búsqueda: cliente, RUT, N° OC, remitente o asunto del correo
   const ordenesFiltradas = useMemo(() => {
@@ -1240,6 +1490,8 @@ export default function ColaIAPage() {
                 bodegas={bodegas}
                 catalogoOpts={catalogoOpts}
                 clientesOpts={clientesOpts}
+                clientesPorId={clientesPorId}
+                cargarPrecios={cargarPrecios}
                 onValidar={handleValidar}
                 onRechazar={setRechazarId}
                 procesando={procesando}
