@@ -476,6 +476,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
     return santiago ? String(santiago.id) : "";
   });
   const [clienteIdLocal, setClienteIdLocal] = useState("");
+  const [cambiandoCliente, setCambiandoCliente] = useState(false);
   const [agregando, setAgregando]     = useState(false);
   const [emailOpen, setEmailOpen]     = useState(false);
   const [esReferencial, setEsReferencial] = useState(ovInicial.es_referencial ?? true);
@@ -510,6 +511,11 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
   // ningún cliente registrado — sirven para precargar "Crear cliente".
   const nombreExtraido = log?.raw_ai_response?.cliente_nombre_extraido || "";
   const rutExtraido    = log?.raw_ai_response?.cliente_rut_extraido || "";
+
+  // El cliente que el operario eligió a mano, si eligió alguno. Manda sobre el de la IA.
+  const clienteElegido = clienteIdLocal
+    ? clientesOpts.find((c) => String(c.value) === String(clienteIdLocal))
+    : null;
 
   const handleCrearCliente = () => {
     navigate("/clientes/add", {
@@ -562,12 +568,17 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
             </span>
           </div>
           <h3 className="text-lg font-bold text-gray-800 mt-0.5">
-            {ov.cliente?.nombre_empresa ?? (
+            {clienteElegido?.label ?? ov.cliente?.nombre_empresa ?? (
               <span className="text-gray-500 italic">Cliente no identificado</span>
             )}
           </h3>
-          {ov.cliente?.rut && (
-            <p className="text-xs text-gray-500">RUT {ov.cliente.rut}</p>
+          {/* Si hay un cambio pendiente se dice, para que nadie valide creyendo otra cosa. */}
+          {clienteElegido && ov.id_cliente ? (
+            <p className="text-xs text-amber-700">
+              Se cambiará al validar (antes: {ov.cliente?.nombre_empresa ?? "sin cliente"})
+            </p>
+          ) : (
+            ov.cliente?.rut && <p className="text-xs text-gray-500">RUT {ov.cliente.rut}</p>
           )}
         </div>
         <ConfianzaBadge valor={ov.confianza_ia} />
@@ -621,11 +632,17 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
         </div>
       )}
 
-      {/* Selector de cliente — solo cuando la IA no pudo identificarlo */}
-      {!ov.id_cliente && (
-        <div className="border border-orange-200 bg-orange-50 rounded-xl p-3 flex flex-col gap-2">
-          <p className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
-            Cliente no identificado — selecciona uno para validar
+      {/* 🔴 EL CLIENTE SIEMPRE SE PUEDE CAMBIAR, LO HAYA ACERTADO LA IA O NO.
+          Antes este bloque salía sólo con `!ov.id_cliente`: si la IA elegía mal, no había
+          forma de corregirlo desde la app. Y elegía mal seguido — medido el 2026-08-12,
+          58 órdenes habían quedado asignadas a nuestra propia empresa, porque en una orden
+          de compra nuestro RUT aparece como proveedor y la IA lo leía como cliente. */}
+      {(!ov.id_cliente || cambiandoCliente) ? (
+        <div className={`border rounded-xl p-3 flex flex-col gap-2 ${
+          ov.id_cliente ? "border-gray-200 bg-gray-50" : "border-orange-200 bg-orange-50"
+        }`}>
+          <p className="text-xs font-semibold text-gray-700">
+            {ov.id_cliente ? "Cambiar el cliente de esta orden" : "Cliente no identificado — selecciona uno para validar"}
           </p>
           {nombreExtraido && (
             <p className="text-xs text-gray-600">
@@ -639,14 +656,33 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
             onSelect={setClienteIdLocal}
             disabled={procesando}
           />
-          <button
-            type="button"
-            onClick={handleCrearCliente}
-            className="self-start flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-gray-800 underline decoration-dotted"
-          >
-            No existe — crear cliente nuevo{nombreExtraido ? " con estos datos" : ""}
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={handleCrearCliente}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-gray-800 underline decoration-dotted"
+            >
+              No existe — crear cliente nuevo{nombreExtraido ? " con estos datos" : ""}
+            </button>
+            {ov.id_cliente && (
+              <button
+                type="button"
+                onClick={() => { setCambiandoCliente(false); setClienteIdLocal(""); }}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
         </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setCambiandoCliente(true)}
+          className="self-start text-xs text-gray-500 hover:text-gray-700 underline decoration-dotted"
+        >
+          No es este cliente — cambiar
+        </button>
       )}
 
       {/* Productos */}
