@@ -72,6 +72,29 @@ export const dteService = {
     return mapDte(res?.data ?? res);
   },
 
+  /**
+   * Guía de despacho de un TRASLADO entre bodegas (tipo 52, IndTraslado 5).
+   *
+   * 🔴 Este endpoint existía en el backend desde siempre y NO TENÍA LLAMADOR: la vista de
+   * solicitudes lo había retirado mientras duraba el bloqueo del traspaso a LibreDTE, y quedó
+   * así. En la práctica significaba que las guías de traslado —unas 17 al mes— se emitían
+   * fuera del ERP y el número se escribía a mano en la solicitud.
+   *
+   * El detalle y los valores salen de los bultos efectivamente cargados en los pallets, así que
+   * la guía declara lo mismo que muestra la pantalla de la solicitud.
+   */
+  emitirGuiaDespachoSolicitud: async (idSolicitud, { transportista, fechaEnvio } = {}) => {
+    const res = await api('/facturacion/emitir-guia-despacho', {
+      method: 'POST',
+      body: {
+        id_solicitud_mercaderia: idSolicitud,
+        ...(transportista ? { transportista } : {}),
+        ...(fechaEnvio ? { fecha_envio_override: fechaEnvio } : {}),
+      },
+    });
+    return mapDte(res?.data ?? res);
+  },
+
   emitirGuiaDespachoVenta: async (idOrdenVenta) => {
     const res = await api('/facturacion/emitir-guia-despacho-venta', {
       method: 'POST',
@@ -251,6 +274,30 @@ export const dteService = {
       body: { nota },
     });
     return res?.data ?? res ?? null;
+  },
+
+  /**
+   * Abre el documento REAL como saldría, antes de emitirlo. NO consume folio.
+   *
+   * Lo genera LibreDTE a partir del mismo payload que usaría la emisión, y sale con
+   * **FOLIO N° 0**: es el borrador, no existe ante el SII. Sirve para cazar un cliente
+   * equivocado o un total que no cuadra mientras todavía se puede, porque una factura emitida
+   * ya no se edita — sólo se corrige con nota de crédito.
+   *
+   * ⚠️ Cada llamada deja un documento temporal en la cuenta de LibreDTE, así que va detrás de
+   * un botón y no se dispara sola al abrir una pantalla.
+   *
+   * @param tipo 'factura' | 'guia-solicitud'
+   */
+  verPrevisualizacion: async (tipo, referenciaId) => {
+    const blob = await apiBlob(`/facturacion/previsualizar/${tipo}/${referenciaId}`);
+    const url = URL.createObjectURL(blob);
+    const ventana = window.open(url, '_blank');
+    if (ventana) {
+      ventana.addEventListener('load', () => URL.revokeObjectURL(url), { once: true });
+    } else {
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
   },
 
   /**

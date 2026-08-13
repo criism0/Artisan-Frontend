@@ -23,6 +23,7 @@ import { formatCLP } from "../../services/formatHelpers";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import PanelFacturacion from "../../components/DTE/PanelFacturacion.jsx";
+import DTEPreview from "../../components/DTE/DTEPreview.jsx";
 import Selector from "../../components/Forms/Selector";
 import AvanceItems from "../../components/AvanceItems";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
@@ -114,6 +115,7 @@ function StepBar({ estadoActual }) {
 
 // ── Subformulario: Facturar ───────────────────────────────────────────────────
 function FacturarForm({
+  ordenId,
   direccionesCliente,
   idLocalDespacho,
   setIdLocalDespacho,
@@ -124,6 +126,11 @@ function FacturarForm({
 }) {
   return (
     <div className="flex flex-col gap-4">
+      {/* Lo que va a decir el documento, con la MISMA vista que la pestaña Documentos.
+          Antes este modal pedía dirección y fecha sin mostrar nada de lo que se iba a emitir:
+          se confirmaba a ciegas un documento que después sólo se corrige con nota de crédito. */}
+      <DTEPreview ordenId={ordenId} tipo="factura" />
+
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-gray-700">
           Dirección de facturación {requiereDir && <span className="text-red-500">*</span>}
@@ -927,6 +934,7 @@ export default function OrdenVentaDetail() {
         }
       >
         <FacturarForm
+          ordenId={orden?.id}
           direccionesCliente={direccionesCliente}
           idLocalDespacho={idLocalDespacho}
           setIdLocalDespacho={setIdLocalDespacho}

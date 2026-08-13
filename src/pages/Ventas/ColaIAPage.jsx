@@ -13,11 +13,33 @@ const PRODUCTOS_VISIBLES = 4;
 const PAGE_SIZE = 6;
 
 // ── Flags IA: mapeo a etiquetas legibles ────────────────────────────────────
+//
+// `null` = no se muestra acá porque ya se ve en otra parte, mejor. Un aviso que repite lo que
+// la tarjeta ya dice roba atención a los que sí aportan algo nuevo.
 const FLAG_LABELS = {
-  producto_sin_match:    "Hay productos sin asociar en el catálogo",
-  precio_no_disponible:  "Algunos precios no estaban disponibles en el correo",
+  // Lo dicen la fila de requisitos («2 sin asociar») y las propias líneas marcadas, con el
+  // número exacto y con cuáles. El aviso genérico sólo repetía.
+  producto_sin_match:    null,
+  // Ídem: la fila de requisitos cuenta las líneas sin precio y cada una queda marcada.
+  precio_no_disponible:  null,
+  // Éste SÍ aporta: dice de DÓNDE salió el precio, que no se ve en ninguna otra parte.
   precio_desde_lista:    "Precios tomados de la lista de precios del cliente",
   cliente_no_encontrado: null, // se muestra vía el selector de cliente, no aquí
+  sin_precio:            null, // lo cuenta la fila de requisitos, con el número exacto
+
+  // Los que cuentan de dónde vino el dato o qué decidió el sistema. Ninguno se ve en otra
+  // parte, así que acá es donde tienen que estar.
+  origen_edi:                        "Leído del archivo EDI del cliente, no interpretado por la IA",
+  sugerencia_fuzzy_aplicada:         "Algunos productos se asociaron por parecido de nombre",
+  cliente_propia_empresa_descartado: "La IA eligió nuestra propia empresa como cliente — se descartó",
+  cantidad_convertida_de_cajas:      "El pedido venía en cajas: la cantidad se convirtió a unidades",
+  precio_unitario_redondeado:        "El precio por caja no dividía exacto: el unitario se redondeó",
+  cliente_corregido_por_rut:         "El cliente se corrigió por el RUT del correo",
+  cliente_ambiguo:                   "Varios clientes coinciden con el nombre del correo",
+  cliente_resuelto_por_rut:            "Cliente identificado por su RUT",
+  cliente_resuelto_por_nombre_exacto:  "Cliente identificado por su nombre",
+  cliente_resuelto_por_nombre_contenido: "Cliente identificado por su nombre",
+  cliente_resuelto_por_giro:           "Cliente identificado por su giro — conviene confirmarlo",
 };
 
 function parseFlagsVisibles(errorDetalle) {
@@ -25,8 +47,13 @@ function parseFlagsVisibles(errorDetalle) {
   return errorDetalle
     .split(",")
     .map((f) => f.trim())
-    .filter((f) => f && !f.startsWith("modificacion_oc:") && FLAG_LABELS[f] !== null)
-    .map((f) => FLAG_LABELS[f] ?? f.replace(/_/g, " "));
+    .filter((f) => f && !f.startsWith("modificacion_oc:"))
+    // Varios flags llevan un dato pegado con `:` (`sin_precio:2`, `cliente_ambiguo:3,9`).
+    // Se busca la etiqueta por la clave sola; si no hay, se muestra legible en vez de con
+    // guiones bajos.
+    .map((f) => ({ clave: f.split(":")[0], crudo: f }))
+    .filter(({ clave }) => FLAG_LABELS[clave] !== null)
+    .map(({ clave, crudo }) => FLAG_LABELS[clave] ?? crudo.replace(/_/g, " "));
 }
 
 // ── Confianza badge con tooltip de escala ────────────────────────────────────
@@ -81,8 +108,11 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
   const [editing, setEditing]       = useState(false);
   const [saving, setSaving]         = useState(false);
   // Pre-fill con la sugerencia fuzzy si no hay match directo
+  // Se elige por NOMBRE DE FACTURACIÓN, que es la unidad con la que se vende y se factura.
+  // Si la línea ya trae producto físico —viene de una OV vieja o del picking— se muestra su
+  // nombre comercial, que es el que corresponde a este catálogo.
   const [prodIdSel, setProdIdSel]   = useState(
-    String(prod.id_producto ?? prod.producto_id_sugerido ?? "")
+    String(prod.id_nombre_facturacion ?? "")
   );
   const [cantidad, setCantidad]     = useState(String(prod.cantidad ?? ""));
   const [precio, setPrecio]         = useState(String(prod.precio_venta ?? ""));
@@ -92,6 +122,10 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
   const nombre      = prod.ProductoBase?.nombre ?? null;
   const nombreFact  = prod.NombreFacturacion?.nombre ?? null;
   const sugerido    = prod.ProductoSugerido ?? null;
+  // Lo que se ofrece y lo que se aplica es el NOMBRE COMERCIAL. El producto físico que guarda
+  // la columna es sólo su portador; se cae a él si por alguna razón no trae nombre.
+  const nfSugeridoId  = sugerido?.nombreFacturacion?.id ?? sugerido?.id_nombre_facturacion ?? null;
+  const nombreSugerido = sugerido?.nombreFacturacion?.nombre ?? sugerido?.nombre ?? null;
   const simPct      = sugerido && prod.similitud_sugerencia != null
     ? Math.round(prod.similitud_sugerencia * 100)
     : null;
@@ -100,19 +134,26 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
   // distinto no le baja el puntaje: en producción hay sugerencias al 100% de "Camembert
   // 100 g" apuntando al de 150 g. Otro gramaje es otro producto, con otro precio. El puntaje
   // no se toca acá —eso es del backend— pero el desacuerdo se avisa antes de aceptar.
-  const formato = sugerido ? compararFormato(prod.descripcion_original, sugerido.nombre) : null;
+  // El gramaje se compara contra el nombre COMERCIAL, que es el que se va a aplicar.
+  const formato = nombreSugerido ? compararFormato(prod.descripcion_original, nombreSugerido) : null;
   const formatoDifiere = formato?.estado === "difiere";
 
-  // Acepta la sugerencia fuzzy directamente (sin abrir el editor)
+  // Acepta la sugerencia fuzzy directamente (sin abrir el editor).
+  //
+  // Se aplica el NOMBRE COMERCIAL de la sugerencia, no el producto físico: ése es sólo el
+  // portador que guarda la columna (tiene FK a ProductoBase) y puede haber varios bajo el
+  // mismo nombre. Aplicar el nombre es lo que la venta necesita, y de paso permite que la
+  // sugerencia se ofrezca también cuando el nombre agrupa varios productos — antes esas se
+  // descartaban en la extracción justamente porque no había forma segura de elegir uno.
   const handleAcceptSuggestion = async () => {
-    if (!prod.producto_id_sugerido) return;
+    if (!nfSugeridoId) return;
     setSaving(true);
     try {
       const updated = await api(`/ordenes-venta/${ovId}/productos/${prod.id}`, {
         method: "PATCH",
-        body: { id_producto: prod.producto_id_sugerido },
+        body: { id_producto: null, id_nombre_facturacion: nfSugeridoId },
       });
-      toast.success(`Asociado: ${sugerido?.nombre}`);
+      toast.success(`Asociado: ${nombreSugerido}`);
       onUpdated(updated);
     } catch (err) {
       toast.error(`Error: ${err?.message ?? "No se pudo aceptar"}`);
@@ -127,7 +168,16 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
       const updated = await api(`/ordenes-venta/${ovId}/productos/${prod.id}`, {
         method: "PATCH",
         body: {
-          id_producto:  prodIdSel ? Number(prodIdSel) : null,
+          // Se manda el nombre comercial, no el producto físico: `updateProductoOV` acepta
+          // ambos y en una venta el que corresponde es éste. El producto físico se resuelve
+          // en el picking, donde sí importa de qué planta salió.
+          //
+          // ⚠️ `id_producto: null` va explícito. Si sólo se mandara el nombre, un producto
+          // físico que ya estuviera en la línea se quedaría pegado — apuntando a un producto
+          // del grupo ANTERIOR. El backend lo trata bien: con `id_producto` en null respeta el
+          // nombre que se envía (`updateProductoOV`).
+          id_producto: null,
+          id_nombre_facturacion: prodIdSel ? Number(prodIdSel) : null,
           cantidad:     Number(cantidad),
           precio_venta: Number(precio),
         },
@@ -167,7 +217,7 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
         )}
         {/* Selector de producto del catálogo */}
         <div>
-          <label className="text-xs text-gray-500 mb-0.5 block">Producto del catálogo</label>
+          <label className="text-xs text-gray-500 mb-0.5 block">Producto (nombre de facturación)</label>
           <Selector
             options={[{ value: "", label: "— Sin asociar —" }, ...catalogoOpts]}
             selectedValue={prodIdSel}
@@ -215,17 +265,56 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
     );
   }
 
+  // 🔴 Lo que le falta a ESTA línea. Se marca la fila entera, no sólo el texto: el problema
+  // tiene que saltar recorriendo la lista con la vista, sin leer cada nombre.
+  //
+  // «Sin asociar» es no tener NI producto físico NI nombre comercial — con el nombre comercial
+  // basta, porque el DTE arma la línea por ahí. Es la misma regla que usa el contador de la
+  // tarjeta, a propósito: cuando miraban cosas distintas, el chip decía 3 y la lista mostraba 2.
+  const faltaNombre = !(nombreFact || nombre);
+  const faltaPrecio = !(Number(prod.precio_venta) > 0);
+  // El nombre lo puso una sugerencia de la IA y nadie la confirmó. La línea se ve completa
+  // pero ese nombre es el que va a la factura, así que se marca igual.
+  const porConfirmar = prod.producto_id_sugerido != null && !prod.id_producto && !faltaNombre;
+  const conProblema = faltaNombre || faltaPrecio || porConfirmar;
+
   return (
     <>
-      <li className="py-1.5 flex flex-col gap-1 group">
+      <li
+        className={`flex flex-col gap-1 group ${
+          conProblema
+            ? "py-2 pl-2.5 pr-2 -mx-2 bg-amber-50/70 border-l-2 border-amber-400"
+            : "py-1.5"
+        }`}
+      >
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-col min-w-0">
             {/* Nombre del producto o descripción original */}
             {nombreFact || nombre ? (
               <span className="text-gray-800 text-sm truncate">{nombreFact ?? nombre}</span>
             ) : (
-              <span className="text-gray-700 text-sm truncate">
-                Sin asociar — {prod.descripcion_original ?? "producto desconocido"}
+              <span className="text-amber-900 text-sm truncate font-medium">
+                {prod.descripcion_original ?? "producto desconocido"}
+              </span>
+            )}
+            {/* Etiquetas de lo que falta. Van bajo el nombre para no competir con él. */}
+            {conProblema && (
+              <span className="flex flex-wrap items-center gap-1 mt-0.5">
+                {faltaNombre && (
+                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">
+                    sin asociar al catálogo
+                  </span>
+                )}
+                {faltaPrecio && (
+                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-red-100 text-red-800">
+                    sin precio
+                  </span>
+                )}
+                {porConfirmar && (
+                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">
+                    nombre puesto por la IA — confirmar
+                  </span>
+                )}
               </span>
             )}
             {/* Si tiene match y además hay descripción original, mostrarla en gris */}
@@ -236,12 +325,20 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-gray-500 text-sm">× {prod.cantidad}</span>
+            <span className={`text-sm ${conProblema ? "text-amber-900" : "text-gray-500"}`}>
+              × {prod.cantidad}
+            </span>
+            {/* En una línea con problema, la acción para arreglarlo tiene que verse: que
+                aparezca sólo al pasar el mouse esconde justo lo que hay que hacer. */}
             <button
               onClick={() => setEditing(true)}
-              className="text-xs text-gray-500 hover:text-[#7A5AF8] opacity-0 group-hover:opacity-100 transition"
+              className={`text-xs transition ${
+                conProblema
+                  ? "text-amber-900 font-medium underline decoration-dotted hover:text-amber-950"
+                  : "text-gray-500 hover:text-[#7A5AF8] opacity-0 group-hover:opacity-100"
+              }`}
             >
-              Editar
+              {conProblema ? "Corregir" : "Editar"}
             </button>
             <button
               onClick={() => setConfirmDel(true)}
@@ -259,7 +356,7 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
           }`}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-gray-700 truncate">
-                ¿Es <strong>{sugerido.nombre}</strong>?{" "}
+                ¿Es <strong>{nombreSugerido}</strong>?{" "}
                 <span className={
                   formatoDifiere
                     ? "text-amber-700 font-semibold"
@@ -322,7 +419,8 @@ function AgregarProductoRow({ ovId, catalogoOpts, onAdded, onCancel }) {
       const created = await api(`/ordenes-venta/${ovId}/productos`, {
         method: "POST",
         body: {
-          id_producto:          prodIdSel ? Number(prodIdSel) : null,
+          // Igual que al editar: la venta se pide por nombre comercial.
+          id_nombre_facturacion: prodIdSel ? Number(prodIdSel) : null,
           descripcion_original: descOrig || null,
           cantidad:             Number(cantidad),
           precio_venta:         Number(precio),
@@ -476,6 +574,7 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
     return santiago ? String(santiago.id) : "";
   });
   const [clienteIdLocal, setClienteIdLocal] = useState("");
+  const [cambiandoCliente, setCambiandoCliente] = useState(false);
   const [agregando, setAgregando]     = useState(false);
   const [emailOpen, setEmailOpen]     = useState(false);
   const [esReferencial, setEsReferencial] = useState(ovInicial.es_referencial ?? true);
@@ -511,6 +610,11 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
   const nombreExtraido = log?.raw_ai_response?.cliente_nombre_extraido || "";
   const rutExtraido    = log?.raw_ai_response?.cliente_rut_extraido || "";
 
+  // El cliente que el operario eligió a mano, si eligió alguno. Manda sobre el de la IA.
+  const clienteElegido = clienteIdLocal
+    ? clientesOpts.find((c) => String(c.value) === String(clienteIdLocal))
+    : null;
+
   const handleCrearCliente = () => {
     navigate("/clientes/add", {
       state: { prefill: { nombre_empresa: nombreExtraido, rut: rutExtraido } },
@@ -541,11 +645,74 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
     setAgregando(false);
   };
 
-  const sinMatchCount = ov.productos?.filter((p) => !p.id_producto).length ?? 0;
   const todosLosProductos = ov.productos ?? [];
+
+  // 🔴 UNA LÍNEA ESTÁ "SIN ASOCIAR" CUANDO NO TIENE NI PRODUCTO NI NOMBRE COMERCIAL.
+  //
+  // No basta con `!id_producto`: el DTE arma cada línea por NOMBRE DE FACTURACIÓN
+  // (`ovLineas.ts`: `NombreFacturacion?.nombre || ProductoBase?.nombre || 'Producto'`), así que
+  // una línea con nombre comercial y sin producto físico se factura perfecto — es el caso
+  // normal cuando el nombre agrupa varios productos y la IA no puede elegir uno.
+  //
+  // La primera versión de este contador miraba sólo `id_producto` y decía «3 sin asociar»
+  // mientras la lista mostraba 2 (visto en la OV 731): la tercera tenía su nombre comercial y
+  // se veía perfectamente asociada. La tarjeta se contradecía sola.
+  //
+  // Lo que sí rompe es una línea sin ninguno de los dos: en la factura sale con el literal
+  // «Producto».
+  //
+  // ⚠️ Es LA MISMA condición que usa `ProductoRow` para pintar «Sin asociar»
+  // (`nombreFact || nombre`), y a propósito: el contador y la fila mirando cosas distintas es
+  // exactamente lo que hacía que la tarjeta se contradijera. Se compara por NOMBRE y no por id
+  // porque el nombre es lo que termina en el documento.
+  const sinAsociar = (p) => !(p.NombreFacturacion?.nombre || p.ProductoBase?.nombre);
+  const sinMatchCount = todosLosProductos.filter(sinAsociar).length;
+  const sinPrecioCount = todosLosProductos.filter((p) => !(Number(p.precio_venta) > 0)).length;
+
+  // 🔴 UNA SUGERENCIA SIN CONFIRMAR TAMBIÉN NECESITA ATENCIÓN, aunque la línea ya muestre nombre.
+  //
+  // Medido en la copia de producción: de 58 líneas con sugerencia, 18 ya tenían el nombre
+  // comercial puesto y NINGUNA tenía producto confirmado — la extracción aplica el nombre de
+  // la sugerencia como si fuera un match. O sea que la línea se ve asociada y su nombre es una
+  // adivinanza, varias al 55-60% de similitud.
+  //
+  // Ese nombre es el que se imprime en la factura, así que no puede pasar en verde sin que
+  // alguien lo mire. Aceptar o corregir la sugerencia es una decisión, no un adorno.
+  const porConfirmar = (p) => p.producto_id_sugerido != null && p.id_producto == null;
+  const porConfirmarCount = todosLosProductos.filter((p) => porConfirmar(p) && !sinAsociar(p)).length;
+
+  // 🔴 LO QUE FALTA PARA VALIDAR, EN UN SOLO LUGAR.
+  //
+  // Antes esto estaba repartido: el cliente en su recuadro, los productos sin asociar en el
+  // título de la lista, la bodega en su selector, y el precio en ninguna parte. Había que
+  // recorrer la tarjeta entera para saber por qué el botón estaba gris.
+  const requisitos = [
+    { ok: !!(ov.id_cliente || clienteIdLocal), okTxt: "Cliente", faltaTxt: "Falta el cliente" },
+    { ok: todosLosProductos.length > 0, okTxt: `${todosLosProductos.length} líneas`, faltaTxt: "Sin productos" },
+    { ok: sinMatchCount === 0, okTxt: "Productos asociados", faltaTxt: `${sinMatchCount} sin asociar` },
+    // Ámbar, no rojo: no impide validar —el nombre existe y la factura saldría— pero avisa que
+    // ese nombre lo eligió la IA y nadie lo confirmó.
+    ...(porConfirmarCount > 0
+      ? [{ ok: false, bloquea: false, okTxt: "", faltaTxt: `${porConfirmarCount} por confirmar` }]
+      : []),
+    { ok: sinPrecioCount === 0, okTxt: "Precios", faltaTxt: `${sinPrecioCount} sin precio` },
+    { ok: !!bodegaId, okTxt: "Bodega", faltaTxt: "Falta la bodega" },
+  ];
+  // Lo que impide validar. `bloquea: false` sólo avisa (la sugerencia sin confirmar), porque
+  // la línea sí tiene nombre y precio: obligar a confirmarla sería trabar el flujo por algo
+  // que a menudo está bien.
+  const loQueFalta = requisitos.filter((r) => !r.ok && r.bloquea !== false).map((r) => r.faltaTxt);
+
+  // Las líneas que necesitan atención se muestran siempre; las correctas se pliegan. Es lo que
+  // corta el crecimiento de la tarjeta: una orden de 14 líneas con 2 problemas ocupa 2 filas,
+  // no 14.
+  const necesitaAtencion = (p) =>
+    sinAsociar(p) || !(Number(p.precio_venta) > 0) || porConfirmar(p);
+  const conProblema = todosLosProductos.filter(necesitaAtencion);
+  const sinProblema = todosLosProductos.filter((p) => !necesitaAtencion(p));
   const productosMostrados = productosExpandido
     ? todosLosProductos
-    : todosLosProductos.slice(0, PRODUCTOS_VISIBLES);
+    : [...conProblema, ...sinProblema].slice(0, Math.max(conProblema.length, PRODUCTOS_VISIBLES));
   const productosOcultos = todosLosProductos.length - productosMostrados.length;
 
   return (
@@ -562,15 +729,42 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
             </span>
           </div>
           <h3 className="text-lg font-bold text-gray-800 mt-0.5">
-            {ov.cliente?.nombre_empresa ?? (
+            {clienteElegido?.label ?? ov.cliente?.nombre_empresa ?? (
               <span className="text-gray-500 italic">Cliente no identificado</span>
             )}
           </h3>
-          {ov.cliente?.rut && (
-            <p className="text-xs text-gray-500">RUT {ov.cliente.rut}</p>
+          {/* Si hay un cambio pendiente se dice, para que nadie valide creyendo otra cosa. */}
+          {clienteElegido && ov.id_cliente ? (
+            <p className="text-xs text-amber-700">
+              Se cambiará al validar (antes: {ov.cliente?.nombre_empresa ?? "sin cliente"})
+            </p>
+          ) : (
+            ov.cliente?.rut && <p className="text-xs text-gray-500">RUT {ov.cliente.rut}</p>
           )}
         </div>
-        <ConfianzaBadge valor={ov.confianza_ia} />
+        <div className="flex flex-col items-end gap-1">
+          {ov.ingreso_venta > 0 && (
+            <span className="text-lg font-bold text-gray-800 whitespace-nowrap">
+              ${Number(ov.ingreso_venta).toLocaleString("es-CL")}
+            </span>
+          )}
+          <ConfianzaBadge valor={ov.confianza_ia} />
+        </div>
+      </div>
+
+      {/* Qué falta para validar, de un vistazo. Reemplaza tener que recorrer la tarjeta. */}
+      <div className="flex flex-wrap gap-1.5 -mt-1">
+        {requisitos.map((r, i) => (
+          <span
+            key={i}
+            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              r.ok ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800"
+            }`}
+          >
+            {r.ok ? "✓ " : "• "}
+            {r.ok ? r.okTxt : r.faltaTxt}
+          </span>
+        ))}
       </div>
 
       {/* Metadata: remitente + asunto + OC/fecha */}
@@ -621,11 +815,17 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
         </div>
       )}
 
-      {/* Selector de cliente — solo cuando la IA no pudo identificarlo */}
-      {!ov.id_cliente && (
-        <div className="border border-orange-200 bg-orange-50 rounded-xl p-3 flex flex-col gap-2">
-          <p className="text-xs font-semibold text-gray-700 flex items-center gap-1.5">
-            Cliente no identificado — selecciona uno para validar
+      {/* 🔴 EL CLIENTE SIEMPRE SE PUEDE CAMBIAR, LO HAYA ACERTADO LA IA O NO.
+          Antes este bloque salía sólo con `!ov.id_cliente`: si la IA elegía mal, no había
+          forma de corregirlo desde la app. Y elegía mal seguido — medido el 2026-08-12,
+          58 órdenes habían quedado asignadas a nuestra propia empresa, porque en una orden
+          de compra nuestro RUT aparece como proveedor y la IA lo leía como cliente. */}
+      {(!ov.id_cliente || cambiandoCliente) ? (
+        <div className={`border rounded-xl p-3 flex flex-col gap-2 ${
+          ov.id_cliente ? "border-gray-200 bg-gray-50" : "border-orange-200 bg-orange-50"
+        }`}>
+          <p className="text-xs font-semibold text-gray-700">
+            {ov.id_cliente ? "Cambiar el cliente de esta orden" : "Cliente no identificado — selecciona uno para validar"}
           </p>
           {nombreExtraido && (
             <p className="text-xs text-gray-600">
@@ -639,24 +839,42 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
             onSelect={setClienteIdLocal}
             disabled={procesando}
           />
-          <button
-            type="button"
-            onClick={handleCrearCliente}
-            className="self-start flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-gray-800 underline decoration-dotted"
-          >
-            No existe — crear cliente nuevo{nombreExtraido ? " con estos datos" : ""}
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={handleCrearCliente}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-700 hover:text-gray-800 underline decoration-dotted"
+            >
+              No existe — crear cliente nuevo{nombreExtraido ? " con estos datos" : ""}
+            </button>
+            {ov.id_cliente && (
+              <button
+                type="button"
+                onClick={() => { setCambiandoCliente(false); setClienteIdLocal(""); }}
+                className="text-xs text-gray-500 hover:text-gray-700"
+              >
+                Cancelar
+              </button>
+            )}
+          </div>
         </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setCambiandoCliente(true)}
+          className="self-start text-xs text-gray-500 hover:text-gray-700 underline decoration-dotted"
+        >
+          No es este cliente — cambiar
+        </button>
       )}
 
       {/* Productos */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-semibold text-gray-500 uppercase flex items-center gap-1">
-            Productos ({ov.productos?.length ?? 0})
-            {sinMatchCount > 0 && (
-              <span className="ml-1 text-gray-500">· {sinMatchCount} sin asociar</span>
-            )}
+            {conProblema.length > 0 && !productosExpandido
+              ? `Necesitan atención (${conProblema.length} de ${todosLosProductos.length})`
+              : `Productos (${todosLosProductos.length})`}
           </p>
           {!agregando && (
             <button
@@ -699,7 +917,8 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
             onClick={() => setProductosExpandido(true)}
             className="mt-2 w-full flex items-center justify-center gap-1 text-xs font-medium text-[#7A5AF8] hover:text-[#6648e0] py-1.5 border-t border-dashed border-gray-200"
           >
-            Ver {productosOcultos} producto{productosOcultos === 1 ? "" : "s"} más
+            Ver {productosOcultos} línea{productosOcultos === 1 ? "" : "s"} más
+            {conProblema.length > 0 ? ", todas correctas" : ""}
           </button>
         )}
         {productosExpandido && todosLosProductos.length > PRODUCTOS_VISIBLES && (
@@ -764,12 +983,18 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
 
       {/* Acciones */}
       <div className="flex gap-3 pt-1">
+        {/* El botón dice QUÉ falta, no sólo que no se puede. Un botón gris sin explicación
+            obliga a recorrer la tarjeta buscando el motivo. */}
         <button
           onClick={() => onValidar(ov.id, bodegaId, clienteIdLocal || null)}
-          disabled={!bodegaId || (!ov.id_cliente && !clienteIdLocal) || procesando}
-          className="flex-1 bg-[#7A5AF8] hover:bg-[#6648e0] disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-semibold py-2 rounded-xl transition"
+          disabled={loQueFalta.length > 0 || procesando}
+          className="flex-1 bg-[#7A5AF8] hover:bg-[#6648e0] disabled:bg-gray-200 disabled:text-gray-500 text-white text-sm font-semibold py-2 rounded-xl transition"
         >
-          {procesando ? "Procesando…" : "Validar"}
+          {procesando
+            ? "Procesando…"
+            : loQueFalta.length > 0
+            ? loQueFalta.join(" · ")
+            : "Validar"}
         </button>
         <button
           onClick={() => onRechazar(ov.id)}
@@ -806,7 +1031,16 @@ export default function ColaIAPage() {
       const [colaRes, bodegasRes, catalogoRes, clientesRes] = await Promise.all([
         api("/ordenes-venta/cola-ia"),
         api("/bodegas"),
-        api("/productos-base"),
+        // 🔴 NOMBRES DE FACTURACIÓN, NO PRODUCTOS FÍSICOS.
+        //
+        // Una orden de venta se pide por nombre comercial y el DTE emite una línea por nombre
+        // (`ovLineas.ts`), así que asociar una línea a un producto físico concreto es elegir
+        // más de lo que la venta necesita — y elegir mal: si el nombre agrupa el mismo queso de
+        // Valdivia y de San Felipe, la venta no distingue cuál, eso lo resuelve el picking.
+        //
+        // Es el mismo catálogo que usa el formulario de crear OV (`AddOrdenVenta`), así que
+        // ambos caminos ofrecen lo mismo.
+        api("/nombres-facturacion"),
         api("/clientes"),
       ]);
       setOrdenes(Array.isArray(colaRes) ? colaRes : colaRes.data ?? []);
