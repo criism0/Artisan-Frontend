@@ -1,12 +1,24 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { ESLint } from "eslint";
-import { readFileSync } from "node:fs";
-import { globSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const SRC = path.join(RAIZ, "src");
+
+// ⚠️ Recorrido a mano y no `globSync` de node:fs: esa función no existe en el Node del CI —sí
+// en el local— y el archivo entero se caía con «globSync is not a function», llevándose de paso
+// el chequeo de `no-undef`. Un test que no carga no protege nada, y encima se ve como un fallo
+// de otra cosa.
+function archivosFuente(dir, acumulado = []) {
+  for (const entrada of readdirSync(dir)) {
+    const completo = path.join(dir, entrada);
+    if (statSync(completo).isDirectory()) archivosFuente(completo, acumulado);
+    else if (/\.(js|jsx)$/.test(entrada)) acumulado.push(completo);
+  }
+  return acumulado;
+}
 
 // ── Por qué existe este archivo ─────────────────────────────────────────────
 //
@@ -58,9 +70,7 @@ describe("import() dinámico", () => {
   // Se excluye este propio archivo: menciona `import(jspdf)` en sus comentarios y en las
   // cadenas que compara, así que se detectaría a sí mismo. Los tests no se despliegan, que es
   // lo que hace inofensiva la exclusión.
-  const archivos = globSync("src/**/*.{js,jsx}", { cwd: RAIZ })
-    .filter((f) => !f.includes("__tests__"))
-    .map((f) => path.join(RAIZ, f));
+  const archivos = archivosFuente(SRC).filter((f) => !f.includes("__tests__"));
 
   it("hay archivos que revisar (si no, el test pasa por vacío)", () => {
     expect(archivos.length).toBeGreaterThan(100);
