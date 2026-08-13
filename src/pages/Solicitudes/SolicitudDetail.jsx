@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "../../lib/toast.js";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// jspdf y jspdf-autotable NO se importan acá: se cargan bajo demanda dentro de
+// `handleDownloadSolicitudInsumosPDF`, que es el único sitio que los usa. Importarlos arriba
+// los mete en el trozo de esta vista y los descarga todo el que la abra.
 import { FileText, FileSearch, Loader2, Download, Pencil, Send, XCircle, CheckCircle2 } from "lucide-react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import Table from "../../components/Tables/Table";
@@ -451,12 +452,17 @@ export default function SolicitudDetail() {
   const handleDownloadSolicitudInsumosPDF = async () => {
     if (!solicitud) return;
 
-    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-      import(jspdf),
-      import(jspdf-autotable),
-    ]);
-
     try {
+      // jsPDF y su plugin de tablas se cargan al APRETAR el botón, no al abrir la vista.
+      //
+      // ⚠️ Van DENTRO del try. Estaban afuera, así que cualquier fallo acá se escapaba del
+      // handler entero: sin toast, sin mensaje, el botón simplemente no hacía nada. Un
+      // `import()` que falla —trozo no descargable, red caída— tiene que verse.
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
+
       // Cambiar a orientación landscape para máximo espacio horizontal
       const doc = new jsPDF("l", "mm", "a4");
       const marginX = 12;
