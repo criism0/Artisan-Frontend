@@ -13,11 +13,33 @@ const PRODUCTOS_VISIBLES = 4;
 const PAGE_SIZE = 6;
 
 // ── Flags IA: mapeo a etiquetas legibles ────────────────────────────────────
+//
+// `null` = no se muestra acá porque ya se ve en otra parte, mejor. Un aviso que repite lo que
+// la tarjeta ya dice roba atención a los que sí aportan algo nuevo.
 const FLAG_LABELS = {
-  producto_sin_match:    "Hay productos sin asociar en el catálogo",
-  precio_no_disponible:  "Algunos precios no estaban disponibles en el correo",
+  // Lo dicen la fila de requisitos («2 sin asociar») y las propias líneas marcadas, con el
+  // número exacto y con cuáles. El aviso genérico sólo repetía.
+  producto_sin_match:    null,
+  // Ídem: la fila de requisitos cuenta las líneas sin precio y cada una queda marcada.
+  precio_no_disponible:  null,
+  // Éste SÍ aporta: dice de DÓNDE salió el precio, que no se ve en ninguna otra parte.
   precio_desde_lista:    "Precios tomados de la lista de precios del cliente",
   cliente_no_encontrado: null, // se muestra vía el selector de cliente, no aquí
+  sin_precio:            null, // lo cuenta la fila de requisitos, con el número exacto
+
+  // Los que cuentan de dónde vino el dato o qué decidió el sistema. Ninguno se ve en otra
+  // parte, así que acá es donde tienen que estar.
+  origen_edi:                        "Leído del archivo EDI del cliente, no interpretado por la IA",
+  sugerencia_fuzzy_aplicada:         "Algunos productos se asociaron por parecido de nombre",
+  cliente_propia_empresa_descartado: "La IA eligió nuestra propia empresa como cliente — se descartó",
+  cantidad_convertida_de_cajas:      "El pedido venía en cajas: la cantidad se convirtió a unidades",
+  precio_unitario_redondeado:        "El precio por caja no dividía exacto: el unitario se redondeó",
+  cliente_corregido_por_rut:         "El cliente se corrigió por el RUT del correo",
+  cliente_ambiguo:                   "Varios clientes coinciden con el nombre del correo",
+  cliente_resuelto_por_rut:            "Cliente identificado por su RUT",
+  cliente_resuelto_por_nombre_exacto:  "Cliente identificado por su nombre",
+  cliente_resuelto_por_nombre_contenido: "Cliente identificado por su nombre",
+  cliente_resuelto_por_giro:           "Cliente identificado por su giro — conviene confirmarlo",
 };
 
 function parseFlagsVisibles(errorDetalle) {
@@ -25,8 +47,13 @@ function parseFlagsVisibles(errorDetalle) {
   return errorDetalle
     .split(",")
     .map((f) => f.trim())
-    .filter((f) => f && !f.startsWith("modificacion_oc:") && FLAG_LABELS[f] !== null)
-    .map((f) => FLAG_LABELS[f] ?? f.replace(/_/g, " "));
+    .filter((f) => f && !f.startsWith("modificacion_oc:"))
+    // Varios flags llevan un dato pegado con `:` (`sin_precio:2`, `cliente_ambiguo:3,9`).
+    // Se busca la etiqueta por la clave sola; si no hay, se muestra legible en vez de con
+    // guiones bajos.
+    .map((f) => ({ clave: f.split(":")[0], crudo: f }))
+    .filter(({ clave }) => FLAG_LABELS[clave] !== null)
+    .map(({ clave, crudo }) => FLAG_LABELS[clave] ?? crudo.replace(/_/g, " "));
 }
 
 // ── Confianza badge con tooltip de escala ────────────────────────────────────
@@ -215,17 +242,48 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
     );
   }
 
+  // 🔴 Lo que le falta a ESTA línea. Se marca la fila entera, no sólo el texto: el problema
+  // tiene que saltar recorriendo la lista con la vista, sin leer cada nombre.
+  //
+  // «Sin asociar» es no tener NI producto físico NI nombre comercial — con el nombre comercial
+  // basta, porque el DTE arma la línea por ahí. Es la misma regla que usa el contador de la
+  // tarjeta, a propósito: cuando miraban cosas distintas, el chip decía 3 y la lista mostraba 2.
+  const faltaNombre = !(nombreFact || nombre);
+  const faltaPrecio = !(Number(prod.precio_venta) > 0);
+  const conProblema = faltaNombre || faltaPrecio;
+
   return (
     <>
-      <li className="py-1.5 flex flex-col gap-1 group">
+      <li
+        className={`flex flex-col gap-1 group ${
+          conProblema
+            ? "py-2 pl-2.5 pr-2 -mx-2 bg-amber-50/70 border-l-2 border-amber-400"
+            : "py-1.5"
+        }`}
+      >
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-col min-w-0">
             {/* Nombre del producto o descripción original */}
             {nombreFact || nombre ? (
               <span className="text-gray-800 text-sm truncate">{nombreFact ?? nombre}</span>
             ) : (
-              <span className="text-gray-700 text-sm truncate">
-                Sin asociar — {prod.descripcion_original ?? "producto desconocido"}
+              <span className="text-amber-900 text-sm truncate font-medium">
+                {prod.descripcion_original ?? "producto desconocido"}
+              </span>
+            )}
+            {/* Etiquetas de lo que falta. Van bajo el nombre para no competir con él. */}
+            {conProblema && (
+              <span className="flex flex-wrap items-center gap-1 mt-0.5">
+                {faltaNombre && (
+                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">
+                    sin asociar al catálogo
+                  </span>
+                )}
+                {faltaPrecio && (
+                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-red-100 text-red-800">
+                    sin precio
+                  </span>
+                )}
               </span>
             )}
             {/* Si tiene match y además hay descripción original, mostrarla en gris */}
@@ -236,12 +294,20 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-gray-500 text-sm">× {prod.cantidad}</span>
+            <span className={`text-sm ${conProblema ? "text-amber-900" : "text-gray-500"}`}>
+              × {prod.cantidad}
+            </span>
+            {/* En una línea con problema, la acción para arreglarlo tiene que verse: que
+                aparezca sólo al pasar el mouse esconde justo lo que hay que hacer. */}
             <button
               onClick={() => setEditing(true)}
-              className="text-xs text-gray-500 hover:text-[#7A5AF8] opacity-0 group-hover:opacity-100 transition"
+              className={`text-xs transition ${
+                conProblema
+                  ? "text-amber-900 font-medium underline decoration-dotted hover:text-amber-950"
+                  : "text-gray-500 hover:text-[#7A5AF8] opacity-0 group-hover:opacity-100"
+              }`}
             >
-              Editar
+              {conProblema ? "Corregir" : "Editar"}
             </button>
             <button
               onClick={() => setConfirmDel(true)}
