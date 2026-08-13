@@ -16,8 +16,8 @@ import Tabs from "../../components/UI/Tabs.jsx";
 import Modal from "../../components/UI/Modal.jsx";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// jspdf y jspdf-autotable NO se importan acá: se cargan bajo demanda dentro de
+// `handleDescargarPDF`, que es el único sitio que los usa.
 import logo from "../../assets/logo.png";
 import { formatCLP } from "../../services/formatHelpers";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
@@ -434,9 +434,14 @@ export default function OrdenVentaDetail() {
   };
 
   const handleDescargarPDF = async () => {
+    try {
+    // jsPDF y su plugin de tablas se cargan al APRETAR el botón, no al abrir la vista.
+    //
+    // ⚠️ Esta función no tenía try/catch: cualquier fallo era una promesa rechazada sin dueño
+    // y el botón se quedaba mudo. Con el `import()` roto, ése era exactamente el síntoma.
     const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-      import(jspdf),
-      import(jspdf-autotable),
+      import("jspdf"),
+      import("jspdf-autotable"),
     ]);
 
     const doc = new jsPDF();
@@ -517,6 +522,10 @@ export default function OrdenVentaDetail() {
     doc.setFontSize(10);
     doc.text("Nota de venta válida por 7 días.", 15, doc.lastAutoTable.finalY + 10);
     doc.save(`Nota de venta #${orden.id}.pdf`);
+    } catch (err) {
+      console.error("PDF error:", err);
+      toast.error("Error generando PDF");
+    }
   };
 
   // ── Helpers de presentación ─────────────────────────────────────────────────

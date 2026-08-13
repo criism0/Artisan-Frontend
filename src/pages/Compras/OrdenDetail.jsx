@@ -429,7 +429,17 @@ export default function OrdenDetail() {
         label: "Editar",
         onClick: () => navigate(`/Ordenes/edit/${orden.id}`),
       },
-    { label: "Descargar PDF", onClick: handleDownloadPDF },
+    // El `.catch` va acá y no dentro de `handleDownloadPDF` para no reindentar sus 150 líneas.
+    // Sin él, un fallo es una promesa rechazada sin dueño y el botón se queda mudo — que es
+    // exactamente el síntoma que se reportó en solicitudes y en la orden de venta.
+    {
+      label: "Descargar PDF",
+      onClick: () =>
+        handleDownloadPDF().catch((err) => {
+          console.error("PDF error:", err);
+          toast.error("Error generando PDF");
+        }),
+    },
     orden.bultos?.length > 0 && {
       label: "Descargar etiquetas",
       onClick: handleDownloadEtiquetas,

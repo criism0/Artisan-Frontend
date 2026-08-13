@@ -39,14 +39,31 @@ export function AuthProvider({ children }) {
   }, []);
 
   // Para que la sesión sea compartida entre multiples pestañas
+  //
+  // 🔴 Esto llamaba a `setToken`, que NO EXISTE en este componente: la sesión vive en la cookie
+  // y el usuario se resuelve con `/auth/me`, no hay estado de token. Cualquier login o logout en
+  // otra pestaña lanzaba un ReferenceError dentro del listener de todas las demás.
+  //
+  // Lo que corresponde es reflejar el cambio, no guardar el token: si otra pestaña inició
+  // sesión se vuelve a preguntar quién es; si la cerró, se limpia acá también.
   useEffect(() => {
     function handleStorageChange(e) {
       if (e.key !== "access_token") return;
 
       if (e.newValue) {
-        setToken(e.newValue);
+        api("/auth/me")
+          .then((me) => {
+            setCurrentUser(me);
+            setUser(me);
+          })
+          .catch(() => {
+            setCurrentUser(null);
+            setUser(null);
+          });
       } else {
-        setToken(null);
+        // Y `setCurrentUser` también: es el que alimenta los scopes. Limpiar sólo `user` dejaba
+        // los permisos del usuario anterior en pie.
+        setCurrentUser(null);
         setUser(null);
       }
     }
