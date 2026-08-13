@@ -122,6 +122,10 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
   const nombre      = prod.ProductoBase?.nombre ?? null;
   const nombreFact  = prod.NombreFacturacion?.nombre ?? null;
   const sugerido    = prod.ProductoSugerido ?? null;
+  // Lo que se ofrece y lo que se aplica es el NOMBRE COMERCIAL. El producto físico que guarda
+  // la columna es sólo su portador; se cae a él si por alguna razón no trae nombre.
+  const nfSugeridoId  = sugerido?.nombreFacturacion?.id ?? sugerido?.id_nombre_facturacion ?? null;
+  const nombreSugerido = sugerido?.nombreFacturacion?.nombre ?? sugerido?.nombre ?? null;
   const simPct      = sugerido && prod.similitud_sugerencia != null
     ? Math.round(prod.similitud_sugerencia * 100)
     : null;
@@ -130,19 +134,26 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
   // distinto no le baja el puntaje: en producción hay sugerencias al 100% de "Camembert
   // 100 g" apuntando al de 150 g. Otro gramaje es otro producto, con otro precio. El puntaje
   // no se toca acá —eso es del backend— pero el desacuerdo se avisa antes de aceptar.
-  const formato = sugerido ? compararFormato(prod.descripcion_original, sugerido.nombre) : null;
+  // El gramaje se compara contra el nombre COMERCIAL, que es el que se va a aplicar.
+  const formato = nombreSugerido ? compararFormato(prod.descripcion_original, nombreSugerido) : null;
   const formatoDifiere = formato?.estado === "difiere";
 
-  // Acepta la sugerencia fuzzy directamente (sin abrir el editor)
+  // Acepta la sugerencia fuzzy directamente (sin abrir el editor).
+  //
+  // Se aplica el NOMBRE COMERCIAL de la sugerencia, no el producto físico: ése es sólo el
+  // portador que guarda la columna (tiene FK a ProductoBase) y puede haber varios bajo el
+  // mismo nombre. Aplicar el nombre es lo que la venta necesita, y de paso permite que la
+  // sugerencia se ofrezca también cuando el nombre agrupa varios productos — antes esas se
+  // descartaban en la extracción justamente porque no había forma segura de elegir uno.
   const handleAcceptSuggestion = async () => {
-    if (!prod.producto_id_sugerido) return;
+    if (!nfSugeridoId) return;
     setSaving(true);
     try {
       const updated = await api(`/ordenes-venta/${ovId}/productos/${prod.id}`, {
         method: "PATCH",
-        body: { id_producto: prod.producto_id_sugerido },
+        body: { id_producto: null, id_nombre_facturacion: nfSugeridoId },
       });
-      toast.success(`Asociado: ${sugerido?.nombre}`);
+      toast.success(`Asociado: ${nombreSugerido}`);
       onUpdated(updated);
     } catch (err) {
       toast.error(`Error: ${err?.message ?? "No se pudo aceptar"}`);
@@ -262,7 +273,10 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
   // tarjeta, a propósito: cuando miraban cosas distintas, el chip decía 3 y la lista mostraba 2.
   const faltaNombre = !(nombreFact || nombre);
   const faltaPrecio = !(Number(prod.precio_venta) > 0);
-  const conProblema = faltaNombre || faltaPrecio;
+  // El nombre lo puso una sugerencia de la IA y nadie la confirmó. La línea se ve completa
+  // pero ese nombre es el que va a la factura, así que se marca igual.
+  const porConfirmar = prod.producto_id_sugerido != null && !prod.id_producto && !faltaNombre;
+  const conProblema = faltaNombre || faltaPrecio || porConfirmar;
 
   return (
     <>
@@ -294,6 +308,11 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
                 {faltaPrecio && (
                   <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-red-100 text-red-800">
                     sin precio
+                  </span>
+                )}
+                {porConfirmar && (
+                  <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-200 text-amber-900">
+                    nombre puesto por la IA — confirmar
                   </span>
                 )}
               </span>
@@ -337,7 +356,7 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
           }`}>
             <div className="flex items-center justify-between gap-2">
               <span className="text-gray-700 truncate">
-                ¿Es <strong>{sugerido.nombre}</strong>?{" "}
+                ¿Es <strong>{nombreSugerido}</strong>?{" "}
                 <span className={
                   formatoDifiere
                     ? "text-amber-700 font-semibold"
@@ -650,6 +669,18 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
   const sinMatchCount = todosLosProductos.filter(sinAsociar).length;
   const sinPrecioCount = todosLosProductos.filter((p) => !(Number(p.precio_venta) > 0)).length;
 
+  // 🔴 UNA SUGERENCIA SIN CONFIRMAR TAMBIÉN NECESITA ATENCIÓN, aunque la línea ya muestre nombre.
+  //
+  // Medido en la copia de producción: de 58 líneas con sugerencia, 18 ya tenían el nombre
+  // comercial puesto y NINGUNA tenía producto confirmado — la extracción aplica el nombre de
+  // la sugerencia como si fuera un match. O sea que la línea se ve asociada y su nombre es una
+  // adivinanza, varias al 55-60% de similitud.
+  //
+  // Ese nombre es el que se imprime en la factura, así que no puede pasar en verde sin que
+  // alguien lo mire. Aceptar o corregir la sugerencia es una decisión, no un adorno.
+  const porConfirmar = (p) => p.producto_id_sugerido != null && p.id_producto == null;
+  const porConfirmarCount = todosLosProductos.filter((p) => porConfirmar(p) && !sinAsociar(p)).length;
+
   // 🔴 LO QUE FALTA PARA VALIDAR, EN UN SOLO LUGAR.
   //
   // Antes esto estaba repartido: el cliente en su recuadro, los productos sin asociar en el
@@ -659,15 +690,24 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
     { ok: !!(ov.id_cliente || clienteIdLocal), okTxt: "Cliente", faltaTxt: "Falta el cliente" },
     { ok: todosLosProductos.length > 0, okTxt: `${todosLosProductos.length} líneas`, faltaTxt: "Sin productos" },
     { ok: sinMatchCount === 0, okTxt: "Productos asociados", faltaTxt: `${sinMatchCount} sin asociar` },
+    // Ámbar, no rojo: no impide validar —el nombre existe y la factura saldría— pero avisa que
+    // ese nombre lo eligió la IA y nadie lo confirmó.
+    ...(porConfirmarCount > 0
+      ? [{ ok: false, bloquea: false, okTxt: "", faltaTxt: `${porConfirmarCount} por confirmar` }]
+      : []),
     { ok: sinPrecioCount === 0, okTxt: "Precios", faltaTxt: `${sinPrecioCount} sin precio` },
     { ok: !!bodegaId, okTxt: "Bodega", faltaTxt: "Falta la bodega" },
   ];
-  const loQueFalta = requisitos.filter((r) => !r.ok).map((r) => r.faltaTxt);
+  // Lo que impide validar. `bloquea: false` sólo avisa (la sugerencia sin confirmar), porque
+  // la línea sí tiene nombre y precio: obligar a confirmarla sería trabar el flujo por algo
+  // que a menudo está bien.
+  const loQueFalta = requisitos.filter((r) => !r.ok && r.bloquea !== false).map((r) => r.faltaTxt);
 
   // Las líneas que necesitan atención se muestran siempre; las correctas se pliegan. Es lo que
   // corta el crecimiento de la tarjeta: una orden de 14 líneas con 2 problemas ocupa 2 filas,
   // no 14.
-  const necesitaAtencion = (p) => sinAsociar(p) || !(Number(p.precio_venta) > 0);
+  const necesitaAtencion = (p) =>
+    sinAsociar(p) || !(Number(p.precio_venta) > 0) || porConfirmar(p);
   const conProblema = todosLosProductos.filter(necesitaAtencion);
   const sinProblema = todosLosProductos.filter((p) => !necesitaAtencion(p));
   const productosMostrados = productosExpandido
