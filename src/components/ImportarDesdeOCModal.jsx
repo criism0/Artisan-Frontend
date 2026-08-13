@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { FiX, FiSearch, FiDownload } from 'react-icons/fi';
 import { useApi } from '../lib/api';
-import { toast } from 'react-toastify';
+// Igual que en DTEPreview: la app no monta `<ToastContainer>`, así que los toast de
+// react-toastify no se muestran. El sistema vivo es `lib/toast.js`.
+import { toast } from '../lib/toast';
 
 /**
  * Modal para seleccionar una Orden de Compra y precargar sus insumos

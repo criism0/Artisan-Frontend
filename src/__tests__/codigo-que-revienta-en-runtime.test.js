@@ -104,6 +104,37 @@ describe("import() dinámico", () => {
   });
 });
 
+describe("los avisos al usuario se muestran de verdad", () => {
+  // 🔴 La app reemplazó react-toastify por su propio sistema (`lib/toast.js`, «Custom toast
+  // system to replace react-toastify for React 19 compatibility») y **no monta ningún
+  // `<ToastContainer>`**. Un `toast.error` importado de react-toastify no falla, no avisa y no
+  // deja rastro: simplemente no aparece.
+  //
+  // Así fallaba en silencio absoluto el botón de previsualizar de la pestaña Documentos, y es
+  // el peor modo posible — el código parece manejar el error y el operario no ve nada.
+  const archivos = archivosFuente(SRC).filter((f) => !f.includes("__tests__"));
+
+  it("nadie importa toast desde react-toastify", () => {
+    const malos = archivos.filter((f) =>
+      /from\s+['"]react-toastify['"]/.test(readFileSync(f, "utf8"))
+    );
+    expect(malos.map((f) => path.relative(RAIZ, f))).toEqual([]);
+  });
+
+  it("si algún día se vuelve a usar react-toastify, tiene que haber un ToastContainer", () => {
+    // El test de arriba sería una regla arbitraria sin esto: lo que importa no es la librería,
+    // es que el aviso llegue a la pantalla. Si alguien monta el contenedor, react-toastify pasa
+    // a ser legítimo y este par de tests deja de exigir nada raro.
+    const usaLibreria = archivos.some((f) =>
+      /from\s+['"]react-toastify['"]/.test(readFileSync(f, "utf8"))
+    );
+    const montaContenedor = archivos.some((f) =>
+      /<ToastContainer/.test(readFileSync(f, "utf8"))
+    );
+    expect(usaLibreria && !montaContenedor).toBe(false);
+  });
+});
+
 describe("jspdf se carga bajo demanda", () => {
   // La división en trozos de `adf96bb` quiso sacar jsPDF del bundle de estas vistas, pero dejó
   // los `import` estáticos arriba: el trozo lo seguía arrastrando igual y el import dinámico

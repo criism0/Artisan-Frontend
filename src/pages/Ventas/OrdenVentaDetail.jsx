@@ -129,7 +129,14 @@ function FacturarForm({
       {/* Lo que va a decir el documento, con la MISMA vista que la pestaña Documentos.
           Antes este modal pedía dirección y fecha sin mostrar nada de lo que se iba a emitir:
           se confirmaba a ciegas un documento que después sólo se corrige con nota de crédito. */}
-      <DTEPreview ordenId={ordenId} tipo="factura" />
+      {/* La dirección y la fecha elegidas acá todavía no están en la orden: se guardan recién al
+          emitir. Hay que pasárselas al preview o arma el documento sin dirección. */}
+      <DTEPreview
+        ordenId={ordenId}
+        tipo="factura"
+        idLocal={idLocalDespacho || null}
+        fecha={fechaFacturacion || null}
+      />
 
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-gray-700">
@@ -368,7 +375,21 @@ export default function OrdenVentaDetail() {
     try {
       const res = await api(`/clientes/${clienteId}`);
       const data = res?.data || res;
-      setDireccionesCliente(Array.isArray(data?.direcciones) ? data.direcciones : []);
+      const direcciones = Array.isArray(data?.direcciones) ? data.direcciones : [];
+      setDireccionesCliente(direcciones);
+
+      // Precargar: la dirección principal del cliente y la fecha de hoy. Las dos siguen siendo
+      // editables — es el punto de partida, no una decisión tomada.
+      //
+      // Sin esto el formulario abría en blanco y la previsualización no tenía con qué armar el
+      // documento: mirar antes de emitir exigía elegir a mano dos datos que casi siempre son
+      // los mismos.
+      setIdLocalDespacho((actual) => {
+        if (actual) return actual;
+        const principal = direcciones.find((d) => d.es_principal) ?? direcciones[0];
+        return principal ? String(principal.id) : "";
+      });
+      setFechaFacturacion((actual) => actual || new Date().toLocaleDateString("en-CA"));
     } catch {
       toast.error("No se pudieron cargar las direcciones del cliente");
     } finally {
