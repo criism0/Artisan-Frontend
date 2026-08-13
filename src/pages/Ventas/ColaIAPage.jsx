@@ -547,11 +547,33 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
     setAgregando(false);
   };
 
-  const sinMatchCount = ov.productos?.filter((p) => !p.id_producto).length ?? 0;
   const todosLosProductos = ov.productos ?? [];
+  const sinMatchCount = todosLosProductos.filter((p) => !p.id_producto).length;
+  const sinPrecioCount = todosLosProductos.filter((p) => !(Number(p.precio_venta) > 0)).length;
+
+  // 🔴 LO QUE FALTA PARA VALIDAR, EN UN SOLO LUGAR.
+  //
+  // Antes esto estaba repartido: el cliente en su recuadro, los productos sin asociar en el
+  // título de la lista, la bodega en su selector, y el precio en ninguna parte. Había que
+  // recorrer la tarjeta entera para saber por qué el botón estaba gris.
+  const requisitos = [
+    { ok: !!(ov.id_cliente || clienteIdLocal), okTxt: "Cliente", faltaTxt: "Falta el cliente" },
+    { ok: todosLosProductos.length > 0, okTxt: `${todosLosProductos.length} líneas`, faltaTxt: "Sin productos" },
+    { ok: sinMatchCount === 0, okTxt: "Productos asociados", faltaTxt: `${sinMatchCount} sin asociar` },
+    { ok: sinPrecioCount === 0, okTxt: "Precios", faltaTxt: `${sinPrecioCount} sin precio` },
+    { ok: !!bodegaId, okTxt: "Bodega", faltaTxt: "Falta la bodega" },
+  ];
+  const loQueFalta = requisitos.filter((r) => !r.ok).map((r) => r.faltaTxt);
+
+  // Las líneas que necesitan atención se muestran siempre; las correctas se pliegan. Es lo que
+  // corta el crecimiento de la tarjeta: una orden de 14 líneas con 2 problemas ocupa 2 filas,
+  // no 14.
+  const necesitaAtencion = (p) => !p.id_producto || !(Number(p.precio_venta) > 0);
+  const conProblema = todosLosProductos.filter(necesitaAtencion);
+  const sinProblema = todosLosProductos.filter((p) => !necesitaAtencion(p));
   const productosMostrados = productosExpandido
     ? todosLosProductos
-    : todosLosProductos.slice(0, PRODUCTOS_VISIBLES);
+    : [...conProblema, ...sinProblema].slice(0, Math.max(conProblema.length, PRODUCTOS_VISIBLES));
   const productosOcultos = todosLosProductos.length - productosMostrados.length;
 
   return (
@@ -581,7 +603,29 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
             ov.cliente?.rut && <p className="text-xs text-gray-500">RUT {ov.cliente.rut}</p>
           )}
         </div>
-        <ConfianzaBadge valor={ov.confianza_ia} />
+        <div className="flex flex-col items-end gap-1">
+          {ov.ingreso_venta > 0 && (
+            <span className="text-lg font-bold text-gray-800 whitespace-nowrap">
+              ${Number(ov.ingreso_venta).toLocaleString("es-CL")}
+            </span>
+          )}
+          <ConfianzaBadge valor={ov.confianza_ia} />
+        </div>
+      </div>
+
+      {/* Qué falta para validar, de un vistazo. Reemplaza tener que recorrer la tarjeta. */}
+      <div className="flex flex-wrap gap-1.5 -mt-1">
+        {requisitos.map((r, i) => (
+          <span
+            key={i}
+            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              r.ok ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800"
+            }`}
+          >
+            {r.ok ? "✓ " : "• "}
+            {r.ok ? r.okTxt : r.faltaTxt}
+          </span>
+        ))}
       </div>
 
       {/* Metadata: remitente + asunto + OC/fecha */}
@@ -689,10 +733,9 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
       <div>
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs font-semibold text-gray-500 uppercase flex items-center gap-1">
-            Productos ({ov.productos?.length ?? 0})
-            {sinMatchCount > 0 && (
-              <span className="ml-1 text-gray-500">· {sinMatchCount} sin asociar</span>
-            )}
+            {conProblema.length > 0 && !productosExpandido
+              ? `Necesitan atención (${conProblema.length} de ${todosLosProductos.length})`
+              : `Productos (${todosLosProductos.length})`}
           </p>
           {!agregando && (
             <button
@@ -735,7 +778,8 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
             onClick={() => setProductosExpandido(true)}
             className="mt-2 w-full flex items-center justify-center gap-1 text-xs font-medium text-[#7A5AF8] hover:text-[#6648e0] py-1.5 border-t border-dashed border-gray-200"
           >
-            Ver {productosOcultos} producto{productosOcultos === 1 ? "" : "s"} más
+            Ver {productosOcultos} línea{productosOcultos === 1 ? "" : "s"} más
+            {conProblema.length > 0 ? ", todas correctas" : ""}
           </button>
         )}
         {productosExpandido && todosLosProductos.length > PRODUCTOS_VISIBLES && (
@@ -800,12 +844,18 @@ function OVIACard({ ov: ovInicial, bodegas, catalogoOpts, clientesOpts, onValida
 
       {/* Acciones */}
       <div className="flex gap-3 pt-1">
+        {/* El botón dice QUÉ falta, no sólo que no se puede. Un botón gris sin explicación
+            obliga a recorrer la tarjeta buscando el motivo. */}
         <button
           onClick={() => onValidar(ov.id, bodegaId, clienteIdLocal || null)}
-          disabled={!bodegaId || (!ov.id_cliente && !clienteIdLocal) || procesando}
-          className="flex-1 bg-[#7A5AF8] hover:bg-[#6648e0] disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-semibold py-2 rounded-xl transition"
+          disabled={loQueFalta.length > 0 || procesando}
+          className="flex-1 bg-[#7A5AF8] hover:bg-[#6648e0] disabled:bg-gray-200 disabled:text-gray-500 text-white text-sm font-semibold py-2 rounded-xl transition"
         >
-          {procesando ? "Procesando…" : "Validar"}
+          {procesando
+            ? "Procesando…"
+            : loQueFalta.length > 0
+            ? loQueFalta.join(" · ")
+            : "Validar"}
         </button>
         <button
           onClick={() => onRechazar(ov.id)}
