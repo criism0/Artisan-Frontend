@@ -108,8 +108,11 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
   const [editing, setEditing]       = useState(false);
   const [saving, setSaving]         = useState(false);
   // Pre-fill con la sugerencia fuzzy si no hay match directo
+  // Se elige por NOMBRE DE FACTURACIÓN, que es la unidad con la que se vende y se factura.
+  // Si la línea ya trae producto físico —viene de una OV vieja o del picking— se muestra su
+  // nombre comercial, que es el que corresponde a este catálogo.
   const [prodIdSel, setProdIdSel]   = useState(
-    String(prod.id_producto ?? prod.producto_id_sugerido ?? "")
+    String(prod.id_nombre_facturacion ?? "")
   );
   const [cantidad, setCantidad]     = useState(String(prod.cantidad ?? ""));
   const [precio, setPrecio]         = useState(String(prod.precio_venta ?? ""));
@@ -154,7 +157,16 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
       const updated = await api(`/ordenes-venta/${ovId}/productos/${prod.id}`, {
         method: "PATCH",
         body: {
-          id_producto:  prodIdSel ? Number(prodIdSel) : null,
+          // Se manda el nombre comercial, no el producto físico: `updateProductoOV` acepta
+          // ambos y en una venta el que corresponde es éste. El producto físico se resuelve
+          // en el picking, donde sí importa de qué planta salió.
+          //
+          // ⚠️ `id_producto: null` va explícito. Si sólo se mandara el nombre, un producto
+          // físico que ya estuviera en la línea se quedaría pegado — apuntando a un producto
+          // del grupo ANTERIOR. El backend lo trata bien: con `id_producto` en null respeta el
+          // nombre que se envía (`updateProductoOV`).
+          id_producto: null,
+          id_nombre_facturacion: prodIdSel ? Number(prodIdSel) : null,
           cantidad:     Number(cantidad),
           precio_venta: Number(precio),
         },
@@ -194,7 +206,7 @@ function ProductoRow({ prod, catalogoOpts, ovId, onUpdated, onDeleted }) {
         )}
         {/* Selector de producto del catálogo */}
         <div>
-          <label className="text-xs text-gray-500 mb-0.5 block">Producto del catálogo</label>
+          <label className="text-xs text-gray-500 mb-0.5 block">Producto (nombre de facturación)</label>
           <Selector
             options={[{ value: "", label: "— Sin asociar —" }, ...catalogoOpts]}
             selectedValue={prodIdSel}
@@ -388,7 +400,8 @@ function AgregarProductoRow({ ovId, catalogoOpts, onAdded, onCancel }) {
       const created = await api(`/ordenes-venta/${ovId}/productos`, {
         method: "POST",
         body: {
-          id_producto:          prodIdSel ? Number(prodIdSel) : null,
+          // Igual que al editar: la venta se pide por nombre comercial.
+          id_nombre_facturacion: prodIdSel ? Number(prodIdSel) : null,
           descripcion_original: descOrig || null,
           cantidad:             Number(cantidad),
           precio_venta:         Number(precio),
@@ -978,7 +991,16 @@ export default function ColaIAPage() {
       const [colaRes, bodegasRes, catalogoRes, clientesRes] = await Promise.all([
         api("/ordenes-venta/cola-ia"),
         api("/bodegas"),
-        api("/productos-base"),
+        // 🔴 NOMBRES DE FACTURACIÓN, NO PRODUCTOS FÍSICOS.
+        //
+        // Una orden de venta se pide por nombre comercial y el DTE emite una línea por nombre
+        // (`ovLineas.ts`), así que asociar una línea a un producto físico concreto es elegir
+        // más de lo que la venta necesita — y elegir mal: si el nombre agrupa el mismo queso de
+        // Valdivia y de San Felipe, la venta no distingue cuál, eso lo resuelve el picking.
+        //
+        // Es el mismo catálogo que usa el formulario de crear OV (`AddOrdenVenta`), así que
+        // ambos caminos ofrecen lo mismo.
+        api("/nombres-facturacion"),
         api("/clientes"),
       ]);
       setOrdenes(Array.isArray(colaRes) ? colaRes : colaRes.data ?? []);
