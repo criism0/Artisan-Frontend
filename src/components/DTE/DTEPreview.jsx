@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { FileSearch } from 'lucide-react';
-import { toast } from 'react-toastify';
+// 🔴 NO desde 'react-toastify'. La app lo reemplazó por su propio sistema
+// (`lib/toast.js`: «Custom toast system to replace react-toastify for React 19 compatibility»)
+// y **no monta ningún `<ToastContainer>`**, así que un `toast.error` de react-toastify no se
+// muestra en ninguna parte. Era la razón de que este botón fallara en silencio absoluto.
+import { toast } from '../../lib/toast';
 import { dteService } from '../../services/dteService.js';
 import { formatCLP } from '../../services/formatHelpers.js';
 
@@ -18,7 +22,16 @@ import { formatCLP } from '../../services/formatHelpers.js';
  * pantallas distintas para la misma acción, y la que se usaba de verdad era la que menos
  * mostraba. Ahora las dos muestran esto.
  */
-export default function DTEPreview({ ordenId, tipo = 'factura', tipoPrevisualizacion = 'factura' }) {
+export default function DTEPreview({
+  ordenId,
+  tipo = 'factura',
+  tipoPrevisualizacion = 'factura',
+  // Lo que está elegido en el formulario de Facturar y todavía NO está guardado en la orden.
+  // La dirección se persiste recién al emitir (`PUT /ordenes-venta/:id/facturar` guarda y emite
+  // en la misma acción), así que sin pasarla acá el backend no tiene con qué armar el documento.
+  idLocal = null,
+  fecha = null,
+}) {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -29,7 +42,7 @@ export default function DTEPreview({ ordenId, tipo = 'factura', tipoPrevisualiza
   const abrirPdfReal = async () => {
     setAbriendoPdf(true);
     try {
-      await dteService.verPrevisualizacion(tipoPrevisualizacion, ordenId);
+      await dteService.verPrevisualizacion(tipoPrevisualizacion, ordenId, { idLocal, fecha });
     } catch (err) {
       toast.error('No se pudo generar el documento: ' + (err?.message ?? 'error desconocido'));
     } finally {

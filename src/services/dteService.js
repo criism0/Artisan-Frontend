@@ -289,8 +289,18 @@ export const dteService = {
    *
    * @param tipo 'factura' | 'guia-solicitud'
    */
-  verPrevisualizacion: async (tipo, referenciaId) => {
-    const blob = await apiBlob(`/facturacion/previsualizar/${tipo}/${referenciaId}`);
+  // `opciones` lleva lo que el operario tiene elegido y todavía no está guardado en la orden:
+  // la dirección de facturación y la fecha. Sin eso el backend arma el documento desde la orden
+  // guardada, donde `id_local` recién existe DESPUÉS de facturar — y respondía «la orden no
+  // tiene dirección de facturación» justo a quien quería mirar antes de emitir.
+  verPrevisualizacion: async (tipo, referenciaId, opciones = {}) => {
+    const params = new URLSearchParams();
+    if (opciones.idLocal) params.set('id_local', String(opciones.idLocal));
+    if (opciones.fecha) params.set('fecha', opciones.fecha);
+    if (opciones.transportista) params.set('transportista', opciones.transportista);
+    const query = params.toString() ? `?${params.toString()}` : '';
+
+    const blob = await apiBlob(`/facturacion/previsualizar/${tipo}/${referenciaId}${query}`);
     const url = URL.createObjectURL(blob);
     const ventana = window.open(url, '_blank');
     if (ventana) {
