@@ -131,9 +131,20 @@ export default function DataTable({
     );
   };
 
+  // 🔴 `align` sólo se aplicaba al contenedor de la CABECERA, así que una columna numérica
+  // mostraba el título a la derecha y los valores a la izquierda — se veía desalineada y
+  // los montos no se podían comparar de un vistazo, que es justo para lo que sirve alinearlos.
+  //
+  // Va en DataTable y no en cada página porque `align` es su contrato: toda tabla que lo declare
+  // debería alinear la columna entera.
+  const claseTexto = (align) =>
+    align === "center" ? "text-center" : align === "right" ? "text-right" : "";
+
   const renderedColumns = columns.map((col) => ({
     ...col,
     header: renderHeader(col),
+    headerClassName: [col.headerClassName, claseTexto(col.align)].filter(Boolean).join(" "),
+    cellClassName: [col.cellClassName, claseTexto(col.align)].filter(Boolean).join(" "),
   }));
 
   if (loading) return <PageLoader message={loadingMessage} />;

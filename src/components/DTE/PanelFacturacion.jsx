@@ -8,7 +8,7 @@
  * emitidos. Las bandejas SII / DTE emitidos quedan como vistas de consulta.
  */
 import { useState } from 'react';
-import { FileText, Truck, FileMinus, FilePlus, FileDown, RefreshCw, Eye, Info, AlertCircle, X } from 'lucide-react';
+import { FileText, Truck, FileMinus, FilePlus, FileDown, FileSearch, RefreshCw, Eye, Info, AlertCircle, X } from 'lucide-react';
 import { DTEStatusBadge } from './DTEStatusBadge.jsx';
 import NotaCreditoModal from './NotaCreditoModal.jsx';
 import NotaDebitoModal from './NotaDebitoModal.jsx';
@@ -16,6 +16,9 @@ import DTEDetallesModal from './DTEDetallesModal.jsx';
 import DTEPreview from './DTEPreview.jsx';
 import { useDTE } from '../../hooks/useDTE.js';
 import { dteService } from '../../services/dteService.js';
+// Del wrapper de la app, NO de react-toastify: la app no monta ToastContainer y esos avisos
+// no se muestran en ninguna parte.
+import { toast } from '../../lib/toast';
 import { formatCLP } from '../../services/formatHelpers.js';
 
 const TIPO_LABEL = { 33: 'Factura', 39: 'Boleta', 52: 'Guía de Despacho', 56: 'Nota de Débito', 61: 'Nota de Crédito' };
@@ -39,23 +42,6 @@ function Chip({ tone = 'off', children }) {
   );
 }
 
-function Step({ estado, label, detalle }) {
-  // estado: 'done' | 'curr' | 'off'
-  const barra =
-    estado === 'done'
-      ? 'bg-primary'
-      : estado === 'curr'
-        ? 'bg-gradient-to-r from-primary from-50% to-gray-200 to-50%'
-        : 'bg-gray-200';
-  const texto = estado === 'done' ? 'text-primary' : estado === 'curr' ? 'text-text' : 'text-gray-400';
-  return (
-    <div className="flex-1 min-w-[120px] pr-2">
-      <div className={`h-1 rounded-full mb-1.5 ${barra}`} />
-      <div className={`text-xs font-semibold ${texto}`}>{label}</div>
-      <div className="text-[11px] text-gray-400">{detalle}</div>
-    </div>
-  );
-}
 
 export default function PanelFacturacion({ orden, accionPrincipal = null }) {
   const {
@@ -68,6 +54,19 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
   const [modalDetalles, setModalDetalles] = useState(null);
   const [modalRechazo,  setModalRechazo]  = useState(null);
   const [preEmitiendo,  setPreEmitiendo]  = useState(false);
+  const [viendoBorradorGuia, setViendoBorradorGuia] = useState(false);
+
+  // Abre el PDF de la guía tal como saldría, a folio 0 y sin gastar folio.
+  const verBorradorGuia = async () => {
+    setViendoBorradorGuia(true);
+    try {
+      await dteService.verPrevisualizacion('guia-venta', orden.id);
+    } catch (err) {
+      toast.error('No se pudo generar el borrador de la guía: ' + (err?.message ?? 'error desconocido'));
+    } finally {
+      setViendoBorradorGuia(false);
+    }
+  };
 
   if (!orden) return null;
 
@@ -103,26 +102,6 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
 
   const puedeEmitirNC = !!facturaEmitida && !ncEmitida;
   const puedeEmitirND = !!facturaEmitida && !ndEmitida;
-
-  // ── Stepper documental ──
-  const pickingDone = estadoIncludes(estado, 'list', 'factur', 'entreg');
-  const pasoPicking = {
-    estado: pickingDone ? 'done' : estadoIncludes(estado, 'picking') ? 'curr' : 'off',
-    detalle: pickingDone ? 'Completo' : estadoIncludes(estado, 'picking') ? 'En curso' : 'Pendiente',
-  };
-  const pasoGuia = {
-    estado: guiaEmitida ? 'done' : 'off',
-    detalle: guiaEmitida ? `Folio ${guiaEmitida.folio}` : 'Opcional',
-  };
-  const pasoFactura = {
-    estado: facturaEmitida ? 'done' : estadoIncludes(estado, 'list') ? 'curr' : 'off',
-    detalle: facturaEmitida ? `Folio ${facturaEmitida.folio}` : 'Pendiente',
-  };
-  const entregada = estadoIncludes(estado, 'entreg');
-  const pasoEntrega = {
-    estado: entregada ? 'done' : estadoIncludes(estado, 'factur') ? 'curr' : 'off',
-    detalle: entregada ? 'Entregada' : estadoIncludes(estado, 'factur') ? 'En curso' : '—',
-  };
 
   // ── Chip documental del header ──
   const chipDocumental = facturaEmitida
@@ -191,13 +170,12 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
         </div>
       </div>
 
-      {/* Stepper documental */}
-      <div className="flex gap-0 mb-5 overflow-x-auto">
-        <Step estado={pasoPicking.estado} label="Picking" detalle={pasoPicking.detalle} />
-        <Step estado={pasoGuia.estado} label="Guía de despacho" detalle={pasoGuia.detalle} />
-        <Step estado={pasoFactura.estado} label="Factura electrónica" detalle={pasoFactura.detalle} />
-        <Step estado={pasoEntrega.estado} label="Entrega" detalle={pasoEntrega.detalle} />
-      </div>
+      {/* 🔴 El stepper documental salió de acá: repetía la barra de progreso de la orden, que
+          está a media pantalla de distancia y cuenta la misma historia. Dos líneas de progreso
+          en la misma vista se leen como una duplicada, no como dos cosas distintas.
+
+          Lo que el stepper decía y no dice la barra de arriba —qué folio tiene cada documento—
+          se ve en la lista de documentos emitidos, que es donde corresponde. */}
 
       {/* Error */}
       {error && (
@@ -229,14 +207,26 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
       {/* Acciones DTE secundarias */}
       <div className="flex flex-wrap gap-2 mb-4">
         {puedeEmitirGD && (
-          <button
-            onClick={() => emitirGuiaDespacho()}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-          >
-            <Truck size={14} />
-            {loading ? 'Generando…' : 'Emitir Guía de Despacho'}
-          </button>
+          <>
+            {/* La guía consume folio y no se edita después, igual que la factura: mirarla antes
+                tiene que costar lo mismo que emitirla. */}
+            <button
+              onClick={verBorradorGuia}
+              disabled={viendoBorradorGuia}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              <FileSearch size={14} />
+              {viendoBorradorGuia ? 'Generando…' : 'Ver cómo saldrá la guía'}
+            </button>
+            <button
+              onClick={() => emitirGuiaDespacho()}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              <Truck size={14} />
+              {loading ? 'Generando…' : 'Emitir Guía de Despacho'}
+            </button>
+          </>
         )}
 
         {puedeEmitirNC && (

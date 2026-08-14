@@ -24,6 +24,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import PanelFacturacion from "../../components/DTE/PanelFacturacion.jsx";
 import DTEPreview from "../../components/DTE/DTEPreview.jsx";
+import DetalleTipoFactura from "../../components/Ventas/DetalleTipoFactura.jsx";
 import Selector from "../../components/Forms/Selector";
 import AvanceItems from "../../components/AvanceItems";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
@@ -229,7 +230,7 @@ export default function OrdenVentaDetail() {
   const [transitioning, setTransitioning] = useState(false);
   const [showFacturarForm, setShowFacturarForm] = useState(false);
   const [showEntregarForm, setShowEntregarForm] = useState(false);
-  const [tab, setTab] = useState("resumen");
+  const [tab, setTab] = useState("detalle");
   const [fechaFacturacion, setFechaFacturacion] = useState("");
   const [costoEnvio, setCostoEnvio] = useState("");
   const [fechaEnvio, setFechaEnvio] = useState("");
@@ -790,55 +791,40 @@ export default function OrdenVentaDetail() {
         </div>
       </div>
 
+      {/* 🔴 FACTURACIÓN FUERA DE LAS PESTAÑAS. Era la 4ª pestaña: dos clics para lo que más se
+          consulta y para las dos acciones que definen esta pantalla —«ver cómo saldrá» y
+          «facturar»—. Acá está siempre a la vista, y el detalle de la orden queda a un clic
+          igual que antes. */}
+      <div className="mb-6">
+        <PanelFacturacion orden={orden} />
+      </div>
+
       <Tabs
         activa={tab}
         onCambiar={setTab}
         pestanas={[
-          { id: "resumen", label: "Resumen" },
-          { id: "productos", label: "Productos", cantidad: orderItems.length },
+          // «Resumen» y «Productos» eran dos pestañas que había que cruzar para cuadrar un
+          // monto, con los totales repetidos en ambas. Ahora son un solo documento.
+          //
+          // «Documentos» salió de las pestañas: es lo que más se consulta y vive fijo arriba.
+          { id: "detalle", label: "Detalle", cantidad: orderItems.length },
           { id: "asignacion", label: "Asignación", cantidad: progresoRows.length },
-          { id: "documentos", label: "Documentos" },
         ]}
       />
 
       {/* Información general */}
-      <div className={tab === "resumen" ? "bg-white rounded-lg shadow p-4 mb-6" : "hidden"}>
-        <h2 className="text-base font-semibold text-text mb-3">Información</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-          <div className="bg-gray-50 rounded-lg border border-border p-3">
-            <div className="text-xs text-gray-500 font-medium">Dirección de entrega</div>
-            {direccion ? (
-              <>
-                <div className="font-medium text-text mt-1">
-                  {[direccion.tipo_direccion, direccion.nombre_sucursal].filter(Boolean).join(" — ") || "—"}
-                </div>
-                <div className="text-xs text-gray-600 mt-1">
-                  {direccion.calle || ""} {direccion.numero || ""}{direccion.comuna ? `, ${direccion.comuna}` : ""}
-                </div>
-              </>
-            ) : (
-              <div className="mt-1">
-                <span className="text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
-                  Por asignar — se confirma al facturar
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="bg-gray-50 rounded-lg border border-border p-3">
-            <div className="text-xs text-gray-500 font-medium">Fechas</div>
-            <div className="text-xs text-gray-600 mt-1">Emisión: {formatDate(orden?.fecha_orden)}</div>
-            <div className="text-xs text-gray-600">Despacho: {formatDate(orden?.fecha_envio)}</div>
-            <div className="text-xs text-gray-600">Facturación: {formatDate(orden?.fecha_facturacion)}</div>
-          </div>
-        </div>
-
-        <div className="mt-3 text-sm text-gray-700">
-          <span className="font-medium">Costo envío:</span> {formatCLP(costoEnvioActual, 0)} ·{" "}
-          <span className="font-medium">Neto:</span> {formatCLP(totalNeto, 0)} ·{" "}
-          <span className="font-medium">IVA:</span> {formatCLP(iva, 0)} ·{" "}
-          <span className="font-medium text-primary">Total:</span> {formatCLP(total, 0)}
-        </div>
+      {/* El detalle con forma de documento: receptor, líneas y totales UNA sola vez. */}
+      <div className={tab === "detalle" ? "mb-6" : "hidden"}>
+        <DetalleTipoFactura
+          orden={orden}
+          lineas={orderItems}
+          direccion={direccion}
+          totalNeto={totalNeto}
+          iva={iva}
+          total={total}
+          costoEnvio={costoEnvioActual}
+          formatDate={formatDate}
+        />
       </div>
 
       {/* Resumen de asignación */}
@@ -901,40 +887,6 @@ export default function OrdenVentaDetail() {
         )}
       </div>
 
-      {/* Tabla de productos */}
-      <div className={tab === "productos" ? "bg-white rounded-lg shadow p-4 mb-6" : "hidden"}>
-        <h2 className="text-base font-semibold text-text mb-3">Productos</h2>
-        <Table
-          columns={[
-            { header: "Producto", accessor: "producto_nombre", cellClassName: "whitespace-normal break-words" },
-            { header: "Cantidad", accessor: "cantidad" },
-            { header: "Precio Unit.", accessor: "precio_venta", Cell: ({ value }) => formatCLP(Number(value || 0), 0) },
-            { header: "Desc. (%)", accessor: "porcentaje_descuento", Cell: ({ value }) => `${Number(value || 0)}%` },
-            { header: "Subtotal", accessor: "subtotal", Cell: ({ value }) => formatCLP(Number(value || 0), 0) },
-          ]}
-          data={orderItems.map((it) => {
-            const subtotal =
-              Number(it?.cantidad || 0) *
-              Number(it?.precio_venta || 0) *
-              (1 - (Number(it?.porcentaje_descuento || 0) || 0) / 100);
-            return {
-              id: it?.id,
-              producto_nombre:
-                it?.NombreFacturacion?.nombre || it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`,
-              cantidad: Number(it?.cantidad || 0),
-              precio_venta: Number(it?.precio_venta || 0),
-              porcentaje_descuento: Number(it?.porcentaje_descuento || 0),
-              subtotal,
-            };
-          })}
-        />
-      </div>
-
-      {/* Documentos: stepper documental y DTEs emitidos (M6). La acción de facturar salió
-          de acá y vive en el panel de la cabecera, junto al resto. */}
-      <div className={tab === "documentos" ? "" : "hidden"}>
-        <PanelFacturacion orden={orden} />
-      </div>
 
       <Modal
         abierto={showFacturarForm}
@@ -943,6 +895,10 @@ export default function OrdenVentaDetail() {
           setIdLocalDespacho("");
           setDireccionesCliente([]);
         }}
+        // Ancho: el modal muestra el documento completo —receptor, líneas y totales— y en la
+        // caja estrecha por defecto cada línea se partía en varios renglones, así que el
+        // detalle salía larguísimo y costaba dimensionar lo que se iba a emitir.
+        ancho="max-w-4xl"
         titulo="Facturar orden"
         descripcion="Confirma la dirección y la fecha antes de emitir el documento."
         pie={
