@@ -14,6 +14,7 @@ import {
   precioUtil,
   formatearPesos,
 } from "../../utils/preciosLista";
+import { esFormatoCajas, lineaEnCajas, unidadesPorCajaDeLinea } from "../../utils/formatoCantidad";
 
 const PRODUCTOS_VISIBLES = 4;
 const PAGE_SIZE = 6;
@@ -204,6 +205,7 @@ function ProductoRow({
   idListaPrecio,
   nombreLista,
   cargarPrecios,
+  formatoCantidad,
 }) {
   const api = useApi();
   const [editing, setEditing]       = useState(false);
@@ -221,6 +223,11 @@ function ProductoRow({
   // De dónde salió el precio que se está mostrando. Es la mitad que faltaba: el número solo no
   // dice si es el acordado con el cliente o el que la IA leyó del correo.
   const [origenPrecio, setOrigenPrecio] = useState(null);
+
+  // La cantidad en cajas, cuando la orden se trabaja así.  si no aplica.
+  const cajasLinea = esFormatoCajas(formatoCantidad)
+    ? lineaEnCajas(Number(prod.cantidad || 0), Number(prod.precio_venta || 0), unidadesPorCajaDeLinea(prod))
+    : null;
 
   const sinMatch    = !prod.id_producto;
   const nombre      = prod.ProductoBase?.nombre ?? null;
@@ -494,8 +501,21 @@ function ProductoRow({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className={`text-sm ${conProblema ? "text-amber-900" : "text-gray-500"}`}>
-              × {prod.cantidad}
+            {/* En una orden por cajas se muestra en cajas: es la unidad en que el cliente pidió
+                y en la que se va a pickear y facturar. El equivalente en unidades va al lado,
+                porque es lo que la base guarda y lo que bodega cuenta. */}
+            <span className={`text-sm text-right ${conProblema ? "text-amber-900" : "text-gray-500"}`}>
+              {cajasLinea?.cajas > 0 ? (
+                <>
+                  × {cajasLinea.cajas} {cajasLinea.cajas === 1 ? "caja" : "cajas"}
+                  <span className="block text-[11px] text-gray-400">
+                    {prod.cantidad} un
+                    {cajasLinea.unidades_sueltas > 0 && ` · ${cajasLinea.unidades_sueltas} sueltas`}
+                  </span>
+                </>
+              ) : (
+                <>× {prod.cantidad}</>
+              )}
             </span>
             {/* En una línea con problema, la acción para arreglarlo tiene que verse: que
                 aparezca sólo al pasar el mouse esconde justo lo que hay que hacer. */}
@@ -1132,6 +1152,7 @@ function OVIACard({
               idListaPrecio={idListaPrecio}
               nombreLista={nombreLista}
               cargarPrecios={cargarPrecios}
+              formatoCantidad={ov.formato_cantidad}
             />
           ))}
           {todosLosProductos.length === 0 && !agregando && (

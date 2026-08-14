@@ -2,10 +2,11 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { ClipboardList } from "lucide-react";
+import { FileDown } from "lucide-react";
 import { ViewDetailButton, EditButton, TrashButton } from "../../components/Buttons/ActionButtons";
 import DataTable from "../../components/Tables/DataTable";
 import { formatCLP } from "../../services/formatHelpers";
+import { dteService } from "../../services/dteService.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
@@ -27,6 +28,7 @@ export default function OrdenesVentaPage() {
   const navigate = useNavigate();
   const api = useApi();
   const [ordenes, setOrdenes] = useState([]);
+  const [descargando, setDescargando] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const canDeleteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.DELETE);
@@ -82,11 +84,23 @@ export default function OrdenesVentaPage() {
       Cell: ({ value }) => value?.nombre_empresa || "—",
     },
     {
-      header: "Total (IVA incl.)",
+      // El número de OC que mandó el cliente. Ya se podía buscar por él pero no se veía, así
+      // que había que entrar al detalle para cruzarlo con lo que pregunta el cliente por
+      // teléfono. Está en 235 de las 290 órdenes.
+      header: "OC cliente",
+      accessor: "numero_oc",
+      sortable: true,
+      Cell: ({ value }) =>
+        value ? <span className="font-mono text-xs">{value}</span> : "—",
+    },
+    {
+      // Neto, sin IVA: es el número con el que se trabaja la venta. El total con impuesto lo
+      // dice la factura, y mostrarlo acá obligaba a hacer la cuenta al revés para conciliar.
+      header: "Total neto",
       accessor: "ingreso_venta",
       sortable: true,
       align: "right",
-      Cell: ({ value }) => formatCLP(Number(value || 0) * 1.19, 0),
+      Cell: ({ value }) => formatCLP(Number(value || 0), 0),
     },
     {
       header: "Estado",
@@ -96,9 +110,33 @@ export default function OrdenesVentaPage() {
     },
   ];
 
+  // Descarga la factura de una orden sin entrar al detalle: es la consulta más frecuente y
+  // hacían falta tres clics y una pestaña nueva para llegar.
+  //
+  // Los documentos se piden AL APRETAR, no al pintar la tabla: precargarlos sería una petición
+  // por fila para algo que casi nunca se abre.
+  const handleDescargarFactura = async (row) => {
+    setDescargando(row.id);
+    try {
+      const lista = await dteService.listarPorOrden(row.id);
+      const factura = (lista ?? []).find((d) => Number(d.tipo_dte) === 33);
+      if (!factura) {
+        toast.warning("Esta orden todavía no tiene factura emitida");
+        return;
+      }
+      await dteService.descargarPDF(factura);
+    } catch (err) {
+      toast.error(`No se pudo descargar la factura: ${err?.message ?? "error desconocido"}`);
+    } finally {
+      setDescargando(null);
+    }
+  };
+
   const actions = (row) => {
     const puedeEditar = row.estado === "Creada";
-    const tieneAsignacion = ["En picking", "Lista para facturación", "Facturada", "Entregada"].includes(row.estado);
+    // Sólo donde puede haber factura. El estado es el único dato de la fila que lo dice sin
+    // pedir los documentos de las 290 órdenes.
+    const puedeTenerFactura = ["Facturada", "Entregada"].includes(row.estado);
 
     return (
       <div className="flex gap-2 justify-center items-center">
@@ -112,13 +150,14 @@ export default function OrdenesVentaPage() {
             tooltipText="Editar"
           />
         )}
-        {tieneAsignacion && (
+        {puedeTenerFactura && (
           <button
-            onClick={() => navigate(`/ventas/ordenes/${row.id}/resumen-asignacion`)}
-            className="text-gray-400 hover:text-blue-500"
-            title="Ver resumen de asignación"
+            onClick={() => handleDescargarFactura(row)}
+            disabled={descargando === row.id}
+            className="text-gray-400 hover:text-[#7A5AF8] disabled:opacity-40"
+            title="Descargar factura"
           >
-            <ClipboardList className="w-5 h-5" />
+            <FileDown className="w-5 h-5" />
           </button>
         )}
         <TrashButton

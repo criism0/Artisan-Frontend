@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { dteService } from '../../services/dteService.js';
 import { toast } from '../../lib/toast.js';
+import { formatCLP } from '../../services/formatHelpers.js';
 
 const COD_REF_OPTIONS = [
   { value: 3, label: 'Rebaja parcial / merma — folio sigue existiendo, monto baja' },
@@ -55,6 +56,29 @@ export default function NotaCreditoModal({ dte, orden, onClose, onSuccess }) {
     if (!esTexto && !esAnulacion && !items.some(it => it.seleccionado)) {
       toast.error('Selecciona al menos un ítem a devolver');
       return;
+    }
+
+    // 🔴 FRENO PARA LA ANULACIÓN TOTAL, y sólo para ella.
+    //
+    // Los tres CodRef no son igual de graves: una rebaja parcial ajusta el monto y una
+    // corrección de texto no toca la plata, pero la anulación total **hace desaparecer el folio
+    // ante el SII** y devuelve el 100% del inventario. Es irreversible y se elige en un
+    // desplegable, a un clic de las otras dos.
+    //
+    // Se pide escribir el folio: obliga a mirar CUÁL factura se está anulando, que es
+    // exactamente el error que hay que evitar. Un «¿está seguro?» no lo lograría — se aprieta
+    // sin leer.
+    if (esAnulacion) {
+      const escrito = window.prompt(
+        `ANULACIÓN TOTAL de la factura N° ${dte.folio} por ${formatCLP(dte.montoTotal ?? 0, 0)}.\n\n` +
+        'El folio desaparece ante el SII y el inventario vuelve completo. No se puede deshacer.\n\n' +
+        `Para confirmar, escribe el número de folio (${dte.folio}):`,
+      );
+      if (escrito === null) return;              // canceló
+      if (String(escrito).trim() !== String(dte.folio)) {
+        toast.error('El folio no coincide. No se emitió la nota de crédito.');
+        return;
+      }
     }
 
     setLoading(true);
