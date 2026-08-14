@@ -7,7 +7,7 @@
  * DTE secundarias (GD / NC / ND / actualizar SII) y la tabla de documentos
  * emitidos. Las bandejas SII / DTE emitidos quedan como vistas de consulta.
  */
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FileText, Truck, FileMinus, FilePlus, FileDown, FileSearch, RefreshCw, Eye, Info, AlertCircle, X } from 'lucide-react';
 import { DTEStatusBadge } from './DTEStatusBadge.jsx';
 import NotaCreditoModal from './NotaCreditoModal.jsx';
@@ -55,6 +55,41 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
   const [modalRechazo,  setModalRechazo]  = useState(null);
   const [preEmitiendo,  setPreEmitiendo]  = useState(false);
   const [viendoBorradorGuia, setViendoBorradorGuia] = useState(false);
+
+  /**
+   * 🔴 Al abrir la orden se le pregunta al SII en qué quedó cada documento.
+   *
+   * `estado_sii` se escribía al emitir y no se volvía a tocar nunca. El SII resuelve minutos
+   * después, así que una factura ya aceptada seguía mostrando «Pendiente SII» para siempre.
+   * Reportado con los tres primeros documentos reales —factura 24262 y guías 3471/3472—, los
+   * tres en PENDIENTE con su track_id guardado, o sea enviados correctamente.
+   *
+   * ⚠️ La consulta YA EXISTÍA: es el mismo `actualizarYRecargar` del botón. Pero colgaba de un
+   * ícono de 14 píxeles en gris claro, sin etiqueta, en una esquina. Nadie sabía que había que
+   * apretarlo, así que en la práctica el estado no se actualizaba nunca.
+   *
+   * ⚠️ Corre UNA sola vez por orden abierta, con guarda de `useRef`. Consultar no gasta folio,
+   * pero es una llamada a LibreDTE por documento: sin la guarda, cada recarga de `documentos`
+   * dispararía otra tanda, que es el mecanismo exacto de la ráfaga de 136 peticiones al abrir
+   * una solicitud. Y va ANTES del `if (!orden) return null` porque un hook no puede quedar
+   * detrás de una salida temprana.
+   */
+  const yaConsultoSii = useRef(false);
+  useEffect(() => {
+    if (yaConsultoSii.current || loading) return;
+    const pendientes = documentos.filter(
+      d => d.folio && estadoIncludes(d.estadoSii, 'enviado', 'pendiente', 'proceso'),
+    );
+    if (pendientes.length === 0) return;
+    yaConsultoSii.current = true;
+    Promise.allSettled(pendientes.map(d => dteService.actualizarEstadoSii(d.id)))
+      .then(() => cargarDocumentos())
+      .catch(() => {
+        // Si el SII o LibreDTE no responden, el estado guardado se queda como está y el botón
+        // sigue disponible. No se avisa: el operario no pidió esto, pasa al abrir la pantalla.
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentos, loading]);
 
   // Abre el PDF de la guía tal como saldría, a folio 0 y sin gastar folio.
   const verBorradorGuia = async () => {
@@ -132,10 +167,14 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
     setModalND(factura);
   }
 
-  async function actualizarYRecargar() {
-    const pendientes = documentos.filter(
+  function documentosSinResolverEnSii() {
+    return documentos.filter(
       d => d.folio && estadoIncludes(d.estadoSii, 'enviado', 'pendiente', 'proceso')
     );
+  }
+
+  async function actualizarYRecargar() {
+    const pendientes = documentosSinResolverEnSii();
     await Promise.allSettled(pendientes.map(d => dteService.actualizarEstadoSii(d.id)));
     await cargarDocumentos();
   }
@@ -159,13 +198,18 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
         <div className="ml-auto flex items-center gap-2">
           <Chip tone="info">OV: {estado || '—'}</Chip>
           <Chip tone={chipDocumental.tone}>{chipDocumental.texto}</Chip>
+          {/* Con etiqueta: como ícono suelto de 14px en gris claro, nadie sabía que existía —
+              y era justamente lo que hacía falta apretar para ver el estado real del SII. */}
           <button
             onClick={actualizarYRecargar}
             disabled={loading}
-            title="Actualizar estado en SII"
-            className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 disabled:opacity-40"
+            title="Vuelve a preguntarle al SII en qué quedó cada documento"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-gray-200
+                       text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-800
+                       disabled:opacity-40"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+            Actualizar estado SII
           </button>
         </div>
       </div>
