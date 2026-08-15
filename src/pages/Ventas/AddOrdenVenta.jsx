@@ -14,6 +14,12 @@ import {
   problemaDeCantidad,
   cantidadConUnidad,
 } from "../../utils/unidadVenta.js";
+import {
+  netoLinea,
+  problemaDeDescuento,
+  descuentoAGuardar,
+  formatearDescuento,
+} from "../../utils/descuentoLinea.js";
 
 export default function AddOrdenVenta() {
   const [isLoading, setIsLoading] = useState(true);
@@ -54,6 +60,7 @@ export default function AddOrdenVenta() {
   const [condicionPagoCliente, setCondicionPagoCliente] = useState(null);
   const [editingProdId, setEditingProdId] = useState(null);
   const [editingCantidad, setEditingCantidad] = useState("");
+  const [editingDescuento, setEditingDescuento] = useState("");
 
   const [form, setForm] = useState({
     id_cliente: "",
@@ -67,6 +74,9 @@ export default function AddOrdenVenta() {
     id_nombre_facturacion: "",
     cantidad: "",
     precio_unitario: "",
+    // Vacío, no 0: «sin descuento» y «descuento de cero» se ven igual en la base pero no
+    // significan lo mismo en el formulario, y un 0 precargado invita a escribir al lado.
+    porcentaje_descuento: "",
   });
 
   useEffect(() => {
@@ -128,6 +138,12 @@ export default function AddOrdenVenta() {
         );
       }
       if (linea.cantidad != null) siguiente.cantidad = String(linea.cantidad);
+      // El descuento SÍ sale del correo —lo declara el documento del cliente, no lo decide
+      // quien digita— pero se pisa siempre, también cuando la línea no trae ninguno: un
+      // descuento que quedó del producto anterior apunta a otra cosa. Es el mismo criterio que
+      // con el precio.
+      siguiente.porcentaje_descuento =
+        linea.porcentaje_descuento != null ? String(linea.porcentaje_descuento) : "";
       return siguiente;
     });
 
@@ -198,7 +214,7 @@ export default function AddOrdenVenta() {
     setPreciosLista([]);
     setCondicionPagoCliente(null);
     if (!id_cliente) {
-      setProductoForm({ id_nombre_facturacion: "", cantidad: "", precio_unitario: "" });
+      setProductoForm({ id_nombre_facturacion: "", cantidad: "", precio_unitario: "", porcentaje_descuento: "" });
       setForm(prev => ({ ...prev, id_cliente: "" }));
       return;
     }
@@ -282,6 +298,8 @@ export default function AddOrdenVenta() {
       : problemaDeCantidad(productoForm.cantidad, unidadProductoElegido);
     if (problemaCantidad) prodErrors.cantidad = problemaCantidad;
     if (!productoForm.precio_unitario || productoForm.precio_unitario <= 0) prodErrors.precio_unitario = "Precio debe ser mayor a 0.";
+    const problemaDesc = problemaDeDescuento(productoForm.porcentaje_descuento);
+    if (problemaDesc) prodErrors.porcentaje_descuento = problemaDesc;
     setProductErrors(prodErrors);
     return Object.keys(prodErrors).length === 0;
   };
@@ -299,20 +317,25 @@ export default function AddOrdenVenta() {
     const precioLista = buscarPrecioLista(nombreId, preciosLista);
     const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
     const cantidad = Number(productoForm.cantidad);
+    const descuento = descuentoAGuardar(productoForm.porcentaje_descuento);
     setProductosAgregados((prev) => [
       {
         id_nombre_facturacion: nombreId,
         nombre: nombreFact?.nombre || `Nombre #${nombreId}`,
         precio_unitario: Number(productoForm.precio_unitario),
         cantidad,
+        porcentaje_descuento: descuento,
         formato_linea: formato.includes("CAJA") ? "CAJAS" : "UNIDADES",
         unidades_por_caja: unidadesPorCaja || null,
-        total_linea: Number(productoForm.precio_unitario) * cantidad,
+        // El total lleva el descuento aplicado, que es la misma cuenta que hará el backend al
+        // recalcular `ingreso_venta`. Mostrar el bruto acá dejaría la tabla diciendo un número y
+        // la orden guardada otro.
+        total_linea: netoLinea(cantidad, productoForm.precio_unitario, descuento),
       },
       ...prev,
     ]);
     setIsProductosExpanded(false);
-    setProductoForm({ id_nombre_facturacion: "", cantidad: "", precio_unitario: "" });
+    setProductoForm({ id_nombre_facturacion: "", cantidad: "", precio_unitario: "", porcentaje_descuento: "" });
     setProductErrors({});
   };
 
@@ -323,6 +346,7 @@ export default function AddOrdenVenta() {
   const handleStartEdit = (prod) => {
     setEditingProdId(prod.id_nombre_facturacion);
     setEditingCantidad(String(prod.cantidad));
+    setEditingDescuento(prod.porcentaje_descuento ? String(prod.porcentaje_descuento) : "");
   };
 
   const handleConfirmEdit = () => {
@@ -338,20 +362,33 @@ export default function AddOrdenVenta() {
       toast.error(problema);
       return;
     }
+    const problemaDesc = problemaDeDescuento(editingDescuento);
+    if (problemaDesc) {
+      toast.error(problemaDesc);
+      return;
+    }
+    const nuevoDescuento = descuentoAGuardar(editingDescuento);
     setProductosAgregados((prev) =>
       prev.map((p) =>
         p.id_nombre_facturacion === editingProdId
-          ? { ...p, cantidad: nuevaCantidad, total_linea: p.precio_unitario * nuevaCantidad }
+          ? {
+              ...p,
+              cantidad: nuevaCantidad,
+              porcentaje_descuento: nuevoDescuento,
+              total_linea: netoLinea(nuevaCantidad, p.precio_unitario, nuevoDescuento),
+            }
           : p
       )
     );
     setEditingProdId(null);
     setEditingCantidad("");
+    setEditingDescuento("");
   };
 
   const handleCancelEdit = () => {
     setEditingProdId(null);
     setEditingCantidad("");
+    setEditingDescuento("");
   };
 
   const handleSubmit = async (e) => {
@@ -413,7 +450,10 @@ export default function AddOrdenVenta() {
               descripcion_original: p.nombre ?? null,
               cantidad: cantidadEnUnidades,
               precio_venta: precioPorUnidad,
-              porcentaje_descuento: 0,
+              // ⚠️ El descuento NO se convierte: es un porcentaje, y un porcentaje no cambia al
+              // reexpresar cajas en unidades. Lo que se convierte en pareja son la cantidad y el
+              // precio; tocar también el descuento lo aplicaría dos veces.
+              porcentaje_descuento: p.porcentaje_descuento ?? 0,
               // Desglose comercial en cajas (la cantidad SIEMPRE viaja en unidades)
               producto_por_cajas: convertible,
               cantidad_por_caja: convertible ? p.unidades_por_caja : 0,
@@ -622,7 +662,7 @@ export default function AddOrdenVenta() {
           )}
 
           {/* Formulario agregar producto */}
-          <div className="grid grid-cols-3 gap-x-6 gap-y-4 mb-4">
+          <div className="grid grid-cols-4 gap-x-6 gap-y-4 mb-4">
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium text-gray-700">Producto *</span>
               <Selector
@@ -691,7 +731,56 @@ export default function AddOrdenVenta() {
                 <span className="text-red-500 text-xs">{productErrors.precio_unitario}</span>
               )}
             </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Descuento (%)</span>
+              <input
+                type="number"
+                name="porcentaje_descuento"
+                min="0"
+                max="100"
+                // `any` porque el retail declara el descuento con decimales: el XML de Jumbo lo
+                // manda en <percentage> y puede traer 13,5.
+                step="any"
+                placeholder="Sin descuento"
+                value={productoForm.porcentaje_descuento}
+                onChange={handleProductoChange}
+                disabled={!form.id_cliente}
+                className={`border px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+                  productErrors.porcentaje_descuento ? "border-red-500" : "border-gray-300"
+                } ${!form.id_cliente ? "bg-gray-100 cursor-not-allowed" : ""}`}
+              />
+              {productErrors.porcentaje_descuento && (
+                <span className="text-red-500 text-xs">{productErrors.porcentaje_descuento}</span>
+              )}
+            </label>
           </div>
+
+          {/* El neto de la línea que se está por agregar, con el descuento ya aplicado: el
+              operario ve el número que va a quedar guardado antes de apretar el botón. */}
+          {productoForm.cantidad > 0 && productoForm.precio_unitario > 0 && (
+            <p className="mb-3 text-sm text-gray-600">
+              Total de la línea:{" "}
+              <span className="font-medium text-gray-800">
+                ${Math.round(
+                  netoLinea(
+                    productoForm.cantidad,
+                    productoForm.precio_unitario,
+                    descuentoAGuardar(productoForm.porcentaje_descuento),
+                  ),
+                ).toLocaleString("es-CL")}
+              </span>
+              {descuentoAGuardar(productoForm.porcentaje_descuento) > 0 && (
+                <span className="text-gray-400">
+                  {" "}
+                  · {formatearDescuento(productoForm.porcentaje_descuento)} sobre $
+                  {Math.round(
+                    Number(productoForm.cantidad) * Number(productoForm.precio_unitario),
+                  ).toLocaleString("es-CL")}
+                </span>
+              )}
+            </p>
+          )}
 
           <button
             type="button"
@@ -718,6 +807,7 @@ export default function AddOrdenVenta() {
                     <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
                       Precio {esCajas ? "/ Caja" : "Unitario"}
                     </th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">% Desc.</th>
                     <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Total</th>
                     <th className="px-4 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wide">Acción</th>
                   </tr>
@@ -755,10 +845,31 @@ export default function AddOrdenVenta() {
                       <td className="px-4 py-2.5 text-sm text-gray-700">
                         ${p.precio_unitario.toLocaleString("es-CL")}
                       </td>
+                      <td className="px-4 py-2.5 text-sm text-gray-700">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="any"
+                            placeholder="0"
+                            value={editingDescuento}
+                            onChange={(e) => setEditingDescuento(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleConfirmEdit(); if (e.key === "Escape") handleCancelEdit(); }}
+                            className="w-20 border border-blue-400 px-2 py-1 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          formatearDescuento(p.porcentaje_descuento)
+                        )}
+                      </td>
                       <td className="px-4 py-2.5 text-sm font-medium text-gray-800">
-                        ${(isEditing
-                          ? p.precio_unitario * (Number(editingCantidad) || 0)
-                          : p.total_linea
+                        {/* Mientras se edita, el total sigue a los DOS campos: si sólo siguiera a
+                            la cantidad, cambiar el descuento no movería el número y quien edita
+                            no vería el efecto de lo que está haciendo. */}
+                        ${Math.round(
+                          isEditing
+                            ? netoLinea(editingCantidad, p.precio_unitario, descuentoAGuardar(editingDescuento))
+                            : p.total_linea
                         ).toLocaleString("es-CL")}
                       </td>
                       <td className="px-4 py-2.5 text-center">
@@ -813,7 +924,7 @@ export default function AddOrdenVenta() {
                 {productosAgregados.length > 5 && (
                   <tfoot>
                     <tr>
-                      <td colSpan={6} className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                      <td colSpan={7} className="px-4 py-3 bg-gray-50 border-t border-gray-200">
                         <button
                           type="button"
                           onClick={() => {
