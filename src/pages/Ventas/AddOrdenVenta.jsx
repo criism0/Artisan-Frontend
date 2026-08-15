@@ -384,7 +384,26 @@ export default function AddOrdenVenta() {
       for (const p of productosAgregados) {
         const formato = (clienteConfig?.formato || "UNIDADES").toUpperCase();
         const enCajas = formato.includes("CAJA");
-        const cantidadEnUnidades = enCajas && p.unidades_por_caja ? p.cantidad * p.unidades_por_caja : p.cantidad;
+        const convertible = Boolean(enCajas && p.unidades_por_caja);
+
+        // 🔴 LAS DOS MITADES SE CONVIERTEN JUNTAS, O NINGUNA.
+        //
+        // Acá se convertía la cantidad a unidades y se mandaba `precio_unitario` tal cual —que
+        // para un cliente en cajas ES EL PRECIO DE LA CAJA, porque así lo devuelve
+        // `calcularPrecioProducto`—. Resultado: 8 cajas a $11.984 se guardaban como 128 unidades
+        // a $11.984, o sea DIECISÉIS VECES el pedido. Y era invisible en pantalla: la tabla
+        // muestra 8 × 11.984 = $95.872, que es lo correcto; el error aparecía recién en la orden
+        // guardada. Es lo que reportó Hernán cargando una OC de WalMart a mano.
+        //
+        // Las dos OV reales de WalMart (748, 778) están bien porque vinieron del parser EDI,
+        // que sí convierte las dos mitades. Este es el camino manual.
+        //
+        // La invariante que hay que conservar es la del backend: `cantidad` en UNIDADES y
+        // `precio_venta` por UNIDAD, con el mismo monto de línea.
+        const cantidadEnUnidades = convertible ? p.cantidad * p.unidades_por_caja : p.cantidad;
+        const precioPorUnidad = convertible
+          ? Number(p.precio_unitario) / Number(p.unidades_por_caja)
+          : Number(p.precio_unitario);
         try {
           await api(`/ordenes-venta/${id_orden}/productos`, {
             method: "POST",
@@ -393,11 +412,11 @@ export default function AddOrdenVenta() {
               id_nombre_facturacion: p.id_nombre_facturacion,
               descripcion_original: p.nombre ?? null,
               cantidad: cantidadEnUnidades,
-              precio_venta: p.precio_unitario,
+              precio_venta: precioPorUnidad,
               porcentaje_descuento: 0,
               // Desglose comercial en cajas (la cantidad SIEMPRE viaja en unidades)
-              producto_por_cajas: Boolean(enCajas && p.unidades_por_caja),
-              cantidad_por_caja: enCajas && p.unidades_por_caja ? p.unidades_por_caja : 0,
+              producto_por_cajas: convertible,
+              cantidad_por_caja: convertible ? p.unidades_por_caja : 0,
             }),
           });
         } catch (err) {
