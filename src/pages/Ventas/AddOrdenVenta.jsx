@@ -7,6 +7,13 @@ import { ArrowLeft, ChevronDown, ChevronUp, Trash2, Pencil, Check, X } from "luc
 import Selector from "../../components/Forms/Selector";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import {
+  unidadVentaDe,
+  admiteFraccion,
+  stepDeUnidad,
+  problemaDeCantidad,
+  cantidadConUnidad,
+} from "../../utils/unidadVenta.js";
 
 export default function AddOrdenVenta() {
   const [isLoading, setIsLoading] = useState(true);
@@ -266,7 +273,14 @@ export default function AddOrdenVenta() {
   const validateProducto = () => {
     const prodErrors = {};
     if (!productoForm.id_nombre_facturacion) prodErrors.id_nombre_facturacion = "Debes seleccionar un producto.";
-    if (!productoForm.cantidad || productoForm.cantidad <= 0) prodErrors.cantidad = "Cantidad debe ser mayor a 0.";
+    // 🔴 Mismo criterio que el backend. Antes esto sólo miraba «> 0», así que un 1,5 pasaba la
+    // validación, se veía en la tabla con su total calculado y reventaba recién al guardar.
+    // En cajas la cantidad siempre es entera: media caja no se despacha.
+    const problemaCantidad = esCajas
+      ? (Number(productoForm.cantidad) > 0 && Number.isInteger(Number(productoForm.cantidad))
+          ? null : "La cantidad en cajas tiene que ser un número entero mayor a 0.")
+      : problemaDeCantidad(productoForm.cantidad, unidadProductoElegido);
+    if (problemaCantidad) prodErrors.cantidad = problemaCantidad;
     if (!productoForm.precio_unitario || productoForm.precio_unitario <= 0) prodErrors.precio_unitario = "Precio debe ser mayor a 0.";
     setProductErrors(prodErrors);
     return Object.keys(prodErrors).length === 0;
@@ -313,8 +327,15 @@ export default function AddOrdenVenta() {
 
   const handleConfirmEdit = () => {
     const nuevaCantidad = Number(editingCantidad);
-    if (!Number.isFinite(nuevaCantidad) || nuevaCantidad <= 0) {
-      toast.error("Ingresa una cantidad válida mayor a 0");
+    // Mismo criterio que al agregar y que el backend: acá también se podía escribir 1,5 y el
+    // rechazo llegaba recién al guardar la orden completa.
+    const lineaEditada = productosAgregados.find((p) => p.id_nombre_facturacion === editingProdId);
+    const problema = esCajas
+      ? (nuevaCantidad > 0 && Number.isInteger(nuevaCantidad)
+          ? null : "La cantidad en cajas tiene que ser un número entero mayor a 0.")
+      : problemaDeCantidad(editingCantidad, unidadDeLinea(lineaEditada));
+    if (problema) {
+      toast.error(problema);
       return;
     }
     setProductosAgregados((prev) =>
@@ -354,34 +375,64 @@ export default function AddOrdenVenta() {
       const created = res?.data || res || {};
       const id_orden = created.id;
       if (!id_orden) { toast.error("No se pudo crear la orden (ID no recibido)."); return; }
+
+      // 🔴 DESDE ACÁ LA ORDEN YA EXISTE. Lo que sigue son N peticiones que agregan sus líneas, y
+      // si una falla la orden NO desaparece: queda creada y a medio llenar. Decir «No se pudo
+      // crear la orden» era falso y dejaba al operario repitiendo el formulario entero. Es lo
+      // que le pasó a Hernán con el Parmesano Rueda: escribía 1,5, el backend lo rechazaba y el
+      // mensaje hablaba de otra cosa.
       for (const p of productosAgregados) {
         const formato = (clienteConfig?.formato || "UNIDADES").toUpperCase();
-        const esCajas = formato.includes("CAJA");
-        const cantidadEnUnidades = esCajas && p.unidades_por_caja ? p.cantidad * p.unidades_por_caja : p.cantidad;
-        await api(`/ordenes-venta/${id_orden}/productos`, {
-          method: "POST",
-          body: JSON.stringify({
-            id_orden,
-            id_nombre_facturacion: p.id_nombre_facturacion,
-            cantidad: cantidadEnUnidades,
-            precio_venta: p.precio_unitario,
-            porcentaje_descuento: 0,
-            // Desglose comercial en cajas (la cantidad SIEMPRE viaja en unidades)
-            producto_por_cajas: Boolean(esCajas && p.unidades_por_caja),
-            cantidad_por_caja: esCajas && p.unidades_por_caja ? p.unidades_por_caja : 0,
-          }),
-        });
+        const enCajas = formato.includes("CAJA");
+        const cantidadEnUnidades = enCajas && p.unidades_por_caja ? p.cantidad * p.unidades_por_caja : p.cantidad;
+        try {
+          await api(`/ordenes-venta/${id_orden}/productos`, {
+            method: "POST",
+            body: JSON.stringify({
+              id_orden,
+              id_nombre_facturacion: p.id_nombre_facturacion,
+              descripcion_original: p.nombre ?? null,
+              cantidad: cantidadEnUnidades,
+              precio_venta: p.precio_unitario,
+              porcentaje_descuento: 0,
+              // Desglose comercial en cajas (la cantidad SIEMPRE viaja en unidades)
+              producto_por_cajas: Boolean(enCajas && p.unidades_por_caja),
+              cantidad_por_caja: enCajas && p.unidades_por_caja ? p.unidades_por_caja : 0,
+            }),
+          });
+        } catch (err) {
+          // El servidor sabe POR QUÉ falló (p. ej. «se vende por unidad y se pidió 1,5»). Ese
+          // motivo vale más que cualquier frase genérica nuestra.
+          const motivo = err?.message || err?.data?.message || "";
+          toast.error(
+            `La orden #${id_orden} se creó, pero no se pudo agregar «${p.nombre ?? "un producto"}»` +
+            (motivo ? `: ${motivo}` : ".") +
+            " Ábrela y corrige esa línea."
+          );
+          navigate(`/ventas/ordenes/${id_orden}`);
+          return;
+        }
       }
       toast.success("Orden creada correctamente.");
       navigate("/ventas/ordenes");
-    } catch {
-      toast.error("No se pudo crear la orden.");
+    } catch (err) {
+      toast.error(err?.message ? `No se pudo crear la orden: ${err.message}` : "No se pudo crear la orden.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
+
+  // La unidad del producto que está seleccionado en el formulario de agregar línea. Decide la
+  // etiqueta, el `step` y si la cantidad puede llevar decimales.
+  const unidadProductoElegido = unidadVentaDe(
+    nombres.find((n) => String(n.id) === String(productoForm.id_nombre_facturacion)),
+  );
+
+  /** La unidad de una línea ya agregada, buscada en el catálogo por su nombre de facturación. */
+  const unidadDeLinea = (linea) =>
+    unidadVentaDe(nombres.find((n) => String(n.id) === String(linea?.id_nombre_facturacion)));
 
   if (isLoading) return <PageLoader message="Cargando datos" />;
 
@@ -580,12 +631,17 @@ export default function AddOrdenVenta() {
 
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium text-gray-700">
-                Cantidad {esCajas ? "(Cajas)" : "(Unidades)"} *
+                Cantidad {esCajas ? "(Cajas)" : unidadProductoElegido === "Kilogramos" ? "(Kg)"
+                  : unidadProductoElegido === "Litros" ? "(Litros)" : "(Unidades)"} *
               </span>
               <input
                 type="number"
                 name="cantidad"
-                placeholder="Ej. 10"
+                // El `step` es la primera línea de defensa: para lo que se vende por pieza el
+                // navegador ya no deja escribir decimales, en vez de aceptarlos y fallar al
+                // guardar con «No se pudo crear la orden».
+                step={esCajas ? "1" : stepDeUnidad(unidadProductoElegido)}
+                placeholder={admiteFraccion(unidadProductoElegido) && !esCajas ? "Ej. 1,5" : "Ej. 10"}
                 value={productoForm.cantidad}
                 onChange={handleProductoChange}
                 disabled={!form.id_cliente}
@@ -657,16 +713,26 @@ export default function AddOrdenVenta() {
                         {isEditing ? (
                           <input
                             type="number"
-                            min="1"
+                            min="0"
+                            step={esCajas ? "1" : stepDeUnidad(unidadDeLinea(p))}
                             value={editingCantidad}
                             onChange={(e) => setEditingCantidad(e.target.value)}
                             onKeyDown={(e) => { if (e.key === "Enter") handleConfirmEdit(); if (e.key === "Escape") handleCancelEdit(); }}
                             autoFocus
                             className="w-24 border border-blue-400 px-2 py-1 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
-                        ) : p.cantidad}
+                        ) : (
+                          // La unidad va pegada al número. Un «1,5» a secas se lee como una pieza
+                          // y media; la unidad es lo que hace que se lea como kilo y medio.
+                          esCajas ? p.cantidad : cantidadConUnidad(p.cantidad, unidadDeLinea(p))
+                        )}
                       </td>
-                      <td className="px-4 py-2.5 text-sm text-gray-500">{p.formato_linea}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-500">
+                        {esCajas ? p.formato_linea
+                          : admiteFraccion(unidadDeLinea(p))
+                            ? <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">A granel</span>
+                            : p.formato_linea}
+                      </td>
                       <td className="px-4 py-2.5 text-sm text-gray-700">
                         ${p.precio_unitario.toLocaleString("es-CL")}
                       </td>

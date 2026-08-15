@@ -80,6 +80,44 @@ function NombreForm({ form, setForm, onCancel, onSubmit, isSaving, submitLabel, 
         />
       </div>
 
+      {/* 🔴 La unidad va FUERA de "Información comercial" y arriba: ese bloque hereda del
+          producto físico cuando se deja vacío, y esto nunca se hereda — la unidad de PRODUCCIÓN
+          de un queso es el kilo aunque se venda por pieza. Confundirlas fue el bug del 14-ago,
+          cuando la factura declaró «6 Kg» de un producto de 180 g. */}
+      <div>
+        <label className="block text-sm font-medium mb-1">¿Cómo se vende y se pickea?</label>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { valor: "Unidades", etiqueta: "Por unidad", ayuda: "Piezas estandarizadas" },
+            { valor: "Kilogramos", etiqueta: "Por kilo", ayuda: "A granel, se pesa" },
+            { valor: "Litros", etiqueta: "Por litro", ayuda: "A granel, se mide" },
+          ].map((op) => {
+            const activo = (form.unidad_venta || "Unidades") === op.valor;
+            return (
+              <button
+                key={op.valor}
+                type="button"
+                onClick={() => setForm((p) => ({ ...p, unidad_venta: op.valor }))}
+                className={`flex-1 min-w-[9rem] rounded-lg border px-3 py-2 text-left transition-colors ${
+                  activo
+                    ? "border-primary bg-primary/5 ring-1 ring-primary"
+                    : "border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                <span className={`block text-sm ${activo ? "font-semibold text-primary" : "text-gray-800"}`}>
+                  {op.etiqueta}
+                </span>
+                <span className="block text-xs text-gray-500">{op.ayuda}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1.5 text-xs text-gray-500">
+          Manda la orden de venta, el picking, la guía y la factura. Sólo lo que se vende a
+          granel admite cantidades con decimales, como 1,5.
+        </p>
+      </div>
+
       <div>
         <label className="block text-sm font-medium mb-1">
           Información comercial
@@ -202,6 +240,8 @@ export default function NombresFacturacion() {
     nombre: "",
     descripcion: "",
     ids_productos: [],
+    // Default explicito: la venta esta estandarizada por pieza salvo lo que va a granel.
+    unidad_venta: "Unidades",
     unidades_por_caja: "",
     codigo_sap: "",
     codigo_ean: "",
@@ -295,6 +335,9 @@ export default function NombresFacturacion() {
     }
     return {
       unidades_por_caja: upc,
+      // NO lleva "|| null": la unidad NUNCA se hereda del producto fisico (esa es la unidad
+      // de produccion, no la de venta) y la columna es NOT NULL con default Unidades.
+      unidad_venta: form.unidad_venta || "Unidades",
       codigo_sap: normalize(form.codigo_sap) || null,
       codigo_ean: normalize(form.codigo_ean) || null,
       codigo_dun14: normalize(form.codigo_dun14) || null,
@@ -353,6 +396,7 @@ export default function NombresFacturacion() {
       ...FORM_VACIO,
       nombre: row?.nombre ?? "",
       descripcion: row?.descripcion ?? "",
+      unidad_venta: row?.unidad_venta ?? "Unidades",
       unidades_por_caja: row?.unidades_por_caja != null ? String(row.unidades_por_caja) : "",
       codigo_sap: row?.codigo_sap ?? "",
       codigo_ean: row?.codigo_ean ?? "",
