@@ -151,12 +151,19 @@ export default function ProductoBaseModal({
     const { name, value } = e.target;
     setFormData(prev => {
       const updated = { ...prev, [name]: value };
-      // Auto-calcular precio_caja cuando cambia precio_unidad
-      if (name === "precio_unidad") {
-        const unidades = Number(prev.unidades_por_caja) || 0;
-        if (value && unidades > 0) {
-          updated.precio_caja = String(Math.round(parseFloat(value) * unidades));
-        }
+      const unidades = Number(prev.unidades_por_caja) || 0;
+
+      // Los dos precios se completan mutuamente, y NINGUNO se redondea.
+      //
+      // 🔴 Antes sólo iba unitario → caja y con `Math.round`. Va al revés de cómo llega el dato:
+      // el precio de LA CAJA es el que declara la OC del cliente (WalMart: $13.281 de 16) y el
+      // unitario es el derivado — $830,0625. Redondear el de caja al escribir el unitario
+      // destruía justamente el número que hay que respetar.
+      if (name === "precio_unidad" && value && unidades > 0) {
+        updated.precio_caja = String(parseFloat(value) * unidades);
+      }
+      if (name === "precio_caja" && value && unidades > 0) {
+        updated.precio_unidad = String(parseFloat(value) / unidades);
       }
       return updated;
     });
@@ -295,8 +302,11 @@ export default function ProductoBaseModal({
               name="precio_unidad"
               value={formData.precio_unidad}
               onChange={handleChange}
-              placeholder={formData.id_nombre_facturacion ? "Ej: 1500" : "Selecciona un nombre primero"}
-              step="1"
+              placeholder={formData.id_nombre_facturacion ? "Ej: 1500 o 830,0625" : "Selecciona un nombre primero"}
+              // 🔴 `step="1"` no dejaba escribir decimales, y los precios del retail no son
+              // enteros: la caja de WalMart de $13.281 en 16 unidades da $830,0625. La columna
+              // siempre aceptó decimales; lo que bloqueaba era el formulario.
+              step="any"
               min="0"
               disabled={!formData.id_nombre_facturacion}
               className={`border px-3 py-2 w-full rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:outline-none ${
@@ -319,7 +329,9 @@ export default function ProductoBaseModal({
               value={formData.precio_caja}
               onChange={handleChange}
               placeholder={formData.id_nombre_facturacion ? "Ej: 18000" : "Selecciona un nombre primero"}
-              step="1"
+              // El precio de caja es el que declara la OC del cliente y suele ser el dato duro;
+              // el unitario sale de dividirlo. Por eso los dos aceptan decimales.
+              step="any"
               min="0"
               disabled={!formData.id_nombre_facturacion}
               className={`border px-3 py-2 w-full rounded-md text-sm focus:ring-2 focus:ring-green-500 focus:outline-none ${
