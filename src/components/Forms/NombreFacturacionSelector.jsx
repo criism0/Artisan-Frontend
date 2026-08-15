@@ -15,6 +15,8 @@ export default function NombreFacturacionSelector({ value, onChange, disabled = 
   const [nombres, setNombres] = useState([]);
   const [creating, setCreating] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
+  // Default `Unidades`: la venta está estandarizada por pieza y el granel es la excepción.
+  const [nuevaUnidad, setNuevaUnidad] = useState("Unidades");
   const [isSaving, setIsSaving] = useState(false);
 
   const pendingSimilarActionRef = useRef(null);
@@ -44,11 +46,16 @@ export default function NombreFacturacionSelector({ value, onChange, disabled = 
       setIsSaving(true);
       const creado = await api("/nombres-facturacion", {
         method: "POST",
-        body: JSON.stringify({ nombre, confirmSimilarName }),
+        // 🔴 `unidad_venta` viaja acá porque este es un camino de CREACIÓN real, no un atajo:
+        // decide cómo se pide, se pickea, se despacha y se factura ese nombre. Sin esto sólo
+        // se podía marcar a granel entrando después al mantenedor, y un producto que se vende
+        // al peso quedaba mientras tanto pidiéndose en unidades.
+        body: JSON.stringify({ nombre, unidad_venta: nuevaUnidad, confirmSimilarName }),
       });
       toast.success("Nombre de facturación creado");
       setCreating(false);
       setNuevoNombre("");
+      setNuevaUnidad("Unidades");
       await fetchNombres();
       onChange(String(creado.id));
     } catch (e) {
@@ -116,34 +123,67 @@ export default function NombreFacturacionSelector({ value, onChange, disabled = 
           </button>
         </div>
       ) : (
-        <div className="flex gap-2">
-          <input
-            type="text"
-            className="flex-1 border rounded-lg px-3 py-2"
-            placeholder="Ej: Yogurt Griego Litro Artisan"
-            value={nuevoNombre}
-            onChange={(e) => setNuevoNombre(e.target.value)}
-            autoFocus
-          />
-          <button
-            type="button"
-            className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
-            onClick={() => handleCrear(false)}
-            disabled={isSaving}
-          >
-            {isSaving ? "Creando..." : "Crear"}
-          </button>
-          <button
-            type="button"
-            className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-            onClick={() => {
-              setCreating(false);
-              setNuevoNombre("");
-            }}
-            disabled={isSaving}
-          >
-            Cancelar
-          </button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              className="flex-1 border rounded-lg px-3 py-2"
+              placeholder="Ej: Yogurt Griego Litro Artisan"
+              value={nuevoNombre}
+              onChange={(e) => setNuevoNombre(e.target.value)}
+              autoFocus
+            />
+            <button
+              type="button"
+              className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+              onClick={() => handleCrear(false)}
+              disabled={isSaving}
+            >
+              {isSaving ? "Creando..." : "Crear"}
+            </button>
+            <button
+              type="button"
+              className="px-3 py-2 border rounded-lg hover:bg-gray-50"
+              onClick={() => {
+                setCreating(false);
+                setNuevoNombre("");
+                setNuevaUnidad("Unidades");
+              }}
+              disabled={isSaving}
+            >
+              Cancelar
+            </button>
+          </div>
+
+          {/* La unidad se decide ACÁ y no después, porque manda las cuatro etapas: cómo se
+              pide en la OV, cómo se pickea, qué dice la guía y qué dice la factura. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500">Se vende y se pickea por:</span>
+            {[
+              { valor: "Unidades", etiqueta: "Unidad" },
+              { valor: "Kilogramos", etiqueta: "Kilo" },
+              { valor: "Litros", etiqueta: "Litro" },
+            ].map((op) => (
+              <button
+                key={op.valor}
+                type="button"
+                onClick={() => setNuevaUnidad(op.valor)}
+                disabled={isSaving}
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  nuevaUnidad === op.valor
+                    ? "border-primary bg-primary/10 font-semibold text-primary"
+                    : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {op.etiqueta}
+              </button>
+            ))}
+            {nuevaUnidad !== "Unidades" && (
+              <span className="text-xs text-amber-700">
+                A granel: admite cantidades con decimales, como 1,5.
+              </span>
+            )}
+          </div>
         </div>
       )}
 
