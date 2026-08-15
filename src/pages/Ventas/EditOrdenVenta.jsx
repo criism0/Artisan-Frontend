@@ -193,15 +193,32 @@ export default function EditOrdenVenta() {
     const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
     const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
     const cantidadFormato = Number(productoForm.cantidad);
-    const cantidadUnidades = esCajas && unidadesPorCaja ? cantidadFormato * unidadesPorCaja : cantidadFormato;
+    const convertible = Boolean(esCajas && unidadesPorCaja);
+
+    // 🔴 LAS DOS MITADES SE CONVIERTEN JUNTAS, O NINGUNA.
+    //
+    // Acá se convertía la cantidad a unidades y se guardaba `precio_unitario` tal cual —que para
+    // un cliente en cajas ES EL PRECIO DE LA CAJA, porque así lo devuelve `calcularPrecio`—. La
+    // línea quedaba con 128 unidades a $11.984 en vez de a $749: dieciséis veces el pedido.
+    //
+    // Y era invisible porque `total_linea` se calculaba con la cantidad SIN convertir, así que
+    // la tabla mostraba el total correcto mientras lo que se iba a guardar estaba mal.
+    const cantidadUnidades = convertible ? cantidadFormato * unidadesPorCaja : cantidadFormato;
+    const precioPorUnidad = convertible
+      ? Number(productoForm.precio_unitario) / unidadesPorCaja
+      : Number(productoForm.precio_unitario);
+
     setProductosAgregados((prev) => [
       {
         id_nombre_facturacion: nombreId,
         nombre: nombreFact?.nombre || `Nombre #${nombreId}`,
         cantidad: cantidadUnidades,
-        precio_unitario: Number(productoForm.precio_unitario),
-        formato_linea: esCajas ? "CAJAS" : "UNIDADES",
-        total_linea: Number(productoForm.precio_unitario) * cantidadFormato,
+        precio_unitario: precioPorUnidad,
+        unidades_por_caja: convertible ? unidadesPorCaja : null,
+        formato_linea: convertible ? "CAJAS" : "UNIDADES",
+        // El total sale de lo que se va a GUARDAR, no de lo que se tecleó. Si difieren, es que
+        // la conversión está mal — y así se nota en pantalla en vez de en la base.
+        total_linea: cantidadUnidades * precioPorUnidad,
         dbId: null,
       },
       ...prev,
