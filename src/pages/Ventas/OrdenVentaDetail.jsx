@@ -29,7 +29,7 @@ import Selector from "../../components/Forms/Selector";
 import AvanceItems from "../../components/AvanceItems";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 import { mensajeError } from "../../utils/mensajeError.js";
-import { derivarFolioOC, vencimientoPorDefecto } from "../../utils/referenciaOC.js";
+import { derivarFolioOC, vencimientoPorDefecto, diasCreditoDe } from "../../utils/referenciaOC.js";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -119,6 +119,8 @@ function StepBar({ estadoActual }) {
 function FacturarForm({
   ordenId,
   numeroOc,
+  condicionPago,
+  condicionCliente,
   direccionesCliente,
   idLocalDespacho,
   setIdLocalDespacho,
@@ -132,6 +134,11 @@ function FacturarForm({
   // Lo que va a salir impreso como referencia. Se muestra, no se edita: es el `numero_oc` de la
   // orden, y si está mal se corrige en la orden — no al emitir el documento tributario.
   const { folio: folioOC, recortado, motivo: motivoOC } = derivarFolioOC(numeroOc);
+
+  // ¿La venta es a plazo? Se mira la condición de la ORDEN —que el pedido EDI del retail trae
+  // declarada— y, si no la hay, la de la ficha del cliente. Sirve para distinguir «no lleva
+  // vencimiento porque es al contado» de «falta ponerle la fecha».
+  const esAPlazo = diasCreditoDe(condicionPago) != null || diasCreditoDe(condicionCliente) != null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -216,8 +223,9 @@ function FacturarForm({
         />
       </div>
 
-      {/* La fecha de pago SÍ es editable: la condición del cliente es texto libre y sólo sirve
-          para proponer un valor. Vacía, el documento sale sin vencimiento (venta al contado). */}
+      {/* La fecha de pago SÍ es editable acá, pero su lugar natural es la ORDEN: es un término
+          de la venta, no de la facturación. Los pedidos EDI del retail la traen declarada y el
+          formulario de la OV la deja editar; esto es la última confirmación antes de emitir. */}
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-gray-700">Fecha de pago</span>
         <input
@@ -226,11 +234,25 @@ function FacturarForm({
           onChange={(e) => setFechaVencimiento(e.target.value)}
           className={inputCls}
         />
-        <span className="text-xs text-gray-400 italic">
-          {fechaVencimiento
-            ? "Sale en la factura como fecha de vencimiento y como pago programado."
-            : "Sin fecha, la factura sale como venta al contado y sin vencimiento."}
-        </span>
+        {fechaVencimiento ? (
+          <span className="text-xs text-gray-400 italic">
+            Sale en la factura como vencimiento y como pago programado.
+            {condicionPago ? ` Condición de la orden: ${condicionPago}.` : ""}
+          </span>
+        ) : esAPlazo ? (
+          // 🔴 Vacío no siempre significa contado. Si la orden o el cliente dicen que es a
+          // plazo, que la factura salga sin vencimiento es un dato que falta, no una decisión.
+          // No bloquea —hay ventas que se facturan igual— pero tiene que verse antes de emitir.
+          <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+            Esta venta es <strong>a plazo</strong>
+            {condicionPago ? ` (${condicionPago})` : ""} y no tiene fecha de pago. La factura
+            saldrá <strong>sin vencimiento</strong>, que es lo que el cliente usa para pagar.
+          </span>
+        ) : (
+          <span className="text-xs text-gray-400 italic">
+            Sin fecha, la factura sale como venta al contado y sin vencimiento.
+          </span>
+        )}
       </div>
 
       {/* B5: facturar = emitir el documento tributario (sin documento no hay factura) */}
@@ -700,7 +722,10 @@ export default function OrdenVentaDetail() {
           setFechaVencimiento(
             orden?.fecha_vencimiento_pago
               ? String(orden.fecha_vencimiento_pago).slice(0, 10)
-              : vencimientoPorDefecto(fechaFacturacion || hoy, cliente?.condicion_pago),
+              // La condición de la ORDEN primero: el pedido EDI del retail la trae declarada y
+              // eso es lo que el cliente acaba de pedir. La ficha es el respaldo.
+              : vencimientoPorDefecto(fechaFacturacion || hoy, orden?.condiciones)
+                || vencimientoPorDefecto(fechaFacturacion || hoy, cliente?.condicion_pago),
           );
           setShowFacturarForm(true);
         },
@@ -990,6 +1015,8 @@ export default function OrdenVentaDetail() {
         <FacturarForm
           ordenId={orden?.id}
           numeroOc={orden?.numero_oc}
+          condicionPago={orden?.condiciones}
+          condicionCliente={cliente?.condicion_pago}
           direccionesCliente={direccionesCliente}
           idLocalDespacho={idLocalDespacho}
           setIdLocalDespacho={setIdLocalDespacho}
