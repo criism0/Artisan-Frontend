@@ -173,3 +173,46 @@ describe("jspdf se carga bajo demanda", () => {
     expect(tryMasCercano).toBeGreaterThan(handler);
   });
 });
+
+// ── Un formulario que REESCRIBE un campo tiene que haberlo LEÍDO ────────────
+//
+// 🔴 El 2026-08-16 se midió que `EditOrdenVenta` mandaba `porcentaje_descuento: 0` literal en
+// el PUT de toda línea existente, sin haber leído nunca el descuento que esa línea traía. O
+// sea: abrir una orden en «Editar» y guardarla BORRABA los descuentos.
+//
+// En producción eso apuntaba a la OV 746 (Cencosud, Validada, tres líneas al 13%, 13% y 15%):
+// guardarla la habría inflado de $7.351.714 a $7.767.628 — **$415.914 de sobrecobro** en una
+// factura a punto de emitirse. No revienta, no avisa, y el número resultante se ve razonable.
+//
+// El invariante es más general que el descuento: **ningún formulario de OV manda un campo de
+// la línea con un literal fijo.** Si el valor es siempre el mismo, o el campo sobra o se está
+// pisando lo que había.
+describe("los formularios de OV no pisan campos con literales", () => {
+  const formularios = [
+    "src/pages/Ventas/AddOrdenVenta.jsx",
+    "src/pages/Ventas/EditOrdenVenta.jsx",
+    "src/pages/Ventas/ColaIAPage.jsx",
+  ];
+
+  it.each(formularios)("%s no manda porcentaje_descuento con un valor fijo", (relativo) => {
+    const texto = readFileSync(path.join(RAIZ, relativo), "utf8");
+    const literales = texto
+      .split("\n")
+      .map((linea, i) => [i + 1, linea])
+      // Los comentarios se descartan: este mismo archivo y los de las vistas EXPLICAN el bug
+      // citando `porcentaje_descuento: 0`, y el invariante es sobre el código, no sobre el
+      // texto. Es la misma razón por la que el test de jspdf se excluye a sí mismo.
+      .filter(([, linea]) => !/^\s*(\/\/|\*|\/\*)/.test(linea))
+      .filter(([, linea]) => /porcentaje_descuento:\s*-?\d/.test(linea))
+      .map(([n, linea]) => `:${n} → ${linea.trim()}`);
+    expect(literales).toEqual([]);
+  });
+
+  it.each(formularios)("%s calcula los montos con descuentoLinea", (relativo) => {
+    // La otra mitad del mismo problema: si la tabla hace `cantidad × precio` por su cuenta,
+    // muestra el bruto mientras se guarda el neto. Es exactamente cómo el bug de 16× se
+    // mantuvo invisible — la pantalla decía lo correcto y la base guardaba otra cosa.
+    const texto = readFileSync(path.join(RAIZ, relativo), "utf8");
+    expect(texto).toMatch(/utils\/descuentoLinea/);
+  });
+});

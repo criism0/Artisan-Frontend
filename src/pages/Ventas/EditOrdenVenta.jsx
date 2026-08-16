@@ -6,6 +6,12 @@ import { ArrowLeft, Trash2, Pencil, Check, X } from "lucide-react";
 import Selector from "../../components/Forms/Selector";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import {
+  netoLinea,
+  problemaDeDescuento,
+  descuentoAGuardar,
+  formatearDescuento,
+} from "../../utils/descuentoLinea.js";
 
 export default function EditOrdenVenta() {
   const canWriteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
@@ -25,6 +31,7 @@ export default function EditOrdenVenta() {
   const [productErrors, setProductErrors] = useState({});
   const [editingProdId, setEditingProdId] = useState(null);
   const [editingCantidad, setEditingCantidad] = useState("");
+  const [editingDescuento, setEditingDescuento] = useState("");
 
   const [form, setForm] = useState({
     numero_oc: "",
@@ -37,6 +44,7 @@ export default function EditOrdenVenta() {
     id_nombre_facturacion: "",
     cantidad: "",
     precio_unitario: "",
+    porcentaje_descuento: "",
   });
 
   // ── Carga inicial ──
@@ -105,6 +113,20 @@ export default function EditOrdenVenta() {
               const nombreProducto = nombresData
                 .flatMap((n) => n.productos || [])
                 .find((p) => p.id === item.id_producto)?.nombre;
+              // 🔴 SE CARGA TODO LO QUE EL SUBMIT VUELVE A ESCRIBIR.
+              //
+              // El descuento y el desglose de cajas NO se leían, y el submit los mandaba igual
+              // con su valor por defecto: `porcentaje_descuento: 0` y `producto_por_cajas`
+              // derivado de un `formato_linea` hardcodeado en "UNIDADES". O sea que abrir una
+              // orden en «Editar» y guardarla BORRABA los tres campos, sin avisar.
+              //
+              // Medido en producción el 2026-08-16: la OV 746 (Cencosud, Validada) tiene tres
+              // líneas al 13%, 13% y 15%. Guardarla la habría inflado de $7.351.714 a
+              // $7.767.628 — **$415.914 de sobrecobro** en una factura a punto de emitirse.
+              //
+              // La regla que lo cierra: un formulario que reescribe un campo tiene que haberlo
+              // leído. Si no lo muestra, igual tiene que conservarlo.
+              const enCajas = Boolean(item.producto_por_cajas && item.cantidad_por_caja);
               return {
                 id_nombre_facturacion: item.id_nombre_facturacion ?? null,
                 nombre:
@@ -114,8 +136,10 @@ export default function EditOrdenVenta() {
                   `Línea #${item.id}`,
                 cantidad: item.cantidad,
                 precio_unitario: item.precio_venta,
-                formato_linea: "UNIDADES",
-                total_linea: item.cantidad * item.precio_venta,
+                porcentaje_descuento: Number(item.porcentaje_descuento) || 0,
+                unidades_por_caja: enCajas ? Number(item.cantidad_por_caja) : null,
+                formato_linea: enCajas ? "CAJAS" : "UNIDADES",
+                total_linea: netoLinea(item.cantidad, item.precio_venta, item.porcentaje_descuento),
                 dbId: item.id,
               };
             })
@@ -177,6 +201,8 @@ export default function EditOrdenVenta() {
     if (!productoForm.id_nombre_facturacion) errs.id_nombre_facturacion = "Debes seleccionar un producto.";
     if (!productoForm.cantidad || Number(productoForm.cantidad) <= 0) errs.cantidad = "Cantidad debe ser mayor a 0.";
     if (!productoForm.precio_unitario || Number(productoForm.precio_unitario) <= 0) errs.precio_unitario = "Precio debe ser mayor a 0.";
+    const problemaDesc = problemaDeDescuento(productoForm.porcentaje_descuento);
+    if (problemaDesc) errs.porcentaje_descuento = problemaDesc;
     setProductErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -208,17 +234,22 @@ export default function EditOrdenVenta() {
       ? Number(productoForm.precio_unitario) / unidadesPorCaja
       : Number(productoForm.precio_unitario);
 
+    const descuento = descuentoAGuardar(productoForm.porcentaje_descuento);
+
     setProductosAgregados((prev) => [
       {
         id_nombre_facturacion: nombreId,
         nombre: nombreFact?.nombre || `Nombre #${nombreId}`,
         cantidad: cantidadUnidades,
         precio_unitario: precioPorUnidad,
+        // ⚠️ El descuento NO entra en la conversión: un porcentaje no cambia al reexpresar
+        // cajas en unidades. Se convierten en pareja la cantidad y el precio, nada más.
+        porcentaje_descuento: descuento,
         unidades_por_caja: convertible ? unidadesPorCaja : null,
         formato_linea: convertible ? "CAJAS" : "UNIDADES",
         // El total sale de lo que se va a GUARDAR, no de lo que se tecleó. Si difieren, es que
         // la conversión está mal — y así se nota en pantalla en vez de en la base.
-        total_linea: cantidadUnidades * precioPorUnidad,
+        total_linea: netoLinea(cantidadUnidades, precioPorUnidad, descuento),
         dbId: null,
       },
       ...prev,
@@ -236,6 +267,7 @@ export default function EditOrdenVenta() {
   const handleStartEdit = (prod) => {
     setEditingProdId(rowKey(prod));
     setEditingCantidad(String(prod.cantidad));
+    setEditingDescuento(prod.porcentaje_descuento ? String(prod.porcentaje_descuento) : "");
   };
 
   const handleConfirmEdit = () => {
@@ -244,20 +276,33 @@ export default function EditOrdenVenta() {
       toast.error("Ingresa una cantidad válida mayor a 0");
       return;
     }
+    const problemaDesc = problemaDeDescuento(editingDescuento);
+    if (problemaDesc) {
+      toast.error(problemaDesc);
+      return;
+    }
+    const nuevoDescuento = descuentoAGuardar(editingDescuento);
     setProductosAgregados((prev) =>
       prev.map((p) =>
         rowKey(p) === editingProdId
-          ? { ...p, cantidad: nuevaCantidad, total_linea: p.precio_unitario * nuevaCantidad }
+          ? {
+              ...p,
+              cantidad: nuevaCantidad,
+              porcentaje_descuento: nuevoDescuento,
+              total_linea: netoLinea(nuevaCantidad, p.precio_unitario, nuevoDescuento),
+            }
           : p
       )
     );
     setEditingProdId(null);
     setEditingCantidad("");
+    setEditingDescuento("");
   };
 
   const handleCancelEdit = () => {
     setEditingProdId(null);
     setEditingCantidad("");
+    setEditingDescuento("");
   };
 
   // ── Submit ──
@@ -292,15 +337,17 @@ export default function EditOrdenVenta() {
           producto_por_cajas: lineaEnCajas,
           cantidad_por_caja: lineaEnCajas ? prod.unidades_por_caja : 0,
         };
+        // El descuento viaja tal cual: es un porcentaje y no se convierte junto con las cajas.
+        const descuento = descuentoAGuardar(prod.porcentaje_descuento);
         if (prod.dbId != null) {
           await api(`/ordenes-venta/${id}/productos/${prod.dbId}`, {
             method: "PUT",
-            body: JSON.stringify({ cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: 0, ...camposCajas }),
+            body: JSON.stringify({ cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: descuento, ...camposCajas }),
           });
         } else {
           await api(`/ordenes-venta/${id}/productos`, {
             method: "POST",
-            body: JSON.stringify({ id_orden: Number(id), id_nombre_facturacion: prod.id_nombre_facturacion, cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: 0, ...camposCajas }),
+            body: JSON.stringify({ id_orden: Number(id), id_nombre_facturacion: prod.id_nombre_facturacion, cantidad: prod.cantidad, precio_venta: prod.precio_unitario, porcentaje_descuento: descuento, ...camposCajas }),
           });
         }
       }
@@ -431,7 +478,7 @@ export default function EditOrdenVenta() {
           <h2 className="text-base font-semibold text-gray-800 mb-5">Productos</h2>
 
           {/* Formulario agregar producto */}
-          <div className="grid grid-cols-3 gap-x-6 gap-y-4 mb-4">
+          <div className="grid grid-cols-4 gap-x-6 gap-y-4 mb-4">
             <label className="flex flex-col gap-1">
               <span className="text-sm font-medium text-gray-700">Producto *</span>
               <select
@@ -485,6 +532,24 @@ export default function EditOrdenVenta() {
               />
               {productErrors.precio_unitario && <span className="text-red-500 text-xs">{productErrors.precio_unitario}</span>}
             </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Descuento (%)</span>
+              <input
+                type="number"
+                name="porcentaje_descuento"
+                min="0"
+                max="100"
+                step="any"
+                placeholder="Sin descuento"
+                value={productoForm.porcentaje_descuento}
+                onChange={handleProductoChange}
+                className={`border px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary ${
+                  productErrors.porcentaje_descuento ? "border-red-500" : "border-gray-300"
+                }`}
+              />
+              {productErrors.porcentaje_descuento && <span className="text-red-500 text-xs">{productErrors.porcentaje_descuento}</span>}
+            </label>
           </div>
 
           <button
@@ -507,6 +572,7 @@ export default function EditOrdenVenta() {
                     <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
                       Precio {esCajas ? "/ Caja" : "Unitario"}
                     </th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">% Desc.</th>
                     <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Total</th>
                     <th className="px-4 py-2.5 text-center text-xs font-medium text-gray-500 uppercase tracking-wide">Acción</th>
                   </tr>
@@ -534,10 +600,28 @@ export default function EditOrdenVenta() {
                       <td className="px-4 py-2.5 text-sm text-gray-700">
                         ${Number(p.precio_unitario).toLocaleString("es-CL")}
                       </td>
+                      <td className="px-4 py-2.5 text-sm text-gray-700">
+                        {isEditing ? (
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="any"
+                            placeholder="0"
+                            value={editingDescuento}
+                            onChange={(e) => setEditingDescuento(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") handleConfirmEdit(); if (e.key === "Escape") handleCancelEdit(); }}
+                            className="w-20 border border-blue-400 px-2 py-1 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        ) : (
+                          formatearDescuento(p.porcentaje_descuento)
+                        )}
+                      </td>
                       <td className="px-4 py-2.5 text-sm font-medium text-gray-800">
-                        ${Number(isEditing
-                          ? p.precio_unitario * (Number(editingCantidad) || 0)
-                          : p.total_linea
+                        ${Math.round(
+                          isEditing
+                            ? netoLinea(editingCantidad, p.precio_unitario, descuentoAGuardar(editingDescuento))
+                            : p.total_linea
                         ).toLocaleString("es-CL")}
                       </td>
                       <td className="px-4 py-2.5 text-center">

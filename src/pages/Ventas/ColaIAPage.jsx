@@ -15,6 +15,11 @@ import {
   formatearPesos,
 } from "../../utils/preciosLista";
 import { esFormatoCajas, lineaEnCajas, unidadesPorCajaDeLinea } from "../../utils/formatoCantidad";
+import {
+  problemaDeDescuento,
+  descuentoAGuardar,
+  formatearDescuento,
+} from "../../utils/descuentoLinea";
 
 const PRODUCTOS_VISIBLES = 4;
 const PAGE_SIZE = 6;
@@ -219,6 +224,10 @@ function ProductoRow({
   );
   const [cantidad, setCantidad]     = useState(String(prod.cantidad ?? ""));
   const [precio, setPrecio]         = useState(String(prod.precio_venta ?? ""));
+  // Vacío cuando no hay descuento: un «0» precargado se lee como un descuento puesto en cero.
+  const [descuento, setDescuento]   = useState(
+    prod.porcentaje_descuento ? String(prod.porcentaje_descuento) : "",
+  );
   const [confirmDel, setConfirmDel] = useState(false);
   // De dónde salió el precio que se está mostrando. Es la mitad que faltaba: el número solo no
   // dice si es el acordado con el cliente o el que la IA leyó del correo.
@@ -325,6 +334,11 @@ function ProductoRow({
   }, [editing, aplicarPrecioDeLista]);
 
   const handleSave = async () => {
+    const problemaDesc = problemaDeDescuento(descuento);
+    if (problemaDesc) {
+      toast.warning(problemaDesc);
+      return;
+    }
     setSaving(true);
     try {
       const updated = await api(`/ordenes-venta/${ovId}/productos/${prod.id}`, {
@@ -342,6 +356,7 @@ function ProductoRow({
           id_nombre_facturacion: prodIdSel ? Number(prodIdSel) : null,
           cantidad:     Number(cantidad),
           precio_venta: Number(precio),
+          porcentaje_descuento: descuentoAGuardar(descuento),
         },
       });
       toast.success("Producto actualizado");
@@ -420,7 +435,22 @@ function ProductoRow({
               }}
             />
           </div>
+          <div className="w-24">
+            {/* El descuento del retail entra por acá: el XML de Jumbo lo declara por línea y
+                hasta ahora no había dónde revisarlo ni corregirlo antes de validar. */}
+            <label className="text-xs text-gray-500 mb-0.5 block">Desc. (%)</label>
+            <input
+              type="number" min="0" max="100" step="any" value={descuento}
+              placeholder="0"
+              onChange={(e) => setDescuento(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+              disabled={saving}
+            />
+          </div>
         </div>
+        {problemaDeDescuento(descuento) && (
+          <p className="text-xs text-red-600">{problemaDeDescuento(descuento)}</p>
+        )}
         <div className="flex gap-2 justify-end">
           <button
             onClick={() => setEditing(false)}
@@ -516,6 +546,14 @@ function ProductoRow({
               ) : (
                 <>× {prod.cantidad}</>
               )}
+              {/* El descuento se muestra sólo cuando lo hay. Es un dato del documento del
+                  cliente que cambia el monto de la línea, así que no puede quedar escondido
+                  detrás del botón «Editar». */}
+              {Number(prod.porcentaje_descuento) > 0 && (
+                <span className="block text-[11px] font-medium text-emerald-700">
+                  −{formatearDescuento(prod.porcentaje_descuento)}
+                </span>
+              )}
             </span>
             {/* En una línea con problema, la acción para arreglarlo tiene que verse: que
                 aparezca sólo al pasar el mouse esconde justo lo que hay que hacer. */}
@@ -605,6 +643,7 @@ function AgregarProductoRow({
   const [cantidad, setCantidad]   = useState("1");
   const [precio, setPrecio]       = useState("0");
   const [descOrig, setDescOrig]   = useState("");
+  const [descuento, setDescuento] = useState("");
   const [origenPrecio, setOrigenPrecio] = useState(null);
 
   // Una línea nueva parte en 0, que es justo el valor que la guarda de validación rechaza. Elegir
@@ -630,6 +669,11 @@ function AgregarProductoRow({
       toast.warning("Ingresa una cantidad válida");
       return;
     }
+    const problemaDesc = problemaDeDescuento(descuento);
+    if (problemaDesc) {
+      toast.warning(problemaDesc);
+      return;
+    }
     setSaving(true);
     try {
       const created = await api(`/ordenes-venta/${ovId}/productos`, {
@@ -640,6 +684,7 @@ function AgregarProductoRow({
           descripcion_original: descOrig || null,
           cantidad:             Number(cantidad),
           precio_venta:         Number(precio),
+          porcentaje_descuento: descuentoAGuardar(descuento),
         },
       });
       toast.success("Producto agregado");
@@ -704,7 +749,20 @@ function AgregarProductoRow({
             }}
           />
         </div>
+        <div className="w-24">
+          <label className="text-xs text-gray-500 mb-0.5 block">Desc. (%)</label>
+          <input
+            type="number" min="0" max="100" step="any" value={descuento}
+            placeholder="0"
+            onChange={(e) => setDescuento(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+            disabled={saving}
+          />
+        </div>
       </div>
+      {problemaDeDescuento(descuento) && (
+        <p className="text-xs text-red-600">{problemaDeDescuento(descuento)}</p>
+      )}
       <div className="flex gap-2 justify-end">
         <button
           onClick={onCancel}
