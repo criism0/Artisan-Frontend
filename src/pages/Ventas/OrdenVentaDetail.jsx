@@ -29,6 +29,7 @@ import Selector from "../../components/Forms/Selector";
 import AvanceItems from "../../components/AvanceItems";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 import { mensajeError } from "../../utils/mensajeError.js";
+import { derivarFolioOC, vencimientoPorDefecto } from "../../utils/referenciaOC.js";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -117,27 +118,63 @@ function StepBar({ estadoActual }) {
 // ── Subformulario: Facturar ───────────────────────────────────────────────────
 function FacturarForm({
   ordenId,
+  numeroOc,
   direccionesCliente,
   idLocalDespacho,
   setIdLocalDespacho,
   loadingDirecciones,
   fechaFacturacion,
   setFechaFacturacion,
+  fechaVencimiento,
+  setFechaVencimiento,
   requiereDir = false,
 }) {
+  // Lo que va a salir impreso como referencia. Se muestra, no se edita: es el `numero_oc` de la
+  // orden, y si está mal se corrige en la orden — no al emitir el documento tributario.
+  const { folio: folioOC, recortado, motivo: motivoOC } = derivarFolioOC(numeroOc);
+
   return (
     <div className="flex flex-col gap-4">
       {/* Lo que va a decir el documento, con la MISMA vista que la pestaña Documentos.
           Antes este modal pedía dirección y fecha sin mostrar nada de lo que se iba a emitir:
           se confirmaba a ciegas un documento que después sólo se corrige con nota de crédito. */}
-      {/* La dirección y la fecha elegidas acá todavía no están en la orden: se guardan recién al
-          emitir. Hay que pasárselas al preview o arma el documento sin dirección. */}
+      {/* La dirección y las fechas elegidas acá todavía no están en la orden: se guardan recién
+          al emitir. Hay que pasárselas al preview o arma el documento sin ellas. */}
       <DTEPreview
         ordenId={ordenId}
         tipo="factura"
         idLocal={idLocalDespacho || null}
         fecha={fechaFacturacion || null}
+        vencimiento={fechaVencimiento || null}
       />
+
+      {/* 🔴 La orden de compra. Sin ella el retail rechaza la factura porque no puede casarla
+          con su pedido. Va de sólo lectura: sale del `numero_oc` de la orden. */}
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-medium text-gray-700">Orden de compra del cliente</span>
+        {folioOC ? (
+          <>
+            <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-800 font-medium">
+              {folioOC}
+            </div>
+            <span className="text-xs text-gray-400 italic">
+              Sale en la factura como «Orden de compra N° {folioOC}».
+            </span>
+            {recortado && (
+              <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+                El número de OC de la orden trae texto adicional («{numeroOc}») y en el documento
+                sólo cabe el número. Si <strong>{folioOC}</strong> no es el que usa el cliente,
+                corrígelo en la orden antes de facturar.
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            {motivoOC} <strong>La factura saldrá sin referencia a la orden de compra</strong>, y
+            el retail suele rechazarla por eso.
+          </span>
+        )}
+      </div>
 
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-gray-700">
@@ -177,6 +214,23 @@ function FacturarForm({
           onChange={(e) => setFechaFacturacion(e.target.value)}
           className={inputCls}
         />
+      </div>
+
+      {/* La fecha de pago SÍ es editable: la condición del cliente es texto libre y sólo sirve
+          para proponer un valor. Vacía, el documento sale sin vencimiento (venta al contado). */}
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-medium text-gray-700">Fecha de pago</span>
+        <input
+          type="date"
+          value={fechaVencimiento}
+          onChange={(e) => setFechaVencimiento(e.target.value)}
+          className={inputCls}
+        />
+        <span className="text-xs text-gray-400 italic">
+          {fechaVencimiento
+            ? "Sale en la factura como fecha de vencimiento y como pago programado."
+            : "Sin fecha, la factura sale como venta al contado y sin vencimiento."}
+        </span>
       </div>
 
       {/* B5: facturar = emitir el documento tributario (sin documento no hay factura) */}
@@ -232,6 +286,7 @@ export default function OrdenVentaDetail() {
   const [showEntregarForm, setShowEntregarForm] = useState(false);
   const [tab, setTab] = useState("detalle");
   const [fechaFacturacion, setFechaFacturacion] = useState("");
+  const [fechaVencimiento, setFechaVencimiento] = useState("");
   const [costoEnvio, setCostoEnvio] = useState("");
   const [fechaEnvio, setFechaEnvio] = useState("");
   const [direccionesCliente, setDireccionesCliente] = useState([]);
@@ -409,6 +464,9 @@ export default function OrdenVentaDetail() {
         method: "PUT",
         body: JSON.stringify({
           fecha_facturacion: fechaFacturacion,
+          // Siempre se manda, también vacía: vacía significa «al contado, sin vencimiento», y
+          // omitirla dejaría la que tuviera guardada la orden de un intento anterior.
+          fecha_vencimiento_pago: fechaVencimiento || null,
           ...(idLocalDespacho && { id_local: Number(idLocalDespacho) }),
         }),
       });
@@ -417,6 +475,7 @@ export default function OrdenVentaDetail() {
       toast.success(res?.data?.message || res?.message || "Orden facturada correctamente");
       setShowFacturarForm(false);
       setFechaFacturacion("");
+      setFechaVencimiento("");
       setIdLocalDespacho("");
       setDireccionesCliente([]);
     } catch (err) {
@@ -635,6 +694,14 @@ export default function OrdenVentaDetail() {
         onClick: () => {
           setIdLocalDespacho(String(orden?.id_local || ""));
           loadDireccionesCliente(cliente?.id);
+          // La fecha de pago se propone desde la condición del cliente, y sólo cuando se puede
+          // leer con certeza. Lo que ya tenga la orden manda: alguien la escribió a propósito.
+          const hoy = new Date().toISOString().slice(0, 10);
+          setFechaVencimiento(
+            orden?.fecha_vencimiento_pago
+              ? String(orden.fecha_vencimiento_pago).slice(0, 10)
+              : vencimientoPorDefecto(fechaFacturacion || hoy, cliente?.condicion_pago),
+          );
           setShowFacturarForm(true);
         },
         disabled: transitioning,
@@ -907,6 +974,7 @@ export default function OrdenVentaDetail() {
               onClick={() => {
                 setShowFacturarForm(false);
                 setIdLocalDespacho("");
+                setFechaVencimiento("");
                 setDireccionesCliente([]);
               }}
               className={btnCls("ghost")}
@@ -921,12 +989,15 @@ export default function OrdenVentaDetail() {
       >
         <FacturarForm
           ordenId={orden?.id}
+          numeroOc={orden?.numero_oc}
           direccionesCliente={direccionesCliente}
           idLocalDespacho={idLocalDespacho}
           setIdLocalDespacho={setIdLocalDespacho}
           loadingDirecciones={loadingDirecciones}
           fechaFacturacion={fechaFacturacion}
           setFechaFacturacion={setFechaFacturacion}
+          fechaVencimiento={fechaVencimiento}
+          setFechaVencimiento={setFechaVencimiento}
           requiereDir={!orden?.id_local}
         />
       </Modal>

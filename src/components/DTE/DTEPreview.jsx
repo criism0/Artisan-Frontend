@@ -31,6 +31,7 @@ export default function DTEPreview({
   // en la misma acción), así que sin pasarla acá el backend no tiene con qué armar el documento.
   idLocal = null,
   fecha = null,
+  vencimiento = null,
 }) {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -42,7 +43,7 @@ export default function DTEPreview({
   const abrirPdfReal = async () => {
     setAbriendoPdf(true);
     try {
-      await dteService.verPrevisualizacion(tipoPrevisualizacion, ordenId, { idLocal, fecha });
+      await dteService.verPrevisualizacion(tipoPrevisualizacion, ordenId, { idLocal, fecha, vencimiento });
     } catch (err) {
       toast.error('No se pudo generar el documento: ' + (err?.message ?? 'error desconocido'));
     } finally {
