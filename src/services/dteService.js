@@ -297,6 +297,9 @@ export const dteService = {
     const params = new URLSearchParams();
     if (opciones.idLocal) params.set('id_local', String(opciones.idLocal));
     if (opciones.fecha) params.set('fecha', opciones.fecha);
+    // La fecha de pago elegida en el modal: sin ella el PDF de previsualización mostraría un
+    // vencimiento distinto al que se va a emitir, que es justo para lo que sirve mirarlo.
+    if (opciones.vencimiento) params.set('vencimiento', opciones.vencimiento);
     if (opciones.transportista) params.set('transportista', opciones.transportista);
     const query = params.toString() ? `?${params.toString()}` : '';
 

@@ -38,6 +38,7 @@ export default function EditOrdenVenta() {
     fecha_orden: "",
     bodega_id: "",
     es_referencial: false,
+    fecha_vencimiento_pago: "",
   });
 
   const [productoForm, setProductoForm] = useState({
@@ -64,6 +65,7 @@ export default function EditOrdenVenta() {
           fecha_orden: ord.fecha_orden?.slice(0, 10) || "",
           bodega_id: ord.bodega_id ? String(ord.bodega_id) : "",
           es_referencial: ord.es_referencial ?? false,
+          fecha_vencimiento_pago: ord.fecha_vencimiento_pago ? String(ord.fecha_vencimiento_pago).slice(0, 10) : "",
         });
 
         const nombresData = Array.isArray(nombresRes) ? nombresRes : nombresRes?.data || [];
@@ -323,6 +325,9 @@ export default function EditOrdenVenta() {
           fecha_orden: form.fecha_orden,
           bodega_id: Number(form.bodega_id),
           es_referencial: form.es_referencial,
+          // La fecha de pago es un término de la VENTA, no de la facturación: se edita acá y
+          // quien factura sólo la confirma. Vacía significa «al contado, sin vencimiento».
+          fecha_vencimiento_pago: form.fecha_vencimiento_pago || null,
         }),
       });
 
@@ -421,6 +426,25 @@ export default function EditOrdenVenta() {
                 onChange={(e) => setForm((f) => ({ ...f, fecha_orden: e.target.value }))}
                 className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
+            </label>
+
+            {/* 🔴 Fecha de pago: es un término de la VENTA, no de la facturación. Sale impresa
+                en la factura como vencimiento y como pago programado, y quien factura sólo la
+                confirma. Los pedidos EDI del retail la traen declarada. */}
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Fecha de pago</span>
+              <input
+                type="date"
+                value={form.fecha_vencimiento_pago}
+                onChange={(e) => setForm((f) => ({ ...f, fecha_vencimiento_pago: e.target.value }))}
+                className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+              <span className="text-xs text-gray-400 italic">
+                {form.fecha_vencimiento_pago
+                  ? "Sale en la factura como vencimiento y como pago programado."
+                  : "Sin fecha, la factura sale al contado y sin vencimiento."}
+                {condicionPago ? ` Condición: ${condicionPago}.` : ""}
+              </span>
             </label>
 
             {/* Bodega */}
