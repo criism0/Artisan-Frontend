@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ApiError, useApi } from "../../lib/api";
 import DynamicCombobox from "../../components/UI/DynamicCombobox";
+import Selector from "../../components/Forms/Selector";
 import DireccionesManager from "../../components/Direcciones/DireccionesManager";
 import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmModal";
 import { BackButton } from "../../components/Buttons/ActionButtons";
@@ -56,7 +57,12 @@ export default function AddClientes() {
   const canWriteClients = checkScope(ModelType.CLIENTE, ScopeType.WRITE);
   const canWriteAddress = checkScope(ModelType.DIRECCION, ScopeType.WRITE);
 
-  const tiposPrecio = ["UNIDADES", "CAJAS"];
+  // 🔴 El valor es el del ENUM de la base (`Cliente.formato_compra_predeterminado`); la etiqueta
+  // es lo que lee el operario. Antes las opciones eran las cadenas crudas en mayúscula.
+  const FORMATOS_COMPRA = [
+    { value: "UNIDADES", label: "Unidades" },
+    { value: "CAJAS", label: "Cajas" },
+  ];
 
   // Efecto para actualizar condicion_pago en formData
   useEffect(() => {
@@ -187,7 +193,7 @@ export default function AddClientes() {
       newErrors.lista_precio = "Debes seleccionar una lista de precios.";
     }
     if (!selectedTipoPrecio) {
-      newErrors.tipo_precio = "Debes seleccionar un tipo de precio.";
+      newErrors.formato_compra = "Debes seleccionar un tipo de precio.";
     }
 
     const camposObligatorios = ['nombre_empresa', 'razon_social', 'rut', 'giro'];
@@ -257,7 +263,11 @@ export default function AddClientes() {
       condicion_pago: formData.condicion_pago,
       id_canal: canalSeleccionado?.id || null,
       id_lista_precio: listaPrecioSeleccionada?.id || null,
-      tipo_precio: selectedTipoPrecio,
+      // 🔴 SE LLAMA `formato_compra_predeterminado`. Se mandaba como `tipo_precio`, un nombre que
+      // no existe en ninguna parte del backend, así que el valor elegido se descartaba en
+      // silencio y el cliente quedaba siempre en UNIDADES por el default del modelo. Medido en
+      // producción: los ÚNICOS 2 clientes en CAJAS (Jumbo y WalMart) se marcaron por SQL.
+      formato_compra_predeterminado: selectedTipoPrecio,
       cuenta_corriente: " ",
       banco: " "
     };
@@ -422,14 +432,18 @@ export default function AddClientes() {
               <label className="block text-gray-700 font-medium mb-2">
                 Formato de Compra Predeterminado <span className="text-red-500">*</span>
               </label>
-              <DynamicCombobox
-                value={selectedTipoPrecio}
-                onChange={setSelectedTipoPrecio}
-                options={tiposPrecio}
-                onSelect={(tp) => setSelectedTipoPrecio(tp)}
-                placeholder="Selecciona formato..."
+              {/* Son dos valores fijos del enum, no una lista que se busque: un desplegable
+                  simple. Antes era un combobox con texto libre encima de las mismas 2 opciones. */}
+              <Selector
+                options={FORMATOS_COMPRA}
+                selectedValue={selectedTipoPrecio}
+                onSelect={setSelectedTipoPrecio}
               />
-              {errors.tipo_precio && <p className="text-red-500 text-sm mt-1">{errors.tipo_precio}</p>}
+              <p className="text-xs text-gray-500 mt-1">
+                Cómo pide y recibe este cliente. Las órdenes nuevas nacen con este formato y se
+                muestran, pickean y facturan así; se puede cambiar orden por orden.
+              </p>
+              {errors.formato_compra && <p className="text-red-500 text-sm mt-1">{errors.formato_compra}</p>}
             </div>
           </div>
         </div>

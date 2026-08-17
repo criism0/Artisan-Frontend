@@ -131,10 +131,13 @@ export default function DetalleTipoFactura({
                 ? lineaEnCajas(cantidad, precio, unidadesPorCajaDeLinea(it))
                 : null;
               const mostrarCajas = caja?.cajas != null;
-              const cajaPickeada =
-                enCajas && difiere
-                  ? lineaEnCajas(facturable, precio, unidadesPorCajaDeLinea(it))
-                  : null;
+              // 🔴 SIEMPRE en cajas si la orden es por cajas, difiera o no de lo pedido. La
+              // primera versión sólo convertía cuando había diferencia, así que una línea
+              // pickeada completa mostraba «Pedido: 20 cajas · Pickeado: 320» — el mismo número
+              // en dos unidades distintas, una al lado de la otra. WalMart pickea en cajas.
+              const cajaPickeada = enCajas
+                ? lineaEnCajas(facturable, precio, unidadesPorCajaDeLinea(it))
+                : null;
 
               return (
                 <tr key={it?.id} className={difiere ? "bg-amber-50" : undefined}>
