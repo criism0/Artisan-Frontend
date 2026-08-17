@@ -30,6 +30,7 @@ import AvanceItems from "../../components/AvanceItems";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 import { mensajeError } from "../../utils/mensajeError.js";
 import { derivarFolioOC, esVentaAPlazo, origenVencimiento } from "../../utils/referenciaOC.js";
+import { cantidadFacturable, resumenFacturable } from "../../utils/cantidadFacturable.js";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -132,6 +133,7 @@ function FacturarForm({
   origenFecha,
   setOrigenFecha,
   requiereDir = false,
+  resumenPicking = null,
 }) {
   // Lo que va a salir impreso como referencia. Se muestra, no se edita: es el `numero_oc` de la
   // orden, y si está mal se corrige en la orden — no al emitir el documento tributario.
@@ -145,6 +147,30 @@ function FacturarForm({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* 🔴 EL AVISO DE PICKING VA PRIMERO, antes del documento. Facturar de más se deshace sólo
+          con una nota de crédito, y ya pasó: la OV 794 se facturó por 3.600 unidades habiendo
+          pickeado 2.376 y hubo que anularla el mismo día. */}
+      {resumenPicking?.difieren && (
+        <div className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-md px-3 py-2">
+          <strong>La factura sale por lo pickeado, no por lo pedido.</strong>{" "}
+          {resumenPicking.diferencias.length === 1 ? "Una línea salió" : `${resumenPicking.diferencias.length} líneas salieron`}{" "}
+          distinta de lo que pidió el cliente:
+          <ul className="mt-1 ml-4 list-disc">
+            {resumenPicking.diferencias.map((d) => (
+              <li key={d.nombre}>
+                {d.nombre}: pidió {d.pedida.toLocaleString("es-CL")}, se pickeó{" "}
+                <strong>{d.pickeada.toLocaleString("es-CL")}</strong>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-1">
+            Neto pedido {formatCLP(resumenPicking.pedido, 0)} → a facturar{" "}
+            <strong>{formatCLP(resumenPicking.facturable, 0)}</strong>. Si la diferencia no es
+            correcta, corrige el picking antes de emitir.
+          </div>
+        </div>
+      )}
+
       {/* Lo que va a decir el documento, con la MISMA vista que la pestaña Documentos.
           Antes este modal pedía dirección y fecha sin mostrar nada de lo que se iba a emitir:
           se confirmaba a ciegas un documento que después sólo se corrige con nota de crédito. */}
@@ -613,11 +639,14 @@ export default function OrdenVentaDetail() {
     const tableBody = orderItems.map((it) => {
       const productoNombre =
         it?.NombreFacturacion?.nombre || it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`;
+      // La misma cantidad que va a salir en la factura. Si el PDF de la orden dijera otra cosa
+      // que la pantalla y que el documento, tendríamos tres números para una sola venta.
+      const cantidad = cantidadFacturable(it);
       const subtotal =
-        Number(it?.cantidad || 0) *
+        cantidad *
         Number(it?.precio_venta || 0) *
         (1 - (Number(it?.porcentaje_descuento || 0) || 0) / 100);
-      return [productoNombre, Number(it?.cantidad || 0), formatCLP(Number(it?.precio_venta || 0), 0), formatCLP(subtotal, 0)];
+      return [productoNombre, cantidad, formatCLP(Number(it?.precio_venta || 0), 0), formatCLP(subtotal, 0)];
     });
 
     autoTable(doc, {
@@ -681,21 +710,14 @@ export default function OrdenVentaDetail() {
     return <span className={map[estado] || `${base} bg-gray-100 text-gray-600`}>{estado}</span>;
   };
 
-  const totalProductos = useMemo(
-    () =>
-      orderItems.reduce(
-        (sum, it) =>
-          sum +
-          Number(it?.cantidad || 0) *
-            Number(it?.precio_venta || 0) *
-            (1 - (Number(it?.porcentaje_descuento || 0) || 0) / 100),
-        0
-      ),
-    [orderItems]
-  );
+  // 🔴 Los totales se calculan sobre lo PICKEADO, que es lo que va a salir en la factura.
+  // Antes se calculaban sobre lo pedido y por eso «no actualizaba el valor en el front»: la
+  // pantalla mostraba el total del pedido y el documento salía con otro número.
+  const resumen = useMemo(() => resumenFacturable(orderItems), [orderItems]);
 
   const costoEnvioActual = Number(orden?.costo_envio || 0);
-  const totalNeto = totalProductos + costoEnvioActual;
+  const totalNeto = resumen.facturable + costoEnvioActual;
+  const netoPedidoConEnvio = resumen.pedido + costoEnvioActual;
   const iva = Math.round(totalNeto * 0.19);
   const total = totalNeto + iva;
 
@@ -941,6 +963,7 @@ export default function OrdenVentaDetail() {
           total={total}
           costoEnvio={costoEnvioActual}
           formatDate={formatDate}
+          netoPedido={netoPedidoConEnvio}
         />
       </div>
 
@@ -1053,6 +1076,7 @@ export default function OrdenVentaDetail() {
           origenFecha={origenFecha}
           setOrigenFecha={setOrigenFecha}
           requiereDir={!orden?.id_local}
+          resumenPicking={resumen}
         />
       </Modal>
 
