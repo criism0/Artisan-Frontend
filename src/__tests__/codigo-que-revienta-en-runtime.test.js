@@ -216,3 +216,35 @@ describe("los formularios de OV no pisan campos con literales", () => {
     expect(texto).toMatch(/utils\/descuentoLinea/);
   });
 });
+
+// 🔴 UN CAMPO QUE EL BACKEND NO CONOCE SE DESCARTA EN SILENCIO (2026-08-17).
+//
+// Los dos formularios de cliente mandaban `tipo_precio`, un nombre que **no existe en ninguna
+// parte del backend** — el campo real es `formato_compra_predeterminado`. Nada falla: el
+// controlador no lo encuentra en el body, el modelo aplica su default y el cliente queda en
+// UNIDADES pase lo que pase. `ClienteEdit` además LEÍA `clienteData.tipo_precio`, que la API
+// tampoco devuelve, así que el desplegable mostraba «Unidades» aunque el cliente fuera de cajas.
+//
+// La prueba de que nunca funcionó está en producción: los únicos 2 clientes en CAJAS —Jumbo y
+// WalMart— se marcaron por SQL. En 455 clientes, cero los puso la aplicación.
+describe("los formularios de cliente mandan el nombre de campo que el backend lee", () => {
+  const formularios = ["src/pages/Clientes/AddClientes.jsx", "src/pages/Clientes/ClienteEdit.jsx"];
+
+  it.each(formularios)("%s manda formato_compra_predeterminado", (relativo) => {
+    const texto = readFileSync(path.join(RAIZ, relativo), "utf8");
+    expect(texto).toMatch(/formato_compra_predeterminado:\s*\w/);
+  });
+
+  it.each(formularios)("%s NO usa el nombre inventado tipo_precio", (relativo) => {
+    // Se excluyen comentarios: estas mismas vistas explican el bug citando el nombre viejo.
+    const usos = readFileSync(path.join(RAIZ, relativo), "utf8")
+      .split("\n")
+      .map((linea, i) => [i + 1, linea])
+      .filter(([, l]) => !/^\s*(\/\/|\*|\/\*|\{\/\*)/.test(l))
+      // `errors.tipo_precio` es la clave del mensaje de validación en pantalla, no viaja al
+      // backend. Lo que no puede aparecer es el campo del payload o una lectura de la respuesta.
+      .filter(([, l]) => /(^|[^.\w])tipo_precio\s*:/.test(l) || /\.tipo_precio\b/.test(l))
+      .map(([n, l]) => `:${n} → ${l.trim()}`);
+    expect(usos).toEqual([]);
+  });
+});

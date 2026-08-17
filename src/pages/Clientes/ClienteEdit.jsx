@@ -10,6 +10,7 @@ import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { esEmailValido, formatPhoneInput, validarTelefonoCL } from "../../services/formatHelpers";
 import RutLookupField from "../../components/RUT/RutLookupField.jsx";
+import Selector from "../../components/Forms/Selector";
 
 function DynamicCombobox({ value, onChange, options, onSelect, placeholder }) {
   const inputRef = useRef(null);
@@ -118,7 +119,11 @@ export default function EditClientes() {
   const [paymentType, setPaymentType] = useState("Contado");
   const [creditDays, setCreditDays] = useState("");
 
-  const tiposPrecio = ["UNIDADES", "CAJAS"];
+  // El valor es el del ENUM de la base; la etiqueta es lo que lee el operario.
+  const FORMATOS_COMPRA = [
+    { value: "UNIDADES", label: "Unidades" },
+    { value: "CAJAS", label: "Cajas" },
+  ];
 
   const [formData, setFormData] = useState({
     nombre_empresa: "",
@@ -255,7 +260,11 @@ export default function EditClientes() {
         const listaNombre = listasData.find((l) => l.id === clienteData.id_lista_precio)?.nombre || "";
         setSelectedCanal(canalNombre);
         setSelectedListaPrecio(listaNombre);
-        setSelectedTipoPrecio(clienteData.tipo_precio || "UNIDADES");
+        // 🔴 `clienteData.tipo_precio` NO EXISTE en la respuesta de la API — el campo se llama
+        // `formato_compra_predeterminado`. Leyendo el nombre equivocado el desplegable mostraba
+        // «Unidades» siempre, aunque el cliente fuera de cajas, y guardar lo dejaba igual. Es la
+        // misma familia que el formulario que pisa un campo que nunca leyó.
+        setSelectedTipoPrecio(clienteData.formato_compra_predeterminado || "UNIDADES");
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -318,7 +327,7 @@ export default function EditClientes() {
     const newErrors = {};
     if (!selectedCanal) newErrors.canal = "Debes seleccionar un canal.";
     if (!selectedListaPrecio) newErrors.lista_precio = "Debes seleccionar una lista de precios.";
-    if (!selectedTipoPrecio) newErrors.tipo_precio = "Debes seleccionar un tipo de precio.";
+    if (!selectedTipoPrecio) newErrors.formato_compra = "Debes seleccionar un tipo de precio.";
 
     const camposObligatorios = ["nombre_empresa", "razon_social", "rut", "giro"];
     for (let key of camposObligatorios) {
@@ -367,7 +376,8 @@ export default function EditClientes() {
       // condicion_pago ya está actualizado en formData por el useEffect
       id_canal: canalSeleccionado?.id || null,
       id_lista_precio: listaPrecioSeleccionada?.id || null,
-      tipo_precio: selectedTipoPrecio,
+      // El nombre que lee el backend. `tipo_precio` no existe en ninguna parte de la API.
+      formato_compra_predeterminado: selectedTipoPrecio,
       cuenta_corriente: " ",
       banco: " ",
     };
@@ -427,14 +437,17 @@ export default function EditClientes() {
               <label className="block text-gray-700 font-medium mb-2">
                 Formato de Compra Predeterminado <span className="text-red-500">*</span>
               </label>
-              <DynamicCombobox
-                value={selectedTipoPrecio}
-                onChange={setSelectedTipoPrecio}
-                options={tiposPrecio}
-                onSelect={(tp) => setSelectedTipoPrecio(tp)}
-                placeholder="Selecciona formato..."
+              {/* Dos valores fijos del enum: un desplegable, no un combobox con texto libre. */}
+              <Selector
+                options={FORMATOS_COMPRA}
+                selectedValue={selectedTipoPrecio}
+                onSelect={setSelectedTipoPrecio}
               />
-              {errors.tipo_precio && <p className="text-red-500 text-sm mt-1">{errors.tipo_precio}</p>}
+              <p className="text-xs text-gray-500 mt-1">
+                Cómo pide y recibe este cliente. Cambiarlo afecta a las órdenes NUEVAS; las que ya
+                existen conservan el formato con el que se crearon.
+              </p>
+              {errors.formato_compra && <p className="text-red-500 text-sm mt-1">{errors.formato_compra}</p>}
             </div>
           </div>
         </div>
