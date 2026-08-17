@@ -438,10 +438,12 @@ export default function EditClientes() {
                 Formato de Compra Predeterminado <span className="text-red-500">*</span>
               </label>
               {/* Dos valores fijos del enum: un desplegable, no un combobox con texto libre. */}
+              {/* Mismo estilo que el canal y la lista de precios, que van a su lado. */}
               <Selector
                 options={FORMATOS_COMPRA}
                 selectedValue={selectedTipoPrecio}
                 onSelect={setSelectedTipoPrecio}
+                className="border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
               <p className="text-xs text-gray-500 mt-1">
                 Cómo pide y recibe este cliente. Cambiarlo afecta a las órdenes NUEVAS; las que ya
