@@ -362,6 +362,13 @@ export default function OrdenVentaDetail() {
   const [direccionesCliente, setDireccionesCliente] = useState([]);
   const [idLocalDespacho, setIdLocalDespacho] = useState("");
   const [loadingDirecciones, setLoadingDirecciones] = useState(false);
+  // 🔴 La dirección de despacho se podía elegir SÓLO al facturar (`id_local` es editable en
+  // cualquier momento en el backend, pero la única UI que lo ofrecía era el modal de Facturar).
+  // Reporte de Hernán, 2026-08-17: un cliente con 3 sucursales bajo el mismo RUT —cada pedido
+  // va a una— y logística no tenía dónde asignar cuál, así que todo salía a la dirección por
+  // defecto. Medido en producción: 0 de 36 OV vivas tenían id_local seteado antes de facturar.
+  const [editandoDireccion, setEditandoDireccion] = useState(false);
+  const [guardandoDireccion, setGuardandoDireccion] = useState(false);
 
   const canWriteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
   const canDeleteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.DELETE);
@@ -520,6 +527,43 @@ export default function OrdenVentaDetail() {
       toast.error("No se pudieron cargar las direcciones del cliente");
     } finally {
       setLoadingDirecciones(false);
+    }
+  };
+
+  // Editor de la dirección de despacho, independiente del modal de Facturar: se abre desde el
+  // detalle, en cualquier estado anterior a Entregada. Sólo carga las direcciones —no toca
+  // `fechaFacturacion` ni el resto del estado del modal— porque abrir esto para MIRAR no
+  // debería precargar en silencio un formulario de facturación que el operario no pidió.
+  const abrirEdicionDireccion = async () => {
+    setEditandoDireccion(true);
+    if (direccionesCliente.length > 0) return;
+    setLoadingDirecciones(true);
+    try {
+      const res = await api(`/clientes/${cliente?.id}`);
+      const data = res?.data || res;
+      setDireccionesCliente(Array.isArray(data?.direcciones) ? data.direcciones : []);
+    } catch {
+      toast.error("No se pudieron cargar las direcciones del cliente");
+    } finally {
+      setLoadingDirecciones(false);
+    }
+  };
+
+  const guardarDireccionDespacho = async (idNuevo) => {
+    setGuardandoDireccion(true);
+    try {
+      await api(`/ordenes-venta/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ id_local: idNuevo ? Number(idNuevo) : null }),
+      });
+      const o = await fetchOrden();
+      setOrden(o);
+      setEditandoDireccion(false);
+      toast.success(idNuevo ? "Dirección de despacho actualizada" : "Dirección de despacho quitada");
+    } catch (err) {
+      toast.error(apiErrorMsg(err));
+    } finally {
+      setGuardandoDireccion(false);
     }
   };
 
@@ -964,6 +1008,15 @@ export default function OrdenVentaDetail() {
           costoEnvio={costoEnvioActual}
           formatDate={formatDate}
           netoPedido={netoPedidoConEnvio}
+          direccionesDespacho={direccionesCliente}
+          editandoDireccion={editandoDireccion}
+          loadingDirecciones={loadingDirecciones}
+          guardandoDireccion={guardandoDireccion}
+          puedeEditarDireccion={orden?.estado !== "Entregada"}
+          onEmpezarEdicionDireccion={abrirEdicionDireccion}
+          onCancelarEdicionDireccion={() => setEditandoDireccion(false)}
+          onGuardarDireccion={guardarDireccionDespacho}
+          comentarioCliente={orden?.comentario_cliente}
         />
       </div>
 

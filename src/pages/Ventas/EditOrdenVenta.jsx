@@ -39,6 +39,7 @@ export default function EditOrdenVenta() {
     bodega_id: "",
     es_referencial: false,
     fecha_vencimiento_pago: "",
+    comentario_cliente: "",
   });
 
   const [productoForm, setProductoForm] = useState({
@@ -66,6 +67,7 @@ export default function EditOrdenVenta() {
           bodega_id: ord.bodega_id ? String(ord.bodega_id) : "",
           es_referencial: ord.es_referencial ?? false,
           fecha_vencimiento_pago: ord.fecha_vencimiento_pago ? String(ord.fecha_vencimiento_pago).slice(0, 10) : "",
+          comentario_cliente: ord.comentario_cliente || "",
         });
 
         const nombresData = Array.isArray(nombresRes) ? nombresRes : nombresRes?.data || [];
@@ -328,6 +330,7 @@ export default function EditOrdenVenta() {
           // La fecha de pago es un término de la VENTA, no de la facturación: se edita acá y
           // quien factura sólo la confirma. Vacía significa «al contado, sin vencimiento».
           fecha_vencimiento_pago: form.fecha_vencimiento_pago || null,
+          comentario_cliente: form.comentario_cliente || null,
         }),
       });
 
@@ -471,6 +474,19 @@ export default function EditOrdenVenta() {
               </div>
               <span className="text-xs text-gray-400 italic">Obtenida del cliente al crear la orden</span>
             </div>
+
+            {/* Comentario del cliente — reporte de Hernán, 2026-08-17: un pedido web declaraba a
+                qué LOCAL iba y no había dónde guardarlo. */}
+            <label className="flex flex-col gap-1 col-span-2">
+              <span className="text-sm font-medium text-gray-700">Comentario del cliente</span>
+              <textarea
+                rows={2}
+                placeholder="Instrucciones de despacho, horario, con quién coordinar…"
+                value={form.comentario_cliente}
+                onChange={(e) => setForm((f) => ({ ...f, comentario_cliente: e.target.value }))}
+                className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-y"
+              />
+            </label>
 
           </div>
 

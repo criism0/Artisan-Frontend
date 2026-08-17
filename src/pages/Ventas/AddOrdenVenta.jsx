@@ -68,6 +68,7 @@ export default function AddOrdenVenta() {
     fecha_orden: getTodayDate(),
     bodega_id: "",
     es_referencial: false,
+    comentario_cliente: "",
   });
 
   const [productoForm, setProductoForm] = useState({
@@ -111,6 +112,7 @@ export default function AddOrdenVenta() {
       ...prev,
       numero_oc: borrador.numero_oc || prev.numero_oc,
       fecha_orden: borrador.fecha_orden || prev.fecha_orden,
+      comentario_cliente: borrador.comentario || prev.comentario_cliente,
     }));
 
     if (borrador.id_cliente) handleClientChange(String(borrador.id_cliente));
@@ -407,6 +409,7 @@ export default function AddOrdenVenta() {
         fecha_orden: form.fecha_orden,
         bodega_id: Number(form.bodega_id),
         es_referencial: Boolean(form.es_referencial),
+        comentario_cliente: form.comentario_cliente || null,
       };
       const res = await api("/ordenes-venta", { method: "POST", body: JSON.stringify(payload) });
       const created = res?.data || res || {};
@@ -591,6 +594,20 @@ export default function AddOrdenVenta() {
               <span className="text-xs text-gray-400 italic">Obtenida automáticamente del cliente</span>
             </div>
 
+            {/* Comentario del cliente — instrucciones de despacho, horario, contacto. Reporte de
+                Hernán, 2026-08-17: un pedido web declaraba a qué LOCAL iba y no había dónde
+                guardarlo. Los pedidos web/EDI lo precargan solos; acá se puede agregar a mano. */}
+            <label className="flex flex-col gap-1 md:col-span-2">
+              <span className="text-sm font-medium text-gray-700">Comentario del cliente</span>
+              <textarea
+                name="comentario_cliente"
+                rows={2}
+                placeholder="Instrucciones de despacho, horario, con quién coordinar…"
+                value={form.comentario_cliente}
+                onChange={handleFieldChange}
+                className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-y"
+              />
+            </label>
           </div>
 
           {/* Orden referencial */}
