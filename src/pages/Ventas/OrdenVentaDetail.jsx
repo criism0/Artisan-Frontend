@@ -31,6 +31,7 @@ import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 import { mensajeError } from "../../utils/mensajeError.js";
 import { derivarFolioOC, esVentaAPlazo, origenVencimiento } from "../../utils/referenciaOC.js";
 import { cantidadFacturable, resumenFacturable } from "../../utils/cantidadFacturable.js";
+import { esFormatoCajas, lineaEnCajas, unidadesPorCajaDeLinea } from "../../utils/formatoCantidad.js";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -362,6 +363,13 @@ export default function OrdenVentaDetail() {
   const [direccionesCliente, setDireccionesCliente] = useState([]);
   const [idLocalDespacho, setIdLocalDespacho] = useState("");
   const [loadingDirecciones, setLoadingDirecciones] = useState(false);
+  // 🔴 La dirección de despacho se podía elegir SÓLO al facturar (`id_local` es editable en
+  // cualquier momento en el backend, pero la única UI que lo ofrecía era el modal de Facturar).
+  // Reporte de Hernán, 2026-08-17: un cliente con 3 sucursales bajo el mismo RUT —cada pedido
+  // va a una— y logística no tenía dónde asignar cuál, así que todo salía a la dirección por
+  // defecto. Medido en producción: 0 de 36 OV vivas tenían id_local seteado antes de facturar.
+  const [editandoDireccion, setEditandoDireccion] = useState(false);
+  const [guardandoDireccion, setGuardandoDireccion] = useState(false);
 
   const canWriteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
   const canDeleteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.DELETE);
@@ -523,6 +531,43 @@ export default function OrdenVentaDetail() {
     }
   };
 
+  // Editor de la dirección de despacho, independiente del modal de Facturar: se abre desde el
+  // detalle, en cualquier estado anterior a Entregada. Sólo carga las direcciones —no toca
+  // `fechaFacturacion` ni el resto del estado del modal— porque abrir esto para MIRAR no
+  // debería precargar en silencio un formulario de facturación que el operario no pidió.
+  const abrirEdicionDireccion = async () => {
+    setEditandoDireccion(true);
+    if (direccionesCliente.length > 0) return;
+    setLoadingDirecciones(true);
+    try {
+      const res = await api(`/clientes/${cliente?.id}`);
+      const data = res?.data || res;
+      setDireccionesCliente(Array.isArray(data?.direcciones) ? data.direcciones : []);
+    } catch {
+      toast.error("No se pudieron cargar las direcciones del cliente");
+    } finally {
+      setLoadingDirecciones(false);
+    }
+  };
+
+  const guardarDireccionDespacho = async (idNuevo) => {
+    setGuardandoDireccion(true);
+    try {
+      await api(`/ordenes-venta/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ id_local: idNuevo ? Number(idNuevo) : null }),
+      });
+      const o = await fetchOrden();
+      setOrden(o);
+      setEditandoDireccion(false);
+      toast.success(idNuevo ? "Dirección de despacho actualizada" : "Dirección de despacho quitada");
+    } catch (err) {
+      toast.error(apiErrorMsg(err));
+    } finally {
+      setGuardandoDireccion(false);
+    }
+  };
+
   const handleFacturar = async () => {
     if (!fechaFacturacion) {
       toast.error("Ingresa la fecha de facturación");
@@ -584,12 +629,19 @@ export default function OrdenVentaDetail() {
     }
   };
 
+  // 🔴 REHECHO COMPLETO (Cristóbal, 2026-08-17): antes era un resumen genérico de "Orden de
+  // Venta"; ahora reproduce, con los datos que YA vive en el sistema, el layout de la Nota de
+  // Venta que Artisan usaba antes de este ERP (imagen de referencia adjunta al pedido) —
+  // fecha/cliente/dirección a la izquierda, totales y datos bancarios a la derecha, comentario
+  // destacado, línea de picking y la tabla con las TRES cantidades (OC/Pickeado/Unidades).
+  //
+  // ⚠️ "Fecha entrega" usa `fecha_envio` (la fecha real de despacho) como mejor aproximación
+  // disponible hoy — la orden todavía no tiene una fecha de entrega PROMETIDA propia (tarea
+  // #106, bloqueada en una decisión de negocio pendiente: lead time en días vs día fijo por
+  // cliente). Cuando esa tarea aterrice, este campo debe pasar a usarla.
   const handleDescargarPDF = async () => {
     try {
     // jsPDF y su plugin de tablas se cargan al APRETAR el botón, no al abrir la vista.
-    //
-    // ⚠️ Esta función no tenía try/catch: cualquier fallo era una promesa rechazada sin dueño
-    // y el botón se quedaba mudo. Con el `import()` roto, ése era exactamente el síntoma.
     const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
       import("jspdf"),
       import("jspdf-autotable"),
@@ -597,88 +649,185 @@ export default function OrdenVentaDetail() {
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
+    const marginL = 15;
+    const colR = pageWidth / 2 + 5;
+    const widthL = colR - marginL - 5;
+    const widthR = pageWidth - marginL - colR;
 
-    doc.addImage(logo, "PNG", 15, 10, 30, 30);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text(COMPANY.nombre, 50, 15);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text(`RUT: ${COMPANY.rut}`, 50, 21);
-    doc.text(`CUENTA CORRIENTE: ${COMPANY.cuenta_corriente}`, 50, 26);
-    doc.text(`BANCO: ${COMPANY.banco}`, 50, 31);
-    doc.text(`CONTACTO: ${COMPANY.contacto}`, 50, 36);
-
+    doc.addImage(logo, "PNG", marginL, 10, 22, 22);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
-    doc.text(`Orden de Venta N° ${orden.id}`, 15, 55);
+    doc.text("NOTA DE VENTA", pageWidth / 2, 20, { align: "center" });
     doc.setLineWidth(0.5);
-    doc.line(15, 57, pageWidth - 15, 57);
+    doc.line(marginL, 36, pageWidth - marginL, 36);
 
-    const clienteData = [
-      ["Fecha de Emisión", formatDate(orden.fecha_orden)],
+    // Un rótulo de sección + su tabla de pares label/valor, igual en las dos columnas —
+    // "ordenar por secciones" en vez de una sola lista larga de 13 filas mezclando pedido,
+    // cliente, despacho y contacto sin ningún corte visual.
+    const addSection = (titulo, rows, x, width, startY) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(120);
+      doc.text(titulo.toUpperCase(), x, startY);
+      doc.setTextColor(0);
+      autoTable(doc, {
+        startY: startY + 2,
+        body: rows,
+        theme: "plain",
+        styles: { fontSize: 9, cellPadding: 1 },
+        columnStyles: { 0: { fontStyle: "bold", cellWidth: 32 }, 1: { cellWidth: width - 32 } },
+        margin: { left: x },
+        tableWidth: width,
+      });
+      return doc.lastAutoTable.finalY + 5;
+    };
+
+    // ── Columna izquierda: pedido → cliente → despacho, cada una su sección ──
+    const enCajasPdf = esFormatoCajas(orden?.formato_cantidad);
+    const condicionPagoTexto = orden?.condiciones || cliente?.condicion_pago || "Contado";
+    const direccionTexto = direccion?.calle
+      ? [direccion.calle, direccion.numero, direccion.info_adicional].filter(Boolean).join(" ")
+      : direccion?.nombre_sucursal || "—";
+
+    let yL = 42;
+    yL = addSection("Datos del pedido", [
+      ["Nota de Venta", `N° ${orden?.id ?? "—"}`],
+      ["Fecha entrega", formatDate(orden?.fecha_envio)],
+      ["Orden de Compra", orden?.numero_oc || "—"],
+      ["Condiciones Pago", condicionPagoTexto],
+    ], marginL, widthL, yL);
+    yL = addSection("Cliente", [
       ["Cliente", cliente?.nombre_empresa || "—"],
-      ["Rut", cliente?.rut || "—"],
-      [
-        "Dirección",
-        direccion?.calle && direccion?.numero
-          ? `${direccion.calle} ${direccion.numero}, ${direccion.comuna || ""}`
-          : direccion?.nombre_sucursal || "—",
-      ],
-      ["Estado", orden.estado || "—"],
-    ];
-    autoTable(doc, {
-      startY: 62,
-      body: clienteData,
-      theme: "plain",
-      styles: { fontSize: 10, cellPadding: 2, lineWidth: 0.1, cellWidth: "wrap" },
-      tableLineColor: [0, 0, 0],
-      tableLineWidth: 0.2,
-    });
+      ["Razón Social", cliente?.razon_social || "—"],
+      ["RUT", cliente?.rut || "—"],
+      ["Contacto", cliente?.contacto_comercial || "—"],
+      ["Teléfono", cliente?.telefono_comercial || "—"],
+      ["Correo", cliente?.email_comercial || "—"],
+    ], marginL, widthL, yL);
+    yL = addSection("Despacho", [
+      ["Dirección", direccionTexto],
+      ["Comuna", direccion?.comuna || "—"],
+      ["Horario", direccion?.comentarios || "—"],
+    ], marginL, widthL, yL);
+    const finLeft = yL;
 
+    // ── Columna derecha: datos de pago. Los totales van ABAJO, después de la tabla — mismo
+    // lugar donde el resumen en pantalla (DetalleTipoFactura.jsx) los muestra, no acá arriba. ──
+    const yR = addSection("Datos para pago", [
+      ["RUT", COMPANY.rut],
+      ["Razón Social", COMPANY.nombre],
+      ["Cuenta Corriente", COMPANY.cuenta_corriente],
+      ["Banco", COMPANY.banco],
+      ["Enviar comprobante", COMPANY.contacto],
+    ], colR, widthR, 42);
+    const finRight = yR;
+
+    let cursorY = Math.max(finLeft, finRight) + 2;
+
+    // ── Comentario del cliente — destacado, igual que en la referencia ──
+    if (orden?.comentario_cliente) {
+      doc.setFillColor(255, 247, 205);
+      doc.setDrawColor(230, 200, 80);
+      const texto = doc.splitTextToSize(
+        `Comentarios: ${orden.comentario_cliente}`,
+        pageWidth - marginL * 2 - 6,
+      );
+      const boxH = texto.length * 4 + 4;
+      doc.rect(marginL, cursorY, pageWidth - marginL * 2, boxH, "FD");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.text(texto, marginL + 3, cursorY + 5);
+      cursorY += boxH + 4;
+    }
+
+    // ── Quién pickeó y bultos — lo que la Nota de Venta antigua imprime al pie ──
+    const bultosUnicos = new Set(filasExtraccion.map((r) => r.bulto)).size;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(
+      `Pickeado por: ${orden?.pickeadoPor?.nombre || "—"}    ` +
+        `Fecha: ${formatDate(orden?.picking_completado_en)}    ` +
+        `Bultos: ${bultosUnicos}`,
+      marginL,
+      cursorY,
+    );
+    cursorY += 4;
+
+    // ── Tabla de líneas — mismas columnas que el resumen en pantalla (DetalleTipoFactura.jsx):
+    // Cant. OC, Cant. Pickeada, Precio Unitario, Desc., Total Neto. Sin "Cant Uni": en cajas,
+    // Cant. OC y Cant. Pickeada YA se muestran en cajas, así que una tercera columna con la
+    // misma cantidad en unidades era redundante.
     const tableBody = orderItems.map((it) => {
       const productoNombre =
         it?.NombreFacturacion?.nombre || it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`;
-      // La misma cantidad que va a salir en la factura. Si el PDF de la orden dijera otra cosa
-      // que la pantalla y que el documento, tendríamos tres números para una sola venta.
-      const cantidad = cantidadFacturable(it);
-      const subtotal =
-        cantidad *
-        Number(it?.precio_venta || 0) *
-        (1 - (Number(it?.porcentaje_descuento || 0) || 0) / 100);
-      return [productoNombre, cantidad, formatCLP(Number(it?.precio_venta || 0), 0), formatCLP(subtotal, 0)];
+      const cantidadPedida = Number(it?.cantidad || 0);
+      const cantidadPickeada = cantidadFacturable(it);
+      const precio = Number(it?.precio_venta || 0);
+      const descuento = Number(it?.porcentaje_descuento || 0);
+      const monto = cantidadPickeada * precio * (1 - descuento / 100);
+
+      // En cajas: "Cant. OC"/"Cant. Pick." se muestran en cajas — mismo criterio que la tabla
+      // del detalle (DetalleTipoFactura.jsx).
+      const cajaOC = enCajasPdf ? lineaEnCajas(cantidadPedida, precio, unidadesPorCajaDeLinea(it)) : null;
+      const cajaPick = enCajasPdf ? lineaEnCajas(cantidadPickeada, precio, unidadesPorCajaDeLinea(it)) : null;
+      const cantOcTexto = cajaOC?.cajas != null ? cajaOC.cajas.toLocaleString("es-CL") : cantidadPedida.toLocaleString("es-CL");
+      const cantPickTexto = cajaPick?.cajas != null ? cajaPick.cajas.toLocaleString("es-CL") : cantidadPickeada.toLocaleString("es-CL");
+
+      return [
+        productoNombre,
+        cantOcTexto,
+        cantPickTexto,
+        formatCLP(precio, 0),
+        descuento > 0 ? `${descuento}%` : "—",
+        formatCLP(monto, 0),
+      ];
     });
 
     autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 10,
-      head: [["Producto", "Cantidad", "Precio", "Valor Neto"]],
+      startY: cursorY + 2,
+      head: [["Producto", "Cant. OC", "Cant. Pickeada", "Precio Unitario", "Desc.", "Total Neto"]],
       body: tableBody,
       theme: "grid",
-      styles: { fontSize: 10, cellPadding: 2 },
+      styles: { fontSize: 8.5, cellPadding: 1.8 },
       headStyles: { fillColor: [240, 240, 240], textColor: 0, halign: "center" },
+      columnStyles: {
+        1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" },
+        4: { halign: "right" }, 5: { halign: "right" },
+      },
     });
 
-    const totales = [
-      ["Neto", formatCLP(totalNeto, 0)],
-      ["IVA", formatCLP(iva, 0)],
-      ["Total", formatCLP(total, 0)],
-    ];
-    autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 5,
-      body: totales,
-      theme: "grid",
-      styles: { fontSize: 10, halign: "right", cellPadding: 2 },
-      columnStyles: { 0: { halign: "left" }, 1: { halign: "right" } },
-      tableLineColor: [0, 0, 0],
-      tableLineWidth: 0.2,
-    });
-
+    // ── Totales — abajo de la tabla, alineados a la derecha, misma forma que el resumen en
+    // pantalla: Neto e IVA livianos, una regla, Total destacado. ──
+    let yTot = doc.lastAutoTable.finalY + 8;
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text("Nota de venta válida por 7 días.", 15, doc.lastAutoTable.finalY + 10);
+    doc.text("Neto", pageWidth - 60, yTot);
+    doc.text(formatCLP(totalNeto, 0), pageWidth - marginL, yTot, { align: "right" });
+    yTot += 6;
+    doc.text("IVA (19%)", pageWidth - 60, yTot);
+    doc.text(formatCLP(iva, 0), pageWidth - marginL, yTot, { align: "right" });
+    yTot += 3;
+    doc.setLineWidth(0.3);
+    doc.line(pageWidth - 60, yTot, pageWidth - marginL, yTot);
+    yTot += 7;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Total", pageWidth - 60, yTot);
+    doc.text(formatCLP(total, 0), pageWidth - marginL, yTot, { align: "right" });
+    doc.setFont("helvetica", "normal");
+
+    doc.setFontSize(8);
+    doc.setTextColor(120);
+    doc.text(
+      "Documento generado automáticamente — Artisan",
+      pageWidth / 2,
+      yTot + 10,
+      { align: "center" },
+    );
     doc.save(`Nota de venta #${orden.id}.pdf`);
     } catch (err) {
       console.error("PDF error:", err);
-      toast.error("Error generando PDF");
+      toast.error("Error generando la Nota de Venta");
     }
   };
 
@@ -817,7 +966,7 @@ export default function OrdenVentaDetail() {
 
   const accionesSecundarias = [
     {
-      label: "Descargar PDF",
+      label: "Descargar Nota de Venta",
       icon: <Download className="w-4 h-4" />,
       onClick: handleDescargarPDF,
     },
@@ -964,6 +1113,15 @@ export default function OrdenVentaDetail() {
           costoEnvio={costoEnvioActual}
           formatDate={formatDate}
           netoPedido={netoPedidoConEnvio}
+          direccionesDespacho={direccionesCliente}
+          editandoDireccion={editandoDireccion}
+          loadingDirecciones={loadingDirecciones}
+          guardandoDireccion={guardandoDireccion}
+          puedeEditarDireccion={orden?.estado !== "Entregada"}
+          onEmpezarEdicionDireccion={abrirEdicionDireccion}
+          onCancelarEdicionDireccion={() => setEditandoDireccion(false)}
+          onGuardarDireccion={guardarDireccionDespacho}
+          comentarioCliente={orden?.comentario_cliente}
         />
       </div>
 

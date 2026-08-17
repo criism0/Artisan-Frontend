@@ -265,15 +265,46 @@ function ProductoRow({
   // mismo nombre. Aplicar el nombre es lo que la venta necesita, y de paso permite que la
   // sugerencia se ofrezca también cuando el nombre agrupa varios productos — antes esas se
   // descartaban en la extracción justamente porque no había forma segura de elegir uno.
+  //
+  // 🔴 EL PRECIO VIENE CON EL PRODUCTO. Reporte de Hernán, 2026-08-17 (OV 793): la cola leyó
+  // «Camembert 100 g» como «150 g» al 100% de similitud —el bug de §0-quinquagies-octies, que
+  // se sigue sugiriendo pero avisando— y le asignó el precio de lista del 150 g. Corrigió el
+  // producto con este mismo botón y el precio SIGUIÓ siendo el del producto viejo: el PATCH
+  // sólo mandaba `id_nombre_facturacion`, nunca `precio_venta`, así que `updateProductoOV`
+  // —que sólo toca los campos que recibe— no tenía nada que recalcular.
+  //
+  // Es el mismo principio que ya regía el editor completo (`aplicarPrecioDeLista`, más abajo):
+  // el precio de una línea es el de ESE producto para ESE cliente, nunca el que traía antes.
   const handleAcceptSuggestion = async () => {
     if (!nfSugeridoId) return;
     setSaving(true);
     try {
+      // Si el nombre nuevo no tiene precio en la lista del cliente, se manda 0 —el mismo
+      // centinela de «sin precio» que usa todo el resto de la Cola IA (`faltaPrecio`,
+      // `precioUtil`)— en vez de dejar pegado el precio de otro producto: un número equivocado
+      // que se ve razonable es peor que uno vacío que el operario tiene que llenar.
+      let precioNuevo = null;
+      if (idListaPrecio) {
+        try {
+          const indice = await cargarPrecios(idListaPrecio);
+          precioNuevo = precioUnitarioDeLista(indice, nfSugeridoId);
+        } catch {
+          // Sin lista disponible no se puede saber el precio correcto; se limpia igual.
+        }
+      }
       const updated = await api(`/ordenes-venta/${ovId}/productos/${prod.id}`, {
         method: "PATCH",
-        body: { id_producto: null, id_nombre_facturacion: nfSugeridoId },
+        body: {
+          id_producto: null,
+          id_nombre_facturacion: nfSugeridoId,
+          precio_venta: precioNuevo ?? 0,
+        },
       });
-      toast.success(`Asociado: ${nombreSugerido}`);
+      toast.success(
+        precioNuevo != null
+          ? `Asociado: ${nombreSugerido} — precio de lista ${formatearPesos(precioNuevo)}`
+          : `Asociado: ${nombreSugerido} — sin precio en la lista, hay que ponerlo a mano`,
+      );
       onUpdated(updated);
     } catch (err) {
       toast.error(`Error: ${err?.message ?? "No se pudo aceptar"}`);
@@ -875,6 +906,11 @@ function OVIACard({
   const [emailOpen, setEmailOpen]     = useState(false);
   const [esReferencial, setEsReferencial] = useState(ovInicial.es_referencial ?? true);
   const [guardandoRef, setGuardandoRef]   = useState(false);
+  // Dirección de despacho. Reporte de Hernán, 2026-08-17: un cliente con 3 sucursales bajo el
+  // mismo RUT y ninguna forma de decir a cuál va CADA pedido — la única UI que ofrecía elegir
+  // dirección era el modal de Facturar, muy después de que logística ya necesita saberlo.
+  const [idLocalSel, setIdLocalSel] = useState(ovInicial.id_local ? String(ovInicial.id_local) : "");
+  const [guardandoDireccion, setGuardandoDireccion] = useState(false);
   const [productosExpandido, setProductosExpandido] = useState(false);
   const log = ov.ai_log;
 
@@ -892,6 +928,25 @@ function OVIACard({
       toast.error("No se pudo actualizar el modo referencial");
     } finally {
       setGuardandoRef(false);
+    }
+  };
+
+  // Instantáneo, como `handleToggleReferencial`: esta tarjeta guarda cada control apenas
+  // cambia, no junta ediciones para un botón "Guardar" aparte.
+  const handleCambiarDireccion = async (valor) => {
+    const anterior = idLocalSel;
+    setIdLocalSel(valor);
+    setGuardandoDireccion(true);
+    try {
+      await api(`/ordenes-venta/${ov.id}`, {
+        method: "PUT",
+        body: { id_local: valor ? Number(valor) : null },
+      });
+    } catch {
+      setIdLocalSel(anterior);
+      toast.error("No se pudo guardar la dirección de despacho");
+    } finally {
+      setGuardandoDireccion(false);
     }
   };
 
@@ -920,6 +975,34 @@ function OVIACard({
   const clienteEfectivo = clienteEfectivoId ? clientesPorId.get(clienteEfectivoId) : null;
   const idListaPrecio = clienteEfectivo?.id_lista_precio ?? null;
   const nombreLista = clienteEfectivo?.listaPrecio?.nombre ?? null;
+
+  // Direcciones de DESPACHO del cliente que va a quedar — mismo criterio que la lista de
+  // precios: si se está corrigiendo el cliente, las direcciones que importan son las del
+  // nuevo, no las del que la IA adivinó. `GET /clientes` ya trae `direcciones` por cliente.
+  const direccionesCliente = clienteEfectivo?.direcciones ?? [];
+  const direccionesDespacho = direccionesCliente.filter((d) => d.tipo_direccion === "Despacho");
+  const opcionesDireccion = (direccionesDespacho.length > 0 ? direccionesDespacho : direccionesCliente).map(
+    (d) => ({
+      value: String(d.id),
+      label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna]
+        .filter(Boolean)
+        .join(" — "),
+    }),
+  );
+
+  // Sugerencia de dirección resuelta por `resolverDireccionCliente` a partir del texto del
+  // correo — mismo patrón que la sugerencia de producto: se ofrece con un "Aceptar", nunca se
+  // aplica sola. Sólo tiene sentido mientras no haya una dirección ya elegida.
+  const direccionSugerida = ov.direccionSugerida ?? null;
+  const simDireccionPct = ov.similitud_sugerencia_direccion != null
+    ? Math.round(ov.similitud_sugerencia_direccion * 100)
+    : null;
+  const labelDireccionSugerida = direccionSugerida
+    ? [direccionSugerida.nombre_sucursal || direccionSugerida.tipo_direccion,
+        [direccionSugerida.calle, direccionSugerida.numero, direccionSugerida.info_adicional].filter(Boolean).join(" "),
+        direccionSugerida.comuna]
+        .filter(Boolean).join(" — ")
+    : null;
 
   const handleCrearCliente = () => {
     navigate("/clientes/add", {
@@ -1108,6 +1191,63 @@ function OVIACard({
               <div className="flex items-center gap-1.5">
                 <span>{fmtDate(ov.fecha_orden)}</span>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Lo que el cliente escribió al pedir. Reporte de Hernán, 2026-08-17: un pedido web
+            declaraba a qué LOCAL iba —de 3 posibles bajo el mismo RUT— y hasta ahora esto era
+            lo único en el sistema que lo tenía, sin mostrarlo en ninguna parte. Va acá, visible
+            sin abrir nada, porque es justo donde se revisa el pedido antes de validar. */}
+        {ov.comentario_cliente && (
+          <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 whitespace-pre-wrap">
+            <span className="font-medium text-gray-500">Comentario del cliente: </span>
+            {ov.comentario_cliente}
+          </div>
+        )}
+
+        {/* Sugerencia de dirección — resuelta del texto del correo contra las direcciones de
+            Despacho YA REGISTRADAS del cliente. No se aplica sola: hasta que se acepta, id_local
+            sigue vacío y el pedido se ve como si nadie hubiera dicho nada. */}
+        {clienteEfectivo && !idLocalSel && direccionSugerida && (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-700 truncate">
+                ¿Despacha a <strong>{labelDireccionSugerida}</strong>?{" "}
+                {simDireccionPct !== null && (
+                  <span className={simDireccionPct >= 80 ? "text-green-600 font-semibold" : "text-yellow-600 font-semibold"}>
+                    ({simDireccionPct}%)
+                  </span>
+                )}
+              </span>
+              <button
+                onClick={() => handleCambiarDireccion(String(direccionSugerida.id))}
+                disabled={guardandoDireccion}
+                className="shrink-0 flex items-center gap-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-0.5 rounded font-medium"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Dirección de despacho — sólo tiene sentido con un cliente elegido, y de sus
+            direcciones de DESPACHO (nunca las de facturación/cobranza). */}
+        {clienteEfectivo && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 shrink-0">Despacho a:</span>
+            {opcionesDireccion.length === 0 ? (
+              <span className="text-xs text-amber-700">
+                Sin direcciones registradas — se agregan desde la ficha del cliente
+              </span>
+            ) : (
+              <Selector
+                options={[{ value: "", label: "— Sin asignar —" }, ...opcionesDireccion]}
+                selectedValue={idLocalSel}
+                onSelect={handleCambiarDireccion}
+                disabled={guardandoDireccion || procesando}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-xs flex-1 min-w-0"
+              />
             )}
           </div>
         )}

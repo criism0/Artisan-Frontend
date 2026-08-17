@@ -215,10 +215,16 @@ export default function DireccionesManager({
                   <div className="text-sm text-gray-600 space-y-1">
                     <p><strong>Nombre sucursal:</strong> {direccion.nombre_sucursal || '-'}</p>
                     <p><strong>Calle y número:</strong> {direccion.calle || '-'} {direccion.numero || ''}</p>
+                    {direccion.info_adicional && (
+                      <p><strong>Local/Depto/Bodega:</strong> {direccion.info_adicional}</p>
+                    )}
                     <p><strong>Región:</strong> {direccion.region || '-'}</p>
                     <p><strong>Comuna:</strong> {direccion.comuna || '-'}</p>
                     {direccion.tipo_recinto && (
                       <p><strong>Tipo recinto:</strong> {direccion.tipo_recinto}</p>
+                    )}
+                    {direccion.comentarios && (
+                      <p><strong>Horario/comentarios:</strong> {direccion.comentarios}</p>
                     )}
                   </div>
                 </div>

@@ -64,10 +64,12 @@ export default function AddOrdenVenta() {
 
   const [form, setForm] = useState({
     id_cliente: "",
+    id_local: "",
     numero_oc: "",
     fecha_orden: getTodayDate(),
     bodega_id: "",
     es_referencial: false,
+    comentario_cliente: "",
   });
 
   const [productoForm, setProductoForm] = useState({
@@ -111,6 +113,7 @@ export default function AddOrdenVenta() {
       ...prev,
       numero_oc: borrador.numero_oc || prev.numero_oc,
       fecha_orden: borrador.fecha_orden || prev.fecha_orden,
+      comentario_cliente: borrador.comentario || prev.comentario_cliente,
     }));
 
     if (borrador.id_cliente) handleClientChange(String(borrador.id_cliente));
@@ -215,10 +218,12 @@ export default function AddOrdenVenta() {
     setCondicionPagoCliente(null);
     if (!id_cliente) {
       setProductoForm({ id_nombre_facturacion: "", cantidad: "", precio_unitario: "", porcentaje_descuento: "" });
-      setForm(prev => ({ ...prev, id_cliente: "" }));
+      setForm(prev => ({ ...prev, id_cliente: "", id_local: "" }));
       return;
     }
-    setForm(prev => ({ ...prev, id_cliente }));
+    // Las direcciones son del cliente que va a QUEDAR: si se cambia de cliente, la elegida
+    // antes ya no corresponde.
+    setForm(prev => ({ ...prev, id_cliente, id_local: "" }));
     try {
       const resCliente = await api(`/clientes/${id_cliente}`);
       const clienteData = resCliente.data || resCliente;
@@ -403,10 +408,12 @@ export default function AddOrdenVenta() {
     try {
       const payload = {
         id_cliente: Number(form.id_cliente),
+        id_local: form.id_local ? Number(form.id_local) : null,
         numero_oc: form.numero_oc,
         fecha_orden: form.fecha_orden,
         bodega_id: Number(form.bodega_id),
         es_referencial: Boolean(form.es_referencial),
+        comentario_cliente: form.comentario_cliente || null,
       };
       const res = await api("/ordenes-venta", { method: "POST", body: JSON.stringify(payload) });
       const created = res?.data || res || {};
@@ -483,6 +490,14 @@ export default function AddOrdenVenta() {
 
   const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
 
+  // Direcciones de Despacho del cliente elegido — mismo criterio que en la Cola IA y el detalle
+  // de la orden: si no tiene ninguna marcada como "Despacho", se ofrecen todas (mejor eso que
+  // dejar el selector vacío para un cliente que sí tiene direcciones, sólo que sin ese tipo).
+  const direccionesDespacho = (() => {
+    const soloDespacho = direcciones.filter((d) => d.tipo_direccion === "Despacho");
+    return soloDespacho.length > 0 ? soloDespacho : direcciones;
+  })();
+
   // La unidad del producto que está seleccionado en el formulario de agregar línea. Decide la
   // etiqueta, el `step` y si la cantidad puede llevar decimales.
   const unidadProductoElegido = unidadVentaDe(
@@ -530,7 +545,29 @@ export default function AddOrdenVenta() {
                 } rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary`}
               />
               {errors.id_cliente && <span className="text-red-500 text-xs">{errors.id_cliente}</span>}
-              <span className="text-xs text-gray-400 italic">La dirección de entrega se asignará al momento de facturar la orden</span>
+            </label>
+
+            {/* Dirección de despacho — opcional acá; si no se elige, se confirma al facturar */}
+            <label className="flex flex-col gap-1 col-span-2">
+              <span className="text-sm font-medium text-gray-700">Dirección de despacho</span>
+              {form.id_cliente && direccionesDespacho.length === 0 ? (
+                <span className="text-xs text-amber-600">
+                  Este cliente no tiene direcciones de Despacho registradas.
+                </span>
+              ) : (
+                <Selector
+                  options={[{ value: "", label: "— Se elige al facturar —" }, ...direccionesDespacho.map((d) => ({
+                    value: String(d.id),
+                    label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna].filter(Boolean).join(" — "),
+                    searchText: [d.nombre_sucursal, d.calle, d.numero, d.comuna].filter(Boolean).join(" "),
+                  }))]}
+                  selectedValue={form.id_local}
+                  onSelect={(value) => setForm((prev) => ({ ...prev, id_local: value }))}
+                  disabled={!form.id_cliente}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+              )}
+              <span className="text-xs text-gray-400 italic">Si no se elige acá, se confirma al facturar la orden</span>
             </label>
 
             {/* Número OC */}
@@ -591,6 +628,20 @@ export default function AddOrdenVenta() {
               <span className="text-xs text-gray-400 italic">Obtenida automáticamente del cliente</span>
             </div>
 
+            {/* Comentario del cliente — instrucciones de despacho, horario, contacto. Reporte de
+                Hernán, 2026-08-17: un pedido web declaraba a qué LOCAL iba y no había dónde
+                guardarlo. Los pedidos web/EDI lo precargan solos; acá se puede agregar a mano. */}
+            <label className="flex flex-col gap-1 md:col-span-2">
+              <span className="text-sm font-medium text-gray-700">Comentario del cliente</span>
+              <textarea
+                name="comentario_cliente"
+                rows={2}
+                placeholder="Instrucciones de despacho, horario, con quién coordinar…"
+                value={form.comentario_cliente}
+                onChange={handleFieldChange}
+                className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-y"
+              />
+            </label>
           </div>
 
           {/* Orden referencial */}
