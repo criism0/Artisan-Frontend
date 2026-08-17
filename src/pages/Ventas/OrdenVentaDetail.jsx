@@ -711,35 +711,15 @@ export default function OrdenVentaDetail() {
     ], marginL, widthL, yL);
     const finLeft = yL;
 
-    // ── Columna derecha: totales con forma de factura, luego datos de pago ──
-    // Mismo criterio que el resumen en pantalla (DetalleTipoFactura.jsx): Neto/IVA alineados
-    // a la derecha, una regla, y el Total destacado — no un par label/valor más en la lista.
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(120);
-    doc.text("TOTALES", colR, 42);
-    doc.setTextColor(0);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text("Neto", colR, 50);
-    doc.text(formatCLP(totalNeto, 0), pageWidth - marginL, 50, { align: "right" });
-    doc.text("IVA (19%)", colR, 56);
-    doc.text(formatCLP(iva, 0), pageWidth - marginL, 56, { align: "right" });
-    doc.setLineWidth(0.3);
-    doc.line(colR, 60, pageWidth - marginL, 60);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("Total", colR, 67);
-    doc.text(formatCLP(total, 0), pageWidth - marginL, 67, { align: "right" });
-    doc.setFont("helvetica", "normal");
-
+    // ── Columna derecha: datos de pago. Los totales van ABAJO, después de la tabla — mismo
+    // lugar donde el resumen en pantalla (DetalleTipoFactura.jsx) los muestra, no acá arriba. ──
     const yR = addSection("Datos para pago", [
       ["RUT", COMPANY.rut],
       ["Razón Social", COMPANY.nombre],
       ["Cuenta Corriente", COMPANY.cuenta_corriente],
       ["Banco", COMPANY.banco],
       ["Enviar comprobante", COMPANY.contacto],
-    ], colR, widthR, 75);
+    ], colR, widthR, 42);
     const finRight = yR;
 
     let cursorY = Math.max(finLeft, finRight) + 2;
@@ -773,7 +753,10 @@ export default function OrdenVentaDetail() {
     );
     cursorY += 4;
 
-    // ── Tabla de líneas: las TRES cantidades (OC pedida, pickeada, unidades reales) ──
+    // ── Tabla de líneas — mismas columnas que el resumen en pantalla (DetalleTipoFactura.jsx):
+    // Cant. OC, Cant. Pickeada, Precio Unitario, Desc., Total Neto. Sin "Cant Uni": en cajas,
+    // Cant. OC y Cant. Pickeada YA se muestran en cajas, así que una tercera columna con la
+    // misma cantidad en unidades era redundante.
     const tableBody = orderItems.map((it) => {
       const productoNombre =
         it?.NombreFacturacion?.nombre || it?.ProductoBase?.nombre || `Producto #${it?.id_producto ?? "—"}`;
@@ -783,8 +766,8 @@ export default function OrdenVentaDetail() {
       const descuento = Number(it?.porcentaje_descuento || 0);
       const monto = cantidadPickeada * precio * (1 - descuento / 100);
 
-      // En cajas: "Cant. OC"/"Cant. Pick." se muestran en cajas y "Cant Uni" es el real en
-      // unidades — mismo criterio que la tabla del detalle (DetalleTipoFactura.jsx).
+      // En cajas: "Cant. OC"/"Cant. Pick." se muestran en cajas — mismo criterio que la tabla
+      // del detalle (DetalleTipoFactura.jsx).
       const cajaOC = enCajasPdf ? lineaEnCajas(cantidadPedida, precio, unidadesPorCajaDeLinea(it)) : null;
       const cajaPick = enCajasPdf ? lineaEnCajas(cantidadPickeada, precio, unidadesPorCajaDeLinea(it)) : null;
       const cantOcTexto = cajaOC?.cajas != null ? cajaOC.cajas.toLocaleString("es-CL") : cantidadPedida.toLocaleString("es-CL");
@@ -794,32 +777,51 @@ export default function OrdenVentaDetail() {
         productoNombre,
         cantOcTexto,
         cantPickTexto,
-        cantidadPedida.toLocaleString("es-CL"),
-        descuento > 0 ? `${descuento}%` : "—",
         formatCLP(precio, 0),
+        descuento > 0 ? `${descuento}%` : "—",
         formatCLP(monto, 0),
       ];
     });
 
     autoTable(doc, {
       startY: cursorY + 2,
-      head: [["Producto", "Cant. OC", "Cant. Pick.", "Cant Uni", "% Desc", "P. Neto", "Monto Neto"]],
+      head: [["Producto", "Cant. OC", "Cant. Pickeada", "Precio Unitario", "Desc.", "Total Neto"]],
       body: tableBody,
       theme: "grid",
       styles: { fontSize: 8.5, cellPadding: 1.8 },
       headStyles: { fillColor: [240, 240, 240], textColor: 0, halign: "center" },
       columnStyles: {
         1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" },
-        4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" },
+        4: { halign: "right" }, 5: { halign: "right" },
       },
     });
+
+    // ── Totales — abajo de la tabla, alineados a la derecha, misma forma que el resumen en
+    // pantalla: Neto e IVA livianos, una regla, Total destacado. ──
+    let yTot = doc.lastAutoTable.finalY + 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text("Neto", pageWidth - 60, yTot);
+    doc.text(formatCLP(totalNeto, 0), pageWidth - marginL, yTot, { align: "right" });
+    yTot += 6;
+    doc.text("IVA (19%)", pageWidth - 60, yTot);
+    doc.text(formatCLP(iva, 0), pageWidth - marginL, yTot, { align: "right" });
+    yTot += 3;
+    doc.setLineWidth(0.3);
+    doc.line(pageWidth - 60, yTot, pageWidth - marginL, yTot);
+    yTot += 7;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Total", pageWidth - 60, yTot);
+    doc.text(formatCLP(total, 0), pageWidth - marginL, yTot, { align: "right" });
+    doc.setFont("helvetica", "normal");
 
     doc.setFontSize(8);
     doc.setTextColor(120);
     doc.text(
       "Documento generado automáticamente — Artisan",
       pageWidth / 2,
-      doc.lastAutoTable.finalY + 8,
+      yTot + 10,
       { align: "center" },
     );
     doc.save(`Nota de venta #${orden.id}.pdf`);
