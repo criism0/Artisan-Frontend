@@ -984,11 +984,25 @@ function OVIACard({
   const opcionesDireccion = (direccionesDespacho.length > 0 ? direccionesDespacho : direccionesCliente).map(
     (d) => ({
       value: String(d.id),
-      label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero].filter(Boolean).join(" "), d.comuna]
+      label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna]
         .filter(Boolean)
         .join(" — "),
     }),
   );
+
+  // Sugerencia de dirección resuelta por `resolverDireccionCliente` a partir del texto del
+  // correo — mismo patrón que la sugerencia de producto: se ofrece con un "Aceptar", nunca se
+  // aplica sola. Sólo tiene sentido mientras no haya una dirección ya elegida.
+  const direccionSugerida = ov.direccionSugerida ?? null;
+  const simDireccionPct = ov.similitud_sugerencia_direccion != null
+    ? Math.round(ov.similitud_sugerencia_direccion * 100)
+    : null;
+  const labelDireccionSugerida = direccionSugerida
+    ? [direccionSugerida.nombre_sucursal || direccionSugerida.tipo_direccion,
+        [direccionSugerida.calle, direccionSugerida.numero, direccionSugerida.info_adicional].filter(Boolean).join(" "),
+        direccionSugerida.comuna]
+        .filter(Boolean).join(" — ")
+    : null;
 
   const handleCrearCliente = () => {
     navigate("/clientes/add", {
@@ -1189,6 +1203,31 @@ function OVIACard({
           <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 whitespace-pre-wrap">
             <span className="font-medium text-gray-500">Comentario del cliente: </span>
             {ov.comentario_cliente}
+          </div>
+        )}
+
+        {/* Sugerencia de dirección — resuelta del texto del correo contra las direcciones de
+            Despacho YA REGISTRADAS del cliente. No se aplica sola: hasta que se acepta, id_local
+            sigue vacío y el pedido se ve como si nadie hubiera dicho nada. */}
+        {clienteEfectivo && !idLocalSel && direccionSugerida && (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-700 truncate">
+                ¿Despacha a <strong>{labelDireccionSugerida}</strong>?{" "}
+                {simDireccionPct !== null && (
+                  <span className={simDireccionPct >= 80 ? "text-green-600 font-semibold" : "text-yellow-600 font-semibold"}>
+                    ({simDireccionPct}%)
+                  </span>
+                )}
+              </span>
+              <button
+                onClick={() => handleCambiarDireccion(String(direccionSugerida.id))}
+                disabled={guardandoDireccion}
+                className="shrink-0 flex items-center gap-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-0.5 rounded font-medium"
+              >
+                Aceptar
+              </button>
+            </div>
           </div>
         )}
 

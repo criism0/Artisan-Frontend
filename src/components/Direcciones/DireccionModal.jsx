@@ -27,9 +27,11 @@ export default function DireccionModal({
     nombre_sucursal: "",
     calle: "",
     numero: "",
+    info_adicional: "",
     comuna: "",
     region: "",
     tipo_recinto: "",
+    comentarios: "",
     es_principal: false
   });
   const [errors, setErrors] = useState({});
@@ -44,9 +46,11 @@ export default function DireccionModal({
           nombre_sucursal: direccion.nombre_sucursal || "",
           calle: direccion.calle || "",
           numero: direccion.numero || "",
+          info_adicional: direccion.info_adicional || "",
           comuna: direccion.comuna || "",
           region: direccion.region || "",
           tipo_recinto: direccion.tipo_recinto || "",
+          comentarios: direccion.comentarios || "",
           es_principal: direccion.es_principal || false
         });
       } else {
@@ -55,9 +59,11 @@ export default function DireccionModal({
           nombre_sucursal: "",
           calle: "",
           numero: "",
+          info_adicional: "",
           comuna: "",
           region: "",
           tipo_recinto: "",
+          comentarios: "",
           es_principal: false
         });
       }
@@ -265,6 +271,24 @@ export default function DireccionModal({
             )}
           </div>
 
+          {/* Info adicional — lo que calle+numero no capturan */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Local / Depto / Bodega (opcional)
+            </label>
+            <input
+              type="text"
+              name="info_adicional"
+              value={formData.info_adicional}
+              onChange={handleChange}
+              placeholder="Ej: Local 08, Piso -2 bodega 8"
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500 focus:outline-none border-gray-300"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Se imprime junto a la dirección en la guía y la factura.
+            </p>
+          </div>
+
           {/* Región */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -319,6 +343,21 @@ export default function DireccionModal({
                 Primero selecciona una región para habilitar las comunas.
               </p>
             )}
+          </div>
+
+          {/* Comentarios de la dirección — horario, metodología, con quién coordinar */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Horario / comentarios de esta dirección (opcional)
+            </label>
+            <textarea
+              name="comentarios"
+              value={formData.comentarios}
+              onChange={handleChange}
+              rows={2}
+              placeholder="Ej: Horario continuado 08:30-18:00, coordinar con conserjería"
+              className="w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500 focus:outline-none border-gray-300 resize-none"
+            />
           </div>
 
           {/* Es Principal */}

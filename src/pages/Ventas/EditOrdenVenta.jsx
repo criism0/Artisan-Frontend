@@ -23,6 +23,7 @@ export default function EditOrdenVenta() {
   const [loading, setLoading] = useState(true);
   const [orden, setOrden] = useState(null);
   const [bodegas, setBodegas] = useState([]);
+  const [direcciones, setDirecciones] = useState([]);
   // La OV se pide por nombre de facturación (agrupa productos físicos equivalentes)
   const [nombres, setNombres] = useState([]);
   const [preciosLista, setPreciosLista] = useState([]);
@@ -40,6 +41,7 @@ export default function EditOrdenVenta() {
     es_referencial: false,
     fecha_vencimiento_pago: "",
     comentario_cliente: "",
+    id_local: "",
   });
 
   const [productoForm, setProductoForm] = useState({
@@ -68,6 +70,7 @@ export default function EditOrdenVenta() {
           es_referencial: ord.es_referencial ?? false,
           fecha_vencimiento_pago: ord.fecha_vencimiento_pago ? String(ord.fecha_vencimiento_pago).slice(0, 10) : "",
           comentario_cliente: ord.comentario_cliente || "",
+          id_local: ord.id_local ? String(ord.id_local) : "",
         });
 
         const nombresData = Array.isArray(nombresRes) ? nombresRes : nombresRes?.data || [];
@@ -92,6 +95,7 @@ export default function EditOrdenVenta() {
               formato: cliData?.formato_compra_predeterminado || "UNIDADES",
               id_lista_precio: cliData?.id_lista_precio || null,
             });
+            setDirecciones(Array.isArray(cliData?.direcciones) ? cliData.direcciones : []);
             if (cliData?.id_lista_precio) {
               const listaRes = await api(`/lista-precio/${cliData.id_lista_precio}`);
               const listaData = listaRes?.data || listaRes;
@@ -331,6 +335,7 @@ export default function EditOrdenVenta() {
           // quien factura sólo la confirma. Vacía significa «al contado, sin vencimiento».
           fecha_vencimiento_pago: form.fecha_vencimiento_pago || null,
           comentario_cliente: form.comentario_cliente || null,
+          id_local: form.id_local ? Number(form.id_local) : null,
         }),
       });
 
@@ -376,6 +381,10 @@ export default function EditOrdenVenta() {
   const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
   const cliente = orden?.cliente || {};
   const condicionPago = orden?.condiciones;
+  const direccionesDespacho = (() => {
+    const soloDespacho = direcciones.filter((d) => d.tipo_direccion === "Despacho");
+    return soloDespacho.length > 0 ? soloDespacho : direcciones;
+  })();
 
   if (loading) return <PageLoader message="Cargando orden" />;
   if (!orden) return <div className="min-h-[60vh] flex items-center justify-center text-gray-500">No se encontró la orden.</div>;
@@ -407,6 +416,27 @@ export default function EditOrdenVenta() {
               </div>
               <span className="text-xs text-gray-400 italic">El cliente no se puede cambiar en edición</span>
             </div>
+
+            {/* Dirección de despacho — sí es editable, a diferencia del cliente */}
+            <label className="flex flex-col gap-1 col-span-2">
+              <span className="text-sm font-medium text-gray-700">Dirección de despacho</span>
+              {direccionesDespacho.length === 0 ? (
+                <span className="text-xs text-amber-600">
+                  Este cliente no tiene direcciones de Despacho registradas.
+                </span>
+              ) : (
+                <Selector
+                  options={[{ value: "", label: "— Se confirma al facturar —" }, ...direccionesDespacho.map((d) => ({
+                    value: String(d.id),
+                    label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna].filter(Boolean).join(" — "),
+                    searchText: [d.nombre_sucursal, d.calle, d.numero, d.comuna].filter(Boolean).join(" "),
+                  }))]}
+                  selectedValue={form.id_local}
+                  onSelect={(value) => setForm((f) => ({ ...f, id_local: value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+              )}
+            </label>
 
             {/* Número OC */}
             <label className="flex flex-col gap-1">

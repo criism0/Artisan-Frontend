@@ -60,7 +60,7 @@ export default function DetalleTipoFactura({
     const base = despacho.length > 0 ? despacho : direccionesDespacho;
     return base.map((d) => ({
       value: String(d.id),
-      label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero].filter(Boolean).join(" "), d.comuna]
+      label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna]
         .filter(Boolean)
         .join(" — "),
     }));
@@ -125,6 +125,7 @@ export default function DetalleTipoFactura({
                 <div className="text-xs text-gray-600">
                   {[direccion.nombre_sucursal || direccion.tipo_direccion].filter(Boolean).join(" — ")}
                   {direccion.calle ? ` · ${direccion.calle} ${direccion.numero || ""}` : ""}
+                  {direccion.info_adicional ? ` (${direccion.info_adicional})` : ""}
                   {direccion.comuna ? `, ${direccion.comuna}` : ""}
                 </div>
               ) : (
@@ -142,6 +143,12 @@ export default function DetalleTipoFactura({
                 </button>
               )}
             </div>
+          )}
+
+          {/* Horario/metodología DE ESA DIRECCIÓN (Direcciones.comentarios) — distinto del
+              comentario del cliente sobre el pedido, que va abajo. */}
+          {!editandoDireccion && direccion?.comentarios && (
+            <div className="text-xs text-gray-500 mt-0.5 italic">{direccion.comentarios}</div>
           )}
 
           {/* Lo que el cliente escribió al pedir. Reporte de Hernán, 2026-08-17: un pedido web

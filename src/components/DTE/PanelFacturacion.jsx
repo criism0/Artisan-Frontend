@@ -111,11 +111,20 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
 
   const facturaEmitida = documentos.find(d => d.tipoDte === 33 && d.estadoSii !== 'anulado');
   const guiaEmitida    = documentos.find(d => d.tipoDte === 52 && d.estadoSii !== 'anulado');
-  const ncEmitida      = documentos.find(d => d.tipoDte === 61);
-  const ndEmitida      = documentos.find(d => d.tipoDte === 56);
+
+  // 🔴 ALTERNANCIA RECURSIVA: tras facturar sólo una Nota de Crédito; tras esa NC sólo una Nota
+  // de Débito; tras esa ND sólo otra NC — y así sucesivamente (pedido de Cristóbal, 2026-08-17).
+  // Antes `ncEmitida`/`ndEmitida` buscaban CUALQUIER NC/ND de la orden sin filtrar anuladas —
+  // una NC anulada dejaba el botón "Nota de Crédito" deshabilitado para siempre— y sólo
+  // permitían una de cada una, sin importar el orden cronológico entre ellas.
+  const ultimaCorreccion = documentos
+    .filter(d => (d.tipoDte === 61 || d.tipoDte === 56) && d.estadoSii !== 'anulado')
+    .sort((a, b) => new Date(b.fechaEmision ?? 0) - new Date(a.fechaEmision ?? 0))[0] ?? null;
 
   // ── Guards de acciones secundarias ──
-  const puedeEmitirGD = !guiaEmitida && estadoIncludes(estado, 'pend', 'asig', 'list', 'listo', 'factur');
+  // Una orden facturada ya no emite Guía de Despacho: la factura reemplaza a la guía como
+  // documento de despacho (mismo pedido; el backend aplica la misma regla en payloadGuiaVenta).
+  const puedeEmitirGD = !guiaEmitida && !facturaEmitida && estadoIncludes(estado, 'pend', 'asig', 'list', 'listo', 'factur');
 
   // 🔴 EL BOTÓN "EMITIR FACTURA" SOBRE UNA ORDEN YA FACTURADA SE RETIRÓ (2026-08-12).
   //
@@ -135,8 +144,8 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
   const facturadaSinDocumento =
     !facturaEmitida && estadoIncludes(estado, 'facturada', 'entregada');
 
-  const puedeEmitirNC = !!facturaEmitida && !ncEmitida;
-  const puedeEmitirND = !!facturaEmitida && !ndEmitida;
+  const puedeEmitirNC = !!facturaEmitida && (!ultimaCorreccion || ultimaCorreccion.tipoDte === 56);
+  const puedeEmitirND = !!facturaEmitida && !!ultimaCorreccion && ultimaCorreccion.tipoDte === 61;
 
   // ── Chip documental del header ──
   const chipDocumental = facturaEmitida
@@ -286,7 +295,7 @@ export default function PanelFacturacion({ orden, accionPrincipal = null }) {
 
         {puedeEmitirND && (
           <button
-            onClick={() => handleAbrirND(facturaEmitida)}
+            onClick={() => handleAbrirND(ultimaCorreccion)}
             disabled={preEmitiendo}
             className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-50"
           >
