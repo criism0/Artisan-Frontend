@@ -29,7 +29,7 @@ import Selector from "../../components/Forms/Selector";
 import AvanceItems from "../../components/AvanceItems";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 import { mensajeError } from "../../utils/mensajeError.js";
-import { derivarFolioOC, vencimientoPorDefecto, diasCreditoDe } from "../../utils/referenciaOC.js";
+import { derivarFolioOC, esVentaAPlazo, origenVencimiento } from "../../utils/referenciaOC.js";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -129,6 +129,8 @@ function FacturarForm({
   setFechaFacturacion,
   fechaVencimiento,
   setFechaVencimiento,
+  origenFecha,
+  setOrigenFecha,
   requiereDir = false,
 }) {
   // Lo que va a salir impreso como referencia. Se muestra, no se edita: es el `numero_oc` de la
@@ -138,7 +140,8 @@ function FacturarForm({
   // ¿La venta es a plazo? Se mira la condición de la ORDEN —que el pedido EDI del retail trae
   // declarada— y, si no la hay, la de la ficha del cliente. Sirve para distinguir «no lleva
   // vencimiento porque es al contado» de «falta ponerle la fecha».
-  const esAPlazo = diasCreditoDe(condicionPago) != null || diasCreditoDe(condicionCliente) != null;
+  const esAPlazo = esVentaAPlazo(condicionPago) || esVentaAPlazo(condicionCliente);
+  const glosaFecha = condicionPago || condicionCliente || null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -231,22 +234,40 @@ function FacturarForm({
         <input
           type="date"
           value={fechaVencimiento}
-          onChange={(e) => setFechaVencimiento(e.target.value)}
+          onChange={(e) => {
+            setFechaVencimiento(e.target.value);
+            // Escrita a mano deja de ser «la que propuso el sistema». Decirlo evita que alguien
+            // lea una fecha tecleada como si viniera de la condición del cliente.
+            setOrigenFecha("manual");
+          }}
           className={inputCls}
         />
+        {/* 🔴 DE DÓNDE SALIÓ LA FECHA. El número solo no dice si alguien la decidió para esta
+            orden o si el sistema la dedujo de la ficha del cliente, y eso es justo lo que hay
+            que saber al confirmarla antes de emitir. Mismo criterio que `OrigenPrecio`. */}
         {fechaVencimiento ? (
-          <span className="text-xs text-gray-400 italic">
-            Sale en la factura como vencimiento y como pago programado.
-            {condicionPago ? ` Condición de la orden: ${condicionPago}.` : ""}
+          <span className="text-xs text-gray-500">
+            {origenFecha === "orden" && "Guardada en esta orden. "}
+            {origenFecha === "condicion_orden" && (
+              <>Calculada desde la condición del <strong>documento del cliente</strong>
+                {condicionPago ? ` (${condicionPago})` : ""}. </>
+            )}
+            {origenFecha === "condicion_cliente" && (
+              <>Calculada desde la condición de la <strong>ficha del cliente</strong>
+                {condicionCliente ? ` (${condicionCliente})` : ""}. </>
+            )}
+            {origenFecha === "manual" && "Escrita a mano. "}
+            <span className="text-gray-400 italic">
+              Sale en la factura como vencimiento y como pago programado.
+            </span>
           </span>
         ) : esAPlazo ? (
-          // 🔴 Vacío no siempre significa contado. Si la orden o el cliente dicen que es a
-          // plazo, que la factura salga sin vencimiento es un dato que falta, no una decisión.
-          // No bloquea —hay ventas que se facturan igual— pero tiene que verse antes de emitir.
+          // Vacío no siempre significa contado: si es a plazo, la factura sin vencimiento es un
+          // dato que falta, no una decisión. No bloquea, pero tiene que verse antes de emitir.
           <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
             Esta venta es <strong>a plazo</strong>
-            {condicionPago ? ` (${condicionPago})` : ""} y no tiene fecha de pago. La factura
-            saldrá <strong>sin vencimiento</strong>, que es lo que el cliente usa para pagar.
+            {glosaFecha ? ` (${glosaFecha})` : ""} y no tiene fecha de pago. La factura saldrá
+            <strong> sin vencimiento</strong>, que es lo que el cliente usa para pagar.
           </span>
         ) : (
           <span className="text-xs text-gray-400 italic">
@@ -309,6 +330,7 @@ export default function OrdenVentaDetail() {
   const [tab, setTab] = useState("detalle");
   const [fechaFacturacion, setFechaFacturacion] = useState("");
   const [fechaVencimiento, setFechaVencimiento] = useState("");
+  const [origenFecha, setOrigenFecha] = useState("contado");
   const [costoEnvio, setCostoEnvio] = useState("");
   const [fechaEnvio, setFechaEnvio] = useState("");
   const [direccionesCliente, setDireccionesCliente] = useState([]);
@@ -719,14 +741,17 @@ export default function OrdenVentaDetail() {
           // La fecha de pago se propone desde la condición del cliente, y sólo cuando se puede
           // leer con certeza. Lo que ya tenga la orden manda: alguien la escribió a propósito.
           const hoy = new Date().toISOString().slice(0, 10);
-          setFechaVencimiento(
-            orden?.fecha_vencimiento_pago
-              ? String(orden.fecha_vencimiento_pago).slice(0, 10)
-              // La condición de la ORDEN primero: el pedido EDI del retail la trae declarada y
-              // eso es lo que el cliente acaba de pedir. La ficha es el respaldo.
-              : vencimientoPorDefecto(fechaFacturacion || hoy, orden?.condiciones)
-                || vencimientoPorDefecto(fechaFacturacion || hoy, cliente?.condicion_pago),
-          );
+          // La precedencia es la MISMA que aplica el backend al emitir: lo guardado en la orden
+          // manda, después la condición del documento del cliente, y al final su ficha. Si la
+          // pantalla propusiera una y el documento saliera con otra, nadie se entera.
+          const { fecha, origen } = origenVencimiento({
+            guardadoEnOrden: orden?.fecha_vencimiento_pago,
+            condicionOrden: orden?.condiciones,
+            condicionCliente: cliente?.condicion_pago,
+            fechaEmision: fechaFacturacion || hoy,
+          });
+          setFechaVencimiento(fecha);
+          setOrigenFecha(origen);
           setShowFacturarForm(true);
         },
         disabled: transitioning,
@@ -1025,6 +1050,8 @@ export default function OrdenVentaDetail() {
           setFechaFacturacion={setFechaFacturacion}
           fechaVencimiento={fechaVencimiento}
           setFechaVencimiento={setFechaVencimiento}
+          origenFecha={origenFecha}
+          setOrigenFecha={setOrigenFecha}
           requiereDir={!orden?.id_local}
         />
       </Modal>

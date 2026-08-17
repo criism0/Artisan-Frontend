@@ -60,6 +60,23 @@ export function diasCreditoDe(condicionPago) {
 }
 
 /**
+ * ¿La venta es a plazo, aunque no sepamos a cuántos días?
+ *
+ * 🔴 NO ES LO MISMO QUE `diasCreditoDe(...) != null`, y ahí estaba el hueco: «Credito» a secas
+ * o «50% Contado; 50% 30 dias» no permiten calcular una fecha, pero **sí dicen que la venta es
+ * a plazo**. Tratarlas como contado hacía desaparecer justo el aviso que más falta hace —
+ * cuando el sistema no puede proponer la fecha y alguien tiene que escribirla.
+ *
+ * Espejo de `interpretarCondicionPago` del backend, que ya distinguía los dos casos.
+ */
+export function esVentaAPlazo(condicionPago) {
+  const texto = normalizar(condicionPago ?? "");
+  if (!texto) return false;
+  if (texto.includes("contado") && !texto.includes("%")) return false;
+  return texto.includes("credito") || texto.includes("%") || diasCreditoDe(condicionPago) != null;
+}
+
+/**
  * La fecha de vencimiento por defecto, en `YYYY-MM-DD`, o `""` si no se pudo derivar.
  *
  * 🔴 La cuenta va en UTC sobre los componentes de la fecha, igual que en el backend.
@@ -77,4 +94,31 @@ export function vencimientoPorDefecto(fechaEmision, condicionPago) {
   if (!m) return "";
   const vence = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + dias));
   return vence.toISOString().slice(0, 10);
+}
+
+/**
+ * De dónde sale la fecha de pago que se está mostrando, y cuál es.
+ *
+ * 🔴 EL NÚMERO SOLO NO ALCANZA. Una fecha en el campo puede ser algo que alguien decidió para
+ * esta orden o algo que el sistema dedujo de la ficha del cliente, y no son lo mismo a la hora
+ * de confirmarla antes de emitir. Es el mismo criterio que `OrigenPrecio` en la Cola IA.
+ *
+ * El orden de precedencia es el del backend, a propósito: **lo guardado en la orden manda**,
+ * después la condición del documento del cliente, y al final la ficha.
+ */
+export function origenVencimiento({ guardadoEnOrden, condicionOrden, condicionCliente, fechaEmision }) {
+  if (guardadoEnOrden) {
+    return { fecha: String(guardadoEnOrden).slice(0, 10), origen: "orden", glosa: null };
+  }
+  const deOrden = vencimientoPorDefecto(fechaEmision, condicionOrden);
+  if (deOrden) return { fecha: deOrden, origen: "condicion_orden", glosa: condicionOrden };
+
+  const deCliente = vencimientoPorDefecto(fechaEmision, condicionCliente);
+  if (deCliente) return { fecha: deCliente, origen: "condicion_cliente", glosa: condicionCliente };
+
+  // Sin fecha: distinguir «es al contado» de «es a plazo y falta el dato» es lo que decide si
+  // esto es correcto o es un aviso. Se usa `esVentaAPlazo`, no los días: «Credito» a secas no
+  // permite calcular la fecha pero sí dice que la venta es a plazo.
+  const aPlazo = esVentaAPlazo(condicionOrden) || esVentaAPlazo(condicionCliente);
+  return { fecha: "", origen: aPlazo ? "falta" : "contado", glosa: condicionOrden || condicionCliente || null };
 }
