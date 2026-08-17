@@ -434,10 +434,13 @@ export default function AddClientes() {
               </label>
               {/* Son dos valores fijos del enum, no una lista que se busque: un desplegable
                   simple. Antes era un combobox con texto libre encima de las mismas 2 opciones. */}
+              {/* El mismo estilo que el canal y la lista de precios, que van a su lado en la
+                  misma grilla: `Selector` no trae borde propio, sólo aplica el className. */}
               <Selector
                 options={FORMATOS_COMPRA}
                 selectedValue={selectedTipoPrecio}
                 onSelect={setSelectedTipoPrecio}
+                className="border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
               <p className="text-xs text-gray-500 mt-1">
                 Cómo pide y recibe este cliente. Las órdenes nuevas nacen con este formato y se
