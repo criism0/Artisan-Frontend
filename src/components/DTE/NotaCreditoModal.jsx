@@ -18,6 +18,7 @@ import { X } from 'lucide-react';
 import { dteService } from '../../services/dteService.js';
 import { toast } from '../../lib/toast.js';
 import { formatCLP } from '../../services/formatHelpers.js';
+import { cantidadFacturable } from '../../utils/cantidadFacturable.js';
 
 const COD_REF_OPTIONS = [
   { value: 3, label: 'Rebaja parcial / merma — folio sigue existiendo, monto baja' },
@@ -30,12 +31,17 @@ export default function NotaCreditoModal({ dte, orden, onClose, onSuccess }) {
   const [razon,    setRazon]    = useState('');
   const [loading,  setLoading]  = useState(false);
 
-  // Items de la orden para seleccionar cuáles devolver
+  // Items de la orden para seleccionar cuáles devolver.
+  //
+  // 🔴 El tope es lo que dice la FACTURA, no lo que decía el pedido. Desde que el documento se
+  // emite por lo pickeado (2026-08-17), una orden despachada a medias tiene la factura por menos
+  // que la orden: ofrecer devolver lo pedido dejaría emitir una nota de crédito por MÁS de lo
+  // que se cobró.
   const itemsOrden = (orden?.productos ?? []).map((it, idx) => ({
     id: it.id_producto ?? it.id ?? idx,
     nombre: it?.ProductoBase?.nombre ?? `Producto #${it.id_producto ?? idx + 1}`,
-    cantidadMax: Number(it.cantidad ?? 0),
-    cantidadDevuelta: Number(it.cantidad ?? 0),
+    cantidadMax: cantidadFacturable(it),
+    cantidadDevuelta: cantidadFacturable(it),
     unidad: 'un',
     precioUnitario: Number(it.precio_venta ?? 0),
     seleccionado: false,
