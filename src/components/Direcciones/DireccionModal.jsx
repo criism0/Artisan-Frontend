@@ -11,7 +11,8 @@ const tiposDireccion = [
 const tiposRecinto = [
   { value: "DEPARTAMENTO", label: "Depto" },
   { value: "OFICINA", label: "Oficina" },
-  { value: "BODEGA", label: "Bodega" }
+  { value: "BODEGA", label: "Bodega" },
+  { value: "SUCURSAL", label: "Sucursal" }
 ];
 
 export default function DireccionModal({ 
@@ -32,7 +33,8 @@ export default function DireccionModal({
     region: "",
     tipo_recinto: "",
     comentarios: "",
-    es_principal: false
+    es_principal: false,
+    es_principal_facturacion: false
   });
   const [errors, setErrors] = useState({});
   const [regiones, setRegiones] = useState([]);
@@ -51,7 +53,8 @@ export default function DireccionModal({
           region: direccion.region || "",
           tipo_recinto: direccion.tipo_recinto || "",
           comentarios: direccion.comentarios || "",
-          es_principal: direccion.es_principal || false
+          es_principal: direccion.es_principal || false,
+          es_principal_facturacion: direccion.es_principal_facturacion || false
         });
       } else {
         setFormData({
@@ -64,7 +67,8 @@ export default function DireccionModal({
           region: "",
           tipo_recinto: "",
           comentarios: "",
-          es_principal: false
+          es_principal: false,
+          es_principal_facturacion: false
         });
       }
       setErrors({});
@@ -84,10 +88,7 @@ export default function DireccionModal({
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
-    if (name === 'es_principal' && checked) {
-    }
-    
+
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
@@ -360,7 +361,7 @@ export default function DireccionModal({
             />
           </div>
 
-          {/* Es Principal */}
+          {/* Es Principal — un solo flag por cliente, sin distinguir tipo (histórico). */}
           <div className="space-y-2">
             <div className="flex items-center">
               <input
@@ -371,15 +372,39 @@ export default function DireccionModal({
                 className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
               />
               <label className="ml-2 block text-sm text-gray-700">
-                Dirección de despacho principal
+                Dirección principal del cliente
               </label>
             </div>
             {formData.es_principal && (
               <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                ℹ️ Al marcar esta dirección como principal, se desmarcarán automáticamente otras direcciones principales del cliente.
+                Al marcar esta dirección como principal, se desmarcarán automáticamente otras direcciones principales del cliente.
               </p>
             )}
           </div>
+
+          {/* Predeterminada de FACTURACIÓN — sólo tiene sentido en direcciones de ese tipo.
+              Se precarga sola al crear una OV manual o desde la Cola IA. */}
+          {formData.tipo_direccion === "Facturación" && (
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="es_principal_facturacion"
+                  checked={formData.es_principal_facturacion}
+                  onChange={handleChange}
+                  className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                />
+                <label className="ml-2 block text-sm text-gray-700">
+                  Dirección de facturación predeterminada
+                </label>
+              </div>
+              {formData.es_principal_facturacion && (
+                <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
+                  Se precargará sola al crear una orden de venta para este cliente.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Botones */}
           <div className="flex justify-end space-x-3 pt-4">

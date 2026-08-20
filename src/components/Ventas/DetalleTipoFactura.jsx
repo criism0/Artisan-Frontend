@@ -1,5 +1,3 @@
-import { useState } from "react";
-import { MapPin, MessageSquare, Pencil } from "lucide-react";
 import { formatCLP } from "../../services/formatHelpers";
 import { lineaEnCajas, esFormatoCajas, unidadesPorCajaDeLinea } from "../../utils/formatoCantidad";
 import {
@@ -7,180 +5,32 @@ import {
   tieneDiferenciaDePicking,
   hayPickingRegistrado,
 } from "../../utils/cantidadFacturable";
-import Selector from "../Forms/Selector";
 
 /**
- * El detalle de una orden de venta con forma de documento tributario.
+ * Las líneas de la orden y sus totales — la forma de documento tributario.
  *
- * 🔴 POR QUÉ ESTA FORMA Y NO UNA TABLA MÁS. Antes «Resumen» y «Productos» eran dos pestañas: los
- * datos del receptor en una, las líneas en otra, y los totales REPETIDOS en las dos (la tarjeta
- * TOTAL de arriba y una línea al pie del resumen). Para cuadrar un monto había que saltar de
- * pestaña, y si los dos números alguna vez difieren nadie sabe cuál creer.
- *
- * Una factura resuelve eso hace siglos: receptor arriba, líneas al medio, totales abajo a la
- * derecha, una sola vez. Además es la forma en que el operario va a ver el documento emitido, así
- * que mirar la orden y mirar la factura dejan de ser dos lecturas distintas.
+ * Sólo esto: quién es el cliente, sus direcciones y las fechas de la orden viven en
+ * `InformacionOrdenCliente`, en su propia tarjeta arriba. Antes estaban acá TAMBIÉN, y además
+ * repetidas en la fila de stat-cards de la página — el número de OC llegaba a salir dos veces
+ * en la misma pantalla. Reporte de Cristóbal, 2026-08-20.
  */
 export default function DetalleTipoFactura({
   orden,
   lineas,
-  direccion,
   totalNeto,
   iva,
   total,
   costoEnvio,
-  formatDate,
   netoPedido,
-  // Dirección de despacho: editable en cualquier estado anterior a Entregada, no sólo al
-  // facturar. Ver OrdenVentaDetail.jsx — `abrirEdicionDireccion`/`guardarDireccionDespacho`.
-  direccionesDespacho = [],
-  editandoDireccion = false,
-  loadingDirecciones = false,
-  guardandoDireccion = false,
-  puedeEditarDireccion = true,
-  onEmpezarEdicionDireccion,
-  onCancelarEdicionDireccion,
-  onGuardarDireccion,
-  // Lo que el cliente escribió al pedir — instrucciones de despacho, horario, contacto.
-  comentarioCliente = null,
 }) {
-  const cliente = orden?.cliente ?? direccion?.cliente ?? null;
   const enCajas = esFormatoCajas(orden?.formato_cantidad);
   // La columna de pickeado sólo aparece si alguna línea se pickeó. En una orden sin picking
   // registrado —el caso normal— la tabla queda exactamente como estaba.
   const conPicking = hayPickingRegistrado(lineas);
   const columnas = conPicking ? 6 : 5;
 
-  const [seleccion, setSeleccion] = useState("");
-
-  // Las direcciones de DESPACHO del cliente primero —es lo que este selector decide—; si no
-  // tiene ninguna registrada como tal, se ofrecen todas antes que dejar el selector vacío.
-  const opcionesDireccion = (() => {
-    const despacho = direccionesDespacho.filter((d) => d.tipo_direccion === "Despacho");
-    const base = despacho.length > 0 ? despacho : direccionesDespacho;
-    return base.map((d) => ({
-      value: String(d.id),
-      label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna]
-        .filter(Boolean)
-        .join(" — "),
-    }));
-  })();
-
   return (
     <div className="bg-white rounded-lg shadow border border-border overflow-hidden">
-      {/* ── Cabecera del documento: quién y cuándo ───────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border-b border-border">
-        <div className="md:col-span-2">
-          <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Cliente</div>
-          <div className="font-semibold text-text mt-0.5">
-            {cliente?.razon_social || cliente?.nombre_empresa || (
-              <span className="text-gray-400 italic">Sin cliente asignado</span>
-            )}
-          </div>
-          <div className="text-xs text-gray-600 mt-0.5">
-            {cliente?.rut ? `RUT ${cliente.rut}` : ""}
-            {cliente?.giro ? ` · ${cliente.giro}` : ""}
-          </div>
-
-          <div className="text-xs text-gray-500 font-medium uppercase tracking-wide mt-3 flex items-center gap-1">
-            <MapPin className="w-3 h-3" />
-            Dirección de despacho
-          </div>
-          {editandoDireccion ? (
-            <div className="mt-1 flex flex-col gap-1.5 max-w-sm">
-              {loadingDirecciones ? (
-                <span className="text-xs text-gray-400">Cargando direcciones del cliente…</span>
-              ) : opcionesDireccion.length === 0 ? (
-                <span className="text-xs text-amber-700">
-                  Este cliente no tiene direcciones registradas. Se agregan desde su ficha.
-                </span>
-              ) : (
-                <Selector
-                  options={opcionesDireccion}
-                  selectedValue={seleccion || (direccion ? String(direccion.id) : "")}
-                  onSelect={setSeleccion}
-                  className="border border-border rounded-lg px-3 py-1.5 text-xs text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                />
-              )}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => onGuardarDireccion?.(seleccion)}
-                  disabled={guardandoDireccion || !seleccion}
-                  className="text-xs bg-primary text-white px-2.5 py-1 rounded-md hover:bg-hover disabled:opacity-50"
-                >
-                  {guardandoDireccion ? "Guardando…" : "Guardar"}
-                </button>
-                <button
-                  onClick={onCancelarEdicionDireccion}
-                  disabled={guardandoDireccion}
-                  className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-start gap-1.5 mt-0.5">
-              {direccion ? (
-                <div className="text-xs text-gray-600">
-                  {[direccion.nombre_sucursal || direccion.tipo_direccion].filter(Boolean).join(" — ")}
-                  {direccion.calle ? ` · ${direccion.calle} ${direccion.numero || ""}` : ""}
-                  {direccion.info_adicional ? ` (${direccion.info_adicional})` : ""}
-                  {direccion.comuna ? `, ${direccion.comuna}` : ""}
-                </div>
-              ) : (
-                <span className="inline-block text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
-                  Sin asignar — se confirma al facturar si no se elige antes
-                </span>
-              )}
-              {puedeEditarDireccion && onEmpezarEdicionDireccion && (
-                <button
-                  onClick={onEmpezarEdicionDireccion}
-                  className="text-gray-400 hover:text-primary shrink-0"
-                  title={direccion ? "Cambiar dirección" : "Asignar dirección"}
-                >
-                  <Pencil className="w-3 h-3" />
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Horario/metodología DE ESA DIRECCIÓN (Direcciones.comentarios) — distinto del
-              comentario del cliente sobre el pedido, que va abajo. */}
-          {!editandoDireccion && direccion?.comentarios && (
-            <div className="text-xs text-gray-500 mt-0.5 italic">{direccion.comentarios}</div>
-          )}
-
-          {/* Lo que el cliente escribió al pedir. Reporte de Hernán, 2026-08-17: un pedido web
-              declaraba a qué LOCAL iba —de 3 posibles bajo el mismo RUT— y esta era la única
-              parte del sistema que lo tenía, sin mostrarlo. */}
-          {comentarioCliente && (
-            <>
-              <div className="text-xs text-gray-500 font-medium uppercase tracking-wide mt-3 flex items-center gap-1">
-                <MessageSquare className="w-3 h-3" />
-                Comentario del cliente
-              </div>
-              <div className="text-xs text-gray-600 mt-0.5 whitespace-pre-wrap">{comentarioCliente}</div>
-            </>
-          )}
-        </div>
-
-        <div className="text-sm md:text-right">
-          <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Fechas</div>
-          <div className="text-xs text-gray-600 mt-0.5">Emisión: {formatDate(orden?.fecha_orden)}</div>
-          <div className="text-xs text-gray-600">Despacho: {formatDate(orden?.fecha_envio)}</div>
-          <div className="text-xs text-gray-600">Facturación: {formatDate(orden?.fecha_facturacion)}</div>
-          {orden?.numero_oc && (
-            <>
-              <div className="text-xs text-gray-500 font-medium uppercase tracking-wide mt-3">
-                OC del cliente
-              </div>
-              <div className="text-xs font-mono text-gray-700 mt-0.5">{orden.numero_oc}</div>
-            </>
-          )}
-        </div>
-      </div>
-
       {/* ── Líneas ───────────────────────────────────────────────────────────── */}
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">

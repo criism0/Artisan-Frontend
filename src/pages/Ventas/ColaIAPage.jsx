@@ -911,6 +911,15 @@ function OVIACard({
   // dirección era el modal de Facturar, muy después de que logística ya necesita saberlo.
   const [idLocalSel, setIdLocalSel] = useState(ovInicial.id_local ? String(ovInicial.id_local) : "");
   const [guardandoDireccion, setGuardandoDireccion] = useState(false);
+  // Dirección de facturación — separada de la de despacho de arriba (pedido de Cristóbal,
+  // 2026-08-20). Mismo patrón: se guarda al instante, y también puede llegar sugerida por la IA.
+  const [idLocalFacturacionSel, setIdLocalFacturacionSel] = useState(
+    ovInicial.id_local_facturacion ? String(ovInicial.id_local_facturacion) : "",
+  );
+  const [guardandoDireccionFacturacion, setGuardandoDireccionFacturacion] = useState(false);
+  // Evita repetir el precargado de la predeterminada en cada re-render de la tarjeta — sólo
+  // tiene que intentarlo una vez por orden, no cada vez que cambia cualquier otro estado.
+  const precargaFacturacionHecha = useRef(false);
   const [productosExpandido, setProductosExpandido] = useState(false);
   const log = ov.ai_log;
 
@@ -923,7 +932,7 @@ function OVIACard({
         method: "PUT",
         body: { es_referencial: nuevoValor },
       });
-    } catch (err) {
+    } catch {
       setEsReferencial(!nuevoValor);
       toast.error("No se pudo actualizar el modo referencial");
     } finally {
@@ -947,6 +956,23 @@ function OVIACard({
       toast.error("No se pudo guardar la dirección de despacho");
     } finally {
       setGuardandoDireccion(false);
+    }
+  };
+
+  const handleCambiarDireccionFacturacion = async (valor) => {
+    const anterior = idLocalFacturacionSel;
+    setIdLocalFacturacionSel(valor);
+    setGuardandoDireccionFacturacion(true);
+    try {
+      await api(`/ordenes-venta/${ov.id}`, {
+        method: "PUT",
+        body: { id_local_facturacion: valor ? Number(valor) : null },
+      });
+    } catch {
+      setIdLocalFacturacionSel(anterior);
+      toast.error("No se pudo guardar la dirección de facturación");
+    } finally {
+      setGuardandoDireccionFacturacion(false);
     }
   };
 
@@ -1003,6 +1029,43 @@ function OVIACard({
         direccionSugerida.comuna]
         .filter(Boolean).join(" — ")
     : null;
+
+  // Dirección de FACTURACIÓN, separada de la de despacho de arriba. Mismo criterio: las
+  // opciones son del cliente que va a QUEDAR, y "Facturación" primero con fallback a todas.
+  const direccionesFacturacion = direccionesCliente.filter((d) => d.tipo_direccion === "Facturación");
+  const opcionesDireccionFacturacion = (
+    direccionesFacturacion.length > 0 ? direccionesFacturacion : direccionesCliente
+  ).map((d) => ({
+    value: String(d.id),
+    label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna]
+      .filter(Boolean)
+      .join(" — "),
+  }));
+
+  const direccionSugeridaFacturacion = ov.direccionFacturacionSugerida ?? null;
+  const simDireccionFacturacionPct = ov.similitud_sugerencia_direccion_facturacion != null
+    ? Math.round(ov.similitud_sugerencia_direccion_facturacion * 100)
+    : null;
+  const labelDireccionSugeridaFacturacion = direccionSugeridaFacturacion
+    ? [direccionSugeridaFacturacion.nombre_sucursal || direccionSugeridaFacturacion.tipo_direccion,
+        [direccionSugeridaFacturacion.calle, direccionSugeridaFacturacion.numero, direccionSugeridaFacturacion.info_adicional].filter(Boolean).join(" "),
+        direccionSugeridaFacturacion.comuna]
+        .filter(Boolean).join(" — ")
+    : null;
+
+  // Precarga silenciosa de la dirección de facturación PREDETERMINADA del cliente — mismo
+  // criterio que AddOrdenVenta.jsx. Sólo cuando no hay nada ya elegido ni sugerido por la IA:
+  // una sugerencia del propio correo es más específica que el default del cliente, así que no
+  // se pisa. Corre una sola vez por orden (precargaFacturacionHecha), no en cada render.
+  useEffect(() => {
+    if (precargaFacturacionHecha.current) return;
+    if (!clienteEfectivo || idLocalFacturacionSel || direccionSugeridaFacturacion) return;
+    const predeterminada = direccionesFacturacion.find((d) => d.es_principal_facturacion);
+    if (!predeterminada) return;
+    precargaFacturacionHecha.current = true;
+    handleCambiarDireccionFacturacion(String(predeterminada.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteEfectivo, direccionesFacturacion, idLocalFacturacionSel, direccionSugeridaFacturacion]);
 
   const handleCrearCliente = () => {
     navigate("/clientes/add", {
@@ -1246,6 +1309,52 @@ function OVIACard({
                 selectedValue={idLocalSel}
                 onSelect={handleCambiarDireccion}
                 disabled={guardandoDireccion || procesando}
+                className="border border-gray-300 rounded-lg px-2 py-1 text-xs flex-1 min-w-0"
+              />
+            )}
+          </div>
+        )}
+
+        {/* Sugerencia de dirección de FACTURACIÓN — mismo mecanismo que la de despacho arriba,
+            resuelta del texto del correo. Poco frecuente (la facturación suele ser fija por
+            cliente) pero cuando el correo la menciona explícita, vale la pena ofrecerla. */}
+        {clienteEfectivo && !idLocalFacturacionSel && direccionSugeridaFacturacion && (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-700 truncate">
+                ¿Factura a <strong>{labelDireccionSugeridaFacturacion}</strong>?{" "}
+                {simDireccionFacturacionPct !== null && (
+                  <span className={simDireccionFacturacionPct >= 80 ? "text-green-600 font-semibold" : "text-yellow-600 font-semibold"}>
+                    ({simDireccionFacturacionPct}%)
+                  </span>
+                )}
+              </span>
+              <button
+                onClick={() => handleCambiarDireccionFacturacion(String(direccionSugeridaFacturacion.id))}
+                disabled={guardandoDireccionFacturacion}
+                className="shrink-0 flex items-center gap-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-0.5 rounded font-medium"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Dirección de facturación — separada de la de despacho de arriba. Si no se elige,
+            la factura sale igual a la dirección de despacho (fallback del backend). */}
+        {clienteEfectivo && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 shrink-0">Factura a:</span>
+            {opcionesDireccionFacturacion.length === 0 ? (
+              <span className="text-xs text-amber-700">
+                Sin direcciones registradas — se agregan desde la ficha del cliente
+              </span>
+            ) : (
+              <Selector
+                options={[{ value: "", label: "— Usa la de despacho —" }, ...opcionesDireccionFacturacion]}
+                selectedValue={idLocalFacturacionSel}
+                onSelect={handleCambiarDireccionFacturacion}
+                disabled={guardandoDireccionFacturacion || procesando}
                 className="border border-gray-300 rounded-lg px-2 py-1 text-xs flex-1 min-w-0"
               />
             )}
