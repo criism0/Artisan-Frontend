@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { FileDown } from "lucide-react";
+import { FileDown, Receipt } from "lucide-react";
 import { ViewDetailButton, EditButton, TrashButton } from "../../components/Buttons/ActionButtons";
 import DataTable from "../../components/Tables/DataTable";
 import { formatCLP } from "../../services/formatHelpers";
 import { dteService } from "../../services/dteService.js";
+import { generarNotaVentaPDF } from "../../services/notaVentaPdf.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
@@ -87,11 +88,38 @@ export default function OrdenesVentaPage() {
       // El número de OC que mandó el cliente. Ya se podía buscar por él pero no se veía, así
       // que había que entrar al detalle para cruzarlo con lo que pregunta el cliente por
       // teléfono. Está en 235 de las 290 órdenes.
+      // Algunos clientes mandan la OC con dirección/horario/nombre pegado al número (ver
+      // §0-centies-ter): sin acotar el ancho, esa fila empujaba el resto de las columnas fuera
+      // de la pantalla. Se trunca con elipsis y el texto completo queda en el `title`.
       header: "OC cliente",
       accessor: "numero_oc",
       sortable: true,
       Cell: ({ value }) =>
-        value ? <span className="font-mono text-xs">{value}</span> : "—",
+        value ? (
+          <span
+            className="font-mono text-xs block max-w-[220px] truncate"
+            title={value}
+          >
+            {value}
+          </span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      // Instrucciones de despacho, horario, con quién coordinar — lo que el cliente escribió al
+      // pedir (§0-centies-sexies). Trunca con elipsis para no romper el ancho de la tabla; el
+      // texto completo queda en el `title` y también se ve entero en el detalle de la orden.
+      header: "Comentario",
+      accessor: "comentario_cliente",
+      Cell: ({ value }) =>
+        value ? (
+          <span className="block max-w-[200px] truncate text-gray-600" title={value}>
+            {value}
+          </span>
+        ) : (
+          "—"
+        ),
     },
     {
       // Neto, sin IVA: es el número con el que se trabaja la venta. El total con impuesto lo
@@ -116,7 +144,7 @@ export default function OrdenesVentaPage() {
   // Los documentos se piden AL APRETAR, no al pintar la tabla: precargarlos sería una petición
   // por fila para algo que casi nunca se abre.
   const handleDescargarFactura = async (row) => {
-    setDescargando(row.id);
+    setDescargando(`factura-${row.id}`);
     try {
       const lista = await dteService.listarPorOrden(row.id);
       const factura = (lista ?? []).find((d) => Number(d.tipo_dte) === 33);
@@ -127,6 +155,20 @@ export default function OrdenesVentaPage() {
       await dteService.descargarPDF(factura);
     } catch (err) {
       toast.error(`No se pudo descargar la factura: ${err?.message ?? "error desconocido"}`);
+    } finally {
+      setDescargando(null);
+    }
+  };
+
+  // Nota de Venta: se puede descargar en cualquier estado (no depende de que haya factura), a
+  // diferencia de "Descargar factura" arriba. Antes había que entrar al detalle para bajarla —
+  // es la consulta más frecuente en la operación diaria de despacho.
+  const handleDescargarNV = async (row) => {
+    setDescargando(`nv-${row.id}`);
+    try {
+      await generarNotaVentaPDF({ api, ordenId: row.id });
+    } catch (err) {
+      toast.error(`No se pudo generar la Nota de Venta: ${err?.message ?? "error desconocido"}`);
     } finally {
       setDescargando(null);
     }
@@ -150,10 +192,18 @@ export default function OrdenesVentaPage() {
             tooltipText="Editar"
           />
         )}
+        <button
+          onClick={() => handleDescargarNV(row)}
+          disabled={descargando === `nv-${row.id}`}
+          className="text-gray-400 hover:text-[#7A5AF8] disabled:opacity-40"
+          title="Descargar Nota de Venta"
+        >
+          <Receipt className="w-5 h-5" />
+        </button>
         {puedeTenerFactura && (
           <button
             onClick={() => handleDescargarFactura(row)}
-            disabled={descargando === row.id}
+            disabled={descargando === `factura-${row.id}`}
             className="text-gray-400 hover:text-[#7A5AF8] disabled:opacity-40"
             title="Descargar factura"
           >
@@ -170,7 +220,7 @@ export default function OrdenesVentaPage() {
   };
 
   const getSearchText = (row) =>
-    [row.id, fmtDate(row.fecha_orden), row.cliente?.nombre_empresa, row.numero_oc, row.estado]
+    [row.id, fmtDate(row.fecha_orden), row.cliente?.nombre_empresa, row.numero_oc, row.estado, row.comentario_cliente]
       .filter(Boolean)
       .join(" ");
 
@@ -185,7 +235,7 @@ export default function OrdenesVentaPage() {
       loading={isLoading}
       loadingMessage="Cargando órdenes de venta"
       defaultRowsPerPage={25}
-      initialSort={{ key: "fecha_orden", direction: "desc" }}
+      initialSort={{ key: "id", direction: "desc" }}
       emptyMessage="No hay órdenes de venta registradas."
       headerActions={
         <>
