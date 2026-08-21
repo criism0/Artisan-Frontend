@@ -197,9 +197,13 @@ export default function ClienteDetail() {
         </div>
       </div>
 
-      {/* Direcciones Asociadas */}
-      <div className="mb-4 mt-8">
-        <DireccionesManager 
+      {/* Sección 4: Direcciones */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
+        <h2 className="text-lg font-semibold text-text mb-4 flex items-center">
+          <span className="bg-primary/10 text-primary rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3">4</span>
+          Direcciones
+        </h2>
+        <DireccionesManager
           clienteId={clienteId}
           direcciones={direcciones}
           onDireccionesChange={setDirecciones}

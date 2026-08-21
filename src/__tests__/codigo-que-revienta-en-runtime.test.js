@@ -139,10 +139,7 @@ describe("jspdf se carga bajo demanda", () => {
   // La división en trozos de `adf96bb` quiso sacar jsPDF del bundle de estas vistas, pero dejó
   // los `import` estáticos arriba: el trozo lo seguía arrastrando igual y el import dinámico
   // roto sólo servía para romper el botón. Que no vuelvan a convivir.
-  const vistas = [
-    "src/pages/Solicitudes/SolicitudDetail.jsx",
-    "src/pages/Ventas/OrdenVentaDetail.jsx",
-  ];
+  const vistas = ["src/pages/Solicitudes/SolicitudDetail.jsx"];
 
   it.each(vistas)("%s no importa jspdf estáticamente", (relativo) => {
     const texto = readFileSync(path.join(RAIZ, relativo), "utf8");
@@ -171,6 +168,42 @@ describe("jspdf se carga bajo demanda", () => {
       antes.lastIndexOf("handleDownloadSolicitudInsumosPDF")
     );
     expect(tryMasCercano).toBeGreaterThan(handler);
+  });
+
+  // 🔴 La Nota de Venta se extrajo a `services/notaVentaPdf.js` (para poder descargarla también
+  // desde la lista de OV sin duplicar la maqueta del documento). El import() dinámico vive ahí
+  // ahora, SIN su propio try — el que atrapa el error es cada llamador (`await
+  // generarNotaVentaPDF(...)` dentro de un try/catch propio), no el servicio. Mismo invariante
+  // de fondo, repartido entre el servicio (import bien formado) y sus llamadores (error
+  // atrapado), en vez de vivir los dos juntos en un solo archivo.
+  it("notaVentaPdf.js no importa jspdf estáticamente y lo carga con import() bien formado", () => {
+    const texto = readFileSync(path.join(RAIZ, "src/services/notaVentaPdf.js"), "utf8");
+    const estaticos = texto
+      .split("\n")
+      .filter((l) => /^\s*import\s+[^(]*from\s+['"]jspdf(-autotable)?['"]/.test(l));
+    expect(estaticos).toEqual([]);
+    expect(texto).toContain('import("jspdf")');
+    expect(texto).toContain('import("jspdf-autotable")');
+  });
+
+  it.each([
+    ["src/pages/Ventas/OrdenVentaDetail.jsx", "handleDescargarPDF"],
+    ["src/pages/Ventas/OrdenesVentaPage.jsx", "handleDescargarNV"],
+  ])("%s no importa jspdf por su cuenta y llama generarNotaVentaPDF dentro de un try", (relativo, handler) => {
+    const texto = readFileSync(path.join(RAIZ, relativo), "utf8");
+    // No la SUBSTRING "jspdf" —el propio comentario que explica esto la menciona— sino
+    // cualquier `import` real de jspdf, estático o dinámico.
+    const importaJspdf = texto
+      .split("\n")
+      .some((l) => /import\s*\(?\s*['"]jspdf(-autotable)?['"]/.test(l));
+    expect(importaJspdf).toBe(false);
+    expect(texto).toContain('from "../../services/notaVentaPdf.js"');
+
+    const idxLlamada = texto.indexOf("generarNotaVentaPDF(");
+    const antes = texto.slice(0, idxLlamada);
+    const tryMasCercano = antes.lastIndexOf("try {");
+    const idxHandler = antes.lastIndexOf(handler);
+    expect(tryMasCercano).toBeGreaterThan(idxHandler);
   });
 });
 

@@ -129,6 +129,9 @@ export default function InventarioBultos() {
   });
 
   const [sort, setSort] = useState({ key: "updatedAt", dir: "desc" });
+  // Las mermas son bultos que ya no representan inventario disponible; por default no
+  // aparecen en la lista (§ pedido de Cristóbal) y se muestran sólo si se marca este check.
+  const [verMermas, setVerMermas] = useState(false);
 
   // Paginación server-side (B2): la BD ya supera los 6.000 bultos
   const [page, setPage] = useState(1);
@@ -158,6 +161,7 @@ export default function InventarioBultos() {
             setSort({ key: parsed.sort.key, dir: parsed.sort.dir });
           }
         }
+        if (typeof parsed.verMermas === "boolean") setVerMermas(parsed.verMermas);
       }
     } catch {
       // Si el storage está corrupto, lo ignoramos.
@@ -174,12 +178,13 @@ export default function InventarioBultos() {
           busqueda,
           filters,
           sort,
+          verMermas,
         })
       );
     } catch {
       // Sin storage disponible: no bloquea la UI.
     }
-  }, [busqueda, filters, sort]);
+  }, [busqueda, filters, sort, verMermas]);
 
   useEffect(() => {
     const fetchBodegas = async () => {
@@ -203,6 +208,7 @@ export default function InventarioBultos() {
     if (busqueda.trim()) qs.set("q", busqueda.trim());
     qs.set("sort_key", sort.key);
     qs.set("sort_dir", sort.dir);
+    if (verMermas) qs.set("incluir_merma", "true");
     if (paginado) {
       qs.set("page", String(page));
       qs.set("limit", String(limit));
@@ -236,7 +242,7 @@ export default function InventarioBultos() {
     }, 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, busqueda, sort]);
+  }, [filters, busqueda, sort, verMermas]);
 
   // Cambios de página/tamaño: fetch inmediato (también cubre la carga inicial)
   useEffect(() => {
@@ -476,8 +482,18 @@ export default function InventarioBultos() {
           </div>
         </div>
 
-        <div className="text-xs text-gray-500 mt-3">
-          Filas: <span className="font-semibold">{bultosOrdenados.length}</span> de {formatNumberCL(total)} (página {page} de {totalPages})
+        <div className="flex items-center justify-between mt-3">
+          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={verMermas}
+              onChange={(e) => setVerMermas(e.target.checked)}
+            />
+            Ver mermas
+          </label>
+          <div className="text-xs text-gray-500">
+            Filas: <span className="font-semibold">{bultosOrdenados.length}</span> de {formatNumberCL(total)} (página {page} de {totalPages})
+          </div>
         </div>
       </div>
 

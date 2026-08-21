@@ -65,12 +65,21 @@ export default function AddOrdenVenta() {
   const [form, setForm] = useState({
     id_cliente: "",
     id_local: "",
+    // Separada de la de despacho: hay clientes que facturan con un RUT y despachan a la
+    // sucursal de un tercero (pedido de Cristóbal, 2026-08-19).
+    id_local_facturacion: "",
     numero_oc: "",
     fecha_orden: getTodayDate(),
     bodega_id: "",
-    es_referencial: false,
+    // La inmensa mayoría de las OV manuales despachan desde Santiago y no tienen picking real
+    // registrado en el sistema (pedido de Cristóbal): quedan preseleccionadas y se cambian a
+    // mano en el caso puntual que no aplique.
+    es_referencial: true,
     comentario_cliente: "",
   });
+  // El campo se llena solo una vez que carga /bodegas (abajo); si el operario lo cambia, no se
+  // le repone.
+  const bodegaYaPreseleccionada = useRef(false);
 
   const [productoForm, setProductoForm] = useState({
     id_nombre_facturacion: "",
@@ -99,6 +108,15 @@ export default function AddOrdenVenta() {
           ? bodegasRes
           : [];
         setBodegas(bodegasData);
+        // Preselecciona la bodega de Santiago (pedido de Cristóbal) por nombre — no hay un
+        // flag "es la principal" en el modelo de Bodega, así que se busca por texto.
+        if (!bodegaYaPreseleccionada.current) {
+          const santiago = bodegasData.find((b) => /santiago/i.test(b?.nombre || ""));
+          if (santiago) {
+            bodegaYaPreseleccionada.current = true;
+            setForm((prev) => (prev.bodega_id ? prev : { ...prev, bodega_id: String(santiago.id) }));
+          }
+        }
       })
       .finally(() => setIsLoading(false));
   }, [api, canReadClients]);
@@ -218,17 +236,26 @@ export default function AddOrdenVenta() {
     setCondicionPagoCliente(null);
     if (!id_cliente) {
       setProductoForm({ id_nombre_facturacion: "", cantidad: "", precio_unitario: "", porcentaje_descuento: "" });
-      setForm(prev => ({ ...prev, id_cliente: "", id_local: "" }));
+      setForm(prev => ({ ...prev, id_cliente: "", id_local: "", id_local_facturacion: "" }));
       return;
     }
     // Las direcciones son del cliente que va a QUEDAR: si se cambia de cliente, la elegida
     // antes ya no corresponde.
-    setForm(prev => ({ ...prev, id_cliente, id_local: "" }));
+    setForm(prev => ({ ...prev, id_cliente, id_local: "", id_local_facturacion: "" }));
     try {
       const resCliente = await api(`/clientes/${id_cliente}`);
       const clienteData = resCliente.data || resCliente;
       const dirs = Array.isArray(clienteData?.direcciones) ? clienteData.direcciones : [];
       setDirecciones(dirs);
+      // Precarga la dirección de facturación PREDETERMINADA del cliente, si tiene una marcada.
+      // Sigue siendo editable — es el punto de partida, no una decisión tomada. Sin esto había
+      // que elegirla a mano cada vez aunque el cliente casi siempre facture al mismo lugar.
+      const facturacionPredeterminada = dirs.find(
+        (d) => d.tipo_direccion === "Facturación" && d.es_principal_facturacion,
+      );
+      if (facturacionPredeterminada) {
+        setForm((prev) => ({ ...prev, id_local_facturacion: String(facturacionPredeterminada.id) }));
+      }
       const nuevoClienteConfig = {
         formato: clienteData?.formato_compra_predeterminado || "UNIDADES",
         id_lista_precio: clienteData?.id_lista_precio || null,
@@ -409,6 +436,7 @@ export default function AddOrdenVenta() {
       const payload = {
         id_cliente: Number(form.id_cliente),
         id_local: form.id_local ? Number(form.id_local) : null,
+        id_local_facturacion: form.id_local_facturacion ? Number(form.id_local_facturacion) : null,
         numero_oc: form.numero_oc,
         fecha_orden: form.fecha_orden,
         bodega_id: Number(form.bodega_id),
@@ -497,6 +525,10 @@ export default function AddOrdenVenta() {
     const soloDespacho = direcciones.filter((d) => d.tipo_direccion === "Despacho");
     return soloDespacho.length > 0 ? soloDespacho : direcciones;
   })();
+  const direccionesFacturacion = (() => {
+    const soloFacturacion = direcciones.filter((d) => d.tipo_direccion === "Facturación");
+    return soloFacturacion.length > 0 ? soloFacturacion : direcciones;
+  })();
 
   // La unidad del producto que está seleccionado en el formulario de agregar línea. Decide la
   // etiqueta, el `step` y si la cantidad puede llevar decimales.
@@ -568,6 +600,30 @@ export default function AddOrdenVenta() {
                 />
               )}
               <span className="text-xs text-gray-400 italic">Si no se elige acá, se confirma al facturar la orden</span>
+            </label>
+
+            {/* Dirección de facturación — separada de la de despacho arriba: hay clientes que
+                facturan con un RUT y despachan a la sucursal de un tercero. */}
+            <label className="flex flex-col gap-1 col-span-2">
+              <span className="text-sm font-medium text-gray-700">Dirección de facturación</span>
+              {form.id_cliente && direccionesFacturacion.length === 0 ? (
+                <span className="text-xs text-amber-600">
+                  Este cliente no tiene direcciones de Facturación registradas.
+                </span>
+              ) : (
+                <Selector
+                  options={[{ value: "", label: "— Usa la de despacho —" }, ...direccionesFacturacion.map((d) => ({
+                    value: String(d.id),
+                    label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna].filter(Boolean).join(" — "),
+                    searchText: [d.nombre_sucursal, d.calle, d.numero, d.comuna].filter(Boolean).join(" "),
+                  }))]}
+                  selectedValue={form.id_local_facturacion}
+                  onSelect={(value) => setForm((prev) => ({ ...prev, id_local_facturacion: value }))}
+                  disabled={!form.id_cliente}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+              )}
+              <span className="text-xs text-gray-400 italic">Si no se elige, la factura usa la dirección de despacho</span>
             </label>
 
             {/* Número OC */}
@@ -1000,6 +1056,19 @@ export default function AddOrdenVenta() {
                   </tfoot>
                 )}
               </table>
+              {/* Neto total de la orden, a medida que se van agregando líneas — antes sólo se
+                  veía el total de cada línea y había que sumarlas a mano para saber a cuánto
+                  iba la orden. */}
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+                <span className="text-sm text-gray-600">
+                  Neto total:{" "}
+                  <span className="font-semibold text-gray-800">
+                    ${Math.round(
+                      productosAgregados.reduce((sum, p) => sum + Number(p.total_linea || 0), 0),
+                    ).toLocaleString("es-CL")}
+                  </span>
+                </span>
+              </div>
             </div>
           )}
         </div>

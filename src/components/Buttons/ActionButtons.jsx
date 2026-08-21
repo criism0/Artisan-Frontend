@@ -4,9 +4,14 @@ import { Eye, Edit, Trash, ArrowLeft, Plus, DollarSign, RotateCcw, ClipboardPen,
 import { toast } from "../../lib/toast"
 import { FaWarehouse } from "react-icons/fa";
 
+// 🔴 TODOS los botones de este archivo llevan `type="button"` explícito. Sin él, el default de
+// un <button> es "submit" — invisible mientras se use fuera de un <form>, y una recarga
+// disfrazada de "no hizo nada" en cuanto alguien lo pone dentro de uno (pasó con EditButton /
+// TrashButton dentro del formulario de Direcciones en ClienteEdit: "Editar" enviaba el
+// formulario del cliente entero y navegaba al detalle en vez de abrir el modal).
 export function ViewDetailButton({ onClick, tooltipText }) {
   return (
-    <button onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
+    <button type="button" onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
       <Eye className="w-5 h-5" />
     </button>
   );
@@ -14,7 +19,7 @@ export function ViewDetailButton({ onClick, tooltipText }) {
 
 export function ValidarButton({ onClick, tooltipText}) {
   return(
-    <button onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
+    <button type="button" onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
       <ClipboardPen className="w-5 h-5" />
     </button>
   )
@@ -22,7 +27,7 @@ export function ValidarButton({ onClick, tooltipText}) {
 
 export function UndoButton({ onClick, tooltipText }) {
   return (
-    <button onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
+    <button type="button" onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
       <RotateCcw className="w-5 h-5" />
     </button>
   );
@@ -30,7 +35,7 @@ export function UndoButton({ onClick, tooltipText }) {
 
 export function AddButton({ onClick, tooltipText }) {
   return (
-    <button onClick={onClick} title={tooltipText} className="text-green-600 hover:text-green-800">
+    <button type="button" onClick={onClick} title={tooltipText} className="text-green-600 hover:text-green-800">
       <Plus className="w-5 h-5" />
     </button>
   );
@@ -57,6 +62,7 @@ export function PagarButton({
   return (
     <>
       <button
+        type="button"
         onClick={handleClick}
         className={buttonClassName || "text-gray-400 hover:text-blue-500"}
         title={tooltipText}
@@ -72,12 +78,14 @@ export function PagarButton({
             </h2>
             <div className="flex justify-end gap-3">
               <button
+                type="button"
                 onClick={handleClose}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
               >
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={handleConfirm}
                 className={
                   confirmButtonClassName ||
@@ -96,7 +104,7 @@ export function PagarButton({
 
 export function EditButton({ onClick, tooltipText }) {
   return (
-    <button onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
+    <button type="button" onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
       <Edit className="w-5 h-5" />
     </button>
   );
@@ -120,12 +128,14 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, entityName = "elemento
 
           <div className="flex flex-wrap justify-center gap-4">
             <button
+              type="button"
               onClick={onConfirm}
               className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors shadow"
             >
               Sí, Eliminar!
             </button>
             <button
+              type="button"
               onClick={onClose}
               className="px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-medium transition-colors shadow"
             >
@@ -151,6 +161,7 @@ export function TrashButton({ onConfirmDelete, tooltipText, entityName = "elemen
   return (
     <>
       <button
+        type="button"
         onClick={handleOpenModal}
         className="text-red-600 hover:text-red-700"
         title={tooltipText}
@@ -170,6 +181,7 @@ export function TrashButton({ onConfirmDelete, tooltipText, entityName = "elemen
 export function TrashIconButton({ onClick, tooltipText }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className="text-red-600 hover:text-red-700"
       title={tooltipText}
@@ -181,7 +193,7 @@ export function TrashIconButton({ onClick, tooltipText }) {
 
 export function ModifyButton({ onClick }) {
   return (
-    <button onClick={onClick} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover">
+    <button type="button" onClick={onClick} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover">
       Modificar
     </button>
   );
@@ -206,6 +218,7 @@ export function DeleteButton({ onConfirmDelete, tooltipText, entityName = "eleme
   return (
     <>
       <button
+        type="button"
         onClick={handleOpenModal}
         className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
         title={tooltipText}
@@ -235,6 +248,7 @@ export function BackButton({ to = null, label = "Volver" }) {
 
   return (
     <button
+      type="button"
       onClick={handleClick}
       className="text-primary border border-primary hover:bg-gray-100 font-medium text-sm flex items-center gap-2 px-4 py-2 rounded-md transition"
     >
@@ -273,6 +287,7 @@ export function ToggleActiveButton({
   return (
     <>
       <button
+        type="button"
         onClick={handleOpen}
         className={
           isActive
@@ -303,6 +318,7 @@ export function ToggleActiveButton({
 
               <div className="flex flex-wrap justify-center gap-4">
                 <button
+                  type="button"
                   onClick={handleConfirm}
                   className={
                     isActive
@@ -313,6 +329,7 @@ export function ToggleActiveButton({
                   Sí, {isActive ? "Deshabilitar" : "Habilitar"}
                 </button>
                 <button
+                  type="button"
                   onClick={handleClose}
                   className="px-5 py-2 rounded-xl bg-gray-300 hover:bg-gray-400 text-black font-medium transition shadow"
                 >
@@ -330,7 +347,7 @@ export function ToggleActiveButton({
 // Solo usado para asignar bodegas a usuarios
 export function WarehouseButton({ onClick, tooltipText }) {
   return (
-    <button onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
+    <button type="button" onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
       <FaWarehouse className="w-5 h-5" />
     </button>
   );

@@ -42,6 +42,9 @@ export default function EditOrdenVenta() {
     fecha_vencimiento_pago: "",
     comentario_cliente: "",
     id_local: "",
+    // Separada de la de despacho: hay clientes que facturan con un RUT y despachan a la
+    // sucursal de un tercero (pedido de Cristóbal, 2026-08-19).
+    id_local_facturacion: "",
   });
 
   const [productoForm, setProductoForm] = useState({
@@ -71,6 +74,7 @@ export default function EditOrdenVenta() {
           fecha_vencimiento_pago: ord.fecha_vencimiento_pago ? String(ord.fecha_vencimiento_pago).slice(0, 10) : "",
           comentario_cliente: ord.comentario_cliente || "",
           id_local: ord.id_local ? String(ord.id_local) : "",
+          id_local_facturacion: ord.id_local_facturacion ? String(ord.id_local_facturacion) : "",
         });
 
         const nombresData = Array.isArray(nombresRes) ? nombresRes : nombresRes?.data || [];
@@ -336,6 +340,7 @@ export default function EditOrdenVenta() {
           fecha_vencimiento_pago: form.fecha_vencimiento_pago || null,
           comentario_cliente: form.comentario_cliente || null,
           id_local: form.id_local ? Number(form.id_local) : null,
+          id_local_facturacion: form.id_local_facturacion ? Number(form.id_local_facturacion) : null,
         }),
       });
 
@@ -384,6 +389,10 @@ export default function EditOrdenVenta() {
   const direccionesDespacho = (() => {
     const soloDespacho = direcciones.filter((d) => d.tipo_direccion === "Despacho");
     return soloDespacho.length > 0 ? soloDespacho : direcciones;
+  })();
+  const direccionesFacturacion = (() => {
+    const soloFacturacion = direcciones.filter((d) => d.tipo_direccion === "Facturación");
+    return soloFacturacion.length > 0 ? soloFacturacion : direcciones;
   })();
 
   if (loading) return <PageLoader message="Cargando orden" />;
@@ -436,6 +445,29 @@ export default function EditOrdenVenta() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 />
               )}
+            </label>
+
+            {/* Dirección de facturación — separada de la de despacho arriba: no siempre es la
+                misma (un cliente puede facturar con un RUT y despachar a otra sucursal). */}
+            <label className="flex flex-col gap-1 col-span-2">
+              <span className="text-sm font-medium text-gray-700">Dirección de facturación</span>
+              {direccionesFacturacion.length === 0 ? (
+                <span className="text-xs text-amber-600">
+                  Este cliente no tiene direcciones de Facturación registradas.
+                </span>
+              ) : (
+                <Selector
+                  options={[{ value: "", label: "— Usa la de despacho —" }, ...direccionesFacturacion.map((d) => ({
+                    value: String(d.id),
+                    label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna].filter(Boolean).join(" — "),
+                    searchText: [d.nombre_sucursal, d.calle, d.numero, d.comuna].filter(Boolean).join(" "),
+                  }))]}
+                  selectedValue={form.id_local_facturacion}
+                  onSelect={(value) => setForm((f) => ({ ...f, id_local_facturacion: value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+              )}
+              <span className="text-xs text-gray-400 italic">Si no se elige, la factura usa la dirección de despacho</span>
             </label>
 
             {/* Número OC */}
@@ -744,6 +776,16 @@ export default function EditOrdenVenta() {
                   })}
                 </tbody>
               </table>
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex justify-end">
+                <span className="text-sm text-gray-600">
+                  Neto total:{" "}
+                  <span className="font-semibold text-gray-800">
+                    ${Math.round(
+                      productosAgregados.reduce((sum, p) => sum + Number(p.total_linea || 0), 0),
+                    ).toLocaleString("es-CL")}
+                  </span>
+                </span>
+              </div>
             </div>
           )}
         </div>
