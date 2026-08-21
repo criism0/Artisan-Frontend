@@ -510,9 +510,11 @@ export default function OrdenVentaDetail() {
       setTransitioning(true);
       const res = await api(`/ordenes-venta/${id}/volver-a-pendiente`, { method: "PUT" });
       const updated = res?.data?.orden || res?.orden;
+      // Vuelve a En picking, no a Validada — reabrir es seguir pickeando, no volver al
+      // principio (corregido 2026-08-21, pedido de Cristóbal).
       if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
-      else setOrden((prev) => (prev ? { ...prev, estado: "Validada" } : prev));
-      toast.success(res?.data?.message || "Orden reabierta: vuelve a Validada");
+      else setOrden((prev) => (prev ? { ...prev, estado: "En picking" } : prev));
+      toast.success(res?.data?.message || "Orden reabierta: vuelve a En picking");
     } catch (err) {
       toast.error(apiErrorMsg(err, "reabrir la orden"));
     } finally {
@@ -877,7 +879,7 @@ export default function OrdenVentaDetail() {
       confirmar: {
         titulo: "¿Reabrir el picking de esta orden?",
         mensaje:
-          "La orden vuelve a Validada para seguir agregando bultos. Lo ya pickeado NO se toca — se conserva tal cual.",
+          "La orden vuelve a En picking para seguir agregando bultos. Lo ya pickeado NO se toca — se conserva tal cual.",
         textoBoton: "Reabrir",
       },
     },
