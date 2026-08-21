@@ -6,8 +6,10 @@ import {
   PackageCheck,
   Pencil,
   Receipt,
+  RotateCcw,
   Trash2,
   Truck,
+  Undo2,
 } from "lucide-react";
 import Table from "../../components/Tables/Table";
 import PageHeader from "../../components/UI/PageHeader.jsx";
@@ -499,6 +501,43 @@ export default function OrdenVentaDetail() {
     }
   };
 
+  // Reabrir vs anular (tarea #121, pedido de Cristóbal 2026-08-20): la primera sólo cambia el
+  // estado y CONSERVA lo pickeado, para seguir agregando bultos desde el móvil o la web; la
+  // segunda desmonta todo — libera los bultos asignados y borra las cantidades declaradas.
+  const handleReabrirPicking = async () => {
+    if (!id) return;
+    try {
+      setTransitioning(true);
+      const res = await api(`/ordenes-venta/${id}/volver-a-pendiente`, { method: "PUT" });
+      const updated = res?.data?.orden || res?.orden;
+      // Vuelve a En picking, no a Validada — reabrir es seguir pickeando, no volver al
+      // principio (corregido 2026-08-21, pedido de Cristóbal).
+      if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
+      else setOrden((prev) => (prev ? { ...prev, estado: "En picking" } : prev));
+      toast.success(res?.data?.message || "Orden reabierta: vuelve a En picking");
+    } catch (err) {
+      toast.error(apiErrorMsg(err, "reabrir la orden"));
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  const handleAnularPicking = async () => {
+    if (!id) return;
+    try {
+      setTransitioning(true);
+      const res = await api(`/ordenes-venta/${id}/anular-picking`, { method: "PUT" });
+      const updated = res?.data?.orden || res?.orden;
+      if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
+      else setOrden((prev) => (prev ? { ...prev, estado: "Validada" } : prev));
+      toast.success(res?.data?.message || "Picking anulado: la orden vuelve a Validada");
+    } catch (err) {
+      toast.error(apiErrorMsg(err, "anular el picking"));
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
   const loadDireccionesCliente = async (clienteId) => {
     if (!clienteId) return;
     setLoadingDirecciones(true);
@@ -814,6 +853,9 @@ export default function OrdenVentaDetail() {
     return null;
   })();
 
+  // Reabrir/anular picking (tarea #121): sólo tienen sentido en Lista para facturación — antes
+  // de eso no hay picking que deshacer, y después (Facturada) ya generó el documento tributario.
+  // Es el fallback web del mismo par de botones del móvil, con el mismo texto de confirmación.
   const accionesSecundarias = [
     {
       label: "Descargar Nota de Venta",
@@ -829,9 +871,33 @@ export default function OrdenVentaDetail() {
       disabled: !canWriteSaleOrder,
       title: canWriteSaleOrder ? undefined : "Sin permiso para editar órdenes de venta",
     },
+    orden?.estado === "Lista para facturación" && {
+      label: "Reabrir picking",
+      icon: <RotateCcw className="w-4 h-4" />,
+      onClick: handleReabrirPicking,
+      disabled: transitioning,
+      confirmar: {
+        titulo: "¿Reabrir el picking de esta orden?",
+        mensaje:
+          "La orden vuelve a En picking para seguir agregando bultos. Lo ya pickeado NO se toca — se conserva tal cual.",
+        textoBoton: "Reabrir",
+      },
+    },
   ];
 
   const accionesDestructivas = [
+    orden?.estado === "Lista para facturación" && {
+      label: "Anular picking",
+      icon: <Undo2 className="w-4 h-4" />,
+      onClick: handleAnularPicking,
+      disabled: transitioning,
+      confirmar: {
+        titulo: "¿Anular TODO el picking de esta orden?",
+        mensaje:
+          "Se desmonta todo: los bultos ya asignados vuelven a estar disponibles y las cantidades declaradas se borran. La orden queda como si nunca se hubiera pickeado. Esta acción no se puede deshacer.",
+        textoBoton: "Sí, anular todo",
+      },
+    },
     {
       label: "Eliminar orden",
       icon: <Trash2 className="w-4 h-4" />,
