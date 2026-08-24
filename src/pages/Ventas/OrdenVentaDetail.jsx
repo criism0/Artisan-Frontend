@@ -25,6 +25,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import PanelFacturacion from "../../components/DTE/PanelFacturacion.jsx";
 import DTEPreview from "../../components/DTE/DTEPreview.jsx";
+import DocumentosYAdjuntos from "../../components/DTE/DocumentosYAdjuntos.jsx";
 import DetalleTipoFactura from "../../components/Ventas/DetalleTipoFactura.jsx";
 import InformacionOrdenCliente from "../../components/Ventas/InformacionOrdenCliente.jsx";
 import Selector from "../../components/Forms/Selector";
@@ -1012,6 +1013,9 @@ export default function OrdenVentaDetail() {
         pestanas={[
           { id: "detalle", label: "Productos", cantidad: orderItems.length },
           { id: "asignacion", label: "Asignación", cantidad: progresoRows.length },
+          // Documentos tributarios (emitidos acá o vinculados de afuera) y archivos sueltos,
+          // juntos — tarea #108 y pedido de adjuntos de Cristóbal, 2026-08-22.
+          { id: "documentos", label: "Documentos" },
         ]}
       />
 
@@ -1088,6 +1092,16 @@ export default function OrdenVentaDetail() {
           <div className="text-sm text-gray-500">Sin asignación registrada.</div>
         )}
       </div>
+
+      {/* Documentos tributarios (emitidos acá o vinculados de afuera) y archivos adjuntos.
+          Se monta sólo cuando la pestaña está activa —a diferencia de las otras dos, que van
+          con `hidden`— porque hace sus propias peticiones y no tiene sentido pagarlas al abrir
+          la orden si nadie va a mirar esta pestaña. */}
+      {tab === "documentos" && (
+        <div className="mb-6">
+          <DocumentosYAdjuntos idOrdenVenta={Number(id)} onCambio={fetchOrden} />
+        </div>
+      )}
 
 
       <Modal

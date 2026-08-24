@@ -176,6 +176,7 @@ export default function ConciliacionLibreDTE() {
   const [resultado, setResultado] = useState(null);
   const [loading, setLoading] = useState(false);
   const [liberando, setLiberando] = useState(null);
+  const [sincronizando, setSincronizando] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -190,6 +191,35 @@ export default function ConciliacionLibreDTE() {
   }, [rango]);
 
   useEffect(() => { cargar(); /* carga inicial */ }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * Fuerza la consulta del estado ante el SII de todos los documentos sin resolver.
+   *
+   * Después vuelve a conciliar: si un documento pasó de PENDIENTE a ACEPTADO, la discrepancia
+   * `datos_distintos` que lo señalaba tiene que desaparecer de la lista — dejar el resultado
+   * viejo en pantalla haría creer que la sincronización no sirvió.
+   */
+  const sincronizar = useCallback(async () => {
+    setSincronizando(true);
+    try {
+      const r = await dteService.sincronizarEstados();
+      if (r.revisados === 0) {
+        toast.info('No hay documentos pendientes de resolución ante el SII.');
+      } else if (r.actualizados === 0) {
+        toast.info(`${r.revisados} documento(s) consultado(s); el SII todavía no los resuelve.`);
+      } else {
+        toast.success(`${r.actualizados} de ${r.revisados} documento(s) actualizados con lo que dice el SII.`);
+      }
+      if (r.errores > 0) {
+        toast.warning(`${r.errores} documento(s) no se pudieron consultar. Siguen como estaban.`);
+      }
+      await cargar();
+    } catch (err) {
+      toast.error('No se pudieron actualizar los estados: ' + (err?.message ?? 'error desconocido'));
+    } finally {
+      setSincronizando(false);
+    }
+  }, [cargar]);
 
   const grupos = {};
   for (const d of resultado?.discrepancias ?? []) {
@@ -238,6 +268,18 @@ export default function ConciliacionLibreDTE() {
         >
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           {loading ? 'Consultando…' : 'Conciliar'}
+        </button>
+
+        {/* El worker sincroniza solo cada hora; esto es para no esperar el ciclo. Consultar el
+            estado ante el SII es una lectura: no emite, no anula y no consume folio. */}
+        <button
+          onClick={sincronizar}
+          disabled={sincronizando}
+          title="Le pregunta al SII por todos los documentos que siguen sin resolverse"
+          className="px-4 py-2 rounded-lg border border-primary text-primary text-sm hover:bg-primary/5 disabled:opacity-50 inline-flex items-center gap-2"
+        >
+          <RefreshCw size={15} className={sincronizando ? 'animate-spin' : ''} />
+          {sincronizando ? 'Consultando al SII…' : 'Actualizar estados SII'}
         </button>
       </div>
 
