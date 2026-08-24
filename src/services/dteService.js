@@ -43,6 +43,15 @@ function mapDte(d) {
     metadata:     d.metadata,
     referencias:  d.referencias ?? [],
     indTraslado:  d.metadata?.ind_traslado ?? null,
+    // Tarea #108 — quién emitió el documento. 'EXTERNO' significa que se emitió fuera del ERP
+    // y alguien lo vinculó a mano. Importa en la vista: un EXTERNO no trae detalle de líneas
+    // (LibreDTE no lo devuelve) y ese vacío es esperado, no un error.
+    origen:          d.origen ?? 'ERP',
+    vinculadoEn:     d.vinculado_en ?? null,
+    notaVinculacion: d.nota_vinculacion ?? null,
+    vinculador:      d.vinculador?.nombre ?? null,
+    detalle:         d.detalle ?? [],
+    razonSocialReceptor: d.razon_social_receptor ?? null,
   };
 }
 
@@ -172,6 +181,57 @@ export const dteService = {
   confirmarLlegada: async (dteId) => {
     const res = await api(`/facturacion/documentos/${dteId}/confirmar-llegada`, { method: 'POST' });
     return mapDte(res?.data ?? res);
+  },
+
+  // ── Tarea #108: documentos emitidos fuera del ERP ───────────────────────────────────────
+
+  /**
+   * Busca documentos emitidos en LibreDTE — por folio puntual o por rango de fechas.
+   * Cada resultado dice si ya está en nuestra base y a qué proceso está vinculado.
+   */
+  buscarEnLibreDte: async ({ tipo, folio, desde, hasta } = {}) => {
+    const params = new URLSearchParams();
+    if (tipo) params.set('tipo', tipo);
+    if (folio) params.set('folio', folio);
+    if (desde) params.set('desde', desde);
+    if (hasta) params.set('hasta', hasta);
+    const res = await api(`/facturacion/libredte/emitidos?${params.toString()}`);
+    return res?.data?.documentos ?? [];
+  },
+
+  /**
+   * Vincula un documento emitido fuera del ERP a una orden de venta o una solicitud.
+   *
+   * ⚠️ Es DOCUMENTAL: no mueve inventario ni corrige montos. Si el total no calza con el del
+   * proceso, la respuesta trae la diferencia para mostrarla — no se corrige nada.
+   */
+  vincularDocumento: async ({ tipoDte, folio, idOrdenVenta, idSolicitud, nota }) => {
+    const res = await api('/facturacion/documentos/vincular', {
+      method: 'POST',
+      body: {
+        tipo_dte: tipoDte,
+        folio,
+        ...(idOrdenVenta ? { id_orden_venta: idOrdenVenta } : {}),
+        ...(idSolicitud ? { id_solicitud_mercaderia: idSolicitud } : {}),
+        nota,
+      },
+    });
+    return res?.data ?? res;
+  },
+
+  /** Deshace la vinculación. No borra el documento ni lo anula. */
+  desvincularDocumento: async (dteId, nota) => {
+    const res = await api(`/facturacion/documentos/${dteId}/desvincular`, {
+      method: 'POST',
+      body: { nota },
+    });
+    return res?.data ?? res;
+  },
+
+  /** Fuerza la consulta del estado SII de todos los documentos sin resolver. */
+  sincronizarEstados: async () => {
+    const res = await api('/facturacion/sincronizar-estados', { method: 'POST' });
+    return res?.data ?? res;
   },
 
   /**

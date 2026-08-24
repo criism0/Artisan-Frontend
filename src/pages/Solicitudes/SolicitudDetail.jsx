@@ -4,7 +4,7 @@ import { toast } from "../../lib/toast.js";
 // jspdf y jspdf-autotable NO se importan acá: se cargan bajo demanda dentro de
 // `handleDownloadSolicitudInsumosPDF`, que es el único sitio que los usa. Importarlos arriba
 // los mete en el trozo de esta vista y los descarga todo el que la abra.
-import { FileText, FileSearch, Loader2, Download, Pencil, Send, XCircle, CheckCircle2 } from "lucide-react";
+import { FileText, FileSearch, Loader2, Download, Pencil, Send, XCircle, CheckCircle2, Link2 } from "lucide-react";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import Table from "../../components/Tables/Table";
 import logo from "../../assets/logo.png";
@@ -14,6 +14,8 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import PageHeader from "../../components/UI/PageHeader.jsx";
 import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
 import Tabs from "../../components/UI/Tabs.jsx";
+import DocumentosYAdjuntos from "../../components/DTE/DocumentosYAdjuntos.jsx";
+import VincularDteModal from "../../components/DTE/VincularDteModal.jsx";
 import Modal from "../../components/UI/Modal.jsx";
 import PalletContenidoCard from "../../components/Pallets/PalletContenidoCard.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
@@ -316,6 +318,7 @@ export default function SolicitudDetail() {
   // que queda escrito en `numero_guia_despacho`. Un solo número, un solo documento.
   const [emitiendoGD, setEmitiendoGD] = useState(false);
   const [viendoBorradorGD, setViendoBorradorGD] = useState(false);
+  const [mostrarVincularGD, setMostrarVincularGD] = useState(false);
 
   // Ver la guía como saldrá, antes de gastar el folio. Una guía emitida no se edita.
   const handleVerBorradorGD = async () => {
@@ -817,6 +820,9 @@ export default function SolicitudDetail() {
             },
             { id: "pallets", label: "Pallets", cantidad: palletsData.length, deshabilitadaSiVacia: true },
             { id: "guias", label: "Guías de Despacho", cantidad: gds.length },
+            // Archivos sueltos de la solicitud (fotos, comprobantes). Los documentos
+            // tributarios NO se repiten acá: ya tienen su pestaña «Guías de Despacho».
+            { id: "adjuntos", label: "Adjuntos" },
             { id: "trazabilidad", label: "Trazabilidad" },
           ]}
         />
@@ -876,6 +882,23 @@ export default function SolicitudDetail() {
           </div>
         )}
 
+        {tab === "adjuntos" && (
+          <div className="mb-6">
+            <DocumentosYAdjuntos
+              idSolicitud={Number(solicitudId)}
+              secciones={{ documentos: false, adjuntos: true }}
+            />
+          </div>
+        )}
+
+        {mostrarVincularGD && (
+          <VincularDteModal
+            idSolicitud={Number(solicitudId)}
+            onClose={() => setMostrarVincularGD(false)}
+            onSuccess={() => { cargarGDs(); fetchSolicitud(); }}
+          />
+        )}
+
         {tab === "trazabilidad" && (
           <div className="bg-white p-6 rounded-lg shadow mb-6">
             <h2 className="text-lg font-semibold text-text mb-4">Trazabilidad</h2>
@@ -921,6 +944,19 @@ export default function SolicitudDetail() {
                 >
                   <FileText className="w-4 h-4" />
                   {emitiendoGD ? "Emitiendo…" : "Emitir guía de despacho"}
+                </button>
+                {/* Tarea #108: las guías de traslado se emiten a mano en LibreDTE muy seguido
+                    —eran ~17 al mes cuando el ERP no tenía botón— y quedaban sin forma de
+                    asociarse a su solicitud. Va acá, junto a «emitir», porque es la otra
+                    respuesta a la misma pregunta: «esta solicitud ya tiene guía». */}
+                <button
+                  onClick={() => setMostrarVincularGD(true)}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-primary border border-primary rounded-lg hover:bg-primary/5 disabled:opacity-50"
+                  title="Si la guía ya se emitió fuera del ERP, vincularla en vez de emitir otra"
+                >
+                  <Link2 className="w-4 h-4" />
+                  Vincular guía ya emitida
                 </button>
               </div>
             )}
