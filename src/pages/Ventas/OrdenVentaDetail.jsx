@@ -26,6 +26,7 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import PanelFacturacion from "../../components/DTE/PanelFacturacion.jsx";
 import DTEPreview from "../../components/DTE/DTEPreview.jsx";
 import DocumentosYAdjuntos from "../../components/DTE/DocumentosYAdjuntos.jsx";
+import EstadoPosteriorBadge from "../../components/Ventas/EstadoPosteriorBadge.jsx";
 import DetalleTipoFactura from "../../components/Ventas/DetalleTipoFactura.jsx";
 import InformacionOrdenCliente from "../../components/Ventas/InformacionOrdenCliente.jsx";
 import Selector from "../../components/Forms/Selector";
@@ -944,6 +945,7 @@ export default function OrdenVentaDetail() {
                 Referencial
               </span>
             )}
+            <EstadoPosteriorBadge info={orden?.estado_dte_posterior} size="md" />
           </>
         }
         acciones={
