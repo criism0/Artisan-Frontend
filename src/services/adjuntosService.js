@@ -65,15 +65,29 @@ export const adjuntosService = {
   },
 
   /**
-   * Abre el archivo en una pestaña nueva.
+   * La URL firmada del archivo, para mostrarlo o descargarlo.
    *
-   * La URL firmada se pide en el momento y dura 5 minutos: es un permiso de lectura con vida
-   * propia, así que no se guarda ni se reparte de antemano.
+   * Dura 5 minutos y se pide en el momento: es un permiso de lectura con vida propia, así que no
+   * se guarda ni se reparte de antemano — por eso el listado no las trae y hay una llamada por
+   * archivo que se abre.
+   *
+   * ✅ Sirve para previsualizar en un `<iframe>`/`<img>` porque S3 la firma con el `Content-Type`
+   * real del objeto y SIN `Content-Disposition: attachment`; con esa cabecera el navegador
+   * descargaría el archivo en vez de mostrarlo, y el visor quedaría en blanco.
+   */
+  obtenerUrl: async (id) => {
+    const res = await api(`/adjuntos/${id}/url`);
+    const datos = res?.data ?? {};
+    if (!datos.url) throw new Error('No se pudo generar el enlace del archivo');
+    return { url: datos.url, nombre: datos.nombre_original, mimeType: datos.mime_type };
+  },
+
+  /**
+   * Abre el archivo en una pestaña nueva. Queda como salida para lo que el visor no puede
+   * mostrar (planillas, documentos de Word, fotos HEIC de iPhone).
    */
   abrir: async (id) => {
-    const res = await api(`/adjuntos/${id}/url`);
-    const url = res?.data?.url;
-    if (!url) throw new Error('No se pudo generar el enlace de descarga');
+    const { url } = await adjuntosService.obtenerUrl(id);
     window.open(url, '_blank', 'noopener,noreferrer');
   },
 
