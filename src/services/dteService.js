@@ -251,6 +251,21 @@ export const dteService = {
   },
 
   /**
+   * El PDF crudo de un DTE, para mostrarlo dentro de la página.
+   *
+   * A diferencia de `verPDF` y `descargarPDF` —que abren pestaña o disparan la descarga— acá se
+   * devuelve el blob y decide el llamador. Es lo que permite previsualizarlo en el visor sin
+   * salir de la orden (`VisorArchivo`).
+   *
+   * ⚠️ Lanza en vez de mostrar un toast: el visor tiene dónde escribir el error, y avisar dos
+   * veces por el mismo fallo es peor que una.
+   */
+  obtenerBlobPDF: async (dte) => {
+    if (!dte?.id) throw new Error('Documento sin ID');
+    return apiBlob(`/facturacion/documentos/${dte.id}/pdf`);
+  },
+
+  /**
    * Envía el DTE al cliente/receptor por email vía LibreDTE.
    */
   enviarEmail: async (dteId, email, nombre = '') => {

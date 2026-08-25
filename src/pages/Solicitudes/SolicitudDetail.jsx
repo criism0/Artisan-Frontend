@@ -14,7 +14,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import PageHeader from "../../components/UI/PageHeader.jsx";
 import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
 import Tabs from "../../components/UI/Tabs.jsx";
-import DocumentosYAdjuntos from "../../components/DTE/DocumentosYAdjuntos.jsx";
+import SeccionAdjuntos from "../../components/DTE/SeccionAdjuntos.jsx";
 import VincularDteModal from "../../components/DTE/VincularDteModal.jsx";
 import Modal from "../../components/UI/Modal.jsx";
 import PalletContenidoCard from "../../components/Pallets/PalletContenidoCard.jsx";
@@ -882,12 +882,13 @@ export default function SolicitudDetail() {
           </div>
         )}
 
+        {/* Sólo los archivos sueltos: los documentos tributarios de una solicitud tienen su
+            propia pestaña «Guías de Despacho», con el flujo de emisión completo. Cuando la
+            solicitud reciba su centro de documentos —el paso siguiente al de la OV— las dos se
+            juntan igual que allá. */}
         {tab === "adjuntos" && (
           <div className="mb-6">
-            <DocumentosYAdjuntos
-              idSolicitud={Number(solicitudId)}
-              secciones={{ documentos: false, adjuntos: true }}
-            />
+            <SeccionAdjuntos idSolicitud={Number(solicitudId)} />
           </div>
         )}
 
