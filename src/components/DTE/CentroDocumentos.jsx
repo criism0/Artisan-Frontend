@@ -439,10 +439,11 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
       )}
 
       {/* ── Modales ──────────────────────────────────────────────────────────────── */}
+      {/* Sin `orden`: la nota se arma desde el `detalle` de la factura, no desde la orden
+          (tarea #120). Pasársela invitaría a volver a mezclarlas. */}
       {modalNC && (
         <NotaCreditoModal
           dte={modalNC}
-          orden={orden}
           onClose={() => setModalNC(null)}
           onSuccess={() => { setModalNC(null); cargarDocumentos(); }}
         />
