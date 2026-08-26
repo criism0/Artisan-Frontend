@@ -9,13 +9,12 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import Table from "../../components/Tables/Table";
 import logo from "../../assets/logo.png";
 import { apiBlob, useApi } from "../../lib/api";
-import { uploadToS3 } from "../../lib/uploadToS3";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import PageHeader from "../../components/UI/PageHeader.jsx";
 import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
 import Tabs from "../../components/UI/Tabs.jsx";
-import SeccionAdjuntos from "../../components/DTE/SeccionAdjuntos.jsx";
-import VincularDteModal from "../../components/DTE/VincularDteModal.jsx";
+import CentroDocumentosSolicitud from "../../components/DTE/CentroDocumentosSolicitud.jsx";
+import { adjuntosService } from "../../services/adjuntosService.js";
 import Modal from "../../components/UI/Modal.jsx";
 import PalletContenidoCard from "../../components/Pallets/PalletContenidoCard.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
@@ -318,7 +317,6 @@ export default function SolicitudDetail() {
   // que queda escrito en `numero_guia_despacho`. Un solo número, un solo documento.
   const [emitiendoGD, setEmitiendoGD] = useState(false);
   const [viendoBorradorGD, setViendoBorradorGD] = useState(false);
-  const [mostrarVincularGD, setMostrarVincularGD] = useState(false);
 
   // Ver la guía como saldrá, antes de gastar el folio. Una guía emitida no se edita.
   const handleVerBorradorGD = async () => {
@@ -415,20 +413,37 @@ export default function SolicitudDetail() {
     try {
       setLoading(true);
 
-      let archivosRefs = [];
+      // 🔴 LOS ARCHIVOS DE LA GUÍA VAN A LA TABLA DE ADJUNTOS, NO AL JSONB.
+      //
+      // Antes se subían con `uploadToS3` y se guardaban como referencias sueltas en
+      // `SolicitudMercaderia.archivos_guia_despacho`. Ese campo tenía **una sola mención en todo
+      // el frontend: la que lo escribía**. Nadie lo leía ni lo mostraba nunca, así que alguien
+      // adjuntaba la guía firmada al despachar y no había forma de volver a verla desde la
+      // aplicación.
+      //
+      // `adjuntosService` es el mismo camino que usa el resto del sistema: tabla propia, con
+      // autor, descripción e integridad referencial con la solicitud — y se ve en el centro de
+      // documentos apenas se sube. Los archivos que quedaron en el JSONB se siguen mostrando
+      // ahí, marcados como heredados; lo nuevo ya no entra por esa puerta.
       if (archivosGuia.length > 0) {
-        archivosRefs = await Promise.all(
-          archivosGuia.map(async (file) => {
-            try {
-              return await uploadToS3(file);
-            } catch (e) {
-              console.error("upload guia error:", e);
-              toast.error(`Error subiendo ${file.name}`);
-              return null;
-            }
-          })
+        const resultados = await Promise.allSettled(
+          archivosGuia.map((file) =>
+            adjuntosService.subir({
+              archivo: file,
+              descripcion: `Guía de despacho ${guiaDespacho.trim()}`,
+              idSolicitud: Number(solicitudId),
+            })
+          )
         );
-        archivosRefs = archivosRefs.filter(Boolean);
+        const fallidos = resultados
+          .map((r, i) => (r.status === "rejected" ? archivosGuia[i].name : null))
+          .filter(Boolean);
+        // Un archivo que no sube NO cancela el envío: los pallets y el stock son lo que importa
+        // acá, y el adjunto se puede volver a subir después desde el centro de documentos. Pero
+        // se dice cuál falló, porque quien lo adjuntó cree que quedó guardado.
+        if (fallidos.length > 0) {
+          toast.error(`No se pudo adjuntar: ${fallidos.join(", ")}. La solicitud se envía igual.`);
+        }
       }
 
       await api(`/solicitudes-mercaderia/${solicitudId}/enviar`, {
@@ -436,7 +451,6 @@ export default function SolicitudDetail() {
         body: {
           numero_guia_despacho: guiaDespacho.trim(),
           medio_transporte: medioTransporte.trim(),
-          archivos_guia_despacho: archivosRefs,
         },
       });
 
@@ -807,6 +821,23 @@ export default function SolicitudDetail() {
           </div>
         )}
 
+        {/* 🔴 TODO LO DOCUMENTAL, FUERA DE LAS PESTAÑAS. Igual que en la orden de venta: las
+            guías de despacho y los archivos adjuntos eran dos pestañas separadas —a dos clics, y
+            sin saber desde afuera si había algo dentro—. Acá están siempre a la vista, y las
+            pestañas quedan para el contenido de la solicitud. */}
+        <CentroDocumentosSolicitud
+          solicitudId={Number(solicitudId)}
+          solicitud={solicitud}
+          gds={gds}
+          cargando={loading}
+          emitiendo={emitiendoGD}
+          viendoBorrador={viendoBorradorGD}
+          onEmitirGD={handleEmitirGD}
+          onVerBorradorGD={handleVerBorradorGD}
+          onConfirmarLlegada={handleConfirmarLlegadaGD}
+          onCambio={() => { cargarGDs(); fetchSolicitud(); }}
+        />
+
         <Tabs
           activa={tab}
           onCambiar={setTab}
@@ -819,10 +850,6 @@ export default function SolicitudDetail() {
               deshabilitadaSiVacia: true,
             },
             { id: "pallets", label: "Pallets", cantidad: palletsData.length, deshabilitadaSiVacia: true },
-            { id: "guias", label: "Guías de Despacho", cantidad: gds.length },
-            // Archivos sueltos de la solicitud (fotos, comprobantes). Los documentos
-            // tributarios NO se repiten acá: ya tienen su pestaña «Guías de Despacho».
-            { id: "adjuntos", label: "Adjuntos" },
             { id: "trazabilidad", label: "Trazabilidad" },
           ]}
         />
@@ -882,24 +909,6 @@ export default function SolicitudDetail() {
           </div>
         )}
 
-        {/* Sólo los archivos sueltos: los documentos tributarios de una solicitud tienen su
-            propia pestaña «Guías de Despacho», con el flujo de emisión completo. Cuando la
-            solicitud reciba su centro de documentos —el paso siguiente al de la OV— las dos se
-            juntan igual que allá. */}
-        {tab === "adjuntos" && (
-          <div className="mb-6">
-            <SeccionAdjuntos idSolicitud={Number(solicitudId)} />
-          </div>
-        )}
-
-        {mostrarVincularGD && (
-          <VincularDteModal
-            idSolicitud={Number(solicitudId)}
-            onClose={() => setMostrarVincularGD(false)}
-            onSuccess={() => { cargarGDs(); fetchSolicitud(); }}
-          />
-        )}
-
         {tab === "trazabilidad" && (
           <div className="bg-white p-6 rounded-lg shadow mb-6">
             <h2 className="text-lg font-semibold text-text mb-4">Trazabilidad</h2>
@@ -924,117 +933,6 @@ export default function SolicitudDetail() {
           </div>
         )}
 
-        {tab === "guias" && (
-        <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h2 className="text-lg font-semibold text-text">Guías de Despacho</h2>
-            {gds.length === 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={handleVerBorradorGD}
-                  disabled={viendoBorradorGD || loading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                >
-                  <FileSearch className="w-4 h-4" />
-                  {viendoBorradorGD ? "Generando…" : "Ver cómo saldrá"}
-                </button>
-                <button
-                  onClick={handleEmitirGD}
-                  disabled={emitiendoGD || loading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
-                >
-                  <FileText className="w-4 h-4" />
-                  {emitiendoGD ? "Emitiendo…" : "Emitir guía de despacho"}
-                </button>
-                {/* Tarea #108: las guías de traslado se emiten a mano en LibreDTE muy seguido
-                    —eran ~17 al mes cuando el ERP no tenía botón— y quedaban sin forma de
-                    asociarse a su solicitud. Va acá, junto a «emitir», porque es la otra
-                    respuesta a la misma pregunta: «esta solicitud ya tiene guía». */}
-                <button
-                  onClick={() => setMostrarVincularGD(true)}
-                  disabled={loading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-primary border border-primary rounded-lg hover:bg-primary/5 disabled:opacity-50"
-                  title="Si la guía ya se emitió fuera del ERP, vincularla en vez de emitir otra"
-                >
-                  <Link2 className="w-4 h-4" />
-                  Vincular guía ya emitida
-                </button>
-              </div>
-            )}
-          </div>
-
-          {gds.length === 0 ? (
-            <div className="bg-gray-50 p-4 rounded-lg text-sm text-gray-500 space-y-1">
-              <p>No hay guías de despacho emitidas para esta solicitud.</p>
-              <p className="text-xs text-gray-400">
-                La guía declara <strong>sólo lo que se despachó</strong>, con el valor de los
-                bultos cargados en los pallets. Emítela antes de marcar la solicitud como
-                enviada: su folio queda como el número de la guía.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {gds.map((gd) => {
-                const meta = gd.metadata ?? {};
-                const fechaLlegada = meta.fecha_llegada;
-                return (
-                  <div key={gd.id} className="flex items-center justify-between gap-4 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm">
-                    <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-gray-800">GD N° {gd.folio ?? '—'}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          gd.estadoSii === 'aceptado' ? 'bg-green-100 text-green-800' :
-                          gd.estadoSii === 'rechazado' ? 'bg-red-100 text-red-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {gd.estadoSii?.toUpperCase() ?? 'PENDIENTE'}
-                        </span>
-                      </div>
-                      <div className="text-xs text-gray-500 flex flex-wrap gap-3 mt-0.5">
-                        {meta.bodega_origen && <span>De: <strong>{meta.bodega_origen}</strong></span>}
-                        {meta.bodega_destino && <span>→ <strong>{meta.bodega_destino}</strong></span>}
-                        {meta.transportista && <span>· Transportista: {meta.transportista}</span>}
-                        {gd.fechaEmision && <span>· Emitida: {new Date(gd.fechaEmision).toLocaleDateString('es-CL')}</span>}
-                        {fechaLlegada
-                          ? <span className="text-green-700 font-medium">· Llegada confirmada el {new Date(fechaLlegada).toLocaleString('es-CL')}</span>
-                          : <span className="text-amber-600">· En tránsito</span>
-                        }
-                      </div>
-                      {gd.montoTotal > 0 && (
-                        <span className="text-xs text-gray-500">Total: {formatCLP(gd.montoTotal, 0)}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {!fechaLlegada && (
-                        <button
-                          onClick={() => handleConfirmarLlegadaGD(gd.id)}
-                          className="px-2.5 py-1 text-xs font-medium rounded border border-green-300 text-green-700 hover:bg-green-50"
-                        >
-                          Confirmar llegada
-                        </button>
-                      )}
-                      <button
-                        onClick={() => dteService.verPDF(gd).catch(console.error)}
-                        className="px-2.5 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
-                        title="Ver PDF"
-                      >
-                        Ver
-                      </button>
-                      <button
-                        onClick={() => dteService.descargarPDF(gd, { id: solicitudId, materiasPrimas: [] }).catch(console.error)}
-                        className="px-2.5 py-1 text-xs rounded border border-gray-300 text-gray-600 hover:bg-gray-100"
-                        title="Descargar PDF"
-                      >
-                        Descargar
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        )}
 
         {tab === "pallets" && (
           <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
