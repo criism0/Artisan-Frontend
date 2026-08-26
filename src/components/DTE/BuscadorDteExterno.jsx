@@ -12,10 +12,15 @@
  * corresponde — nada más. Si el monto no calza, se muestra la diferencia y se vincula igual:
  * rechazar por eso dejaría el documento en el aire, que es el problema que esto resuelve.
  *
- * Vive suelto —sin el overlay— para poder abrirse DENTRO del centro de documentos: buscar un
- * documento es parte de armar el expediente de la orden, no una interrupción. `VincularDteModal`
- * lo envuelve en un modal para la solicitud de mercadería, que todavía lo invoca desde su
- * pestaña de guías.
+ * Vive suelto —sin overlay— para abrirse DENTRO del centro de documentos, tanto en la orden de
+ * venta como en la solicitud: buscar un documento es parte de armar el expediente del proceso,
+ * no una interrupción de otra cosa, y en un modal se pierde de vista la lista con la que hay que
+ * compararlo.
+ *
+ * ⚠️ Hubo un `VincularDteModal` que lo envolvía en un overlay mientras la solicitud todavía lo
+ * invocaba desde su pestaña de guías. Al llevar el centro a la solicitud se quedó sin llamadores
+ * y se eliminó: un envoltorio muerto que reintroduce el modal en cuanto alguien lo importa de
+ * vuelta.
  */
 
 import { useState } from 'react';
