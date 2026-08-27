@@ -5,7 +5,9 @@ import { toast } from "../../lib/toast";
 import { getTodayDate } from "../../lib/dateUtils";
 import { ArrowLeft, ChevronDown, ChevronUp, Trash2, Pencil, Check, X } from "lucide-react";
 import Selector from "../../components/Forms/Selector";
+import Modal from "../../components/UI/Modal.jsx";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import { buscarOvConMismaOC, describirDuplicadas } from "../../utils/ocDuplicada.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import {
   unidadVentaDe,
@@ -24,6 +26,9 @@ import {
 export default function AddOrdenVenta() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Las órdenes del mismo cliente que ya usan este número de OC. Con contenido, se muestra el
+  // aviso y la creación queda esperando confirmación.
+  const [ocDuplicada, setOcDuplicada] = useState(null);
   const canWriteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
   const canWriteSaleOrderProduct = checkScope(ModelType.PRODUCTO_ORDEN, ScopeType.WRITE);
   const canReadClients = checkScope(ModelType.CLIENTE, ScopeType.READ);
@@ -423,6 +428,14 @@ export default function AddOrdenVenta() {
     setEditingDescuento("");
   };
 
+  /**
+   * Comprueba si el cliente ya tiene una orden con este número de OC y, si la hay, pide
+   * confirmación antes de crear otra.
+   *
+   * 🔴 Avisa, no bloquea: repetir la OC del cliente es legítimo —una misma orden de compra puede
+   * despacharse en dos entregas parciales—. Lo que se evita es el duplicado por descuido: el
+   * correo reenviado, o cargarla a mano sin ver que la Cola IA ya la creó.
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -431,6 +444,21 @@ export default function AddOrdenVenta() {
       toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.WRITE], [ModelType.PRODUCTO_ORDEN, ScopeType.WRITE]);
       return;
     }
+
+    const yaExisten = await buscarOvConMismaOC({
+      numeroOc: form.numero_oc,
+      idCliente: form.id_cliente,
+    });
+    if (yaExisten.length > 0) {
+      setOcDuplicada(yaExisten);
+      return;
+    }
+
+    await crearOrden();
+  };
+
+  const crearOrden = async () => {
+    setOcDuplicada(null);
     setIsSubmitting(true);
     try {
       const payload = {
@@ -1077,12 +1105,55 @@ export default function AddOrdenVenta() {
       {/* ── Acciones ── */}
       <div className="flex justify-end">
         <button
+          type="button"
           onClick={handleSubmit}
-          className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium transition-colors"
+          disabled={isSubmitting}
+          className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium transition-colors disabled:opacity-50"
         >
           {isSubmitting ? "Guardando..." : "Guardar Orden"}
         </button>
       </div>
+
+      {/* Aviso de OC repetida: el cliente ya tiene una orden con este número. No bloquea. */}
+      <Modal
+        abierto={!!ocDuplicada}
+        onCerrar={() => setOcDuplicada(null)}
+        titulo="Este cliente ya tiene una orden con esa OC"
+        descripcion={`N° de orden de compra: ${form.numero_oc}`}
+        pie={
+          <>
+            <button
+              type="button"
+              onClick={() => setOcDuplicada(null)}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={crearOrden}
+              disabled={isSubmitting}
+              className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+            >
+              {isSubmitting ? "Creando…" : "Crear de todas formas"}
+            </button>
+          </>
+        }
+      >
+        <p className="text-sm text-gray-700">
+          Ya {ocDuplicada?.length === 1 ? "existe una orden" : "existen órdenes"} de este cliente
+          con ese número de orden de compra:
+        </p>
+        <ul className="mt-2 space-y-1">
+          {describirDuplicadas(ocDuplicada).map((texto) => (
+            <li key={texto} className="text-sm font-medium text-gray-900">• {texto}</li>
+          ))}
+        </ul>
+        <p className="text-xs text-gray-500 mt-3">
+          Puede ser un duplicado —el mismo pedido cargado dos veces— o una segunda entrega de la
+          misma orden de compra, que es válido. Revisa la orden anterior antes de continuar.
+        </p>
+      </Modal>
     </div>
   );
 }

@@ -8,6 +8,7 @@ import Pagination from "../../components/UI/Pagination";
 import Tabs from "../../components/UI/Tabs";
 import PanelApartados from "../../components/DTE/PanelApartados";
 import { compararFormato } from "../../utils/formatoProducto";
+import { buscarOvConMismaOC, describirDuplicadas } from "../../utils/ocDuplicada.js";
 import {
   indexarPreciosPorNombre,
   precioUnitarioDeLista,
@@ -1588,6 +1589,9 @@ export default function ColaIAPage() {
   const [loading, setLoading]   = useState(true);
   const [procesando, setProcesando] = useState(false);
   const [rechazarId, setRechazarId] = useState(null);
+  // La validación que quedó esperando confirmación porque el cliente ya tiene otra orden con el
+  // mismo número de OC: `{ id, bodegaId, clienteId, numeroOc, duplicadas }`.
+  const [ocDuplicada, setOcDuplicada] = useState(null);
   const [busqueda, setBusqueda] = useState("");
   const [pagina, setPagina]     = useState(1);
   const [tab, setTab]           = useState("validar");
@@ -1704,8 +1708,38 @@ export default function ColaIAPage() {
 
   const ordenesPagina = ordenesFiltradas.slice((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE);
 
+  /**
+   * Antes de validar, comprueba si el cliente ya tiene otra orden con el mismo número de OC.
+   *
+   * 🔴 Avisa, no bloquea: repetir la OC del cliente es legítimo (una misma orden de compra puede
+   * despacharse en dos entregas). Lo que se evita es el duplicado por descuido — el correo
+   * reenviado, o una orden que ya se cargó a mano.
+   *
+   * ⚠️ `excluirId` es obligatorio acá: la orden que se está validando YA está guardada con ese
+   * número, así que sin él siempre se encontraría a sí misma y el aviso saldría siempre.
+   *
+   * El cliente definitivo es el del selector (`clienteId`), no el que trae la orden: en la Cola
+   * IA se corrige a menudo, y comprobar contra el viejo miraría el catálogo equivocado.
+   */
   const handleValidar = async (id, bodegaId, clienteId) => {
     if (!bodegaId) { toast.warning("Debes seleccionar una bodega antes de validar"); return; }
+
+    const orden = ordenes.find((o) => o.id === id);
+    const duplicadas = await buscarOvConMismaOC({
+      numeroOc: orden?.numero_oc,
+      idCliente: clienteId || orden?.id_cliente,
+      excluirId: id,
+    });
+    if (duplicadas.length > 0) {
+      setOcDuplicada({ id, bodegaId, clienteId, numeroOc: orden?.numero_oc, duplicadas });
+      return;
+    }
+
+    await validarOrden(id, bodegaId, clienteId);
+  };
+
+  const validarOrden = async (id, bodegaId, clienteId) => {
+    setOcDuplicada(null);
     setProcesando(true);
     try {
       const body = { bodega_id: Number(bodegaId) };
@@ -1848,6 +1882,24 @@ export default function ColaIAPage() {
         title="Rechazar orden"
         description={`¿Estás seguro de que deseas rechazar y eliminar la OV #${rechazarId}? Esta acción no se puede deshacer.`}
         confirmText="Rechazar"
+        cancelText="Cancelar"
+      />
+
+      {/* Aviso de OC repetida. No bloquea: se puede validar igual. */}
+      <ConfirmActionModal
+        isOpen={ocDuplicada !== null}
+        onClose={() => setOcDuplicada(null)}
+        onConfirm={() =>
+          validarOrden(ocDuplicada.id, ocDuplicada.bodegaId, ocDuplicada.clienteId)
+        }
+        title="Este cliente ya tiene una orden con esa OC"
+        description={
+          `El cliente ya tiene ${describirDuplicadas(ocDuplicada?.duplicadas).join(", ")} ` +
+          `con el número de orden de compra «${ocDuplicada?.numeroOc ?? ""}». ` +
+          "Puede ser un duplicado —el mismo pedido cargado dos veces— o una segunda entrega de la " +
+          "misma OC, que es válido. Revisa la orden anterior antes de continuar."
+        }
+        confirmText="Validar de todas formas"
         cancelText="Cancelar"
       />
     </div>
