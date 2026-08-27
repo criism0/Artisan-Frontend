@@ -917,8 +917,22 @@ export default function OrdenVentaDetail() {
           await api(`/ordenes-venta/${id}`, { method: "DELETE" });
           toast.success("Orden eliminada");
           navigate("/ventas/ordenes");
-        } catch {
-          toast.error("No se pudo eliminar la orden");
+        } catch (err) {
+          // 🔴 EL `catch` NO LLEVABA PARÁMETRO Y SE COMÍA EL MOTIVO.
+          //
+          // El 2026-08-27 un usuario con rol Administrador no podía eliminar una OV: el backend
+          // respondía 403 «Acceso denegado: faltan permisos de Delete en OrdenVenta» y la
+          // pantalla decía sólo «No se pudo eliminar la orden». Reintentó cuatro veces sobre la
+          // misma orden —está en el access.log— y hubo que ir a la base para saber que era un
+          // permiso. El servidor sabe POR QUÉ falló; esconderlo convierte un permiso que falta
+          // en un misterio.
+          //
+          // ⚠️ La guarda de arriba (`canDeleteSaleOrder`) no alcanza: mira los scopes que trae
+          // la sesión, y el 403 vino igual. Cuando las dos discrepan, el que manda es el backend.
+          const motivo = err?.message || err?.data?.error || "";
+          toast.error(
+            motivo ? `No se pudo eliminar la orden: ${motivo}` : "No se pudo eliminar la orden",
+          );
         }
       },
     },
