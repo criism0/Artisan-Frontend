@@ -23,9 +23,8 @@ import { formatCLP } from "../../services/formatHelpers";
 import { generarNotaVentaPDF } from "../../services/notaVentaPdf.js";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
-import PanelFacturacion from "../../components/DTE/PanelFacturacion.jsx";
+import CentroDocumentos from "../../components/DTE/CentroDocumentos.jsx";
 import DTEPreview from "../../components/DTE/DTEPreview.jsx";
-import DocumentosYAdjuntos from "../../components/DTE/DocumentosYAdjuntos.jsx";
 import EstadoPosteriorBadge from "../../components/Ventas/EstadoPosteriorBadge.jsx";
 import DetalleTipoFactura from "../../components/Ventas/DetalleTipoFactura.jsx";
 import InformacionOrdenCliente from "../../components/Ventas/InformacionOrdenCliente.jsx";
@@ -1015,23 +1014,23 @@ export default function OrdenVentaDetail() {
         comentarioCliente={orden?.comentario_cliente}
       />
 
-      {/* 🔴 FACTURACIÓN FUERA DE LAS PESTAÑAS. Era la 4ª pestaña: dos clics para lo que más se
-          consulta y para las dos acciones que definen esta pantalla —«ver cómo saldrá» y
-          «facturar»—. Acá está siempre a la vista, y el detalle de la orden queda a un clic
-          igual que antes. */}
+      {/* 🔴 TODO LO DOCUMENTAL, FUERA DE LAS PESTAÑAS Y EN UN SOLO LUGAR.
+          Antes esto estaba partido en dos: el panel de facturación acá (emisión y estado del
+          SII) y una pestaña «Documentos» a dos clics (origen, vincular y archivos adjuntos),
+          las dos mostrando la MISMA lista de documentos con la mitad de las acciones cada una.
+          `CentroDocumentos` las reemplaza, y por eso la pestaña ya no existe. */}
       <div className="mb-6">
-        <PanelFacturacion orden={orden} />
+        <CentroDocumentos orden={orden} onCambio={fetchOrden} />
       </div>
 
+      {/* Las pestañas quedan para lo que se pidió y lo que se pickeó — decisión de Cristóbal,
+          2026-08-25. Todo lo documental vive arriba, siempre visible. */}
       <Tabs
         activa={tab}
         onCambiar={setTab}
         pestanas={[
           { id: "detalle", label: "Productos", cantidad: orderItems.length },
           { id: "asignacion", label: "Asignación", cantidad: progresoRows.length },
-          // Documentos tributarios (emitidos acá o vinculados de afuera) y archivos sueltos,
-          // juntos — tarea #108 y pedido de adjuntos de Cristóbal, 2026-08-22.
-          { id: "documentos", label: "Documentos" },
         ]}
       />
 
@@ -1108,17 +1107,6 @@ export default function OrdenVentaDetail() {
           <div className="text-sm text-gray-500">Sin asignación registrada.</div>
         )}
       </div>
-
-      {/* Documentos tributarios (emitidos acá o vinculados de afuera) y archivos adjuntos.
-          Se monta sólo cuando la pestaña está activa —a diferencia de las otras dos, que van
-          con `hidden`— porque hace sus propias peticiones y no tiene sentido pagarlas al abrir
-          la orden si nadie va a mirar esta pestaña. */}
-      {tab === "documentos" && (
-        <div className="mb-6">
-          <DocumentosYAdjuntos idOrdenVenta={Number(id)} onCambio={fetchOrden} />
-        </div>
-      )}
-
 
       <Modal
         abierto={showFacturarForm}
