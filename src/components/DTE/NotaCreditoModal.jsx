@@ -14,11 +14,10 @@
  */
 
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, AlertTriangle } from 'lucide-react';
 import { dteService } from '../../services/dteService.js';
 import { toast } from '../../lib/toast.js';
 import { formatCLP } from '../../services/formatHelpers.js';
-import { cantidadFacturable } from '../../utils/cantidadFacturable.js';
 
 const COD_REF_OPTIONS = [
   { value: 3, label: 'Rebaja parcial / merma — folio sigue existiendo, monto baja' },
@@ -26,31 +25,50 @@ const COD_REF_OPTIONS = [
   { value: 2, label: 'Corrección de texto — error en nombre o descripción (sin cambio de monto)' },
 ];
 
-export default function NotaCreditoModal({ dte, orden, onClose, onSuccess }) {
+export default function NotaCreditoModal({ dte, onClose, onSuccess }) {
   const [codRef,   setCodRef]   = useState(3);
   const [razon,    setRazon]    = useState('');
   const [loading,  setLoading]  = useState(false);
 
-  // Items de la orden para seleccionar cuáles devolver.
+  // 🔴 LAS LÍNEAS SALEN DE LA FACTURA, NO DE LA ORDEN — tarea #120.
   //
-  // 🔴 El tope es lo que dice la FACTURA, no lo que decía el pedido. Desde que el documento se
-  // emite por lo pickeado (2026-08-17), una orden despachada a medias tiene la factura por menos
-  // que la orden: ofrecer devolver lo pedido dejaría emitir una nota de crédito por MÁS de lo
-  // que se cobró.
-  const itemsOrden = (orden?.productos ?? []).map((it, idx) => ({
-    id: it.id_producto ?? it.id ?? idx,
-    nombre: it?.ProductoBase?.nombre ?? `Producto #${it.id_producto ?? idx + 1}`,
-    cantidadMax: cantidadFacturable(it),
-    cantidadDevuelta: cantidadFacturable(it),
-    unidad: 'un',
-    precioUnitario: Number(it.precio_venta ?? 0),
-    seleccionado: false,
-  }));
+  // Una nota de crédito corrige un documento **ya declarado ante el SII**, así que sus líneas
+  // tienen que ser las de ese documento. Antes se armaban desde `orden.productos` y divergían de
+  // tres formas a la vez, todas medidas sobre la factura 160903 de la OV 846:
+  //
+  //   · el DESCUENTO se perdía — la factura declara «Cottage 250g SF» a 990 con 15% (monto 842)
+  //     y la nota mandaba 990 pelado: 17,6% de sobre-crédito;
+  //   · el NOMBRE salía del producto físico, que en esa orden es `null`, así que se declaraba al
+  //     SII un ítem llamado «Producto #2». No es raro: 287 de 821 líneas no tienen producto
+  //     físico, porque la venta se pide por nombre de facturación;
+  //   · y la factura FUSIONA en una línea las de la orden que comparten nombre de facturación,
+  //     con precio ponderado, mientras el modal las mostraba separadas.
+  //
+  // Ahora se manda el índice de la línea y la cantidad; el nombre, el precio y el descuento los
+  // resuelve el backend contra el propio documento.
+  const lineasFactura = Array.isArray(dte?.detalle) ? dte.detalle : [];
 
-  const [items, setItems] = useState(itemsOrden);
+  const [items, setItems] = useState(
+    lineasFactura.map((linea, idx) => ({
+      id: idx,
+      nombre: linea.nombre,
+      cantidadMax: Number(linea.cantidad ?? 0),
+      cantidadDevuelta: Number(linea.cantidad ?? 0),
+      precioUnitario: Number(linea.precio_unitario ?? 0),
+      descuento: Number(linea.descuento_porcentaje ?? 0),
+      montoItem: Number(linea.monto_item ?? 0),
+      unidad: linea.unidad_medida ?? 'Un',
+      seleccionado: false,
+    })),
+  );
 
   const esTexto    = codRef === 2;
   const esAnulacion = codRef === 1;
+
+  // Un documento vinculado desde LibreDTE (`origen: EXTERNO`) no trae sus líneas: LibreDTE no las
+  // entrega. Sin ellas no se puede acreditar una parte —inventarlas desde la orden es justo el
+  // error que esto viene a cerrar— pero la anulación total sí es posible.
+  const sinDetalle = lineasFactura.length === 0;
 
   function updateItem(id, k, v) {
     setItems(prev => prev.map(it => it.id === id ? { ...it, [k]: v } : it));
@@ -59,8 +77,12 @@ export default function NotaCreditoModal({ dte, orden, onClose, onSuccess }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (!razon.trim()) { toast.error('Ingresa el motivo de la Nota de Crédito'); return; }
+    if (!esTexto && !esAnulacion && sinDetalle) {
+      toast.error('No se puede acreditar una parte: este documento no tiene sus líneas guardadas.');
+      return;
+    }
     if (!esTexto && !esAnulacion && !items.some(it => it.seleccionado)) {
-      toast.error('Selecciona al menos un ítem a devolver');
+      toast.error('Selecciona al menos una línea a acreditar');
       return;
     }
 
@@ -89,11 +111,13 @@ export default function NotaCreditoModal({ dte, orden, onClose, onSuccess }) {
 
     setLoading(true);
     try {
-      const itemsPayload = esTexto
+      // La anulación total y la corrección de texto no llevan ítems: el backend las resuelve
+      // desde el propio documento (la factura entera, o una línea de $0 con el motivo).
+      const itemsPayload = (esTexto || esAnulacion)
         ? []
-        : esAnulacion
-          ? items.map(it => ({ nombre: it.nombre, cantidad: it.cantidadMax, unidad: it.unidad, precioUnitario: it.precioUnitario }))
-          : items.filter(it => it.seleccionado).map(it => ({ nombre: it.nombre, cantidad: it.cantidadDevuelta, unidad: it.unidad, precioUnitario: it.precioUnitario }));
+        : items
+            .filter(it => it.seleccionado)
+            .map(it => ({ linea: it.id, cantidad: it.cantidadDevuelta }));
 
       const res = await dteService.emitirNotaCredito(dte.id, { codRef, razon, items: itemsPayload });
       toast.success(`Nota de Crédito${res?.folio ? ` N° ${res.folio}` : ''} emitida`);
@@ -158,36 +182,90 @@ export default function NotaCreditoModal({ dte, orden, onClose, onSuccess }) {
             />
           </div>
 
-          {/* Ítems a devolver (solo si no es texto ni anulación total) */}
-          {!esTexto && !esAnulacion && items.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Ítems a devolver
-              </label>
-              <div className="space-y-2 border border-gray-200 rounded-lg p-3 bg-gray-50">
-                {items.map(it => (
-                  <div key={String(it.id)} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={it.seleccionado}
-                      onChange={e => updateItem(it.id, 'seleccionado', e.target.checked)}
-                      className="w-4 h-4 rounded"
-                    />
-                    <span className="flex-1 text-sm text-gray-700 truncate">{it.nombre}</span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={it.cantidadMax}
-                      value={it.cantidadDevuelta}
-                      disabled={!it.seleccionado}
-                      onChange={e => updateItem(it.id, 'cantidadDevuelta', Number(e.target.value))}
-                      className="w-20 border border-gray-300 rounded px-2 py-1 text-sm disabled:opacity-40"
-                    />
-                    <span className="text-xs text-gray-500 whitespace-nowrap">/ {it.cantidadMax} u</span>
+          {/* Líneas a acreditar — las que declara la factura */}
+          {!esTexto && !esAnulacion && (
+            sinDetalle ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900">
+                <div className="flex gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-medium">No se puede acreditar una parte de este documento.</p>
+                    <p className="mt-1">
+                      Se emitió fuera del ERP y se vinculó a mano, así que no tenemos el detalle de
+                      sus líneas —LibreDTE no lo entrega—. Acreditar una parte obligaría a inventar
+                      qué dice la factura. La <strong>anulación total</strong> sí es posible.
+                    </p>
                   </div>
-                ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Líneas a acreditar
+                </label>
+                {/* Decir de dónde salen es parte del arreglo: son las de la FACTURA, que puede
+                    no coincidir con las de la orden —la factura fusiona por nombre de
+                    facturación y se emite por lo pickeado—. */}
+                <p className="text-xs text-gray-500 mb-2">
+                  Tal como las declara la factura N° {dte.folio} ante el SII.
+                </p>
+                <div className="space-y-2 border border-gray-200 rounded-lg p-3 bg-gray-50">
+                  {items.map(it => (
+                    <div key={String(it.id)} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={it.seleccionado}
+                        onChange={e => updateItem(it.id, 'seleccionado', e.target.checked)}
+                        className="w-4 h-4 rounded shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <span className="block text-sm text-gray-700 truncate">{it.nombre}</span>
+                        <span className="block text-xs text-gray-500">
+                          {formatCLP(it.precioUnitario, 0)} c/u
+                          {it.descuento > 0 && (
+                            <span className="text-amber-700"> · −{it.descuento}% dcto.</span>
+                          )}
+                          {' · '}línea: {formatCLP(it.montoItem, 0)}
+                        </span>
+                      </div>
+                      <input
+                        type="number"
+                        min={0}
+                        max={it.cantidadMax}
+                        step="any"
+                        value={it.cantidadDevuelta}
+                        disabled={!it.seleccionado}
+                        onChange={e => updateItem(it.id, 'cantidadDevuelta', Number(e.target.value))}
+                        className="w-20 border border-gray-300 rounded px-2 py-1 text-sm disabled:opacity-40 shrink-0"
+                      />
+                      <span className="text-xs text-gray-500 whitespace-nowrap shrink-0">
+                        / {it.cantidadMax} {it.unidad}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {/* El total con el descuento ya aplicado: es lo que se le devuelve al cliente y
+                    lo que va a decir el documento. */}
+                <p className="text-xs text-gray-600 mt-2 text-right">
+                  Neto a acreditar:{' '}
+                  <strong>
+                    {formatCLP(
+                      items
+                        .filter(it => it.seleccionado)
+                        .reduce(
+                          (sum, it) =>
+                            sum +
+                            Math.round(
+                              it.cantidadDevuelta * it.precioUnitario * (1 - (it.descuento || 0) / 100),
+                            ),
+                          0,
+                        ),
+                      0,
+                    )}
+                  </strong>
+                </p>
+              </div>
+            )
           )}
 
           {esAnulacion && (

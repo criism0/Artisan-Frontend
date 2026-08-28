@@ -146,11 +146,14 @@ export const dteService = {
       motivo: razon,
       codigo_referencia: codRef,
     };
+    // Tarea #120: se manda QUÉ LÍNEA de la factura se acredita y cuánto, no el nombre y el
+    // precio. El backend los resuelve contra el `detalle` del documento declarado, así que una
+    // nota no puede acreditar algo que la factura no dice —ni perderle el descuento, que es
+    // como se acreditaban $990 sobre una línea de $842—.
     if (codRef === 3 && items.length > 0) {
       body.items = items.map((it) => ({
-        nombre: it.nombre,
-        cantidad: Number(it.cantidadDevuelta ?? it.cantidad ?? 1),
-        precio_unitario: Number(it.precioUnitario ?? 0),
+        linea: Number(it.linea),
+        cantidad: Number(it.cantidad),
       }));
     }
     const res = await api('/facturacion/emitir-nota-credito', { method: 'POST', body });
