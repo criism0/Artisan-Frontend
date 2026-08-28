@@ -9,6 +9,8 @@ import { formatCLP } from "../../services/formatHelpers";
 import { dteService } from "../../services/dteService.js";
 import { generarNotaVentaPDF } from "../../services/notaVentaPdf.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import EstadoPosteriorBadge from "../../components/Ventas/EstadoPosteriorBadge.jsx";
+import { POSTERIOR_LABEL } from "../../utils/estadoPosteriorFactura.js";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
 
@@ -24,6 +26,7 @@ function EstadoBadge({ estado }) {
   };
   return <span className={`${base} ${map[estado] || "bg-gray-100 text-gray-600"}`}>{estado}</span>;
 }
+
 
 export default function OrdenesVentaPage() {
   const navigate = useNavigate();
@@ -136,6 +139,15 @@ export default function OrdenesVentaPage() {
       sortable: true,
       Cell: ({ value }) => <EstadoBadge estado={value} />,
     },
+    {
+      // Columna APARTE de "Estado" — pedido explícito de Cristóbal ("en segundo círculo"),
+      // para que se pueda buscar/ordenar sin mezclarla con el paso del flujo.
+      header: "Doc. posterior",
+      accessor: "estado_dte_posterior",
+      sortable: true,
+      sortValue: (row) => row.estado_dte_posterior?.estado ?? "",
+      Cell: ({ row }) => <EstadoPosteriorBadge info={row.estado_dte_posterior} />,
+    },
   ];
 
   // Descarga la factura de una orden sin entrar al detalle: es la consulta más frecuente y
@@ -220,7 +232,17 @@ export default function OrdenesVentaPage() {
   };
 
   const getSearchText = (row) =>
-    [row.id, fmtDate(row.fecha_orden), row.cliente?.nombre_empresa, row.numero_oc, row.estado, row.comentario_cliente]
+    [
+      row.id,
+      fmtDate(row.fecha_orden),
+      row.cliente?.nombre_empresa,
+      row.numero_oc,
+      row.estado,
+      row.comentario_cliente,
+      // "NC Total"/"NC Parcial" buscables tal como se leen en pantalla, no el código interno.
+      row.estado_dte_posterior && POSTERIOR_LABEL[row.estado_dte_posterior.estado],
+      row.estado_dte_posterior?.motivo,
+    ]
       .filter(Boolean)
       .join(" ");
 
