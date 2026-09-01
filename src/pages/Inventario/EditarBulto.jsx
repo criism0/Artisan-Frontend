@@ -122,7 +122,7 @@ export default function EditarBulto() {
       toast.success("Bulto actualizado");
     } catch (e) {
       console.error(e);
-      toast.error("No se pudo actualizar el bulto");
+      toast.error(e?.message || "No se pudo actualizar el bulto");
     } finally {
       setLoading(false);
     }
