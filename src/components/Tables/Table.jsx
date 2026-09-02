@@ -12,7 +12,7 @@ export default function Table({ columns, data, actions, renderActions, renderExp
             {columns.map((column, index) => (
               <th
                 key={index}
-                className={`px-6 py-3 text-left text-xs font-medium text-text uppercase tracking-wider ${column?.headerClassName || ""}`}
+                className={`relative px-6 py-3 text-left text-xs font-medium text-text uppercase tracking-wider ${column?.headerClassName || ""}`}
               >
                 {column.header}
               </th>

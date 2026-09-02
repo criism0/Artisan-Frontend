@@ -1,10 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { FileDown, Receipt } from "lucide-react";
 import { ViewDetailButton, EditButton, TrashButton } from "../../components/Buttons/ActionButtons";
 import DataTable from "../../components/Tables/DataTable";
+import { usePersistedState } from "../../hooks/useTablaPersistida";
+import {
+  FILTROS_VACIOS,
+  ordenPasaFiltros,
+  contarFiltrosActivos,
+  recortarParaTooltip,
+} from "../../utils/filtrosOrdenesVenta";
 import { formatCLP } from "../../services/formatHelpers";
 import { dteService } from "../../services/dteService.js";
 import { generarNotaVentaPDF } from "../../services/notaVentaPdf.js";
@@ -13,6 +20,9 @@ import EstadoPosteriorBadge from "../../components/Ventas/EstadoPosteriorBadge.j
 import { POSTERIOR_LABEL } from "../../utils/estadoPosteriorFactura.js";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
+
+/** Una sola clave para la tabla y para los filtros de esta página: se guardan y se borran juntos. */
+const CLAVE_UI = "ventas_ordenes_v1";
 
 function EstadoBadge({ estado }) {
   const base = "px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap";
@@ -34,6 +44,10 @@ export default function OrdenesVentaPage() {
   const [ordenes, setOrdenes] = useState([]);
   const [descargando, setDescargando] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Los filtros propios de esta lista viven acá porque acá se sabe qué significan; se guardan
+  // bajo la MISMA clave que usa el DataTable para su búsqueda/orden/columnas.
+  const [filtros, setFiltros] = usePersistedState(CLAVE_UI, "filtrosOV", FILTROS_VACIOS);
+  const setFiltro = (campo, valor) => setFiltros((prev) => ({ ...prev, [campo]: valor }));
 
   const canDeleteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.DELETE);
   const canReadClients = checkScope(ModelType.CLIENTE, ScopeType.READ);
@@ -72,11 +86,12 @@ export default function OrdenesVentaPage() {
   };
 
   const columns = [
-    { header: "N°", accessor: "id", sortable: true },
+    { header: "N°", accessor: "id", sortable: true, hideable: false, filtro: "numero" },
     {
       header: "Fecha",
       accessor: "fecha_orden",
       sortable: true,
+      filtro: "fecha",
       sortValue: (row) => (row.fecha_orden ? new Date(row.fecha_orden).getTime() : 0),
       Cell: ({ value }) => fmtDate(value),
     },
@@ -91,17 +106,45 @@ export default function OrdenesVentaPage() {
       header: "Entrega",
       accessor: "fecha_entrega",
       sortable: true,
+      filtro: "fecha",
       sortValue: (row) =>
         row.fecha_entrega ? new Date(row.fecha_entrega).getTime() : Number.MAX_SAFE_INTEGER,
       Cell: ({ value }) =>
         value ? fmtDate(value) : <span className="text-gray-400">—</span>,
     },
     {
+      // Se acota igual que la OC: medido en producción hay nombres de hasta 41 caracteres
+      // («Lokal - Emitir Guias despacho NO facturar»), 16 filas sobre 28, y sin tope esa fila
+      // empujaba el resto de las columnas fuera de la pantalla.
       header: "Cliente",
       accessor: "cliente",
       sortable: true,
+      filtro: "valores",
       sortValue: (row) => row.cliente?.nombre_empresa || "",
-      Cell: ({ value }) => value?.nombre_empresa || "—",
+      Cell: ({ value }) =>
+        value?.nombre_empresa ? (
+          <span className="block max-w-[190px] truncate" title={value.nombre_empresa}>
+            {value.nombre_empresa}
+          </span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      // Comuna de despacho — pedido de Hernán, para armar las rutas del día sin abrir orden por
+      // orden. Sale de la dirección de despacho ya asignada: 189 de 220 la tienen (86%), y las
+      // 31 restantes muestran el motivo en vez de un guion mudo.
+      header: "Comuna",
+      accessor: "comuna_despacho",
+      sortable: true,
+      filtro: "valores",
+      sortValue: (row) => row.direccion?.comuna || "",
+      Cell: ({ row }) =>
+        row.direccion?.comuna ? (
+          <span className="whitespace-nowrap">{row.direccion.comuna}</span>
+        ) : (
+          <span className="text-gray-400 italic text-xs">sin dirección</span>
+        ),
     },
     {
       // El número de OC que mandó el cliente. Ya se podía buscar por él pero no se veía, así
@@ -113,6 +156,7 @@ export default function OrdenesVentaPage() {
       header: "OC cliente",
       accessor: "numero_oc",
       sortable: true,
+      filtro: "texto",
       Cell: ({ value }) =>
         value ? (
           <span
@@ -131,9 +175,13 @@ export default function OrdenesVentaPage() {
       // texto completo queda en el `title` y también se ve entero en el detalle de la orden.
       header: "Comentario",
       accessor: "comentario_cliente",
+      filtro: "texto",
       Cell: ({ value }) =>
         value ? (
-          <span className="block max-w-[200px] truncate text-gray-600" title={value}>
+          <span
+            className="block max-w-[180px] truncate text-gray-600"
+            title={recortarParaTooltip(value)}
+          >
             {value}
           </span>
         ) : (
@@ -146,14 +194,70 @@ export default function OrdenesVentaPage() {
       header: "Total neto",
       accessor: "ingreso_venta",
       sortable: true,
+      filtro: "numero",
       align: "right",
       Cell: ({ value }) => formatCLP(Number(value || 0), 0),
     },
     {
+      // Total bruto — pedido de Hernán. Lo calcula el backend con la misma tasa de IVA que arma
+      // el DTE (`services/montoBruto.ts`), no la vista: la tasa es la clase de constante que se
+      // cambia en un lugar y se olvida en el otro.
+      //
+      // ⚠️ Es la cara bruta de «Total neto», o sea el valor de lo PEDIDO. Cuando hubo despacho
+      // parcial la factura declara lo PICKEADO y su total es menor (§0-centies-quater): ese
+      // número vive en la columna de Estado, junto al folio, y los dos son correctos.
+      header: "Total bruto",
+      accessor: "monto_bruto",
+      sortable: true,
+      filtro: "numero",
+      align: "right",
+      Cell: ({ value }) =>
+        value == null ? (
+          <span className="text-gray-400">—</span>
+        ) : (
+          formatCLP(Number(value), 0)
+        ),
+    },
+    {
+      // 🔴 El N° de factura va DENTRO de esta columna, no en una propia — pedido literal de
+      // Hernán («que salga el N° de factura en la columna Estado»). Y además es lo correcto de
+      // ancho: la tabla ya scrollea horizontal, y el folio sólo tiene sentido leído junto al
+      // estado que lo explica.
+      //
+      // Averiguar el folio de una orden obligaba hasta ahora a entrar al detalle y abrir el
+      // centro de documentos, y es la consulta más frecuente del día: el cliente llama citando
+      // un folio, o hay que cruzar la orden contra la cartola.
       header: "Estado",
       accessor: "estado",
       sortable: true,
-      Cell: ({ value }) => <EstadoBadge estado={value} />,
+      hideable: false,
+      filtro: "valores",
+      Cell: ({ row, value }) => (
+        <div className="flex flex-col items-start gap-0.5">
+          <EstadoBadge estado={value} />
+          {row.factura?.folio != null && (
+            <span
+              className={`text-[11px] font-mono ${
+                row.factura.estado_sii === "ANULADO"
+                  ? "text-gray-400 line-through"
+                  : "text-gray-600"
+              }`}
+              title={
+                row.factura.estado_sii === "ANULADO"
+                  ? `Documento ${row.factura.tipo_dte}-${row.factura.folio} — ANULADO`
+                  : `${row.factura.tipo_dte === 39 ? "Boleta" : "Factura"} N° ${row.factura.folio}` +
+                    ` · ${formatCLP(Number(row.factura.monto_total || 0), 0)} bruto facturado` +
+                    (row.factura.origen === "EXTERNO" ? " · emitida fuera del ERP" : "")
+              }
+            >
+              N° {row.factura.folio}
+              {row.factura.origen === "EXTERNO" && (
+                <span className="ml-1 text-[10px] text-amber-600" title="Emitida fuera del ERP">ext</span>
+              )}
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       // Columna APARTE de "Estado" — pedido explícito de Cristóbal ("en segundo círculo"),
@@ -161,6 +265,11 @@ export default function OrdenesVentaPage() {
       header: "Doc. posterior",
       accessor: "estado_dte_posterior",
       sortable: true,
+      filtro: "valores",
+      // Se filtra por la etiqueta que se LEE en pantalla ("NC Total"), no por el código
+      // interno: nadie busca "NC_TOTAL" en una lista de opciones.
+      filtroValor: (row) =>
+        row.estado_dte_posterior ? POSTERIOR_LABEL[row.estado_dte_posterior.estado] : null,
       sortValue: (row) => row.estado_dte_posterior?.estado ?? "",
       Cell: ({ row }) => <EstadoPosteriorBadge info={row.estado_dte_posterior} />,
     },
@@ -247,6 +356,58 @@ export default function OrdenesVentaPage() {
     );
   };
 
+  // 🔴 El filtrado va ANTES del DataTable, no en su `filterFn`: esa función sólo corre cuando
+  // hay texto en la búsqueda, así que un filtro implementado ahí no haría nada con el buscador
+  // vacío — que es como se usa el 99% de las veces.
+  //
+  // Acá queda sólo lo que NO es una columna: todo lo demás (estado, cliente, comuna, fechas,
+  // montos, documento posterior) se filtra desde el embudo de su propia columna.
+  const ordenesFiltradas = useMemo(
+    () => ordenes.filter((o) => ordenPasaFiltros(o, filtros)),
+    [ordenes, filtros],
+  );
+
+  const filtrosActivos = contarFiltrosActivos(filtros);
+
+  const panelFiltros = (
+    <div className="flex flex-wrap items-end gap-4">
+      <label className="flex flex-col gap-1 min-w-[200px]">
+        <span className="text-xs font-medium text-gray-600">Facturación</span>
+        <select
+          value={filtros.facturacion}
+          onChange={(e) => setFiltro("facturacion", e.target.value)}
+          className="border border-gray-300 rounded-md px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          <option value="">Todas</option>
+          <option value="con">Con factura emitida</option>
+          <option value="sin">Sin factura</option>
+        </select>
+      </label>
+
+      <p className="text-xs text-gray-500 max-w-md">
+        El resto se filtra desde el embudo de cada columna: estado, cliente, comuna, fechas,
+        montos y documento posterior. Lo que dejes puesto se recuerda al volver a esta pantalla.
+      </p>
+
+      {/* Un filtro que se recuerda entre visitas puede dejar la lista "vacía" sin que se vea
+          por qué. Por eso el conteo y el botón de limpiar están siempre a la vista. */}
+      <div className="flex items-center gap-3 ml-auto text-sm">
+        <span className="text-gray-500">
+          {ordenesFiltradas.length} de {ordenes.length} órdenes
+        </span>
+        {filtrosActivos > 0 && (
+          <button
+            type="button"
+            onClick={() => setFiltros(FILTROS_VACIOS)}
+            className="px-3 py-1.5 border border-gray-300 rounded-md text-gray-600 hover:bg-gray-50"
+          >
+            Limpiar
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   const getSearchText = (row) =>
     [
       row.id,
@@ -258,6 +419,11 @@ export default function OrdenesVentaPage() {
       // "NC Total"/"NC Parcial" buscables tal como se leen en pantalla, no el código interno.
       row.estado_dte_posterior && POSTERIOR_LABEL[row.estado_dte_posterior.estado],
       row.estado_dte_posterior?.motivo,
+      // El folio se busca tal como lo dice el cliente por teléfono: "la 24322" tiene que
+      // encontrar su orden sin que nadie tenga que saber a qué OV corresponde.
+      row.factura?.folio,
+      row.direccion?.comuna,
+      fmtDate(row.fecha_entrega),
     ]
       .filter(Boolean)
       .join(" ");
@@ -265,16 +431,24 @@ export default function OrdenesVentaPage() {
   return (
     <DataTable
       title="Órdenes de Venta"
-      data={ordenes}
+      data={ordenesFiltradas}
       columns={columns}
       actions={actions}
       stickyActions
       getSearchText={getSearchText}
+      filters={panelFiltros}
       loading={isLoading}
       loadingMessage="Cargando órdenes de venta"
       defaultRowsPerPage={25}
       initialSort={{ key: "id", direction: "desc" }}
-      emptyMessage="No hay órdenes de venta registradas."
+      // Búsqueda, orden, filas por página, panel de filtros y columnas visibles se recuerdan al
+      // volver del detalle — pedido de Hernán, y es como ya funciona Inventario de Bultos.
+      persistKey={CLAVE_UI}
+      emptyMessage={
+        filtrosActivos > 0
+          ? "Ninguna orden calza con los filtros puestos."
+          : "No hay órdenes de venta registradas."
+      }
       headerActions={
         <>
           <button
