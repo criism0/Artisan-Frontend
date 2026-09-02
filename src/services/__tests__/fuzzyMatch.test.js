@@ -24,6 +24,23 @@ describe("fuzzyMatch", () => {
     expect(fuzzyMatch("", "algo")).toBe(false);
   });
 
+  // 🔴 Intercambiar dos letras vecinas es la errata más común al tipear, y para el Levenshtein
+  // clásico cuesta 2 — o sea que quedaba fuera de la tolerancia de un token corto. Medido en
+  // vivo el 2026-09-02: «FLOW-NCNIV» no encontraba «FLOW-NCINV».
+  describe("transposición de letras vecinas", () => {
+    it.each([
+      ["cencosdu", "cencosud"],
+      ["harnia", "harina"],
+      ["flow ncniv", "flow ncinv o8mw6709"],
+    ])("buscar %s encuentra %s", (consulta, texto) => {
+      expect(fuzzyMatch(texto, consulta)).toBe(true);
+    });
+
+    it("sigue sin encontrar algo que de verdad no se parece", () => {
+      expect(fuzzyMatch("harina de trigo", "zanahoria")).toBe(false);
+    });
+  });
+
   // --- Multi-token: todos deben matchear ---
   it("multi-token: todos los tokens deben estar presentes", () => {
     expect(fuzzyMatch("harina de trigo integral", "harina integral")).toBe(true);

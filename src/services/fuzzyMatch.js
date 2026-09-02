@@ -1,4 +1,12 @@
 
+/**
+ * Texto comparable: sin mayúsculas, sin tildes y con la puntuación convertida en espacios.
+ *
+ * ⚠️ Se exporta porque `fuzzyMatch` normaliza la CONSULTA pero espera el texto YA normalizado.
+ * Si el llamador normaliza distinto, el atajo rápido (`text.includes(q)`) falla en casos que
+ * deberían acertar: la consulta «po-1225» se convierte en «po 1225» y un texto con el guion
+ * todavía puesto no la contiene. Los dos lados tienen que pasar por acá.
+ */
 const normalizeText = (value) => {
   if (value == null) return "";
   return value
@@ -11,7 +19,16 @@ const normalizeText = (value) => {
     .trim();
 };
 
-// Levenshtein clásico (distancia de edición)
+/**
+ * Distancia de edición con TRANSPOSICIÓN (Damerau-Levenshtein en su variante OSA).
+ *
+ * 🔴 POR QUÉ NO ES EL LEVENSHTEIN CLÁSICO. Intercambiar dos letras vecinas —«Cencosdu» por
+ * «Cencosud»— es la errata más común al tipear, y para Levenshtein cuesta **2** (borrar una y
+ * agregarla al otro lado). Con la tolerancia proporcional que usa `fuzzyMatch`, un token de 5
+ * a 7 caracteres admite 1, así que la transposición quedaba fuera justo en el caso que la gente
+ * comete más seguido. Medido en vivo el 2026-09-02: buscar «FLOW-NCNIV» no encontraba
+ * «FLOW-NCINV». Contándola como 1 edición, sí.
+ */
 const levenshtein = (a, b) => {
   if (a === b) return 0;
   if (!a) return b.length;
@@ -32,6 +49,14 @@ const levenshtein = (a, b) => {
         dp[i][j - 1] + 1, // insertar
         dp[i - 1][j - 1] + cost // sustituir
       );
+      // Transposición de dos caracteres vecinos: cuesta 1, no 2.
+      if (
+        i > 1 && j > 1 &&
+        ai === b.charCodeAt(j - 2) &&
+        a.charCodeAt(i - 2) === b.charCodeAt(j - 1)
+      ) {
+        dp[i][j] = Math.min(dp[i][j], dp[i - 2][j - 2] + cost);
+      }
     }
   }
   return dp[m][n];
@@ -75,4 +100,4 @@ const fuzzyMatch = (text, query) => {
   });
 };
 
-export { insumoToSearchText, fuzzyMatch };
+export { insumoToSearchText, fuzzyMatch, normalizeText };

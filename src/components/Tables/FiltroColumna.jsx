@@ -7,6 +7,7 @@ import {
   normalizar,
   SIN_VALOR,
 } from "../../utils/filtrosColumna";
+import { fuzzyMatch } from "../../services/fuzzyMatch";
 
 /**
  * El embudo que abre el filtro de una columna, al estilo de una planilla.
@@ -34,10 +35,11 @@ export default function FiltroColumna({ col, data, filtro, onChange }) {
     [col, data],
   );
 
+  // Difuso también acá: la lista de valores es donde más se tipea a ciegas —125 clientes— y
+  // errarle a una letra dejaba la lista vacía como si el cliente no existiera.
   const visibles = useMemo(() => {
     if (!busqueda.trim()) return opciones;
-    const q = normalizar(busqueda);
-    return opciones.filter((o) => normalizar(o.etiqueta).includes(q));
+    return opciones.filter((o) => fuzzyMatch(normalizar(String(o.etiqueta)), busqueda));
   }, [opciones, busqueda]);
 
   const alternarValor = (valor) => {
@@ -90,6 +92,7 @@ export default function FiltroColumna({ col, data, filtro, onChange }) {
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
                     placeholder="Buscar valor…"
+                    title="Tolera errores de tipeo"
                     className="w-full mb-1.5 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 )}
@@ -125,7 +128,7 @@ export default function FiltroColumna({ col, data, filtro, onChange }) {
                 autoFocus
                 value={actual.q ?? ""}
                 onChange={(e) => onChange({ ...actual, q: e.target.value })}
-                placeholder="Contiene…"
+                placeholder="Contiene… (tolera errores de tipeo)"
                 className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
               />
             )}

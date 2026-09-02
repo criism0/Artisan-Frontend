@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { leerGuardado, escribirGuardado } from "../../hooks/useTablaPersistida";
 import FiltroColumna from "./FiltroColumna";
-import { filaPasaFiltros, contarFiltrosColumna } from "../../utils/filtrosColumna";
+import { filaPasaFiltros, contarFiltrosColumna, inferirFiltro } from "../../utils/filtrosColumna";
+import { fuzzyMatch, normalizeText } from "../../services/fuzzyMatch";
 import Table from "./Table";
 import SearchBar from "../UI/SearchBar";
 import RowsPerPageSelector from "../UI/RowsPerPageSelector";
@@ -57,11 +58,18 @@ export default function DataTable({
   emptyMessage = "No hay elementos para mostrar.",
   stickyActions = false,
   renderExpandedRow,
-  persistKey = null,
+  persistKey,
 }) {
+  // 🔴 LA MEMORIA ES AUTOMÁTICA. Se deriva del título, que es el encabezado de la pantalla y en
+  // la práctica identifica la lista. Pedirle a cada página que declarara una clave significaba
+  // tocar 29 archivos hoy y acordarse en cada lista nueva; con esto, una lista se comporta como
+  // las demás por existir. Una página puede pasar `persistKey` para fijarla (y `persistKey={null}`
+  // para no recordar nada, que es lo correcto en una tabla incrustada dentro de un detalle).
+  const claveUI = persistKey === undefined ? (title ? `auto:${title}` : null) : persistKey;
+
   // Se lee UNA vez, al montar. Si se leyera en cada render, volver de un detalle pisaría lo que
   // el usuario acaba de escribir con lo que había guardado antes.
-  const guardado = useRef(leerGuardado(persistKey)).current;
+  const guardado = useRef(leerGuardado(claveUI)).current;
 
   const [searchQuery, setSearchQuery] = useState(guardado?.q ?? "");
   const [sortConfig, setSortConfig] = useState(() => {
@@ -90,7 +98,7 @@ export default function DataTable({
   );
 
   useEffect(() => {
-    escribirGuardado(persistKey, {
+    escribirGuardado(claveUI, {
       q: searchQuery,
       sort: sortConfig,
       rows: rowsPerPage,
@@ -98,7 +106,14 @@ export default function DataTable({
       ocultas: [...ocultas],
       filtrosColumna,
     });
-  }, [persistKey, searchQuery, sortConfig, rowsPerPage, filtrosAbiertos, ocultas, filtrosColumna]);
+  }, [claveUI, searchQuery, sortConfig, rowsPerPage, filtrosAbiertos, ocultas, filtrosColumna]);
+
+  // Cada columna con su tipo de filtro ya resuelto: el declarado, o el que se infiere de sus
+  // propios datos. Se hace acá y no en cada página — ver `inferirFiltro`.
+  const columnasResueltas = useMemo(
+    () => columns.map((c) => ({ ...c, filtro: inferirFiltro(c, data) })),
+    [columns, data],
+  );
 
   const nFiltrosColumna = contarFiltrosColumna(filtrosColumna);
 
@@ -107,10 +122,10 @@ export default function DataTable({
     setPage(1);
   };
 
-  const ocultables = columns.filter((c) => c.hideable !== false);
+  const ocultables = columnasResueltas.filter((c) => c.hideable !== false);
   const columnasVisibles = useMemo(
-    () => columns.filter((c) => c.hideable === false || !ocultas.has(c.accessor)),
-    [columns, ocultas],
+    () => columnasResueltas.filter((c) => c.hideable === false || !ocultas.has(c.accessor)),
+    [columnasResueltas, ocultas],
   );
 
   const normalize = (text) =>
@@ -136,7 +151,7 @@ export default function DataTable({
   // sobre lo ya buscado y las opciones aparecerían y desaparecerían al escribir.
   const porColumna = useMemo(() => {
     if (nFiltrosColumna === 0) return data;
-    return data.filter((row) => filaPasaFiltros(columns, filtrosColumna, row));
+    return data.filter((row) => filaPasaFiltros(columnasResueltas, filtrosColumna, row));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, filtrosColumna, nFiltrosColumna]);
 
@@ -144,9 +159,13 @@ export default function DataTable({
     const q = normalize(searchQuery);
     if (!q) return porColumna;
     if (typeof filterFn === "function") return porColumna.filter((row) => filterFn(row, searchQuery));
+    // 🔴 DIFUSA, no substring exacto (pedido de Cristóbal, 2026-09-02). Mismo `fuzzyMatch` que
+    // los embudos de las columnas y que la lista de Insumos: tener un control que perdona un
+    // error de tipeo y el de al lado que no, en la misma barra, es peor que no perdonarlo en
+    // ninguno. Intenta la coincidencia directa primero, así que el caso normal no cambia.
     return porColumna.filter((row) => {
       const text = getSearchText ? getSearchText(row) : JSON.stringify(row);
-      return normalize(text).includes(q);
+      return fuzzyMatch(normalizeText(text), searchQuery);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [porColumna, searchQuery]);
