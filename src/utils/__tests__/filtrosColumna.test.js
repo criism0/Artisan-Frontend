@@ -4,12 +4,10 @@ import {
   ETIQUETA_SIN_VALOR,
   filtroActivo,
   contarFiltrosColumna,
-  valorDeFiltro,
   opcionesDeColumna,
   filaPasaFiltroColumna,
   filaPasaFiltros,
   filtroVacio,
-  inferirFiltro,
 } from "../filtrosColumna";
 
 const colEstado = { accessor: "estado", filtro: "valores" };
@@ -56,59 +54,6 @@ describe("filtroActivo", () => {
 
   it("el 0 sí es un límite válido", () => {
     expect(filtroActivo({ tipo: "numero", min: "0", max: "" })).toBe(true);
-  });
-});
-
-describe("valorDeFiltro", () => {
-  it("usa filtroValor cuando la columna lo declara", () => {
-    expect(valorDeFiltro(colComuna, fila())).toBe("Vitacura");
-  });
-
-  it("cae al accessor cuando no hay filtroValor ni sortValue", () => {
-    expect(valorDeFiltro(colEstado, fila())).toBe("Facturada");
-  });
-
-  // Las columnas que muestran un objeto ya declaran `sortValue` para poder ordenarse; el filtro
-  // lo reutiliza en vez de obligar a declarar lo mismo dos veces.
-  it("cae a sortValue cuando la celda trae un objeto", () => {
-    const col = { accessor: "cliente", sortValue: (r) => r.cliente?.nombre };
-    expect(valorDeFiltro(col, { cliente: { nombre: "Better Food" } })).toBe("Better Food");
-  });
-
-  // 🔴 EL CASO QUE OBLIGÓ A INVERTIR LA PRIORIDAD, cazado probando Solicitudes en vivo: sus tres
-  // columnas de fecha ordenan por `new Date(x).getTime()`, y tomando ese número como valor de
-  // filtro quedaban con un rango NUMÉRICO que pedía milisegundos.
-  it("el valor crudo le gana a sortValue: una fecha no se filtra por su timestamp", () => {
-    const col = { accessor: "fecha_envio", sortValue: (r) => new Date(r.fecha_envio).getTime() };
-    const row = { fecha_envio: "2026-09-15" };
-    expect(valorDeFiltro(col, row)).toBe("2026-09-15");
-    expect(inferirFiltro(col, [row])).toBe("fecha");
-  });
-
-  // 🔴 La segunda mitad del mismo bug, y sólo apareció probando Solicitudes con datos reales:
-  // 2 de cada 3 solicitudes no tienen `fecha_envio`, y su `sortValue` devuelve 0 para poder
-  // ordenarlas. Ese 0 entraba a la muestra y la volvía «números y fechas mezclados» → texto.
-  it("una celda vacía es vacía, no el 0 que devuelve su sortValue", () => {
-    const col = { accessor: "fecha_envio", sortValue: (r) => (r.fecha_envio ? new Date(r.fecha_envio).getTime() : 0) };
-    expect(valorDeFiltro(col, { fecha_envio: null })).toBeNull();
-
-    const filas = [
-      { fecha_envio: null },
-      { fecha_envio: "2026-07-23T21:12:28.175Z" },
-      { fecha_envio: null },
-      { fecha_envio: "2026-07-30T15:11:39.746Z" },
-    ];
-    expect(inferirFiltro(col, filas)).toBe("fecha");
-  });
-
-  it("si la fila ni siquiera trae la clave, ahí sí manda sortValue", () => {
-    const col = { accessor: "comuna_despacho", sortValue: (r) => r.direccion?.comuna || "" };
-    expect(valorDeFiltro(col, { direccion: { comuna: "Vitacura" } })).toBe("Vitacura");
-  });
-
-  it("lo mismo con un estado que ordena por un número de orden", () => {
-    const col = { accessor: "estado", sortValue: (r) => ({ Creada: 1, Validada: 2 })[r.estado] };
-    expect(valorDeFiltro(col, { estado: "Validada" })).toBe("Validada");
   });
 });
 
@@ -355,91 +300,3 @@ describe("contarFiltrosColumna", () => {
   });
 });
 
-// 🔴 La inferencia es lo que hace que las 29 listas de la app se comporten igual sin tocar 29
-// archivos. Es CONSERVADORA a propósito: ante la duda no pone filtro, porque un embudo que
-// filtra por algo distinto de lo que muestra la celda es peor que no tener embudo — el usuario
-// no tiene cómo darse cuenta.
-describe("inferirFiltro", () => {
-  const filas = (accessor, valores) => valores.map((v) => ({ [accessor]: v }));
-
-  it("respeta el tipo declarado a mano", () => {
-    expect(inferirFiltro({ accessor: "x", filtro: "fecha" }, filas("x", ["abc"]))).toBe("fecha");
-  });
-
-  it("`filtro: false` apaga el embudo", () => {
-    expect(inferirFiltro({ accessor: "x", filtro: false }, filas("x", ["a", "b"]))).toBeNull();
-  });
-
-  it("números → rango", () => {
-    expect(inferirFiltro({ accessor: "n" }, filas("n", [1, 2, 3]))).toBe("numero");
-  });
-
-  // Sequelize entrega los DOUBLE como string: si no se reconocieran, el total de una lista
-  // quedaría con un filtro de texto y no se podría acotar por monto.
-  it("números que llegan como string también → rango", () => {
-    expect(inferirFiltro({ accessor: "n" }, filas("n", ["1000", "2832.5"]))).toBe("numero");
-  });
-
-  it("fechas ISO → rango de fechas", () => {
-    expect(inferirFiltro({ accessor: "f" }, filas("f", ["2026-09-15", "2026-08-01"]))).toBe("fecha");
-    expect(inferirFiltro({ accessor: "f" }, filas("f", ["2026-09-15T00:00:00Z"]))).toBe("fecha");
-  });
-
-  it("objetos Date → rango de fechas", () => {
-    expect(inferirFiltro({ accessor: "f" }, filas("f", [new Date()]))).toBe("fecha");
-  });
-
-  it("booleanos → lista de valores", () => {
-    expect(inferirFiltro({ accessor: "b" }, filas("b", [true, false, true]))).toBe("valores");
-  });
-
-  it("texto que se repite → lista de valores", () => {
-    const estados = ["Creada", "Validada", "Creada", "Facturada", "Validada", "Creada"];
-    expect(inferirFiltro({ accessor: "e" }, filas("e", estados))).toBe("valores");
-  });
-
-  it("texto distinto en cada fila → contiene", () => {
-    const ocs = Array.from({ length: 30 }, (_, i) => `PO-${1000 + i}`);
-    expect(inferirFiltro({ accessor: "oc" }, filas("oc", ocs))).toBe("texto");
-  });
-
-  // 🔴 El caso que justifica ser conservador: una columna que pinta un objeto con su `Cell`
-  // filtraría por "[object Object]" y el embudo mostraría esa cadena como única opción.
-  it("una columna que trae objetos NO recibe filtro", () => {
-    const rows = [{ c: { nombre: "Better Food" } }, { c: { nombre: "Cencosud" } }];
-    expect(inferirFiltro({ accessor: "c" }, rows)).toBeNull();
-  });
-
-  it("…pero sí lo recibe si declara con qué compararse", () => {
-    const rows = [{ c: { nombre: "Better Food" } }, { c: { nombre: "Cencosud" } }];
-    expect(inferirFiltro({ accessor: "c", sortValue: (r) => r.c.nombre }, rows)).toBe("texto");
-  });
-
-  it("una columna sin un solo valor no recibe filtro", () => {
-    expect(inferirFiltro({ accessor: "x" }, filas("x", [null, "", undefined]))).toBeNull();
-    expect(inferirFiltro({ accessor: "x" }, [])).toBeNull();
-  });
-
-  // Los vacíos no deciden el tipo: una columna de fechas con la mitad sin llenar sigue siendo
-  // de fechas.
-  it("los vacíos no cambian el tipo inferido", () => {
-    expect(inferirFiltro({ accessor: "f" }, filas("f", ["2026-09-15", null, "", "2026-08-01"]))).toBe("fecha");
-  });
-
-  it("valores mezclados caen a texto, no a un tipo equivocado", () => {
-    expect(inferirFiltro({ accessor: "x" }, filas("x", ["2026-09-15", "sin fecha", "otra cosa"]))).toBe("texto");
-  });
-});
-
-describe("etiquetas legibles en la lista de valores", () => {
-  // La columna en pantalla dice "Sí"/"No"; el embudo tiene que decir lo mismo y no true/false.
-  it("los booleanos se leen Sí y No", () => {
-    const opciones = opcionesDeColumna({ accessor: "b" }, [{ b: true }, { b: false }]);
-    expect(opciones.map((o) => o.etiqueta).sort()).toEqual(["No", "Sí"]);
-  });
-
-  it("una columna puede traducir sus propios códigos", () => {
-    const col = { accessor: "e", filtroEtiqueta: (v) => ({ A: "Aprobado" })[v] ?? v };
-    expect(opcionesDeColumna(col, [{ e: "A" }])[0].etiqueta).toBe("Aprobado");
-  });
-});

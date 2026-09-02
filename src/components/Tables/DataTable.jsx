@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { leerGuardado, escribirGuardado } from "../../hooks/useTablaPersistida";
 import FiltroColumna from "./FiltroColumna";
-import { filaPasaFiltros, contarFiltrosColumna, inferirFiltro } from "../../utils/filtrosColumna";
+import { filaPasaFiltros, contarFiltrosColumna, resolverColumna } from "../../utils/filtrosColumna";
 import { fuzzyMatch, normalizeText } from "../../services/fuzzyMatch";
 import Table from "./Table";
 import SearchBar from "../UI/SearchBar";
@@ -65,7 +65,13 @@ export default function DataTable({
   // tocar 29 archivos hoy y acordarse en cada lista nueva; con esto, una lista se comporta como
   // las demás por existir. Una página puede pasar `persistKey` para fijarla (y `persistKey={null}`
   // para no recordar nada, que es lo correcto en una tabla incrustada dentro de un detalle).
-  const claveUI = persistKey === undefined ? (title ? `auto:${title}` : null) : persistKey;
+  // ⚠️ Sólo si el título es TEXTO. Algunas listas pasan un elemento React como `title`, y
+  // `${title}` lo convierte en «[object Object]»: dos de ésas compartirían la misma memoria y
+  // los filtros de una aparecerían en la otra. Sin clave, esa lista simplemente no recuerda.
+  const claveUI =
+    persistKey === undefined
+      ? (typeof title === "string" && title.trim() ? `auto:${title.trim()}` : null)
+      : persistKey;
 
   // Se lee UNA vez, al montar. Si se leyera en cada render, volver de un detalle pisaría lo que
   // el usuario acaba de escribir con lo que había guardado antes.
@@ -111,7 +117,12 @@ export default function DataTable({
   // Cada columna con su tipo de filtro ya resuelto: el declarado, o el que se infiere de sus
   // propios datos. Se hace acá y no en cada página — ver `inferirFiltro`.
   const columnasResueltas = useMemo(
-    () => columns.map((c) => ({ ...c, filtro: inferirFiltro(c, data) })),
+    () => columns.map((c) => {
+      const r = resolverColumna(c, data);
+      // `valor` es el accesor ya elegido —el que representa lo que muestra la celda— y viaja en
+      // la columna para que el filtrado y la lista de opciones usen exactamente el mismo.
+      return r ? { ...c, filtro: r.tipo, valor: r.valor } : { ...c, filtro: null };
+    }),
     [columns, data],
   );
 

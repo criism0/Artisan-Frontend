@@ -414,6 +414,9 @@ export default function NoConformidades() {
 
   return (
     <DataTable
+      // El título de esta lista es un elemento y no texto, así que la clave de memoria va
+      // explícita: `DataTable` sólo la deriva sola cuando el título es una cadena.
+      persistKey="calidad_no_conformidades"
       title={
         <span>
           No conformidades y desvíos

@@ -23,6 +23,9 @@ import { fuzzyMatch } from "../../services/fuzzyMatch";
  * `overflow-x-auto` de la tabla justo en las columnas de la derecha, que son las que más se
  * filtran.
  */
+/** Cuántas opciones se pintan de una vez. El resto se alcanza escribiendo en el buscador. */
+const MAX_OPCIONES = 200;
+
 export default function FiltroColumna({ col, data, filtro, onChange }) {
   const [abierto, setAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
@@ -37,10 +40,24 @@ export default function FiltroColumna({ col, data, filtro, onChange }) {
 
   // Difuso también acá: la lista de valores es donde más se tipea a ciegas —125 clientes— y
   // errarle a una letra dejaba la lista vacía como si el cliente no existiera.
-  const visibles = useMemo(() => {
+  const coincidencias = useMemo(() => {
     if (!busqueda.trim()) return opciones;
     return opciones.filter((o) => fuzzyMatch(normalizar(String(o.etiqueta)), busqueda));
   }, [opciones, busqueda]);
+
+  // Se pinta sólo un tramo: una columna de códigos puede tener miles de valores distintos y
+  // construir miles de checkboxes al abrir el embudo cuelga la pestaña. Lo ya marcado se
+  // muestra SIEMPRE aunque quede fuera del tramo — si no, marcar algo y después escribir en el
+  // buscador lo haría desaparecer de la lista y parecería que se desmarcó.
+  const visibles = useMemo(() => {
+    const marcados = new Set(actual.seleccion ?? []);
+    const dentro = coincidencias.slice(0, MAX_OPCIONES);
+    const yaEstan = new Set(dentro.map((o) => o.valor));
+    const faltantes = coincidencias.filter((o) => marcados.has(o.valor) && !yaEstan.has(o.valor));
+    return [...faltantes, ...dentro];
+  }, [coincidencias, actual.seleccion]);
+
+  const ocultas = Math.max(0, coincidencias.length - MAX_OPCIONES);
 
   const alternarValor = (valor) => {
     const seleccion = actual.seleccion ?? [];
@@ -67,6 +84,9 @@ export default function FiltroColumna({ col, data, filtro, onChange }) {
         className={`p-0.5 rounded transition-colors ${
           activo ? "text-primary bg-primary/10" : "text-gray-300 hover:text-gray-500"
         }`}
+        // Queda en el DOM para poder auditar de una pasada qué tipo de filtro le tocó a cada
+        // columna de cada lista, sin abrir 200 embudos a mano.
+        data-filtro={col.filtro}
         title={activo ? "Filtro puesto en esta columna" : "Filtrar por esta columna"}
         aria-label={`Filtrar por ${typeof col.header === "string" ? col.header : col.accessor}`}
       >
@@ -86,7 +106,7 @@ export default function FiltroColumna({ col, data, filtro, onChange }) {
               <>
                 {/* El buscador aparece recién cuando la lista deja de leerse de un vistazo:
                     Cliente tiene 125 valores distintos, Estado tiene 6. */}
-                {opciones.length > 10 && (
+                {opciones.length > 8 && (
                   <input
                     type="text"
                     value={busqueda}
@@ -118,6 +138,12 @@ export default function FiltroColumna({ col, data, filtro, onChange }) {
                       <span className="ml-auto text-[10px] text-gray-400 shrink-0">{o.n}</span>
                     </label>
                   ))}
+                  {ocultas > 0 && (
+                    <div className="px-2 py-1.5 text-[11px] text-gray-400 border-t border-gray-100 mt-1">
+                      y {ocultas} valor{ocultas > 1 ? "es" : ""} más — escribe arriba para
+                      encontrarlo
+                    </div>
+                  )}
                 </div>
               </>
             )}
