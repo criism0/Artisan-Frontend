@@ -918,6 +918,13 @@ function OVIACard({
     ovInicial.id_local_facturacion ? String(ovInicial.id_local_facturacion) : "",
   );
   const [guardandoDireccionFacturacion, setGuardandoDireccionFacturacion] = useState(false);
+  // Cuándo hay que entregar. Llega del documento del cliente cuando lo declara —los
+  // supermercados sí— y si no, se pone acá: es el lugar donde se revisa el pedido antes de
+  // validarlo, o sea donde todavía se está mirando el correo que lo dice.
+  const [fechaEntregaSel, setFechaEntregaSel] = useState(
+    ovInicial.fecha_entrega ? String(ovInicial.fecha_entrega).slice(0, 10) : "",
+  );
+  const [guardandoFechaEntrega, setGuardandoFechaEntrega] = useState(false);
   // Evita repetir el precargado de la predeterminada en cada re-render de la tarjeta — sólo
   // tiene que intentarlo una vez por orden, no cada vez que cambia cualquier otro estado.
   const precargaFacturacionHecha = useRef(false);
@@ -957,6 +964,27 @@ function OVIACard({
       toast.error("No se pudo guardar la dirección de despacho");
     } finally {
       setGuardandoDireccion(false);
+    }
+  };
+
+  // Se guarda al SALIR del campo, no en cada tecla: un `<input type=date>` emite `change` con
+  // años a medio escribir (`0002-08-…`) y eso mandaría fechas absurdas al backend mientras el
+  // operario todavía está tecleando.
+  const handleGuardarFechaEntrega = async () => {
+    const valor = fechaEntregaSel || null;
+    const anterior = ovInicial.fecha_entrega ? String(ovInicial.fecha_entrega).slice(0, 10) : "";
+    if ((valor ?? "") === anterior) return;
+    setGuardandoFechaEntrega(true);
+    try {
+      await api(`/ordenes-venta/${ov.id}`, {
+        method: "PUT",
+        body: { fecha_entrega: valor },
+      });
+    } catch {
+      setFechaEntregaSel(anterior);
+      toast.error("No se pudo guardar la fecha de entrega");
+    } finally {
+      setGuardandoFechaEntrega(false);
     }
   };
 
@@ -1258,6 +1286,24 @@ function OVIACard({
             )}
           </div>
         )}
+
+        {/* Fecha de entrega comprometida. Editable siempre, también cuando la IA o el parser
+            EDI ya la trajeron: quien mira el correo es el que sabe si la que se leyó es la
+            que el cliente quiso decir. */}
+        <div className="flex items-center gap-2 text-xs text-gray-500">
+          <span className="shrink-0">Entrega</span>
+          <input
+            type="date"
+            value={fechaEntregaSel}
+            onChange={(e) => setFechaEntregaSel(e.target.value)}
+            onBlur={handleGuardarFechaEntrega}
+            disabled={guardandoFechaEntrega}
+            className="border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#7A5AF8] disabled:opacity-50"
+          />
+          {!fechaEntregaSel && (
+            <span className="text-gray-400">sin fecha comprometida</span>
+          )}
+        </div>
 
         {/* Lo que el cliente escribió al pedir. Reporte de Hernán, 2026-08-17: un pedido web
             declaraba a qué LOCAL iba —de 3 posibles bajo el mismo RUT— y hasta ahora esto era

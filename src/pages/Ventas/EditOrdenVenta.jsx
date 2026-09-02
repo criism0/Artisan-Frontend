@@ -41,6 +41,7 @@ export default function EditOrdenVenta() {
     es_referencial: false,
     fecha_vencimiento_pago: "",
     comentario_cliente: "",
+    fecha_entrega: "",
     id_local: "",
     // Separada de la de despacho: hay clientes que facturan con un RUT y despachan a la
     // sucursal de un tercero (pedido de Cristóbal, 2026-08-19).
@@ -73,6 +74,7 @@ export default function EditOrdenVenta() {
           es_referencial: ord.es_referencial ?? false,
           fecha_vencimiento_pago: ord.fecha_vencimiento_pago ? String(ord.fecha_vencimiento_pago).slice(0, 10) : "",
           comentario_cliente: ord.comentario_cliente || "",
+          fecha_entrega: ord.fecha_entrega?.slice(0, 10) || "",
           id_local: ord.id_local ? String(ord.id_local) : "",
           id_local_facturacion: ord.id_local_facturacion ? String(ord.id_local_facturacion) : "",
         });
@@ -339,6 +341,7 @@ export default function EditOrdenVenta() {
           // quien factura sólo la confirma. Vacía significa «al contado, sin vencimiento».
           fecha_vencimiento_pago: form.fecha_vencimiento_pago || null,
           comentario_cliente: form.comentario_cliente || null,
+          fecha_entrega: form.fecha_entrega || null,
           id_local: form.id_local ? Number(form.id_local) : null,
           id_local_facturacion: form.id_local_facturacion ? Number(form.id_local_facturacion) : null,
         }),
@@ -491,6 +494,20 @@ export default function EditOrdenVenta() {
                 onChange={(e) => setForm((f) => ({ ...f, fecha_orden: e.target.value }))}
                 className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
+            </label>
+
+            {/* Fecha de ENTREGA comprometida — no es la de emisión de la OC ni la de envío. */}
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Fecha de entrega</span>
+              <input
+                type="date"
+                value={form.fecha_entrega}
+                onChange={(e) => setForm((f) => ({ ...f, fecha_entrega: e.target.value }))}
+                className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+              <span className="text-xs text-gray-500">
+                Vacía significa que no hay entrega comprometida.
+              </span>
             </label>
 
             {/* 🔴 Fecha de pago: es un término de la VENTA, no de la facturación. Sale impresa

@@ -366,6 +366,8 @@ export default function OrdenVentaDetail() {
   // Dirección de FACTURACIÓN — separada de la de despacho de arriba (pedido de Cristóbal,
   // 2026-08-19). Reutiliza `direccionesCliente`: es la misma lista del cliente, filtrada por
   // tipo dentro de DetalleTipoFactura.
+  const [editandoFechaEntrega, setEditandoFechaEntrega] = useState(false);
+  const [guardandoFechaEntrega, setGuardandoFechaEntrega] = useState(false);
   const [editandoDireccionFacturacion, setEditandoDireccionFacturacion] = useState(false);
   const [guardandoDireccionFacturacion, setGuardandoDireccionFacturacion] = useState(false);
 
@@ -601,6 +603,27 @@ export default function OrdenVentaDetail() {
       toast.error(apiErrorMsg(err));
     } finally {
       setGuardandoDireccion(false);
+    }
+  };
+
+  // Mismo campo que edita el formulario de la orden, editable también desde acá porque es el
+  // dato que más se corrige después de creada la orden. `null` es explícito: significa «no hay
+  // entrega comprometida», que es distinto de no haber mandado el campo.
+  const guardarFechaEntrega = async (valor) => {
+    setGuardandoFechaEntrega(true);
+    try {
+      await api(`/ordenes-venta/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ fecha_entrega: valor || null }),
+      });
+      const o = await fetchOrden();
+      setOrden(o);
+      setEditandoFechaEntrega(false);
+      toast.success(valor ? "Fecha de entrega actualizada" : "Fecha de entrega quitada");
+    } catch (err) {
+      toast.error(apiErrorMsg(err));
+    } finally {
+      setGuardandoFechaEntrega(false);
     }
   };
 
@@ -1012,6 +1035,12 @@ export default function OrdenVentaDetail() {
         onCancelarEdicionDireccionFacturacion={() => setEditandoDireccionFacturacion(false)}
         onGuardarDireccionFacturacion={guardarDireccionFacturacion}
         comentarioCliente={orden?.comentario_cliente}
+        editandoFechaEntrega={editandoFechaEntrega}
+        guardandoFechaEntrega={guardandoFechaEntrega}
+        puedeEditarFechaEntrega={orden?.estado !== "Entregada"}
+        onEmpezarEdicionFechaEntrega={() => setEditandoFechaEntrega(true)}
+        onCancelarEdicionFechaEntrega={() => setEditandoFechaEntrega(false)}
+        onGuardarFechaEntrega={guardarFechaEntrega}
       />
 
       {/* 🔴 TODO LO DOCUMENTAL, FUERA DE LAS PESTAÑAS Y EN UN SOLO LUGAR.

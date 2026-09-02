@@ -190,6 +190,9 @@ export default function SesionesInventariado() {
 
   return (
     <DataTable
+      // El título de esta lista es un elemento y no texto, así que la clave de memoria va
+      // explícita: `DataTable` sólo la deriva sola cuando el título es una cadena.
+      persistKey="tomas_inventario"
       title={
         <span>
           Tomas de Inventario

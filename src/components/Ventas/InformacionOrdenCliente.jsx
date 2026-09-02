@@ -39,8 +39,17 @@ export default function InformacionOrdenCliente({
   onCancelarEdicionDireccionFacturacion,
   onGuardarDireccionFacturacion,
   comentarioCliente = null,
+  // Fecha de entrega comprometida — editable en cualquier estado anterior a Entregada, igual
+  // que las direcciones: se renegocia por teléfono más seguido de lo que se lee de un archivo.
+  editandoFechaEntrega = false,
+  guardandoFechaEntrega = false,
+  puedeEditarFechaEntrega = true,
+  onEmpezarEdicionFechaEntrega,
+  onCancelarEdicionFechaEntrega,
+  onGuardarFechaEntrega,
 }) {
   const [seleccion, setSeleccion] = useState("");
+  const [fechaEntregaBorrador, setFechaEntregaBorrador] = useState("");
   const [seleccionFacturacion, setSeleccionFacturacion] = useState("");
 
   const opcionesDireccion = (() => {
@@ -166,6 +175,60 @@ export default function InformacionOrdenCliente({
           <div className="flex justify-between gap-4">
             <dt className="text-gray-500">Emisión</dt>
             <dd className="text-text">{formatDate(orden?.fecha_orden)}</dd>
+          </div>
+          {/* 🔴 ENTREGA COMPROMETIDA ≠ DESPACHO. Ésta es la fecha que se le prometió al
+              cliente (la trae su documento o la pone el operario); la de abajo es cuándo
+              se entregó de verdad, y se escribe recién al pasar a Entregada. */}
+          <div className="flex justify-between gap-4 items-start">
+            <dt className="text-gray-500">Entrega comprometida</dt>
+            <dd className="text-right">
+              {editandoFechaEntrega ? (
+                <div className="flex items-center gap-1 justify-end">
+                  <input
+                    type="date"
+                    value={fechaEntregaBorrador}
+                    onChange={(e) => setFechaEntregaBorrador(e.target.value)}
+                    disabled={guardandoFechaEntrega}
+                    className="border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onGuardarFechaEntrega?.(fechaEntregaBorrador || null)}
+                    disabled={guardandoFechaEntrega}
+                    className="text-xs px-2 py-0.5 rounded bg-primary text-white disabled:opacity-50"
+                  >
+                    {guardandoFechaEntrega ? "…" : "Guardar"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onCancelarEdicionFechaEntrega}
+                    disabled={guardandoFechaEntrega}
+                    className="text-xs px-1.5 py-0.5 rounded border border-gray-300 text-gray-600"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 justify-end">
+                  <span className={orden?.fecha_entrega ? "text-text" : "text-gray-400 italic"}>
+                    {orden?.fecha_entrega ? formatDate(orden.fecha_entrega) : "Sin fecha comprometida"}
+                  </span>
+                  {puedeEditarFechaEntrega && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFechaEntregaBorrador(orden?.fecha_entrega?.slice(0, 10) || "");
+                        onEmpezarEdicionFechaEntrega?.();
+                      }}
+                      className="text-gray-400 hover:text-primary shrink-0"
+                      title={orden?.fecha_entrega ? "Cambiar la fecha de entrega" : "Asignar una fecha de entrega"}
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-gray-500">Despacho</dt>

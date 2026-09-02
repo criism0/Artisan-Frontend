@@ -1,7 +1,13 @@
 import { useState } from "react";
 
-export default function SearchBar({ onSearch }) {
-  const [query, setQuery] = useState("");
+/**
+ * `initialValue` existe para las listas que RECUERDAN su búsqueda entre visitas (ver el
+ * `persistKey` de DataTable). No es un valor controlado: se usa una sola vez para sembrar el
+ * estado interno, porque el input tiene que seguir respondiendo a cada tecla sin esperar a que
+ * el padre le devuelva el valor.
+ */
+export default function SearchBar({ onSearch, initialValue = "" }) {
+  const [query, setQuery] = useState(initialValue);
 
   const handleInputChange = (event) => {
     const value = event.target.value;
