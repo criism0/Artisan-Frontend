@@ -81,6 +81,7 @@ export default function AddOrdenVenta() {
     // mano en el caso puntual que no aplique.
     es_referencial: true,
     comentario_cliente: "",
+    fecha_entrega: "",
   });
   // El campo se llena solo una vez que carga /bodegas (abajo); si el operario lo cambia, no se
   // le repone.
@@ -137,6 +138,7 @@ export default function AddOrdenVenta() {
       numero_oc: borrador.numero_oc || prev.numero_oc,
       fecha_orden: borrador.fecha_orden || prev.fecha_orden,
       comentario_cliente: borrador.comentario || prev.comentario_cliente,
+      fecha_entrega: borrador.fecha_entrega || prev.fecha_entrega,
     }));
 
     if (borrador.id_cliente) handleClientChange(String(borrador.id_cliente));
@@ -470,6 +472,7 @@ export default function AddOrdenVenta() {
         bodega_id: Number(form.bodega_id),
         es_referencial: Boolean(form.es_referencial),
         comentario_cliente: form.comentario_cliente || null,
+        fecha_entrega: form.fecha_entrega || null,
       };
       const res = await api("/ordenes-venta", { method: "POST", body: JSON.stringify(payload) });
       const created = res?.data || res || {};
@@ -680,6 +683,23 @@ export default function AddOrdenVenta() {
                 }`}
               />
               {errors.fecha_orden && <span className="text-red-500 text-xs">{errors.fecha_orden}</span>}
+            </label>
+
+            {/* Fecha de ENTREGA — cuándo hay que llegar. Distinta de la fecha de emisión de la
+                OC (cuándo la hizo el cliente) y de la de envío, que se registra al entregar.
+                Opcional: la mayoría de los pedidos no la comprometen. */}
+            <label className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-gray-700">Fecha de entrega</span>
+              <input
+                type="date"
+                name="fecha_entrega"
+                value={form.fecha_entrega}
+                onChange={handleFieldChange}
+                className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+              <span className="text-xs text-gray-500">
+                Cuándo se compromete la entrega. Se puede dejar vacía y completar después.
+              </span>
             </label>
 
             {/* Bodega */}

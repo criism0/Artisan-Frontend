@@ -81,6 +81,22 @@ export default function OrdenesVentaPage() {
       Cell: ({ value }) => fmtDate(value),
     },
     {
+      // Cuándo hay que entregar — lo que pidió Hernán para poder ordenar el día por urgencia.
+      // Va inmediatamente después de la fecha de emisión porque la comparación entre las dos
+      // es la que dice si el pedido está apretado.
+      //
+      // ⚠️ Las órdenes sin fecha comprometida se ordenan AL FINAL, no como el año 0: con el 0
+      // el orden ascendente empieza por todas las que no tienen fecha, que es justo lo que no
+      // se está buscando cuando alguien ordena por entrega.
+      header: "Entrega",
+      accessor: "fecha_entrega",
+      sortable: true,
+      sortValue: (row) =>
+        row.fecha_entrega ? new Date(row.fecha_entrega).getTime() : Number.MAX_SAFE_INTEGER,
+      Cell: ({ value }) =>
+        value ? fmtDate(value) : <span className="text-gray-400">—</span>,
+    },
+    {
       header: "Cliente",
       accessor: "cliente",
       sortable: true,
