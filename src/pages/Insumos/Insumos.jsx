@@ -54,6 +54,10 @@ export default function InsumosPage() {
   };
 
   const columns = [
+    // Pedido de Hernán (correo del 2026-09-03): homologar su planilla de insumos contra el
+    // sistema necesita el número de registro de cada insumo — hasta ahora sólo se veía el
+    // nombre, y el ID (que sí existe, es el de siempre) nunca se mostraba en esta lista.
+    { header: "ID", accessor: "id", sortable: true, hideable: false, align: "right" },
     {
       header: "Nombre",
       accessor: "nombre",
