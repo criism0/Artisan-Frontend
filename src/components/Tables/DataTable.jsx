@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { leerGuardado, escribirGuardado } from "../../hooks/useTablaPersistida";
 import FiltroColumna from "./FiltroColumna";
 import { filaPasaFiltros, contarFiltrosColumna, resolverColumna } from "../../utils/filtrosColumna";
-import { fuzzyMatch, normalizeText } from "../../services/fuzzyMatch";
 import Table from "./Table";
 import SearchBar from "../UI/SearchBar";
 import RowsPerPageSelector from "../UI/RowsPerPageSelector";
@@ -170,13 +169,17 @@ export default function DataTable({
     const q = normalize(searchQuery);
     if (!q) return porColumna;
     if (typeof filterFn === "function") return porColumna.filter((row) => filterFn(row, searchQuery));
-    // 🔴 DIFUSA, no substring exacto (pedido de Cristóbal, 2026-09-02). Mismo `fuzzyMatch` que
-    // los embudos de las columnas y que la lista de Insumos: tener un control que perdona un
-    // error de tipeo y el de al lado que no, en la misma barra, es peor que no perdonarlo en
-    // ninguno. Intenta la coincidencia directa primero, así que el caso normal no cambia.
+    // 🔴 SUBSTRING EXACTO, NO DIFUSO — se probó difuso el 2026-09-02 y se revirtió el
+    // 2026-09-04. Con IDs consecutivos (una OC, una solicitud) la tolerancia a errores de
+    // tipeo se vuelve ruido: buscar «624» encontraba también 644, 642, 634, 629 y 628 —
+    // cualquier número a un dígito de distancia, que en una lista de correlativos es casi
+    // cualquier fila reciente. El buscador general mezcla columnas de texto libre con
+    // identificadores numéricos en la misma caja, y lo que sirve para un nombre mal escrito
+    // rompe para un número bien escrito. `fuzzyMatch` sigue existiendo y sigue siendo lo
+    // correcto donde el texto es SIEMPRE texto — Insumos y los `Selector` con `useFuzzy`.
     return porColumna.filter((row) => {
       const text = getSearchText ? getSearchText(row) : JSON.stringify(row);
-      return fuzzyMatch(normalizeText(text), searchQuery);
+      return normalize(text).includes(q);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [porColumna, searchQuery]);

@@ -145,50 +145,41 @@ describe("filaPasaFiltroColumna", () => {
   });
 
   describe("texto", () => {
-    // 🔴 DIFUSO — pedido de Cristóbal, 2026-09-02: «por si alguien se equivoca en alguna letra
-    // al buscar, que igual salga». Reutiliza el `fuzzyMatch` que ya usan Insumos y los
-    // Selector: un segundo criterio de parecido haría que la misma consulta encontrara cosas
-    // distintas según en qué caja se escriba.
-    describe("tolera errores de tipeo", () => {
-      const conComentario = (t) => ({ ...fila(), numero_oc: t });
+    // 🔴 SUBSTRING, NO DIFUSO. Se probó difuso el 2026-09-02 y se revirtió el 2026-09-04:
+    // Logística reportó que buscar la OC «624» en Órdenes de Compra mostraba también la 644,
+    // 642, 634, 629 y 628 — cualquier folio a un dígito o una transposición de distancia, que
+    // en una lista de correlativos es casi cualquier fila reciente. Una columna «texto» no es
+    // sólo nombres: «OC cliente» guarda casi siempre un número corto, y ahí la tolerancia a
+    // errores de tipeo no ayuda, estorba.
+    describe("no tolera errores de tipeo — el caso real que lo motivó", () => {
+      const conOc = (t) => ({ ...fila(), numero_oc: t });
 
-      it.each([
-        ["Vitakura", "Vitacura"],   // letra cambiada
-        ["Vitcura", "Vitacura"],    // letra faltante
-        ["Vitaacura", "Vitacura"],  // letra repetida
-        ["Vitacrua", "Vitacura"],   // dos letras traspuestas
-      ])("buscar %s encuentra %s", (consulta, real) => {
-        expect(
-          filaPasaFiltroColumna(colTexto, { tipo: "texto", q: consulta }, conComentario(real)),
-        ).toBe(true);
+      it('buscar "624" NO encuentra "644", "642", "634", "629" ni "628"', () => {
+        for (const folio of ["644", "642", "634", "629", "628"]) {
+          expect(filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "624" }, conOc(folio))).toBe(false);
+        }
       });
 
-      it("encuentra la palabra aunque esté en medio de un texto largo", () => {
-        const largo = conComentario("LOCAL MUT · Encomenderos 65, las condes. Piso -4, bodega 8");
-        expect(filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "encomederos" }, largo)).toBe(true);
+      it('pero "624" sí encuentra "624"', () => {
+        expect(filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "624" }, conOc("624"))).toBe(true);
       });
 
-      // La tolerancia es proporcional al largo, así que una consulta larga y bien escrita no
-      // arrastra cualquier cosa: sigue siendo un filtro y no un "muestra todo".
-      it("no encuentra una palabra que no se parece", () => {
-        expect(
-          filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "quilicura" }, conComentario("Vitacura")),
-        ).toBe(false);
+      it("una letra cambiada ya no encuentra el valor real", () => {
+        expect(filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "Vitakura" }, conOc("Vitacura"))).toBe(false);
       });
+    });
 
-      it("todos los términos de la consulta tienen que aparecer", () => {
-        const f = conComentario("LOCAL MUT Encomenderos");
-        expect(filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "local mut" }, f)).toBe(true);
-        expect(filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "local vitacura" }, f)).toBe(false);
-      });
+    it("encuentra la palabra aunque esté en medio de un texto largo", () => {
+      const largo = { ...fila(), numero_oc: "LOCAL MUT · Encomenderos 65, las condes. Piso -4, bodega 8" };
+      expect(filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "encomenderos" }, largo)).toBe(true);
+    });
 
-      // El guion de una OC no puede hacer fallar la búsqueda: el normalizador lo convierte en
-      // espacio en LOS DOS lados, que es la razón de reusar `normalizeText` de fuzzyMatch.
-      it("la puntuación no estorba", () => {
-        const f = conComentario("PO-122586");
-        expect(filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "po-1225" }, f)).toBe(true);
-        expect(filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "PO 122586" }, f)).toBe(true);
-      });
+    // El guion de una OC no puede hacer fallar la búsqueda: el normalizador lo convierte en
+    // espacio en LOS DOS lados.
+    it("la puntuación no estorba", () => {
+      const f = { ...fila(), numero_oc: "PO-122586" };
+      expect(filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "po 122586" }, f)).toBe(true);
+      expect(filaPasaFiltroColumna(colTexto, { tipo: "texto", q: "PO-122586" }, f)).toBe(true);
     });
 
     it("busca por contenido, sin importar mayúsculas ni tildes", () => {
