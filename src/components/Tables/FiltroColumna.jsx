@@ -7,7 +7,6 @@ import {
   normalizar,
   SIN_VALOR,
 } from "../../utils/filtrosColumna";
-import { fuzzyMatch } from "../../services/fuzzyMatch";
 
 /**
  * El embudo que abre el filtro de una columna, al estilo de una planilla.
@@ -38,11 +37,13 @@ export default function FiltroColumna({ col, data, filtro, onChange }) {
     [col, data],
   );
 
-  // Difuso también acá: la lista de valores es donde más se tipea a ciegas —125 clientes— y
-  // errarle a una letra dejaba la lista vacía como si el cliente no existiera.
+  // Substring, no difuso — mismo motivo que el resto de los filtros de columna: una lista de
+  // valores puede ser tan numérica como un nombre («Total bruto», un código de barras), y ahí
+  // tolerar errores de tipeo mezcla valores que no tienen nada que ver.
   const coincidencias = useMemo(() => {
     if (!busqueda.trim()) return opciones;
-    return opciones.filter((o) => fuzzyMatch(normalizar(String(o.etiqueta)), busqueda));
+    const q = normalizar(busqueda).trim();
+    return opciones.filter((o) => normalizar(String(o.etiqueta)).includes(q));
   }, [opciones, busqueda]);
 
   // Se pinta sólo un tramo: una columna de códigos puede tener miles de valores distintos y
@@ -112,7 +113,6 @@ export default function FiltroColumna({ col, data, filtro, onChange }) {
                     value={busqueda}
                     onChange={(e) => setBusqueda(e.target.value)}
                     placeholder="Buscar valor…"
-                    title="Tolera errores de tipeo"
                     className="w-full mb-1.5 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 )}
@@ -154,7 +154,7 @@ export default function FiltroColumna({ col, data, filtro, onChange }) {
                 autoFocus
                 value={actual.q ?? ""}
                 onChange={(e) => onChange({ ...actual, q: e.target.value })}
-                placeholder="Contiene… (tolera errores de tipeo)"
+                placeholder="Contiene…"
                 className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
               />
             )}

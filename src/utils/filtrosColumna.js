@@ -13,7 +13,7 @@
  * se entere.
  */
 
-import { fuzzyMatch, normalizeText } from "../services/fuzzyMatch";
+import { normalizeText } from "../services/fuzzyMatch";
 
 /**
  * Marcador de «esta fila no tiene valor en esta columna».
@@ -208,11 +208,13 @@ export function filaPasaFiltroColumna(col, filtro, row) {
       // Una celda vacía nunca contiene lo que se busca. Devolver `true` acá haría que buscar
       // "MUT" en Comentario trajera además las 128 órdenes que no tienen comentario.
       if (esVacio(bruto)) return false;
-      // 🔴 DIFUSO, NO SUBSTRING (pedido de Cristóbal, 2026-09-02): *«por si alguien se equivoca
-      // en alguna letra al buscar, que igual salga»*. Se reutiliza el `fuzzyMatch` que ya usan
-      // Insumos y los `Selector` con `useFuzzy` en vez de escribir otro: un segundo criterio de
-      // parecido haría que la misma consulta encontrara cosas distintas según dónde se escriba.
-      return fuzzyMatch(normalizar(bruto), filtro.q);
+      // 🔴 SUBSTRING, NO DIFUSO — se probó difuso el 2026-09-02 y se revirtió el 2026-09-04.
+      // Una columna «texto» no es sólo nombres: «OC cliente» en Ventas guarda casi siempre un
+      // número corto que el cliente mandó, y con tolerancia a errores de tipeo un «624» calzaba
+      // con «644», «642», «634»… cualquier OC a un dígito de distancia. En una lista de
+      // correlativos eso es ruido, no ayuda. `fuzzyMatch` sigue siendo lo correcto donde el
+      // texto es SIEMPRE texto — Insumos y los `Selector` con `useFuzzy` no lo pierden.
+      return normalizar(bruto).includes(normalizar(filtro.q).trim());
     }
     case "numero": {
       const n = aNumero(bruto);
