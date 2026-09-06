@@ -58,6 +58,7 @@ const EditOrden = lazy(() => import("./pages/Compras/EditarOrden"));
 const RecepcionarOrden = lazy(() => import("./pages/Compras/RecepcionarOrden"));
 const OrdenDetail = lazy(() => import("./pages/Compras/OrdenDetail"));
 const AdquisicionesDashboard = lazy(() => import("./pages/Compras/AdquisicionesDashboard"));
+const DocumentosRecibidosLibreDte = lazy(() => import("./pages/Compras/DocumentosRecibidosLibreDte"));
 
 // ====== Insumos ======
 const Categorias = lazy(() => import("./pages/Insumos/Categorias"));
@@ -274,11 +275,19 @@ function Routing() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/Ordenes" 
+          <Route
+            path="/Ordenes"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.READ]]}>
                 <Ordenes />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/Ordenes/documentos-recibidos"
+            element={
+              <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.READ]]}>
+                <DocumentosRecibidosLibreDte />
               </ProtectedRoute>
             }
           />
