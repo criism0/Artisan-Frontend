@@ -13,7 +13,8 @@ import {
   ShoppingCart, Receipt,
   ShieldCheck,
   ShieldUser,
-  Bot
+  Bot,
+  Link2
 } from "lucide-react";
 import { FaTruck, FaWarehouse, FaRegSmile, FaList, FaBroom, FaUsers, FaQrcode, FaClipboardCheck
 } from "react-icons/fa";
@@ -64,6 +65,7 @@ export default function Navbar() {
             <MenuGroup label="Adquisiciones" icon={<Box />}>
               <MenuLink to="/Ordenes/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.ORDEN_COMPRA, ScopeType.READ)} />
               <MenuLink to="/Ordenes" icon={<ClipboardList />} label=" Órdenes de Compra" isAllowed={checkScope(ModelType.ORDEN_COMPRA, ScopeType.READ)} />
+              <MenuLink to="/Ordenes/documentos-recibidos" icon={<Link2 />} label="Facturas por vincular" isAllowed={checkScope(ModelType.ORDEN_COMPRA, ScopeType.READ)} />
             </MenuGroup>
           </Dropdown>
 
