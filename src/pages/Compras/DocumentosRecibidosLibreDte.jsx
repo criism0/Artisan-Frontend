@@ -178,7 +178,7 @@ function PanelVincular({ doc, onCerrar, onVinculado }) {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-[420px]">
+    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 w-[420px] max-h-[calc(100vh-20px)] overflow-y-auto">
       <div className="flex items-start justify-between mb-3">
         <div>
           <div className="font-medium text-text">{TIPO_LABEL[doc.tipo_dte] ?? doc.tipo_dte} N° {doc.folio}</div>
@@ -277,12 +277,20 @@ export default function DocumentosRecibidosLibreDte() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // El panel varía de alto según el caso (con sugerencia, con selector manual, con error) — el
+  // más alto observado ronda los 420px. No hay forma de medirlo ANTES de montarlo, así que se
+  // acota con esa cota superior: mejor un panel que abre un poco más arriba de lo estrictamente
+  // necesario que uno cuyo borde inferior queda tapado por el borde de la ventana, sin scroll
+  // que lo alcance porque es `fixed` (no se mueve con el scroll de la página).
+  const ALTO_MAX_PANEL = 420;
+
   const abrirPanel = (e, doc) => {
     const r = e.currentTarget.getBoundingClientRect();
     // Se ancla a la derecha del botón, no a la izquierda: el panel mide 420px y la columna
     // "Opciones" es la última de la tabla, así que anclado a la izquierda se saldría del
     // viewport. `Math.min` lo empuja de vuelta si aun así no cabe (pantallas angostas).
-    setPanel({ doc, top: r.bottom + 6, left: Math.min(r.right - 420, window.innerWidth - 430) });
+    const top = Math.min(r.bottom + 6, window.innerHeight - ALTO_MAX_PANEL - 10);
+    setPanel({ doc, top: Math.max(10, top), left: Math.min(r.right - 420, window.innerWidth - 430) });
   };
 
   const desvincular = async (doc) => {
