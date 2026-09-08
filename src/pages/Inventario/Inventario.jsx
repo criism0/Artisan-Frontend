@@ -227,6 +227,13 @@ export default function Inventario() {
         setFiltered(data);
         setExpandedKey(null);
         setSelectedIds(new Set());
+        // 🔴 El caché de bultos por fila se indexaba SOLO por id de materia prima, ajeno al
+        // filtro de bodega o tipo activo. Cambiar de bodega y volver a expandir la MISMA fila
+        // reusaba la lista de bultos de la bodega/tipo anterior — el número de arriba (que sí
+        // se recalcula) dejaba de coincidir con lo que se veía abajo. Reportado por Hernán
+        // (2026-09-03): la etiqueta Cottage mostraba 103.000 arriba con solo 15 bultos de
+        // 1.000 abajo. Cualquier cambio de filtro invalida el caché entero.
+        setBultosCache({});
       } catch (err) {
         if (err?.name === "AbortError") return;
         console.error("Error aplicando filtros:", err);
