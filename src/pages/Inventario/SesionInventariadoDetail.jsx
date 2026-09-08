@@ -248,7 +248,7 @@ export default function SesionInventariadoDetail() {
             items={diff.traslados}
             columns={[
               ...COLS_BASE,
-              { key: "bod", label: "Bodega registrada", render: (b) => b.id_bodega ?? "—" },
+              { key: "bod", label: "Bodega registrada", render: (b) => b.bodega_nombre ?? "—" },
               { key: "cont", label: "Contado", render: (b) => fmt(b.unidades_contadas) },
               COL_ESCANEO,
             ]}
@@ -313,7 +313,7 @@ export default function SesionInventariadoDetail() {
                   : fmt(a.unidades_despues) },
               { key: "bod", label: "Bodega", render: (a) =>
                 a.id_bodega_antes !== a.id_bodega_despues
-                  ? `${a.id_bodega_antes ?? "—"} → ${a.id_bodega_despues ?? "—"}`
+                  ? `${a.bodega_antes_nombre ?? "—"} → ${a.bodega_despues_nombre ?? "—"}`
                   : "sin cambio" },
               { key: "m", label: "Merma", render: (a) =>
                 a.es_merma_antes !== a.es_merma_despues
