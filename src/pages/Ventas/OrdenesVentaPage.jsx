@@ -18,6 +18,7 @@ import { generarNotaVentaPDF } from "../../services/notaVentaPdf.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import EstadoPosteriorBadge from "../../components/Ventas/EstadoPosteriorBadge.jsx";
 import { POSTERIOR_LABEL } from "../../utils/estadoPosteriorFactura.js";
+import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
 
@@ -312,7 +313,7 @@ export default function OrdenesVentaPage() {
   };
 
   const actions = (row) => {
-    const puedeEditar = row.estado === "Creada";
+    const puedeEditar = puedeEditarLineasOV(row.estado);
     // Sólo donde puede haber factura. El estado es el único dato de la fila que lo dice sin
     // pedir los documentos de las 290 órdenes.
     const puedeTenerFactura = ["Facturada", "Entregada"].includes(row.estado);
