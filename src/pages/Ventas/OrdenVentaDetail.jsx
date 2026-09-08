@@ -34,6 +34,7 @@ import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 import { mensajeError } from "../../utils/mensajeError.js";
 import { derivarFolioOC, esVentaAPlazo, origenVencimiento } from "../../utils/referenciaOC.js";
 import { resumenFacturable } from "../../utils/cantidadFacturable.js";
+import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -886,7 +887,10 @@ export default function OrdenVentaDetail() {
       icon: <Download className="w-4 h-4" />,
       onClick: handleDescargarPDF,
     },
-    {
+    // Sólo mientras el contenido de la orden todavía se puede tocar (hasta que empieza el
+    // picking, pedido de Hernán 2026-09-07) — ofrecerlo después llevaría a un formulario que el
+    // backend rechaza con 409 al guardar. Ver utils/ordenVentaEditable.js.
+    puedeEditarLineasOV(orden?.estado) && {
       label: "Editar",
       icon: <Pencil className="w-4 h-4" />,
       onClick: () => navigate(`/ventas/ordenes/${id}/edit`),
