@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { FileDown, Receipt } from "lucide-react";
+import { FileDown, Receipt, Ban, RotateCcw } from "lucide-react";
 import { ViewDetailButton, EditButton, TrashButton } from "../../components/Buttons/ActionButtons";
 import DataTable from "../../components/Tables/DataTable";
 import { usePersistedState } from "../../hooks/useTablaPersistida";
@@ -19,6 +19,9 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import EstadoPosteriorBadge from "../../components/Ventas/EstadoPosteriorBadge.jsx";
 import { POSTERIOR_LABEL } from "../../utils/estadoPosteriorFactura.js";
 import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
+import { puedeCancelarOV, puedeReabrirCancelacion } from "../../utils/ordenVentaCancelable.js";
+import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
+import { mensajeError } from "../../utils/mensajeError.js";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
 
@@ -34,6 +37,7 @@ function EstadoBadge({ estado }) {
     "Lista para facturación": "bg-cyan-100 text-cyan-700",
     "Facturada": "bg-yellow-100 text-yellow-700",
     "Entregada": "bg-green-100 text-green-700",
+    "Cancelada": "bg-red-100 text-red-700",
   };
   return <span className={`${base} ${map[estado] || "bg-gray-100 text-gray-600"}`}>{estado}</span>;
 }
@@ -42,9 +46,11 @@ function EstadoBadge({ estado }) {
 export default function OrdenesVentaPage() {
   const navigate = useNavigate();
   const api = useApi();
+  const confirm = useConfirm();
   const [ordenes, setOrdenes] = useState([]);
   const [descargando, setDescargando] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [cambiandoEstado, setCambiandoEstado] = useState(null);
   // Los filtros propios de esta lista viven acá porque acá se sabe qué significan; se guardan
   // bajo la MISMA clave que usa el DataTable para su búsqueda/orden/columnas.
   const [filtros, setFiltros] = usePersistedState(CLAVE_UI, "filtrosOV", FILTROS_VACIOS);
@@ -83,6 +89,48 @@ export default function OrdenesVentaPage() {
       toast.success("Orden eliminada correctamente");
     } catch {
       toast.error("No se pudo eliminar la orden");
+    }
+  };
+
+  // Cancelar/reabrir (pedido de Hernán por correo, reenviado por Cristóbal 2026-09-09): botón
+  // «Pedido Cancelado» visible acá mismo, en la lista, y no sólo en el detalle. Reversible con
+  // «Reabrir» mientras nadie haya vuelto a tocar la orden — ver utils/ordenVentaCancelable.js.
+  const handleCancelar = async (row) => {
+    if (
+      !(await confirm({
+        title: `¿Cancelar el pedido #${row.id}?`,
+        message:
+          "El pedido queda marcado como Cancelado y sale del flujo normal. Se puede reabrir después desde esta misma lista.",
+        confirmText: "Sí, cancelar",
+      }))
+    )
+      return;
+    setCambiandoEstado(row.id);
+    try {
+      const res = await api(`/ordenes-venta/${row.id}/cancelar`, { method: "PUT" });
+      const actualizada = res?.data?.orden || res?.orden;
+      setOrdenes((prev) =>
+        prev.map((o) => (o.id === row.id ? { ...o, ...(actualizada || { estado: "Cancelada" }) } : o)),
+      );
+      toast.success("Pedido cancelado");
+    } catch (err) {
+      toast.error(mensajeError(err, "cancelar este pedido"));
+    } finally {
+      setCambiandoEstado(null);
+    }
+  };
+
+  const handleReabrirCancelacion = async (row) => {
+    setCambiandoEstado(row.id);
+    try {
+      const res = await api(`/ordenes-venta/${row.id}/reabrir-cancelacion`, { method: "PUT" });
+      const actualizada = res?.data?.orden || res?.orden;
+      setOrdenes((prev) => prev.map((o) => (o.id === row.id ? { ...o, ...(actualizada || {}) } : o)));
+      toast.success(res?.data?.message || res?.message || "Pedido reabierto");
+    } catch (err) {
+      toast.error(mensajeError(err, "reabrir este pedido"));
+    } finally {
+      setCambiandoEstado(null);
     }
   };
 
@@ -346,6 +394,26 @@ export default function OrdenesVentaPage() {
             title="Descargar factura"
           >
             <FileDown className="w-5 h-5" />
+          </button>
+        )}
+        {puedeCancelarOV(row.estado) && (
+          <button
+            onClick={() => handleCancelar(row)}
+            disabled={cambiandoEstado === row.id}
+            className="text-gray-400 hover:text-red-600 disabled:opacity-40"
+            title="Cancelar pedido"
+          >
+            <Ban className="w-5 h-5" />
+          </button>
+        )}
+        {puedeReabrirCancelacion(row.estado) && (
+          <button
+            onClick={() => handleReabrirCancelacion(row)}
+            disabled={cambiandoEstado === row.id}
+            className="text-gray-400 hover:text-primary disabled:opacity-40"
+            title="Reabrir pedido"
+          >
+            <RotateCcw className="w-5 h-5" />
           </button>
         )}
         <TrashButton
