@@ -975,7 +975,10 @@ export default function OrdenVentaDetail() {
   ];
 
   const accionesDestructivas = [
-    orden?.estado === "Lista para facturación" && {
+    // Ampliado 2026-09-11 a "En picking": antes sólo se ofrecía desde Lista para facturación y
+    // no había forma de abortar un picking a MITAD de camino (completar-picking exige tener
+    // todo asignado). El backend ahora acepta anular desde cualquiera de los dos.
+    ["En picking", "Lista para facturación"].includes(orden?.estado) && {
       label: "Anular picking",
       icon: <Undo2 className="w-4 h-4" />,
       onClick: handleAnularPicking,
