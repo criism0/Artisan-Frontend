@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
+  Ban,
   CheckCircle2,
   Download,
   PackageCheck,
@@ -35,6 +36,7 @@ import { mensajeError } from "../../utils/mensajeError.js";
 import { derivarFolioOC, esVentaAPlazo, origenVencimiento } from "../../utils/referenciaOC.js";
 import { resumenFacturable } from "../../utils/cantidadFacturable.js";
 import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
+import { puedeCancelarOV, puedeReabrirCancelacion } from "../../utils/ordenVentaCancelable.js";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -542,6 +544,40 @@ export default function OrdenVentaDetail() {
     }
   };
 
+  // Cancelar/reabrir (pedido de Hernán por correo, reenviado por Cristóbal 2026-09-09): sólo
+  // se ofrece mientras nada está comprometido con bodega — misma frontera que
+  // `puedeEditarLineasOV` — y es reversible mientras nadie haya vuelto a tocar la orden.
+  const handleCancelar = async () => {
+    if (!id) return;
+    try {
+      setTransitioning(true);
+      const res = await api(`/ordenes-venta/${id}/cancelar`, { method: "PUT" });
+      const updated = res?.data?.orden || res?.orden;
+      if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
+      else setOrden((prev) => (prev ? { ...prev, estado: "Cancelada" } : prev));
+      toast.success(res?.data?.message || "Pedido cancelado");
+    } catch (err) {
+      toast.error(apiErrorMsg(err, "cancelar este pedido"));
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  const handleReabrirCancelacion = async () => {
+    if (!id) return;
+    try {
+      setTransitioning(true);
+      const res = await api(`/ordenes-venta/${id}/reabrir-cancelacion`, { method: "PUT" });
+      const updated = res?.data?.orden || res?.orden;
+      if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
+      toast.success(res?.data?.message || "Pedido reabierto");
+    } catch (err) {
+      toast.error(apiErrorMsg(err, "reabrir este pedido"));
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
   const loadDireccionesCliente = async (clienteId) => {
     if (!clienteId) return;
     setLoadingDirecciones(true);
@@ -769,6 +805,7 @@ export default function OrdenVentaDetail() {
       "Lista para facturación":`${base} bg-cyan-100 text-cyan-700`,
       "Facturada":          `${base} bg-yellow-100 text-yellow-700`,
       "Entregada":          `${base} bg-green-100 text-green-700`,
+      "Cancelada":          `${base} bg-red-100 text-red-700`,
     };
     return <span className={map[estado] || `${base} bg-gray-100 text-gray-600`}>{estado}</span>;
   };
@@ -875,6 +912,18 @@ export default function OrdenVentaDetail() {
     if (estado === "Entregada")
       return { tono: "green", texto: "Orden completada y entregada." };
 
+    if (estado === "Cancelada") {
+      const cuando = orden?.cancelado_en ? formatDate(orden.cancelado_en) : null;
+      const quien = orden?.canceladoPor?.nombre;
+      return {
+        tono: "red",
+        texto:
+          `Pedido cancelado${cuando ? ` el ${cuando}` : ""}${quien ? ` por ${quien}` : ""}.` +
+          (orden?.motivo_cancelacion ? ` Motivo: ${orden.motivo_cancelacion}` : "") +
+          ` Vuelve a ${orden?.estado_previo_cancelacion || "su estado anterior"} con «Reabrir pedido».`,
+      };
+    }
+
     return null;
   })();
 
@@ -911,10 +960,25 @@ export default function OrdenVentaDetail() {
         textoBoton: "Reabrir",
       },
     },
+    puedeReabrirCancelacion(orden?.estado) && {
+      label: "Reabrir pedido",
+      icon: <RotateCcw className="w-4 h-4" />,
+      onClick: handleReabrirCancelacion,
+      disabled: transitioning || !canWriteSaleOrder,
+      title: canWriteSaleOrder ? undefined : "Sin permiso para editar órdenes de venta",
+      confirmar: {
+        titulo: "¿Reabrir este pedido?",
+        mensaje: `Vuelve a ${orden?.estado_previo_cancelacion || "su estado anterior"}, tal como estaba antes de cancelarse.`,
+        textoBoton: "Reabrir",
+      },
+    },
   ];
 
   const accionesDestructivas = [
-    orden?.estado === "Lista para facturación" && {
+    // Ampliado 2026-09-11 a "En picking": antes sólo se ofrecía desde Lista para facturación y
+    // no había forma de abortar un picking a MITAD de camino (completar-picking exige tener
+    // todo asignado). El backend ahora acepta anular desde cualquiera de los dos.
+    ["En picking", "Lista para facturación"].includes(orden?.estado) && {
       label: "Anular picking",
       icon: <Undo2 className="w-4 h-4" />,
       onClick: handleAnularPicking,
@@ -924,6 +988,19 @@ export default function OrdenVentaDetail() {
         mensaje:
           "Se desmonta todo: los bultos ya asignados vuelven a estar disponibles y las cantidades declaradas se borran. La orden queda como si nunca se hubiera pickeado. Esta acción no se puede deshacer.",
         textoBoton: "Sí, anular todo",
+      },
+    },
+    puedeCancelarOV(orden?.estado) && {
+      label: "Cancelar pedido",
+      icon: <Ban className="w-4 h-4" />,
+      onClick: handleCancelar,
+      disabled: transitioning || !canWriteSaleOrder,
+      title: canWriteSaleOrder ? undefined : "Sin permiso para editar órdenes de venta",
+      confirmar: {
+        titulo: `¿Cancelar el pedido #${orden?.id}?`,
+        mensaje:
+          "El pedido queda marcado como Cancelado y sale del flujo normal (no se puede seguir editando, validando ni pickeando). Se puede reabrir después con «Reabrir pedido», mientras nadie haya vuelto a tocarlo.",
+        textoBoton: "Sí, cancelar",
       },
     },
     {
@@ -970,6 +1047,7 @@ export default function OrdenVentaDetail() {
     amber: "text-amber-700 bg-amber-50 border-amber-200",
     blue: "text-blue-700 bg-blue-50 border-blue-200",
     green: "text-green-700 bg-green-50 border-green-200",
+    red: "text-red-700 bg-red-50 border-red-200",
   };
 
   return (
@@ -1005,7 +1083,9 @@ export default function OrdenVentaDetail() {
         </p>
       )}
 
-      <StepBar estadoActual={orden?.estado} />
+      {/* Un pedido cancelado salió del flujo — pintar la barra de pasos ahí sugeriría que sigue
+          avanzando por alguno de ellos. El aviso de arriba ya dice todo lo que hace falta. */}
+      {orden?.estado !== "Cancelada" && <StepBar estadoActual={orden?.estado} />}
 
       {/* Total — el único número que vale la pena ver de un vistazo antes de abrir nada. El
           resto (OC, fechas, cliente, direcciones) vive en `InformacionOrdenCliente`, cada dato
