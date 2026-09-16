@@ -37,6 +37,7 @@ import { derivarFolioOC, esVentaAPlazo, origenVencimiento } from "../../utils/re
 import { resumenFacturable } from "../../utils/cantidadFacturable.js";
 import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
 import { puedeCancelarOV, puedeReabrirCancelacion } from "../../utils/ordenVentaCancelable.js";
+import { resumenSaldo, puedeCerrarSaldo, ESTADO_FACTURADA_PARCIAL } from "../../utils/saldoFacturacion.js";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -79,7 +80,10 @@ const PASOS_OV = [
  * y volvía a montar toda la barra cada vez que cambiaba cualquier estado de la vista.
  */
 function StepBar({ estadoActual }) {
-  const actual = PASOS_OV.indexOf(estadoActual ?? "");
+  // Una orden facturada a medias ya pasó por la facturación: en la barra se ve en ese paso. Lo
+  // que falta lo dice el aviso de estado, no un paso más.
+  const paso = estadoActual === ESTADO_FACTURADA_PARCIAL ? "Facturada" : estadoActual;
+  const actual = PASOS_OV.indexOf(paso ?? "");
 
   return (
     <div className="bg-white rounded-lg shadow p-4 mb-6">
@@ -131,6 +135,11 @@ function FacturarForm({
   setOrigenFecha,
   requiereDir = false,
   resumenPicking = null,
+  saldo = null,
+  dejarSaldoPendiente = true,
+  setDejarSaldoPendiente = () => {},
+  motivoCierreSaldo = "",
+  setMotivoCierreSaldo = () => {},
 }) {
   // Lo que va a salir impreso como referencia. Se muestra, no se edita: es el `numero_oc` de la
   // orden, y si está mal se corrige en la orden — no al emitir el documento tributario.
@@ -147,7 +156,57 @@ function FacturarForm({
       {/* 🔴 EL AVISO DE PICKING VA PRIMERO, antes del documento. Facturar de más se deshace sólo
           con una nota de crédito, y ya pasó: la OV 794 se facturó por 3.600 unidades habiendo
           pickeado 2.376 y hubo que anularla el mismo día. */}
-      {resumenPicking?.difieren && (
+      {/* Facturación parcial (2026-09-16): si la orden ya tiene factura, ésta lleva SÓLO lo
+          pickeado desde entonces. Se dice antes que nada, porque el total de la orden no es el
+          de este documento. */}
+      {saldo?.hayFacturaPrevia && (
+        <div className="text-xs text-blue-900 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
+          <strong>Esta orden ya se facturó en parte</strong> ({formatCLP(saldo.netoFacturado, 0)} neto).
+          Esta factura lleva sólo lo pickeado desde entonces:{" "}
+          <strong>{formatCLP(saldo.netoPorFacturar, 0)} neto</strong>.
+        </div>
+      )}
+
+      {saldo?.quedaSaldoTras && (
+        <div className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-md px-3 py-2 flex flex-col gap-2">
+          <div>
+            <strong>Esta factura no cubre todo el pedido.</strong> Queda por despachar:
+            <ul className="mt-1 ml-4 list-disc">
+              {saldo.lineasConSaldo.map((l) => (
+                <li key={l.nombre}>
+                  {l.nombre}: {l.saldo_tras.toLocaleString("es-CL")} de {l.pedida.toLocaleString("es-CL")}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={dejarSaldoPendiente}
+              onChange={(e) => setDejarSaldoPendiente(e.target.checked)}
+            />
+            <span>
+              Dejar el saldo pendiente para una próxima factura. La orden queda en{" "}
+              <strong>Facturada parcial</strong> y bodega puede pickear lo que falta desde la app.
+            </span>
+          </label>
+          {!dejarSaldoPendiente && (
+            <label className="flex flex-col gap-1">
+              <span>¿Por qué no se despacha el resto? (queda registrado)</span>
+              <input
+                type="text"
+                value={motivoCierreSaldo}
+                onChange={(e) => setMotivoCierreSaldo(e.target.value)}
+                placeholder="Ej.: quiebre de stock, el cliente no lo quiere"
+                className="px-2 py-1 border border-amber-300 rounded-md bg-white text-gray-800"
+              />
+            </label>
+          )}
+        </div>
+      )}
+
+      {resumenPicking?.difieren && !saldo?.hayFacturaPrevia && (
         <div className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-md px-3 py-2">
           <strong>La factura sale por lo pickeado, no por lo pedido.</strong>{" "}
           {resumenPicking.diferencias.length === 1 ? "Una línea salió" : `${resumenPicking.diferencias.length} líneas salieron`}{" "}
@@ -349,6 +408,11 @@ export default function OrdenVentaDetail() {
   const [delivering, setDelivering] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [showFacturarForm, setShowFacturarForm] = useState(false);
+  // Facturación parcial: qué hacer con lo que la factura no cubre, y el cierre posterior.
+  const [dejarSaldoPendiente, setDejarSaldoPendiente] = useState(true);
+  const [motivoCierreSaldo, setMotivoCierreSaldo] = useState("");
+  const [showCerrarSaldo, setShowCerrarSaldo] = useState(false);
+  const [motivoCerrarSaldo, setMotivoCerrarSaldo] = useState("");
   const [showEntregarForm, setShowEntregarForm] = useState(false);
   const [tab, setTab] = useState("detalle");
   const [fechaFacturacion, setFechaFacturacion] = useState("");
@@ -563,6 +627,29 @@ export default function OrdenVentaDetail() {
     }
   };
 
+  const handleCerrarSaldo = async () => {
+    if (!id) return;
+    if (motivoCerrarSaldo.trim().length < 3) {
+      toast.error("Indica por qué se cierra el saldo");
+      return;
+    }
+    try {
+      setTransitioning(true);
+      const res = await api(`/ordenes-venta/${id}/cerrar-saldo`, {
+        method: "PUT",
+        body: JSON.stringify({ motivo: motivoCerrarSaldo.trim() }),
+      });
+      setOrden(await fetchOrden());
+      toast.success(res?.data?.message || res?.message || "Saldo cerrado");
+      setShowCerrarSaldo(false);
+      setMotivoCerrarSaldo("");
+    } catch (err) {
+      toast.error(apiErrorMsg(err, "cerrar el saldo"));
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
   const handleReabrirCancelacion = async () => {
     if (!id) return;
     try {
@@ -714,12 +801,16 @@ export default function OrdenVentaDetail() {
           // omitirla dejaría la que tuviera guardada la orden de un intento anterior.
           fecha_vencimiento_pago: fechaVencimiento || null,
           ...(idLocalDespacho && { id_local: Number(idLocalDespacho) }),
+          dejar_saldo_pendiente: dejarSaldoPendiente,
+          ...(!dejarSaldoPendiente && motivoCierreSaldo.trim() && { motivo_cierre_saldo: motivoCierreSaldo.trim() }),
         }),
       });
       const o = await fetchOrden();
       setOrden(o);
       toast.success(res?.data?.message || res?.message || "Orden facturada correctamente");
       setShowFacturarForm(false);
+      setDejarSaldoPendiente(true);
+      setMotivoCierreSaldo("");
       setFechaFacturacion("");
       setFechaVencimiento("");
       setIdLocalDespacho("");
@@ -803,12 +894,16 @@ export default function OrdenVentaDetail() {
       "Validada":           `${base} bg-blue-100 text-blue-700`,
       "En picking":         `${base} bg-indigo-100 text-indigo-700`,
       "Lista para facturación":`${base} bg-cyan-100 text-cyan-700`,
+      "Facturada parcial":  `${base} bg-orange-100 text-orange-700`,
       "Facturada":          `${base} bg-yellow-100 text-yellow-700`,
       "Entregada":          `${base} bg-green-100 text-green-700`,
       "Cancelada":          `${base} bg-red-100 text-red-700`,
     };
     return <span className={map[estado] || `${base} bg-gray-100 text-gray-600`}>{estado}</span>;
   };
+
+  // Facturación parcial: qué cubren las facturas vigentes y qué va en la próxima.
+  const saldo = useMemo(() => resumenSaldo(orderItems), [orderItems]);
 
   // 🔴 Los totales se calculan sobre lo PICKEADO, que es lo que va a salir en la factura.
   // Antes se calculaban sobre lo pedido y por eso «no actualizaba el valor en el front»: la
@@ -909,6 +1004,25 @@ export default function OrdenVentaDetail() {
           : "La orden pasará a En picking automáticamente al registrar el primer bulto en la asignación.",
       };
 
+    if (estado === ESTADO_FACTURADA_PARCIAL) {
+      const n = orden?.saldo_facturacion?.facturas_vigentes ?? 0;
+      return {
+        tono: "amber",
+        texto: orden?.saldo_facturacion?.hay_por_facturar
+          ? `Facturada en parte (${n} factura${n === 1 ? "" : "s"}) y ya hay mercadería del saldo pickeada sin facturar: marca la orden lista para facturación desde la app para emitir la siguiente.`
+          : `Facturada en parte (${n} factura${n === 1 ? "" : "s"}). Queda saldo por despachar: bodega lo pickea desde la app y la orden vuelve a Lista para facturación. Si el cliente ya no lo quiere, usa «Cerrar saldo».`,
+      };
+    }
+
+    if (estado === "Facturada" && orden?.saldo_cerrado_en) {
+      return {
+        tono: "blue",
+        texto:
+          `Saldo cerrado el ${formatDate(orden.saldo_cerrado_en)}${orden?.saldoCerradoPor?.nombre ? ` por ${orden.saldoCerradoPor.nombre}` : ""}.` +
+          (orden?.motivo_cierre_saldo ? ` Motivo: ${orden.motivo_cierre_saldo}` : ""),
+      };
+    }
+
     if (estado === "Entregada")
       return { tono: "green", texto: "Orden completada y entregada." };
 
@@ -959,6 +1073,13 @@ export default function OrdenVentaDetail() {
           "La orden vuelve a En picking para seguir agregando bultos. Lo ya pickeado NO se toca — se conserva tal cual.",
         textoBoton: "Reabrir",
       },
+    },
+    puedeCerrarSaldo(orden) && {
+      label: "Cerrar saldo",
+      icon: <Ban className="w-4 h-4" />,
+      onClick: () => setShowCerrarSaldo(true),
+      disabled: transitioning || !canWriteSaleOrder,
+      title: canWriteSaleOrder ? undefined : "Sin permiso para editar órdenes de venta",
     },
     puedeReabrirCancelacion(orden?.estado) && {
       label: "Reabrir pedido",
@@ -1270,7 +1391,54 @@ export default function OrdenVentaDetail() {
           setOrigenFecha={setOrigenFecha}
           requiereDir={!orden?.id_local}
           resumenPicking={resumen}
+          saldo={saldo}
+          dejarSaldoPendiente={dejarSaldoPendiente}
+          setDejarSaldoPendiente={setDejarSaldoPendiente}
+          motivoCierreSaldo={motivoCierreSaldo}
+          setMotivoCierreSaldo={setMotivoCierreSaldo}
         />
+      </Modal>
+
+      <Modal
+        abierto={showCerrarSaldo}
+        onCerrar={() => setShowCerrarSaldo(false)}
+        titulo="Cerrar saldo"
+        descripcion="El cliente ya no recibirá lo que falta. La orden queda Facturada y lo no despachado sigue visible."
+        pie={
+          <>
+            <button onClick={() => setShowCerrarSaldo(false)} className={btnCls("ghost")}>
+              Cancelar
+            </button>
+            <button onClick={handleCerrarSaldo} disabled={transitioning} className={btnCls("primary")}>
+              {transitioning ? "Cerrando…" : "Cerrar saldo"}
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          {saldo.lineasConSaldo.length > 0 && (
+            <div className="text-sm text-gray-700">
+              Queda sin despachar:
+              <ul className="mt-1 ml-4 list-disc">
+                {saldo.lineasConSaldo.map((l) => (
+                  <li key={l.nombre}>
+                    {l.nombre}: {l.saldo_tras.toLocaleString("es-CL")} de {l.pedida.toLocaleString("es-CL")}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-gray-700">Motivo (queda registrado)</span>
+            <input
+              type="text"
+              value={motivoCerrarSaldo}
+              onChange={(e) => setMotivoCerrarSaldo(e.target.value)}
+              placeholder="Ej.: el cliente no lo quiere, quiebre de stock"
+              className="px-3 py-2 border border-gray-300 rounded-md"
+            />
+          </label>
+        </div>
       </Modal>
 
       <Modal

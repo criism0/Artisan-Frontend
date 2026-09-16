@@ -27,7 +27,13 @@ export default function DetalleTipoFactura({
   // La columna de pickeado sólo aparece si alguna línea se pickeó. En una orden sin picking
   // registrado —el caso normal— la tabla queda exactamente como estaba.
   const conPicking = hayPickingRegistrado(lineas);
-  const columnas = conPicking ? 6 : 5;
+  // Facturación parcial (2026-09-16): la columna «Facturado» sólo aparece cuando la orden se
+  // factura en partes — con saldo pendiente o más de una factura. Una orden facturada de una vez
+  // se ve exactamente como antes.
+  const conFacturacionParcial =
+    lineas.some((l) => Number(l?.cantidad_facturada) > 0 && Number(l?.cantidad_saldo) > 0) ||
+    (orden?.saldo_facturacion?.facturas_vigentes ?? 0) > 1;
+  const columnas = 5 + (conPicking ? 1 : 0) + (conFacturacionParcial ? 1 : 0);
 
   return (
     <div className="bg-white rounded-lg shadow border border-border overflow-hidden">
@@ -42,6 +48,9 @@ export default function DetalleTipoFactura({
               </th>
               {conPicking && (
                 <th className="px-4 py-2 text-right font-medium whitespace-nowrap">Pickeado</th>
+              )}
+              {conFacturacionParcial && (
+                <th className="px-4 py-2 text-right font-medium whitespace-nowrap">Facturado</th>
               )}
               <th className="px-4 py-2 text-right font-medium whitespace-nowrap">
                 {enCajas ? "Precio caja" : "Precio unit."}
@@ -126,6 +135,20 @@ export default function DetalleTipoFactura({
                             ? `${cajaPickeada.cajas.toLocaleString("es-CL")}${cajaPickeada.unidades_sueltas > 0 ? " + " + cajaPickeada.unidades_sueltas : ""}`
                             : facturable.toLocaleString("es-CL")}
                         </span>
+                      )}
+                    </td>
+                  )}
+                  {conFacturacionParcial && (
+                    <td className="px-4 py-2 text-right whitespace-nowrap tabular-nums">
+                      {/* Siempre en unidades: es lo que registra cada factura, aunque la orden
+                          se trabaje en cajas. */}
+                      {Number(it?.cantidad_facturada ?? 0).toLocaleString("es-CL")}
+                      {enCajas ? " u" : ""}
+                      {Number(it?.cantidad_saldo) > 0 && (
+                        <div className={`text-xs ${orden?.saldo_cerrado_en ? "text-gray-500" : "text-amber-700"}`}>
+                          {orden?.saldo_cerrado_en ? "saldo cerrado:" : "falta"}{" "}
+                          {Number(it.cantidad_saldo).toLocaleString("es-CL")}
+                        </div>
                       )}
                     </td>
                   )}
