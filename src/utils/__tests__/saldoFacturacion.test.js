@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { resumenSaldo, puedeCerrarSaldo, ESTADO_FACTURADA_PARCIAL } from "../saldoFacturacion.js";
+import {
+  resumenSaldo,
+  puedeCerrarSaldo,
+  muestraColumnaFacturado,
+  ESTADO_FACTURADA_PARCIAL,
+} from "../saldoFacturacion.js";
+
+describe("muestraColumnaFacturado", () => {
+  it("🔴 una OV histórica Facturada despachada de menos se ve como antes (72 en producción)", () => {
+    expect(muestraColumnaFacturado({ estado: "Facturada", saldo_facturacion: { facturas_vigentes: 1, hay_saldo: true } })).toBe(false);
+    expect(muestraColumnaFacturado({ estado: "Entregada", saldo_facturacion: { facturas_vigentes: 1 } })).toBe(false);
+  });
+  it("sí en Facturada parcial, con dos facturas o con el saldo cerrado", () => {
+    expect(muestraColumnaFacturado({ estado: ESTADO_FACTURADA_PARCIAL })).toBe(true);
+    expect(muestraColumnaFacturado({ estado: "Facturada", saldo_facturacion: { facturas_vigentes: 2 } })).toBe(true);
+    expect(muestraColumnaFacturado({ estado: "Facturada", saldo_cerrado_en: "2026-09-16" })).toBe(true);
+  });
+});
 
 const linea = (over = {}) => ({
   id: 1,

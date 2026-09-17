@@ -1,4 +1,5 @@
 import { formatCLP } from "../../services/formatHelpers";
+import { muestraColumnaFacturado } from "../../utils/saldoFacturacion.js";
 import { lineaEnCajas, esFormatoCajas, unidadesPorCajaDeLinea } from "../../utils/formatoCantidad";
 import {
   cantidadFacturable,
@@ -28,11 +29,9 @@ export default function DetalleTipoFactura({
   // registrado —el caso normal— la tabla queda exactamente como estaba.
   const conPicking = hayPickingRegistrado(lineas);
   // Facturación parcial (2026-09-16): la columna «Facturado» sólo aparece cuando la orden se
-  // factura en partes — con saldo pendiente o más de una factura. Una orden facturada de una vez
-  // se ve exactamente como antes.
-  const conFacturacionParcial =
-    lineas.some((l) => Number(l?.cantidad_facturada) > 0 && Number(l?.cantidad_saldo) > 0) ||
-    (orden?.saldo_facturacion?.facturas_vigentes ?? 0) > 1;
+  // factura en partes. Ver `muestraColumnaFacturado`: una orden facturada de una vez —incluidas
+  // las históricas despachadas de menos— se ve exactamente como antes.
+  const conFacturacionParcial = muestraColumnaFacturado(orden);
   const columnas = 5 + (conPicking ? 1 : 0) + (conFacturacionParcial ? 1 : 0);
 
   return (

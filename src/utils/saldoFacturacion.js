@@ -56,6 +56,23 @@ export function resumenSaldo(lineas) {
   };
 }
 
+/**
+ * ¿La tabla de líneas muestra la columna «Facturado»?
+ *
+ * 🔴 NO se decide por «alguna línea tiene saldo». Medido en producción el 2026-09-16: 72 OV
+ * Facturada tienen picking bajo lo pedido, y ese faltante se resolvió en su momento creando OTRA
+ * OV. Mostrarles «falta 40» en ámbar sería afirmar un pendiente que no existe. Sólo se muestra
+ * cuando la orden se factura en partes de verdad: está en Facturada parcial, tiene más de una
+ * factura vigente, o se le cerró el saldo.
+ */
+export function muestraColumnaFacturado(orden) {
+  return (
+    orden?.estado === ESTADO_FACTURADA_PARCIAL ||
+    (orden?.saldo_facturacion?.facturas_vigentes ?? 0) > 1 ||
+    Boolean(orden?.saldo_cerrado_en)
+  );
+}
+
 /** ¿Se puede cerrar el saldo? Sólo en Facturada parcial y sin nada pickeado esperando factura. */
 export function puedeCerrarSaldo(orden) {
   return (
