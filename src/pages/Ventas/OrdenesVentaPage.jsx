@@ -35,6 +35,7 @@ function EstadoBadge({ estado }) {
     "Validada": "bg-blue-100 text-blue-700",
     "En picking": "bg-indigo-100 text-indigo-700",
     "Lista para facturación": "bg-cyan-100 text-cyan-700",
+    "Facturada parcial": "bg-orange-100 text-orange-700",
     "Facturada": "bg-yellow-100 text-yellow-700",
     "Entregada": "bg-green-100 text-green-700",
     "Cancelada": "bg-red-100 text-red-700",
@@ -300,6 +301,12 @@ export default function OrdenesVentaPage() {
               }
             >
               N° {row.factura.folio}
+              {/* Facturación parcial (2026-09-16): la más reciente y el resto como «+N». */}
+              {Number(row.factura.vigentes) > 1 && (
+                <span className="ml-1 text-[10px] text-gray-500" title={`${row.factura.vigentes} facturas vigentes`}>
+                  +{Number(row.factura.vigentes) - 1}
+                </span>
+              )}
               {row.factura.origen === "EXTERNO" && (
                 <span className="ml-1 text-[10px] text-amber-600" title="Emitida fuera del ERP">ext</span>
               )}
@@ -364,7 +371,7 @@ export default function OrdenesVentaPage() {
     const puedeEditar = puedeEditarLineasOV(row.estado);
     // Sólo donde puede haber factura. El estado es el único dato de la fila que lo dice sin
     // pedir los documentos de las 290 órdenes.
-    const puedeTenerFactura = ["Facturada", "Entregada"].includes(row.estado);
+    const puedeTenerFactura = ["Facturada parcial", "Facturada", "Entregada"].includes(row.estado);
 
     return (
       <div className="flex gap-2 justify-center items-center">
