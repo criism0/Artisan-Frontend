@@ -20,6 +20,7 @@ export default function BodegaEdit() {
     region: "",
     comuna: "",
     direccion: "",
+    admite_consumo_interno: false,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,6 +37,7 @@ export default function BodegaEdit() {
           region: data.region || "",
           comuna: data.comuna || "",
           direccion: data.direccion || "",
+          admite_consumo_interno: data.admite_consumo_interno === true,
         });
       } catch (err) {
         console.error("Error cargando bodega:", err);
@@ -143,6 +145,22 @@ export default function BodegaEdit() {
               className="w-full border rounded px-3 py-2 placeholder-gray-400"
             />
           </div>
+
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="admite_consumo_interno"
+              checked={formData.admite_consumo_interno}
+              onChange={(e) => setFormData({ ...formData, admite_consumo_interno: e.target.checked })}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="font-medium">Permite registrar consumo interno</span>
+              <span className="block text-gray-500">
+                Desde la app se puede descontar lo que se ocupa de un bulto de insumo en esta bodega, quedando registrado quién lo hizo.
+              </span>
+            </span>
+          </label>
 
           <button
             type="submit"

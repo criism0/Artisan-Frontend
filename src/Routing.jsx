@@ -129,6 +129,7 @@ const ResumenAsignacionVenta = lazy(() => import("./pages/Ventas/ResumenAsignaci
 const InventarioBultos = lazy(() => import("./pages/Inventario/InventarioBultos.jsx"));
 const SesionesInventariado = lazy(() => import("./pages/Inventario/SesionesInventariado.jsx"));
 const SesionInventariadoDetail = lazy(() => import("./pages/Inventario/SesionInventariadoDetail.jsx"));
+const ConsumoInternoPage = lazy(() => import("./pages/Inventario/ConsumoInternoPage.jsx"));
 const EditarBulto = lazy(() => import("./pages/Inventario/EditarBulto.jsx"));
 const UsuariosEdit = lazy(() => import("./pages/Usuarios/UsuariosEdit.jsx"));
 const CambiarContrasena = lazy(() => import("./pages/Usuarios/CambiarContrasena.jsx"));
@@ -243,6 +244,14 @@ function Routing() {
             element={
               <ProtectedRoute permissions={[[ModelType.SESION_INVENTARIADO, ScopeType.READ]]}>
                 <SesionesInventariado />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/Inventario/consumo-interno"
+            element={
+              <ProtectedRoute permissions={[[ModelType.BULTO, ScopeType.READ]]}>
+                <ConsumoInternoPage />
               </ProtectedRoute>
             }
           />
