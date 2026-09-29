@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import Tabs from "../../components/UI/Tabs.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { BackButton } from "../../components/Buttons/ActionButtons";
-import { ChevronDown, ChevronRight, AlertTriangle, CheckCircle } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, CheckCircle, Download } from "lucide-react";
 import { mensajeDelBackend } from "../../utils/mensajeError.js";
+import { abreviaturaUnidad, agruparConteo, conteoACsv } from "../../utils/tomaInventario.js";
 
 const fmt = (n) => (n == null ? "—" : Number(n).toLocaleString("es-CL", { maximumFractionDigits: 4 }));
+const fmtFecha = (d) => (d ? new Date(d).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }) : "—");
 
 function getEstadoBadgeClasses(estado) {
   switch (estado) {
@@ -85,22 +88,37 @@ const COL_ESCANEO = {
     b.escaneado_por?.nombre ? (
       <div className="leading-tight">
         <div>{b.escaneado_por.nombre}</div>
-        {b.fecha_escaneo && (
-          <div className="text-xs text-gray-400">
-            {new Date(b.fecha_escaneo).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" })}
-          </div>
-        )}
+        {b.fecha_escaneo && <div className="text-xs text-gray-400">{fmtFecha(b.fecha_escaneo)}</div>}
       </div>
     ) : (
       "—"
     ),
 };
 
+const TIPO_AJUSTE = {
+  merma_faltante: { label: "Faltantes marcados como merma", tono: "rojo" },
+  ajuste_cantidad: { label: "Ajustes de cantidad", tono: "ambar" },
+  traslado: { label: "Traslados desde otra bodega", tono: "azul" },
+  reaparecido: { label: "Reaparecidos (se desmarcó la merma)", tono: "azul" },
+};
+
+function Kpi({ valor, etiqueta, color = "text-gray-800" }) {
+  return (
+    <div className="bg-white rounded-lg shadow px-4 py-3">
+      <div className={`text-2xl font-bold ${color}`}>{valor}</div>
+      <div className="text-xs text-gray-500">{etiqueta}</div>
+    </div>
+  );
+}
+
 /**
- * Detalle de una sesión de toma de inventario:
- * - Activa/Terminada: previsualización de diferencias (toma vs realidad) y,
- *   si está Terminada, botón para validar (aplica los cambios a la bodega).
- * - Validada: registro de los cambios reales que la sesión aplicó.
+ * Detalle de una toma de inventario (rehecho el 2026-09-29).
+ *
+ * Dos pestañas, en todos los estados:
+ * - «Lo contado»: lo escaneado, agrupado por ítem y descargable. Antes esto no se veía una vez
+ *   validada la sesión —sólo los cambios— y una toma sin cambios quedaba en blanco (la #9 de
+ *   Santiago: 524 bultos contados, cero cambios). Reporte de Logística.
+ * - «Cambios»: antes de validar, lo que se aplicará (previsualización); después, lo aplicado.
  */
 export default function SesionInventariadoDetail() {
   const { id } = useParams();
@@ -110,9 +128,13 @@ export default function SesionInventariadoDetail() {
   const [sesion, setSesion] = useState(null);
   const [diff, setDiff] = useState(null);
   const [ajustes, setAjustes] = useState(null);
+  const [conteo, setConteo] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [confirmando, setConfirmando] = useState(false);
   const [validando, setValidando] = useState(false);
+  const [pestana, setPestana] = useState("contado");
+  const [busqueda, setBusqueda] = useState("");
+  const [abiertos, setAbiertos] = useState(() => new Set());
 
   const cargar = async () => {
     setIsLoading(true);
@@ -120,13 +142,15 @@ export default function SesionInventariadoDetail() {
       const res = await api(`/sesiones-inventariado/${id}`);
       const s = res?.data ?? res;
       setSesion(s);
-      if (s.estado === "Validada") {
-        setAjustes(await api(`/sesiones-inventariado/${id}/ajustes`));
-        setDiff(null);
-      } else {
-        setDiff(await api(`/sesiones-inventariado/${id}/diferencias`));
-        setAjustes(null);
-      }
+      const [cambios, contado] = await Promise.all([
+        s.estado === "Validada"
+          ? api(`/sesiones-inventariado/${id}/ajustes`)
+          : api(`/sesiones-inventariado/${id}/diferencias`),
+        api(`/sesiones-inventariado/${id}/conteo`),
+      ]);
+      if (s.estado === "Validada") { setAjustes(cambios); setDiff(null); }
+      else { setDiff(cambios); setAjustes(null); }
+      setConteo(Array.isArray(contado) ? contado : []);
     } catch {
       toast.error("No se pudo cargar la sesión");
     } finally {
@@ -135,6 +159,19 @@ export default function SesionInventariadoDetail() {
   };
 
   useEffect(() => { cargar(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [id]);
+
+  const grupos = useMemo(() => agruparConteo(conteo), [conteo]);
+  const gruposVisibles = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return grupos;
+    return grupos.filter((g) => g.item.toLowerCase().includes(q) || g.filas.some((f) => f.identificador.toLowerCase().includes(q)));
+  }, [grupos, busqueda]);
+
+  const porTipo = useMemo(() => {
+    const m = {};
+    for (const a of ajustes?.ajustes ?? []) (m[a.tipo] ??= []).push(a);
+    return m;
+  }, [ajustes]);
 
   const validar = async () => {
     setValidando(true);
@@ -150,10 +187,29 @@ export default function SesionInventariadoDetail() {
     }
   };
 
+  const descargarCsv = () => {
+    const blob = new Blob([conteoACsv(conteo)], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `toma-${sesion.id}-${sesion.bodega?.nombre ?? "bodega"}.csv`.replace(/\s+/g, "-");
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const alternar = (clave) => setAbiertos((prev) => {
+    const next = new Set(prev);
+    if (next.has(clave)) next.delete(clave); else next.add(clave);
+    return next;
+  });
+
   if (isLoading) return <PageLoader message="Cargando sesión" />;
   if (!sesion) return null;
 
+  const validada = sesion.estado === "Validada";
   const r = diff?.resumen;
+  const nCambios = validada ? (ajustes?.ajustes?.length ?? 0) : null;
+  const nCambiosPrevios = r ? r.ajustes_cantidad + r.traslados + r.reaparecidos + r.faltantes_a_merma : 0;
 
   return (
     <div>
@@ -191,29 +247,173 @@ export default function SesionInventariadoDetail() {
       {sesion.estado === "Activa" && (
         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 rounded-md px-4 py-3 text-sm mb-4">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          Sesión aún activa en la app móvil — esta previsualización cambiará con nuevos escaneos.
+          Sesión aún activa en la app móvil — lo contado y la previsualización cambiarán con nuevos escaneos.
+        </div>
+      )}
+      {validada && (
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 rounded-md px-4 py-3 text-sm mb-4">
+          <CheckCircle className="w-4 h-4 shrink-0" />
+          {nCambios === 0
+            ? "Sesión validada sin cambios: todo lo contado cuadraba con el sistema."
+            : `Sesión validada: se aplicaron ${nCambios} cambio${nCambios === 1 ? "" : "s"} sobre la bodega.`}
         </div>
       )}
 
-      {/* Resumen de la previsualización */}
-      {diff && (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-5">
-            {[
-              ["Escaneados", r.escaneados, "text-gray-800"],
-              ["Sin cambio", r.sin_cambio, "text-green-700"],
-              ["Ajustes de cantidad", r.ajustes_cantidad, "text-amber-700"],
-              ["Traslados", r.traslados, "text-blue-700"],
-              ["Reaparecidos", r.reaparecidos, "text-blue-700"],
-              ["Faltantes → merma", r.faltantes_a_merma, "text-red-700"],
-            ].map(([label, val, color]) => (
-              <div key={label} className="bg-white rounded-lg shadow px-4 py-3">
-                <div className={`text-2xl font-bold ${color}`}>{val}</div>
-                <div className="text-xs text-gray-500">{label}</div>
-              </div>
-            ))}
-          </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <Kpi valor={fmt(conteo.length)} etiqueta="Bultos contados" />
+        <Kpi valor={fmt(grupos.length)} etiqueta="Ítems contados" />
+        {validada ? (
+          <>
+            <Kpi valor={fmt(nCambios)} etiqueta="Cambios aplicados" color={nCambios ? "text-amber-700" : "text-green-700"} />
+            <Kpi valor={fmt(porTipo.merma_faltante?.length ?? 0)} etiqueta="Marcados como merma" color="text-red-700" />
+          </>
+        ) : r ? (
+          <>
+            <Kpi valor={fmt(nCambiosPrevios)} etiqueta="Cambios al validar" color={nCambiosPrevios ? "text-amber-700" : "text-green-700"} />
+            <Kpi valor={fmt(r.faltantes_a_merma)} etiqueta="Faltantes → merma" color="text-red-700" />
+          </>
+        ) : null}
+      </div>
 
+      <Tabs
+        pestanas={[
+          { id: "contado", label: "Lo contado", cantidad: grupos.length },
+          { id: "cambios", label: validada ? "Cambios aplicados" : "Cambios al validar", cantidad: validada ? nCambios : nCambiosPrevios },
+        ]}
+        activa={pestana}
+        onCambiar={setPestana}
+      />
+
+      {pestana === "contado" && (
+        <div className="bg-white rounded-lg shadow">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b">
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar ítem o bulto"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full sm:w-72"
+            />
+            <button
+              type="button"
+              onClick={descargarCsv}
+              disabled={conteo.length === 0}
+              className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" /> Descargar CSV
+            </button>
+          </div>
+          {gruposVisibles.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-gray-500 text-center">
+              {conteo.length === 0 ? "Todavía no se escaneó ningún bulto." : "Nada coincide con la búsqueda."}
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                  <tr>
+                    <th className="px-4 py-2 text-left font-medium">Ítem</th>
+                    <th className="px-4 py-2 text-right font-medium">Bultos</th>
+                    <th className="px-4 py-2 text-right font-medium">Contado</th>
+                    <th className="px-4 py-2 text-right font-medium">En sistema al escanear</th>
+                    <th className="px-4 py-2 text-right font-medium">Diferencia</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {gruposVisibles.map((g) => {
+                    const u = abreviaturaUnidad(g.unidad_medida);
+                    const abierto = abiertos.has(g.clave);
+                    return (
+                      <Fragment key={g.clave}>
+                        <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => alternar(g.clave)}>
+                          <td className="px-4 py-2 font-medium text-text">
+                            <span className="inline-flex items-center gap-1.5">
+                              {abierto ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
+                              {g.item}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-right tabular-nums">{g.bultos}</td>
+                          <td className="px-4 py-2 text-right tabular-nums font-semibold">{fmt(g.contado)} {u}</td>
+                          <td className="px-4 py-2 text-right tabular-nums text-gray-600">{fmt(g.en_sistema)} {u}</td>
+                          <td className={`px-4 py-2 text-right tabular-nums ${g.diferencia < 0 ? "text-red-600" : g.diferencia > 0 ? "text-green-700" : "text-gray-400"}`}>
+                            {g.diferencia === 0 ? "—" : `${g.diferencia > 0 ? "+" : ""}${fmt(g.diferencia)} ${u}`}
+                          </td>
+                        </tr>
+                        {abierto && (
+                          <tr>
+                            <td colSpan={5} className="bg-gray-50 px-6 py-3">
+                              <table className="w-full text-xs bg-white rounded border border-gray-200">
+                                <thead className="text-gray-500">
+                                  <tr>
+                                    <th className="px-3 py-2 text-left font-medium">Bulto</th>
+                                    <th className="px-3 py-2 text-right font-medium">Contado</th>
+                                    <th className="px-3 py-2 text-right font-medium">En sistema</th>
+                                    <th className="px-3 py-2 text-left font-medium">Registrado en</th>
+                                    <th className="px-3 py-2 text-left font-medium">Escaneado por</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {g.filas.map((f) => (
+                                    <tr key={f.id_bulto}>
+                                      <td className="px-3 py-1.5 font-mono">{f.identificador}</td>
+                                      <td className="px-3 py-1.5 text-right tabular-nums">{fmt(f.contado)} {u}</td>
+                                      <td className="px-3 py-1.5 text-right tabular-nums text-gray-600">{fmt(f.en_sistema)} {u}</td>
+                                      <td className="px-3 py-1.5">{f.bodega_original ?? "—"}</td>
+                                      <td className="px-3 py-1.5">{f.escaneado_por ?? "—"} <span className="text-gray-400">{fmtFecha(f.fecha_escaneo)}</span></td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {pestana === "cambios" && validada && (
+        nCambios === 0 ? (
+          <div className="bg-white rounded-lg shadow px-4 py-6 text-sm text-gray-600 text-center">
+            Al validar no hubo nada que cambiar: cada bulto contado coincidía con el sistema y no quedaron faltantes nuevos.
+          </div>
+        ) : (
+          Object.entries(TIPO_AJUSTE).map(([tipo, cfg]) => (
+            <Seccion
+              key={tipo}
+              titulo={cfg.label}
+              tono={cfg.tono}
+              defaultOpen
+              items={porTipo[tipo]}
+              columns={[
+                { key: "b", label: "Bulto", render: (a) => <span className="font-mono text-xs">{a.bulto?.identificador ?? a.bulto?.id}</span> },
+                { key: "i", label: "Ítem", render: (a) => a.bulto?.item ?? "—" },
+                { key: "u", label: "Unidades", render: (a) =>
+                  a.unidades_antes !== a.unidades_despues
+                    ? `${fmt(a.unidades_antes)} → ${fmt(a.unidades_despues)}`
+                    : fmt(a.unidades_despues) },
+                { key: "bod", label: "Bodega", render: (a) =>
+                  a.id_bodega_antes !== a.id_bodega_despues
+                    ? `${a.bodega_antes_nombre ?? "—"} → ${a.bodega_despues_nombre ?? "—"}`
+                    : "sin cambio" },
+              ]}
+            />
+          ))
+        )
+      )}
+
+      {pestana === "cambios" && diff && (
+        <>
+          {nCambiosPrevios === 0 && (
+            <div className="bg-white rounded-lg shadow px-4 py-6 text-sm text-gray-600 text-center mb-4">
+              Por ahora validar no cambiaría nada: lo contado coincide con el sistema.
+            </div>
+          )}
           <Seccion
             titulo="Faltantes — se marcarán como MERMA al validar"
             tono="rojo"
@@ -273,54 +473,6 @@ export default function SesionInventariadoDetail() {
               { key: "u", label: "Unidades", render: (b) => fmt(b.unidades_disponibles) },
             ]}
           />
-          <Seccion
-            titulo="Sin cambio (contado = sistema)"
-            tono="verde"
-            items={diff.sin_cambio}
-            columns={[
-              ...COLS_BASE,
-              { key: "u", label: "Unidades", render: (b) => fmt(b.unidades_disponibles) },
-              COL_ESCANEO,
-            ]}
-          />
-        </>
-      )}
-
-      {/* Cambios aplicados (sesión validada) */}
-      {ajustes && (
-        <>
-          <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 rounded-md px-4 py-3 text-sm mb-4">
-            <CheckCircle className="w-4 h-4 shrink-0" />
-            Sesión validada — estos son los cambios reales que se aplicaron sobre la bodega.
-          </div>
-          <Seccion
-            titulo="Cambios aplicados"
-            tono="verde"
-            defaultOpen
-            items={ajustes.ajustes}
-            columns={[
-              { key: "tipo", label: "Tipo", render: (a) => ({
-                ajuste_cantidad: "Ajuste de cantidad",
-                traslado: "Traslado",
-                reaparecido: "Reaparecido",
-                merma_faltante: "Merma (faltante)",
-              }[a.tipo] ?? a.tipo) },
-              { key: "b", label: "Bulto", render: (a) => <span className="font-mono text-xs">{a.bulto?.identificador ?? a.bulto?.id}</span> },
-              { key: "i", label: "Ítem", render: (a) => a.bulto?.item ?? "—" },
-              { key: "u", label: "Unidades", render: (a) =>
-                a.unidades_antes !== a.unidades_despues
-                  ? `${fmt(a.unidades_antes)} → ${fmt(a.unidades_despues)}`
-                  : fmt(a.unidades_despues) },
-              { key: "bod", label: "Bodega", render: (a) =>
-                a.id_bodega_antes !== a.id_bodega_despues
-                  ? `${a.bodega_antes_nombre ?? "—"} → ${a.bodega_despues_nombre ?? "—"}`
-                  : "sin cambio" },
-              { key: "m", label: "Merma", render: (a) =>
-                a.es_merma_antes !== a.es_merma_despues
-                  ? (a.es_merma_despues ? <span className="text-red-600 font-medium">marcado merma</span> : <span className="text-green-700 font-medium">desmarcado</span>)
-                  : "—" },
-            ]}
-          />
         </>
       )}
 
@@ -341,6 +493,7 @@ export default function SesionInventariadoDetail() {
                 <li className="text-gray-500">• {r.omitidos_en_pallet} en pallet no se tocan</li>
               )}
             </ul>
+            <p className="text-xs text-gray-500 mb-4">Lo contado seguirá disponible en la pestaña «Lo contado» después de validar.</p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setConfirmando(false)}

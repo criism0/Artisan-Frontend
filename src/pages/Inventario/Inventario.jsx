@@ -1,690 +1,332 @@
-import { useEffect, useState, useCallback, Fragment } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { api } from "../../lib/api";
-import { toast } from "../../lib/toast";
-import { ChevronDown, ChevronRight, X } from "lucide-react";
-import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
-import { createAndOpenSheet } from "../../lib/googleSheets";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import DataTable from "../../components/Tables/DataTable";
+import Tabs from "../../components/UI/Tabs.jsx";
 import GoogleSheetsExportButton from "../../components/UI/GoogleSheetsExportButton";
+import { useApi } from "../../lib/api";
+import { toast } from "../../lib/toast";
+import { createAndOpenSheet } from "../../lib/googleSheets";
+import { formatCLP } from "../../services/formatHelpers";
+import {
+  ENCABEZADOS_EXPORTACION,
+  TIPOS,
+  conteoPorTipo,
+  etiquetaTipo,
+  filaExportacion,
+  filtrarPorTipo,
+  formatearStock,
+  textoBusqueda,
+} from "../../utils/inventarioVista.js";
 
-// ── Badges ─────────────────────────────────────────────────────────────────
+const TONO_TIPO = {
+  materia_prima: "bg-blue-100 text-blue-700",
+  pip: "bg-amber-100 text-amber-800",
+  subproducto: "bg-purple-100 text-purple-700",
+  producto_terminado: "bg-green-100 text-green-700",
+};
 
-function BadgeEstado({ value }) {
-  const base = "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold border";
-  const v = (value || "").toLowerCase();
-  if (v === "bien")
-    return <span className={`${base} border-green-200 bg-green-50 text-green-800`}>Bien</span>;
-  if (v === "peligro")
-    return <span className={`${base} border-red-200 bg-red-50 text-red-800`}>Peligro</span>;
-  return <span className={`${base} border-gray-200 bg-gray-50 text-gray-700`}>{value || "—"}</span>;
-}
+const fmtFecha = (d) =>
+  d ? new Date(d).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }) : "—";
 
-function BadgeCategoria({ value }) {
-  const base = "inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold";
-  const v = value || "";
-  if (v === "Producto Final")
-    return <span className={`${base} bg-green-100 text-green-700`}>PT</span>;
-  if (v.includes("Merma") || v === "M")
-    return <span className={`${base} bg-red-100 text-red-700`}>Merma</span>;
-  if (v === "PIP" || v === "En proceso")
-    return <span className={`${base} bg-amber-100 text-amber-800`}>PIP</span>;
-  return <span className={`${base} bg-blue-100 text-blue-700`}>{v || "—"}</span>;
-}
-
-function BadgeClaveCat({ value }) {
-  const base = "inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-semibold";
-  const v = value || "";
-  if (v === "M") return <span className={`${base} bg-red-100 text-red-700`}>M</span>;
-  if (v === "PT") return <span className={`${base} bg-green-100 text-green-700`}>PT</span>;
-  if (v === "PIP") return <span className={`${base} bg-amber-100 text-amber-800`}>PIP</span>;
-  if (v === "I") return <span className={`${base} bg-blue-100 text-blue-700`}>I</span>;
-  return <span className={`${base} bg-gray-100 text-gray-600`}>—</span>;
-}
-
-// ── Helpers de bultos (sub-tabla) ──────────────────────────────────────────
-
-function getBodegaNombre(b) {
-  return b?.Bodega?.nombre ?? b?.bodega?.nombre ?? "(sin bodega)";
-}
-
-function getUnidadMedida(b) {
-  return (
-    b?.materiaPrima?.unidad_medida ??
-    b?.loteProductoFinal?.productoBase?.unidad_medida ??
-    ""
-  );
-}
-
-function getClaveCategoria(b) {
-  return b?.clave_categoria ?? (b?.es_merma ? "M" : b?.categoria) ?? "";
-}
-
-// ── Componente principal ───────────────────────────────────────────────────
-
+/**
+ * Inventario: el stock por ítem, filtrable por bodega y tipo (rehecha el 2026-09-29).
+ *
+ * 🔴 Todas las filas salen de UN cálculo (`GET /inventario/resumen`) y el tipo se filtra acá
+ * sobre ellas, así que un ítem no puede aparecer con un filtro y desaparecer con otro. Antes
+ * cada tipo pedía un endpoint distinto: «Materias Primas» sumaba los bultos en merma y «Todos»
+ * no, y la leche en polvo de Santiago aparecía con 2.300 kg que no existían.
+ *
+ * Sólo cuenta STOCK: bultos sin merma y con unidades. Las mermas se consultan en «Bultos».
+ * Al expandir una fila se ven sus bultos, calculados con la misma clasificación: suman la fila.
+ */
 export default function Inventario() {
+  const api = useApi();
   const [searchParams, setSearchParams] = useSearchParams();
-  const bodegaParam = Number(searchParams.get("bodega")) || 0;
-  const [inventario, setInventario] = useState([]);
-  const [filtered, setFiltered] = useState([]);
+  const [bodegaId, setBodegaId] = useState(() => Number(searchParams.get("bodega")) || 0);
+  const [tipo, setTipo] = useState(() => {
+    const t = searchParams.get("tipo");
+    return TIPOS.some((x) => x.id === t) ? t : "todos";
+  });
   const [bodegas, setBodegas] = useState([]);
-  const [bodegaFilter, setBodegaFilter] = useState(bodegaParam);
-  const [tipoFilter, setTipoFilter] = useState("todos");
-  const [query, setQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isExporting, setIsExporting] = useState(false);
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: null });
-  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [filas, setFilas] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [primeraCarga, setPrimeraCarga] = useState(true);
+  const [expandidas, setExpandidas] = useState(() => new Set());
+  const [bultos, setBultos] = useState({});
+  const [seleccion, setSeleccion] = useState(() => new Set());
+  const [exportando, setExportando] = useState(false);
 
-  // Accordion
-  const [expandedKey, setExpandedKey] = useState(null);
-  const [bultosCache, setBultosCache] = useState({});
-  const [loadingBultosKey, setLoadingBultosKey] = useState(null);
+  useEffect(() => {
+    api("/bodegas")
+      .then((res) => setBodegas(Array.isArray(res?.bodegas) ? res.bodegas : Array.isArray(res) ? res : []))
+      .catch(() => setBodegas([]));
+  }, [api]);
 
-  const handleSort = useCallback((key) => {
-    setSortConfig((prev) => ({
-      key,
-      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
-    }));
-  }, []);
+  useEffect(() => {
+    let cancelado = false;
+    setCargando(true);
+    api(`/inventario/resumen${bodegaId ? `?id_bodega=${bodegaId}` : ""}`)
+      .then((res) => {
+        if (cancelado) return;
+        setFilas((Array.isArray(res) ? res : []).map((f) => ({ ...f, id: f.clave })));
+        // Lo expandido y lo seleccionado es de la bodega anterior: se descarta.
+        setExpandidas(new Set());
+        setSeleccion(new Set());
+      })
+      .catch(() => { if (!cancelado) toast.error("No se pudo cargar el inventario"); })
+      .finally(() => { if (!cancelado) { setCargando(false); setPrimeraCarga(false); } });
+    return () => { cancelado = true; };
+  }, [api, bodegaId]);
 
-  const renderHeader = useCallback(
-    (label, accessor) => {
-      const isActive = sortConfig.key === accessor;
-      const ascActive = isActive && sortConfig.direction === "asc";
-      const descActive = isActive && sortConfig.direction === "desc";
-      return (
-        <div
-          className="flex items-center gap-1 cursor-pointer select-none"
-          onClick={() => handleSort(accessor)}
+  const cambiarParam = (clave, valor) => {
+    const next = new URLSearchParams(searchParams);
+    if (valor) next.set(clave, String(valor)); else next.delete(clave);
+    setSearchParams(next, { replace: true });
+  };
+
+  const visibles = useMemo(() => filtrarPorTipo(filas, tipo), [filas, tipo]);
+  const conteo = useMemo(() => conteoPorTipo(filas), [filas]);
+  const valorVisible = useMemo(() => visibles.reduce((s, f) => s + Number(f.precio_total || 0), 0), [visibles]);
+
+  // Los bultos se piden al expandir, y se guardan por bodega + fila: con otra bodega son otros.
+  const claveBultos = useCallback((f) => `${bodegaId}|${f.clave}`, [bodegaId]);
+
+  const alternarFila = useCallback(async (f) => {
+    const abierta = expandidas.has(f.clave);
+    setExpandidas((prev) => {
+      const next = new Set(prev);
+      if (abierta) next.delete(f.clave); else next.add(f.clave);
+      return next;
+    });
+    const k = claveBultos(f);
+    if (abierta || bultos[k]) return;
+    setBultos((prev) => ({ ...prev, [k]: "cargando" }));
+    try {
+      const qs = new URLSearchParams({ tipo: f.tipo, id_item: String(f.id_item) });
+      if (bodegaId) qs.set("id_bodega", String(bodegaId));
+      const res = await api(`/inventario/resumen/bultos?${qs}`);
+      setBultos((prev) => ({ ...prev, [k]: Array.isArray(res) ? res : [] }));
+    } catch {
+      toast.error("No se pudieron cargar los bultos");
+      setBultos((prev) => { const { [k]: _, ...resto } = prev; return resto; });
+    }
+  }, [api, bodegaId, bultos, claveBultos, expandidas]);
+
+  const alternarSeleccion = (clave) => {
+    setSeleccion((prev) => {
+      const next = new Set(prev);
+      if (next.has(clave)) next.delete(clave); else next.add(clave);
+      return next;
+    });
+  };
+
+  const exportar = async ({ access_token }) => {
+    try {
+      setExportando(true);
+      const datos = seleccion.size ? visibles.filter((f) => seleccion.has(f.clave)) : visibles;
+      const bodega = bodegas.find((b) => b.id === bodegaId)?.nombre ?? "Todas las bodegas";
+      const titulo = `Inventario ${bodega} — ${tipo === "todos" ? "Todos" : etiquetaTipo(tipo)} — ${new Date().toLocaleDateString("es-CL")}`;
+      const url = await createAndOpenSheet(access_token, titulo, [ENCABEZADOS_EXPORTACION, ...datos.map(filaExportacion)]);
+      if (url) toast.success("Planilla creada en Google Sheets");
+    } catch {
+      toast.error("No se pudo exportar a Google Sheets");
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const columns = useMemo(() => [
+    {
+      header: "",
+      accessor: "_sel",
+      hideable: false,
+      filtro: false,
+      Cell: ({ row }) => (
+        <input
+          type="checkbox"
+          checked={seleccion.has(row.clave)}
+          onChange={() => alternarSeleccion(row.clave)}
+          onClick={(e) => e.stopPropagation()}
+          className="rounded border-gray-300 text-primary focus:ring-primary"
+          title="Seleccionar para exportar"
+        />
+      ),
+    },
+    {
+      header: "Nombre",
+      accessor: "nombre",
+      sortable: true,
+      hideable: false,
+      Cell: ({ row }) => (
+        <button
+          type="button"
+          onClick={() => alternarFila(row)}
+          className="flex items-center gap-1.5 text-left font-medium text-text hover:text-primary"
+          title={expandidas.has(row.clave) ? "Ocultar bultos" : "Ver bultos"}
         >
-          <span>{label}</span>
-          <div className="flex flex-col leading-none text-xs ml-1">
-            <span className={ascActive ? "text-gray-900" : "text-gray-300"}>▲</span>
-            <span className={descActive ? "text-gray-900" : "text-gray-300"}>▼</span>
+          {expandidas.has(row.clave)
+            ? <ChevronDown className="w-4 h-4 shrink-0 text-gray-400" />
+            : <ChevronRight className="w-4 h-4 shrink-0 text-gray-400" />}
+          <span className="max-w-[380px] truncate">{row.nombre}</span>
+        </button>
+      ),
+    },
+    {
+      header: "Tipo",
+      accessor: "tipo",
+      sortable: true,
+      filtroValor: (row) => etiquetaTipo(row.tipo),
+      Cell: ({ row }) => (
+        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${TONO_TIPO[row.tipo] ?? "bg-gray-100 text-gray-600"}`}>
+          {etiquetaTipo(row.tipo)}
+        </span>
+      ),
+    },
+    { header: "Categoría", accessor: "categoria", sortable: true },
+    {
+      header: "Stock",
+      accessor: "stock",
+      align: "right",
+      sortable: true,
+      Cell: ({ row }) => <span className="tabular-nums">{formatearStock(row.stock, row.unidad_medida)}</span>,
+    },
+    { header: "Bultos", accessor: "bultos", align: "right", sortable: true },
+    {
+      header: "Estado",
+      accessor: "estado_stock",
+      sortable: true,
+      Cell: ({ value }) => value === "Peligro"
+        ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold border border-red-200 bg-red-50 text-red-800">Bajo crítico</span>
+        : value === "Bien"
+          ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold border border-green-200 bg-green-50 text-green-800">Bien</span>
+          : <span className="text-gray-400">—</span>,
+    },
+    {
+      header: "Costo total",
+      accessor: "precio_total",
+      align: "right",
+      sortable: true,
+      Cell: ({ value }) => <span className="tabular-nums">{formatCLP(Number(value || 0), 0)}</span>,
+    },
+    {
+      header: "Último movimiento",
+      accessor: "ultimo_movimiento",
+      sortable: true,
+      filtro: "fecha",
+      defaultHidden: true,
+      Cell: ({ value }) => <span className="text-xs text-gray-500">{fmtFecha(value)}</span>,
+    },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [seleccion, expandidas, bodegaId, bultos]);
+
+  const renderExpandedRow = (row) => {
+    if (!expandidas.has(row.clave)) return null;
+    const lista = bultos[claveBultos(row)];
+    return (
+      <tr key={`${row.clave}-bultos`}>
+        <td colSpan={columns.length + 1} className="bg-gray-50 px-6 py-4">
+          <div className="text-xs font-semibold text-gray-500 uppercase mb-2">
+            Bultos de {row.nombre} · {etiquetaTipo(row.tipo)}
           </div>
-        </div>
-      );
-    },
-    [sortConfig, handleSort]
-  );
+          {lista === "cargando" || lista === undefined ? (
+            <div className="text-sm text-gray-500">Cargando bultos…</div>
+          ) : lista.length === 0 ? (
+            <div className="text-sm text-gray-500">Sin bultos con stock.</div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium">Bulto</th>
+                    <th className="px-3 py-2 text-left font-medium">Bodega</th>
+                    <th className="px-3 py-2 text-left font-medium">Pallet</th>
+                    <th className="px-3 py-2 text-right font-medium">Disponible</th>
+                    <th className="px-3 py-2 text-right font-medium">Unidades</th>
+                    <th className="px-3 py-2 text-right font-medium">Costo</th>
+                    <th className="px-3 py-2 text-left font-medium">Ingreso</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {lista.map((b) => (
+                    <tr key={b.id}>
+                      <td className="px-3 py-2 font-mono text-xs">{b.identificador}</td>
+                      <td className="px-3 py-2">{b.bodega ?? "—"}</td>
+                      <td className="px-3 py-2 text-gray-600">{b.pallet ?? "—"}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatearStock(b.disponible, row.unidad_medida)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-500">
+                        {Number(b.unidades_disponibles).toLocaleString("es-CL", { maximumFractionDigits: 4 })}/{b.cantidad_unidades}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatCLP(Number(b.costo || 0), 0)}</td>
+                      <td className="px-3 py-2 text-gray-500 text-xs">{fmtFecha(b.ingreso)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </td>
+      </tr>
+    );
+  };
 
-  // Carga inicial: inventario general + bodegas en paralelo
-  useEffect(() => {
-    setIsLoading(true);
-    const controller = new AbortController();
-    const { signal } = controller;
-
-    const fetchAll = async () => {
-      try {
-        const [inv, bodRes] = await Promise.all([
-          api("/inventario/general", { signal }),
-          api("/bodegas", { signal }),
-        ]);
-        setInventario(Array.isArray(inv) ? inv : []);
-        setFiltered(Array.isArray(inv) ? inv : []);
-        const bods = Array.isArray(bodRes?.bodegas)
-          ? bodRes.bodegas
-          : Array.isArray(bodRes)
-          ? bodRes
-          : [];
-        setBodegas(bods);
-      } catch (error) {
-        if (error?.name === "AbortError") return;
-        console.error("Error cargando inventario:", error);
-        toast.error("No se pudo cargar el inventario");
-      } finally {
-        if (!signal.aborted) setIsLoading(false);
-      }
-    };
-
-    fetchAll();
-    return () => controller.abort();
-  }, []);
-
-  // Aplicar filtros con AbortController (Fix 2 heredado)
-  useEffect(() => {
-    const controller = new AbortController();
-    const { signal } = controller;
-
-    const applyFilters = async () => {
-      try {
-        let data = inventario;
-
-        if (bodegaFilter && +bodegaFilter > 0) {
-          const res = await api(`/inventario/${bodegaFilter}`, { signal });
-          data = Array.isArray(res) ? res : [];
-        }
-
-        if (tipoFilter && tipoFilter !== "todos") {
-          try {
-            const idB =
-              bodegaFilter && +bodegaFilter > 0 ? `&id_bodega=${bodegaFilter}` : "";
-            if (tipoFilter === "materia_prima") {
-              const res = await api(
-                `/inventario/filtrosMateriaPrima?id_categoria=id_materia_prima${idB}`,
-                { signal }
-              );
-              data = Array.isArray(res) ? res : [];
-            } else if (tipoFilter === "pip") {
-              const res = await api(
-                `/inventario/filtrosMateriaPrima?id_categoria=id_lote_producto_en_proceso${idB}`,
-                { signal }
-              );
-              data = Array.isArray(res) ? res : [];
-            } else if (tipoFilter === "merma") {
-              const res = await api(
-                `/inventario/filtrosMateriaPrima?id_categoria=merma_produccion${idB}`,
-                { signal }
-              );
-              data = Array.isArray(res) ? res : [];
-            } else if (tipoFilter === "subproducto") {
-              const res = await api(
-                `/inventario/filtrosMateriaPrima?id_categoria=id_registro_subproducto${idB}`,
-                { signal }
-              );
-              data = Array.isArray(res) ? res : [];
-            } else if (tipoFilter === "producto_terminado") {
-              const res = await api(
-                `/inventario/productosFinales?id_bodega=${
-                  bodegaFilter && +bodegaFilter > 0 ? bodegaFilter : ""
-                }`,
-                { signal }
-              );
-              data = Array.isArray(res) ? res : [];
-            }
-          } catch (e) {
-            if (e?.name === "AbortError") return;
-            data = [];
-          }
-        }
-
-        if (query && query.trim().length > 0) {
-          const q = query.toLowerCase();
-          data = data.filter(
-            (d) =>
-              (d.materiaPrima?.nombre || "").toLowerCase().includes(q) ||
-              (d.materiaPrima?.categoria?.nombre || "").toLowerCase().includes(q)
-          );
-        }
-
-        if (sortConfig.key) {
-          data = [...data].sort((a, b) => {
-            const aVal = a[sortConfig.key];
-            const bVal = b[sortConfig.key];
-            if (aVal == null) return 1;
-            if (bVal == null) return -1;
-            if (typeof aVal === "number" && typeof bVal === "number") {
-              return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
-            }
-            const aStr = String(aVal).toLowerCase();
-            const bStr = String(bVal).toLowerCase();
-            return sortConfig.direction === "asc"
-              ? aStr.localeCompare(bStr)
-              : bStr.localeCompare(aStr);
-          });
-        }
-
-        setFiltered(data);
-        setExpandedKey(null);
-        setSelectedIds(new Set());
-        // 🔴 El caché de bultos por fila se indexaba SOLO por id de materia prima, ajeno al
-        // filtro de bodega o tipo activo. Cambiar de bodega y volver a expandir la MISMA fila
-        // reusaba la lista de bultos de la bodega/tipo anterior — el número de arriba (que sí
-        // se recalcula) dejaba de coincidir con lo que se veía abajo. Reportado por Hernán
-        // (2026-09-03): la etiqueta Cottage mostraba 103.000 arriba con solo 15 bultos de
-        // 1.000 abajo. Cualquier cambio de filtro invalida el caché entero.
-        setBultosCache({});
-      } catch (err) {
-        if (err?.name === "AbortError") return;
-        console.error("Error aplicando filtros:", err);
-      }
-    };
-
-    applyFilters();
-    return () => controller.abort();
-  }, [bodegaFilter, tipoFilter, query, inventario, sortConfig]);
-
-  // Accordion — carga bultos on demand al expandir una fila
-  const handleExpandRow = useCallback(
-    async (item) => {
-      const key = item.materiaPrima?.id;
-      if (!key) return;
-
-      if (expandedKey === key) {
-        setExpandedKey(null);
-        return;
-      }
-
-      setExpandedKey(key);
-
-      // Usar caché si ya fueron cargados
-      if (bultosCache[key] !== undefined) return;
-
-      setLoadingBultosKey(key);
-      try {
-        const qs = new URLSearchParams();
-        if (bodegaFilter && +bodegaFilter > 0) qs.set("id_bodega", String(bodegaFilter));
-        qs.set("id_materia_prima", String(key));
-        const data = await api(`/inventario/bultos?${qs.toString()}`);
-        setBultosCache((prev) => ({
-          ...prev,
-          [key]: Array.isArray(data) ? data : [],
-        }));
-      } catch {
-        toast.error("No se pudieron cargar los bultos del insumo");
-        setBultosCache((prev) => ({ ...prev, [key]: [] }));
-      } finally {
-        setLoadingBultosKey(null);
-      }
-    },
-    [expandedKey, bultosCache, bodegaFilter]
-  );
-
-  const HEADERS_INVENTARIO = [
-    "Nombre", "Categoría", "Stock disponible", "Unidad", "Estado", "Costo total CLP", "Último movimiento",
+  const pestanas = [
+    { id: "todos", label: "Todos", cantidad: conteo.todos },
+    ...TIPOS.map((t) => ({ id: t.id, label: t.label, cantidad: conteo[t.id] })),
   ];
 
-  const buildExportRows = (data) =>
-    data.map((item) => [
-      item.materiaPrima?.nombre || item.nombre_producto || "—",
-      item.categoria || item.materiaPrima?.categoria?.nombre || "—",
-      item.unidades_disponibles ?? 0,
-      item.unidad_medida ?? "—",
-      item.estado_stock ?? "—",
-      item.precio_total ?? 0,
-      item.ultimo_movimiento
-        ? new Date(item.ultimo_movimiento).toLocaleString("es-CL")
-        : "—",
-    ]);
-
-  const getExportData = () => {
-    if (selectedIds.size > 0) {
-      return filtered.filter((item, idx) => selectedIds.has(item.materiaPrima?.id ?? idx));
-    }
-    return filtered;
-  };
-
-  const exportarASheets = async ({ access_token }) => {
-    try {
-      setIsExporting(true);
-      const data = getExportData();
-      const hasSelection = selectedIds.size > 0;
-      const title = hasSelection
-        ? `Inventario seleccionados ${new Date().toLocaleDateString("es-CL")}`
-        : `Inventario ${new Date().toLocaleDateString("es-CL")}`;
-      const url = await createAndOpenSheet(access_token, title, [HEADERS_INVENTARIO, ...buildExportRows(data)]);
-      toast.link("Hoja creada", url);
-    } catch {
-      toast.error("Error al exportar a Google Sheets");
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <h1 className="text-2xl font-bold">Inventario</h1>
-        <div className="flex flex-col items-end gap-1">
-          <span className="text-xs text-gray-400">Exportar a Google Sheets</span>
-          <div className="flex items-center gap-2">
-            {selectedIds.size > 0 && (
-              <span className="text-xs text-gray-500">
-                {selectedIds.size} seleccionada{selectedIds.size !== 1 ? "s" : ""}
-              </span>
-            )}
-            <GoogleSheetsExportButton
-              onToken={exportarASheets}
-              onError={() => toast.error("No se pudo autenticar con Google")}
-              isExporting={isExporting}
-              disabled={isExporting || filtered.length === 0}
-              title={selectedIds.size > 0
-                ? `Exportar ${selectedIds.size} seleccionada(s) (Google Sheets)`
-                : "Exportar filtrados (Google Sheets)"}
-            />
-          </div>
+    <DataTable
+      title="Inventario"
+      data={visibles}
+      columns={columns}
+      getSearchText={textoBusqueda}
+      renderExpandedRow={renderExpandedRow}
+      loading={primeraCarga && cargando}
+      loadingMessage="Cargando inventario"
+      defaultRowsPerPage={25}
+      initialSort={{ key: "nombre", direction: "asc" }}
+      persistKey="inventario"
+      emptyMessage={cargando ? "Cargando…" : "Sin stock para esta bodega y tipo."}
+      headerActions={
+        <div className="flex items-center gap-2">
+          {seleccion.size > 0 && (
+            <span className="text-xs text-gray-500">{seleccion.size} seleccionada{seleccion.size === 1 ? "" : "s"}</span>
+          )}
+          <GoogleSheetsExportButton
+            onToken={exportar}
+            onError={() => toast.error("No se pudo autenticar con Google")}
+            isExporting={exportando}
+            disabled={exportando || visibles.length === 0}
+            title={seleccion.size ? `Exportar ${seleccion.size} seleccionada(s) a Google Sheets` : "Exportar lo que se ve a Google Sheets"}
+          />
         </div>
-      </div>
-
-      {/* Panel de filtros */}
-      <div className="bg-white shadow rounded p-4 mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Bodega</label>
+      }
+      headerExtra={
+        <Tabs
+          pestanas={pestanas}
+          activa={tipo}
+          onCambiar={(t) => { setTipo(t); cambiarParam("tipo", t === "todos" ? null : t); }}
+        />
+      }
+      toolbarStart={
+        <div className="flex items-center gap-3 text-sm">
+          <label className="flex items-center gap-2 text-gray-700">
+            <span className="font-medium">Bodega</span>
             <select
-              value={bodegaFilter}
-              onChange={(e) => {
-                const v = e.target.value;
-                setBodegaFilter(v);
-                const next = new URLSearchParams(searchParams);
-                if (+v > 0) next.set("bodega", v);
-                else next.delete("bodega");
-                setSearchParams(next, { replace: true });
-              }}
-              className="border rounded px-3 py-2 w-full"
+              value={bodegaId}
+              onChange={(e) => { const v = Number(e.target.value); setBodegaId(v); cambiarParam("bodega", v || null); }}
+              className="border border-gray-300 rounded-lg px-3 py-2 bg-white"
             >
               <option value={0}>Todas</option>
-              {bodegas.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.nombre}
-                </option>
-              ))}
+              {bodegas.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
             </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-1">Tipo</label>
-            <select
-              value={tipoFilter}
-              onChange={(e) => setTipoFilter(e.target.value)}
-              className="border rounded px-3 py-2 w-full"
-            >
-              <option value="todos">Todos</option>
-              <option value="materia_prima">Materias Primas</option>
-              <option value="pip">Productos en Proceso (PIP)</option>
-              <option value="producto_terminado">Productos Terminados</option>
-              <option value="merma">Mermas</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-1">Buscar</label>
-            <input
-              type="text"
-              placeholder="Nombre, categoría…"
-              className="border rounded px-3 py-2 w-full"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-end">
-            <button
-              onClick={() => { setQuery(""); setBodegaFilter(0); setTipoFilter("todos"); }}
-              className="text-gray-400 hover:text-red-500 p-2 rounded"
-              title="Limpiar filtros"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          </label>
+          <span className="text-gray-500">
+            {cargando ? "Actualizando…" : <>Valor: <span className="font-medium text-text">{formatCLP(valorVisible, 0)}</span></>}
+          </span>
         </div>
-
-        <div className="text-xs text-gray-500 mt-3">
-          Mostrando <span className="font-semibold">{filtered.length}</span> ítems
-        </div>
-      </div>
-
-      {/* Loading */}
-      {isLoading && (
-        <div className="flex items-center justify-center py-12 bg-white rounded shadow">
-          <p className="text-gray-500">Cargando inventario...</p>
-        </div>
-      )}
-
-      {!isLoading && (
-        <>
-          {/* Tabla desktop */}
-          <div className="hidden md:block overflow-x-auto bg-white shadow rounded">
-            <table className="w-full border border-gray-300 text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-2 border w-8">
-                    <input
-                      type="checkbox"
-                      className="cursor-pointer"
-                      checked={filtered.length > 0 && selectedIds.size === filtered.length}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedIds(new Set(filtered.map((item, idx) => item.materiaPrima?.id ?? idx)));
-                        } else {
-                          setSelectedIds(new Set());
-                        }
-                      }}
-                    />
-                  </th>
-                  <th className="p-2 border w-8"></th>
-                  <th className="p-2 border text-left font-semibold">
-                    {renderHeader("Nombre", "nombre")}
-                  </th>
-                  <th className="p-2 border text-left font-semibold">Categoría</th>
-                  <th className="p-2 border text-left font-semibold">
-                    {renderHeader("Stock disponible", "unidades_disponibles")}
-                  </th>
-                  <th className="p-2 border text-left font-semibold">
-                    {renderHeader("Estado", "estado_stock")}
-                  </th>
-                  <th className="p-2 border text-left font-semibold">
-                    {renderHeader("Costo total", "precio_total")}
-                  </th>
-                  <th className="p-2 border text-left font-semibold">
-                    {renderHeader("Último mov.", "ultimo_movimiento")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="p-6 text-center text-gray-500">
-                      No hay ítems para los filtros actuales.
-                    </td>
-                  </tr>
-                )}
-
-                {filtered.map((item, idx) => {
-                  const key = item.materiaPrima?.id ?? idx;
-                  const nombre = item.materiaPrima?.nombre || item.nombre_producto || "—";
-                  const categoria =
-                    item.categoria || item.materiaPrima?.categoria?.nombre || "—";
-                  const isExpanded = expandedKey === key;
-                  const expandible =
-                    !!item.materiaPrima?.id && categoria !== "Producto Final";
-                  const bultos = bultosCache[key] || [];
-                  const isLoadingBultos = loadingBultosKey === key;
-
-                  const isChecked = selectedIds.has(key);
-
-                  return (
-                    <Fragment key={`row-${key}`}>
-                      <tr
-                        className={`hover:bg-gray-50 ${expandible ? "cursor-pointer" : ""}`}
-                      >
-                        <td className="p-2 border text-center" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            className="cursor-pointer"
-                            checked={isChecked}
-                            onChange={(e) => {
-                              setSelectedIds((prev) => {
-                                const next = new Set(prev);
-                                if (e.target.checked) next.add(key);
-                                else next.delete(key);
-                                return next;
-                              });
-                            }}
-                          />
-                        </td>
-                        <td
-                          className="p-2 border text-center"
-                          onClick={() => expandible && handleExpandRow(item)}
-                        >
-                          {expandible ? (
-                            isExpanded ? (
-                              <ChevronDown className="w-4 h-4 text-gray-400 inline" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 text-gray-400 inline" />
-                            )
-                          ) : null}
-                        </td>
-                        <td className="p-2 border font-medium" onClick={() => expandible && handleExpandRow(item)}>{nombre}</td>
-                        <td className="p-2 border" onClick={() => expandible && handleExpandRow(item)}>
-                          <BadgeCategoria value={categoria} />
-                        </td>
-                        <td className="p-2 border" onClick={() => expandible && handleExpandRow(item)}>{item.unidades_disponibles ?? "—"} {item.unidad_medida ?? ""}</td>
-                        <td className="p-2 border" onClick={() => expandible && handleExpandRow(item)}>
-                          <BadgeEstado value={item.estado_stock} />
-                        </td>
-                        <td className="p-2 border" onClick={() => expandible && handleExpandRow(item)}>
-                          {item.precio_total != null
-                            ? formatCLP(item.precio_total, 0)
-                            : "—"}
-                        </td>
-                        <td className="p-2 border text-gray-500 text-xs" onClick={() => expandible && handleExpandRow(item)}>
-                          {item.ultimo_movimiento
-                            ? new Date(item.ultimo_movimiento).toLocaleString("es-CL")
-                            : "—"}
-                        </td>
-                      </tr>
-
-                      {/* Sub-tabla accordion */}
-                      {isExpanded && (
-                        <tr>
-                          <td colSpan={8} className="p-0 border-b border-gray-200">
-                            <div className="bg-blue-50/30 px-6 py-3 border-t border-blue-100">
-                              <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">
-                                Bultos en inventario — {nombre}
-                              </p>
-
-                              {isLoadingBultos ? (
-                                <p className="text-sm text-gray-500 py-2">
-                                  Cargando bultos…
-                                </p>
-                              ) : bultos.length === 0 ? (
-                                <p className="text-sm text-gray-500 py-2">
-                                  No hay bultos disponibles para este insumo con los
-                                  filtros actuales.
-                                </p>
-                              ) : (
-                                <div className="overflow-x-auto rounded border border-gray-200">
-                                  <table className="w-full text-xs bg-white">
-                                    <thead className="bg-gray-100">
-                                      <tr>
-                                        <th className="px-3 py-2 border text-left font-semibold">
-                                          Cat
-                                        </th>
-                                        <th className="px-3 py-2 border text-left font-semibold">
-                                          Identificador
-                                        </th>
-                                        <th className="px-3 py-2 border text-left font-semibold">
-                                          Bodega
-                                        </th>
-                                        <th className="px-3 py-2 border text-left font-semibold">
-                                          Formato
-                                        </th>
-                                        <th className="px-3 py-2 border text-left font-semibold">
-                                          Disponible
-                                        </th>
-                                        <th className="px-3 py-2 border text-left font-semibold">
-                                          Costo total
-                                        </th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {bultos.map((b) => {
-                                        const unidad = getUnidadMedida(b);
-                                        const disponible =
-                                          Number(b.unidades_disponibles || 0) *
-                                          Number(b.peso_unitario || 0);
-                                        const costo =
-                                          Number(b.costo_unitario || 0) *
-                                          Number(b.unidades_disponibles || 0);
-                                        return (
-                                          <tr key={b.id} className="hover:bg-gray-50">
-                                            <td className="px-3 py-2 border text-center">
-                                              <BadgeClaveCat
-                                                value={getClaveCategoria(b)}
-                                              />
-                                            </td>
-                                            <td className="px-3 py-2 border font-mono">
-                                              {b.identificador}
-                                            </td>
-                                            <td className="px-3 py-2 border">
-                                              {getBodegaNombre(b)}
-                                            </td>
-                                            <td className="px-3 py-2 border">
-                                              {formatNumberCL(b.peso_unitario, 2)}{" "}
-                                              {unidad}
-                                            </td>
-                                            <td className="px-3 py-2 border">
-                                              <span className="font-medium">
-                                                {formatNumberCL(disponible, 2)} {unidad}
-                                              </span>
-                                              <span className="text-gray-400 ml-1 text-[10px]">
-                                                ({b.unidades_disponibles}/
-                                                {b.cantidad_unidades} un.)
-                                              </span>
-                                            </td>
-                                            <td className="px-3 py-2 border">
-                                              {formatCLP(costo, 0)}
-                                            </td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Cards mobile */}
-          <div className="md:hidden space-y-3">
-            {filtered.length === 0 && (
-              <div className="text-sm text-gray-500">No hay datos</div>
-            )}
-            {filtered.map((item, idx) => {
-              const nombre = item.materiaPrima?.nombre || item.nombre_producto || "—";
-              const categoria =
-                item.categoria || item.materiaPrima?.categoria?.nombre || "—";
-              return (
-                <div
-                  key={item.materiaPrima?.id ?? idx}
-                  className="bg-white p-4 rounded shadow"
-                >
-                  <div className="flex justify-between items-start gap-2">
-                    <div>
-                      <div className="text-base font-semibold">{nombre}</div>
-                      <div className="mt-1">
-                        <BadgeCategoria value={categoria} />
-                      </div>
-                    </div>
-                    <BadgeEstado value={item.estado_stock} />
-                  </div>
-                  <div className="mt-3 text-sm text-gray-700 space-y-1">
-                    <div>
-                      Stock:{" "}
-                      <span className="font-medium">
-                        {item.unidades_disponibles ?? "—"} {item.unidad_medida ?? ""}
-                      </span>
-                    </div>
-                    <div>
-                      Costo:{" "}
-                      <span className="font-medium">
-                        {item.precio_total != null
-                          ? formatCLP(item.precio_total, 0)
-                          : "—"}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Último mov.:{" "}
-                      {item.ultimo_movimiento
-                        ? new Date(item.ultimo_movimiento).toLocaleString("es-CL")
-                        : "—"}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </>
-      )}
-    </div>
+      }
+    />
   );
 }
