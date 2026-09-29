@@ -26,6 +26,7 @@ import {
 } from "../../services/inventarioAnalytics";
 import { formatCLP, formatCLPCompact } from "../../services/formatHelpers";
 import KpiCard from "../../components/UI/KpiCard";
+import PanelConsumoInterno from "../../components/Inventario/PanelConsumoInterno.jsx";
 
 const formatNumCL = (num) =>
   new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(num || 0);
@@ -324,6 +325,7 @@ function DashboardContent({ data, navigate, api }) {
       </div>
 
       <PanelAlertasReposicion api={api} />
+      <PanelConsumoInterno api={api} />
       <PanelValorInventario api={api} bodegas={bodegas} />
       <TablaPipPorBodega api={api} bodegas={bodegas} />
       <TablaProductosTerminados api={api} bodegas={bodegas} />
