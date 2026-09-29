@@ -90,9 +90,7 @@ export default function ConsumoInternoPage() {
       align: "right",
       sortable: true,
       defaultHidden: true,
-      Cell: ({ row }) => row.disponible_despues == null
-        ? <span className="text-gray-400">—</span>
-        : cantidadConUnidad(row.disponible_despues, row.unidad_medida),
+      Cell: ({ row }) => cantidadConUnidad(row.disponible_despues, row.unidad_medida),
     },
     { header: "Costo", accessor: "costo", align: "right", sortable: true, Cell: ({ value }) => formatCLP(Number(value || 0), 0) },
     { header: "Registró", accessor: "registro", sortable: true },

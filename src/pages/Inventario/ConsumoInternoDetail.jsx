@@ -107,12 +107,7 @@ export default function ConsumoInternoDetail() {
           <span className="font-mono text-sm text-gray-600">{consumo.identificador_bulto}</span>
         </div>
         <AntesDespues consumo={consumo} />
-        {deshecho && (
-          <p className="mt-4 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
-            Deshecho el {fmtFechaHora(consumo.anulado_en)}
-            {consumo.anuladoPor?.nombre ? ` por ${consumo.anuladoPor.nombre}` : ""}: los {cantidadConUnidad(cantidad, u)} volvieron al bulto.
-          </p>
-        )}
+        <Movimientos consumo={consumo} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -160,19 +155,9 @@ export default function ConsumoInternoDetail() {
 function AntesDespues({ consumo }) {
   const u = consumo.unidad_medida;
   const cantidad = Number(consumo.cantidad);
-  const antes = consumo.disponible_antes == null ? null : Number(consumo.disponible_antes);
-  const despues = consumo.disponible_despues == null ? null : Number(consumo.disponible_despues);
-
-  if (antes == null || despues == null || antes <= 0) {
-    return (
-      <p className="text-sm text-gray-600">
-        Se descontaron <strong>{cantidadConUnidad(cantidad, u)}</strong>. Este consumo se registró antes de que se
-        guardara cuánto tenía el bulto, así que no se puede mostrar de cuánto a cuánto pasó.
-      </p>
-    );
-  }
-
-  const pctQueda = Math.max(0, Math.min(100, (despues / antes) * 100));
+  const antes = Number(consumo.disponible_antes);
+  const despues = Number(consumo.disponible_despues);
+  const pctQueda = antes > 0 ? Math.max(0, Math.min(100, (despues / antes) * 100)) : 0;
   const pctConsumo = 100 - pctQueda;
 
   return (
@@ -207,6 +192,72 @@ function AntesDespues({ consumo }) {
       <div className="mt-2 flex items-center gap-4 text-xs text-gray-500">
         <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-primary" />Quedó en el bulto</span>
         <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400" />Consumido</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * La bitácora del bulto en este registro, como los ajustes de una toma de inventario: cada
+ * movimiento con cuándo, quién y de cuánto a cuánto. El consumo siempre; la devolución si se
+ * deshizo.
+ */
+function Movimientos({ consumo }) {
+  const u = consumo.unidad_medida;
+  const cantidad = Number(consumo.cantidad);
+  const filas = [
+    {
+      clave: "consumo",
+      tipo: "Consumo",
+      fecha: consumo.createdAt,
+      quien: consumo.registradoPor?.nombre,
+      antes: consumo.disponible_antes,
+      despues: consumo.disponible_despues,
+      delta: `−${cantidadConUnidad(cantidad, u)}`,
+      tono: "text-amber-700",
+    },
+  ];
+  if (consumo.anulado_en) {
+    filas.push({
+      clave: "deshecho",
+      tipo: "Deshecho (devuelto al bulto)",
+      fecha: consumo.anulado_en,
+      quien: consumo.anuladoPor?.nombre,
+      antes: consumo.anulacion_disponible_antes,
+      despues: consumo.anulacion_disponible_despues,
+      delta: `+${cantidadConUnidad(cantidad, u)}`,
+      tono: "text-green-700",
+    });
+  }
+
+  return (
+    <div className="mt-6">
+      <h3 className="text-sm font-semibold text-gray-700 mb-2">Movimientos del bulto</h3>
+      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium">Movimiento</th>
+              <th className="px-3 py-2 text-left font-medium">Fecha</th>
+              <th className="px-3 py-2 text-left font-medium">Quién</th>
+              <th className="px-3 py-2 text-right font-medium">Antes</th>
+              <th className="px-3 py-2 text-right font-medium">Después</th>
+              <th className="px-3 py-2 text-right font-medium">Cambio</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {filas.map((f) => (
+              <tr key={f.clave}>
+                <td className="px-3 py-2 text-gray-800">{f.tipo}</td>
+                <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{fmtFechaHora(f.fecha)}</td>
+                <td className="px-3 py-2 text-gray-600">{f.quien ?? "—"}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{f.antes == null ? "—" : cantidadConUnidad(f.antes, u)}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{f.despues == null ? "—" : cantidadConUnidad(f.despues, u)}</td>
+                <td className={`px-3 py-2 text-right tabular-nums font-medium ${f.tono}`}>{f.delta}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
