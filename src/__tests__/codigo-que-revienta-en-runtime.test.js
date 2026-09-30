@@ -187,9 +187,10 @@ describe("jspdf se carga bajo demanda", () => {
   });
 
   it.each([
-    ["src/pages/Ventas/OrdenVentaDetail.jsx", "handleDescargarPDF"],
-    ["src/pages/Ventas/OrdenesVentaPage.jsx", "handleDescargarNV"],
-  ])("%s no importa jspdf por su cuenta y llama generarNotaVentaPDF dentro de un try", (relativo, handler) => {
+    ["src/pages/Ventas/OrdenVentaDetail.jsx", "handleDescargarPDF", "generarNotaVentaPDF("],
+    ["src/pages/Ventas/OrdenesVentaPage.jsx", "handleDescargarNV", "generarNotaVentaPDF("],
+    ["src/pages/Logistica/RutaDetail.jsx", "accionNotas", "generarNotasVentaPDF("],
+  ])("%s no importa jspdf por su cuenta y llama al servicio de notas de venta dentro de un try", (relativo, handler, llamada) => {
     const texto = readFileSync(path.join(RAIZ, relativo), "utf8");
     // No la SUBSTRING "jspdf" —el propio comentario que explica esto la menciona— sino
     // cualquier `import` real de jspdf, estático o dinámico.
@@ -198,8 +199,9 @@ describe("jspdf se carga bajo demanda", () => {
       .some((l) => /import\s*\(?\s*['"]jspdf(-autotable)?['"]/.test(l));
     expect(importaJspdf).toBe(false);
     expect(texto).toContain('from "../../services/notaVentaPdf.js"');
+    expect(texto.indexOf(llamada)).toBeGreaterThan(-1);
 
-    const idxLlamada = texto.indexOf("generarNotaVentaPDF(");
+    const idxLlamada = texto.indexOf(llamada);
     const antes = texto.slice(0, idxLlamada);
     const tryMasCercano = antes.lastIndexOf("try {");
     const idxHandler = antes.lastIndexOf(handler);

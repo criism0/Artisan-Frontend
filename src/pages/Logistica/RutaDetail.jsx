@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, Ban, ListPlus, Pencil, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Ban, ListPlus, Pencil, Receipt, X } from "lucide-react";
 import PageHeader from "../../components/UI/PageHeader";
 import PanelAcciones from "../../components/UI/PanelAcciones";
 import CargandoVista from "../../components/UI/CargandoVista";
@@ -9,6 +9,8 @@ import MapaRuta from "../../components/Entregas/MapaRuta";
 import EstadoRuta from "../../components/Entregas/EstadoRuta";
 import ModalCancelarRuta from "../../components/Entregas/ModalCancelarRuta";
 import { toast } from "../../lib/toast.js";
+import { api } from "../../lib/api";
+import { generarNotasVentaPDF } from "../../services/notaVentaPdf.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import * as rutasApi from "../../services/rutasService";
 import {
@@ -35,6 +37,7 @@ export default function RutaDetail() {
   const [borrador, setBorrador] = useState(null); // { fecha, idTransportista, comentario, paradas, paradasCambiadas }
   const [guardando, setGuardando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
+  const [descargandoNotas, setDescargandoNotas] = useState(false);
 
   const puedeEscribir = checkScope(ModelType.RUTA, ScopeType.WRITE);
   const editable = puedeEscribir && ruta?.estado === "Planificada";
@@ -127,15 +130,38 @@ export default function RutaDetail() {
     );
   }
 
-  const acciones = !editable ? null : borrador ? (
+  // Todas las notas de venta de la ruta en un PDF, en el orden de las paradas (pedido de
+  // Cristóbal, 2026-09-30): se imprimen una vez y van con el chofer.
+  const idsOrdenes = paradasGuardadas.flatMap((p) => p.ordenes.map((o) => o.id));
+  const accionNotas = {
+    label: descargandoNotas ? "Generando…" : "Notas de venta",
+    icon: <Receipt className="w-4 h-4" />,
+    title: `Descarga en un solo PDF las notas de venta de los ${idsOrdenes.length} pedidos, en el orden de las paradas`,
+    disabled: descargandoNotas || !idsOrdenes.length,
+    onClick: async () => {
+      setDescargandoNotas(true);
+      try {
+        await generarNotasVentaPDF({ api, ordenIds: idsOrdenes, nombre: `Ruta-${ruta.id}-${formatearFecha(ruta.fecha)}-notas-de-venta.pdf` });
+      } catch (e) {
+        toast.error(`No se pudieron generar las notas de venta: ${e?.message ?? "error desconocido"}`);
+      } finally {
+        setDescargandoNotas(false);
+      }
+    },
+  };
+
+  const acciones = borrador ? (
     <PanelAcciones
       principal={{ label: guardando ? "Guardando…" : "Guardar cambios", onClick: guardar, disabled: guardando }}
       secundarias={[{ label: "Descartar cambios", onClick: () => setBorrador(null), disabled: guardando }]}
     />
+  ) : !editable ? (
+    <PanelAcciones secundarias={[accionNotas]} />
   ) : (
     <PanelAcciones
       principal={{ label: "Editar", icon: <Pencil className="w-4 h-4" />, onClick: empezarEdicion }}
       secundarias={[
+        accionNotas,
         {
           label: "Agregar o quitar pedidos",
           icon: <ListPlus className="w-4 h-4" />,
