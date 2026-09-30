@@ -68,6 +68,22 @@ export const contarPorFiltro = (ordenes) => ({
   en_ruta: ordenes.filter((o) => o.ruta).length,
 });
 
+/** Colores del estado de una ruta (chip de la lista, del detalle y del filtro). */
+export const ESTADOS_RUTA = {
+  Planificada: { bg: "bg-sky-200", text: "text-sky-800" },
+  "En curso": { bg: "bg-amber-200", text: "text-amber-800" },
+  Cerrada: { bg: "bg-green-400", text: "text-green-900" },
+  Cancelada: { bg: "bg-gray-200", text: "text-gray-600" },
+};
+
+/** «2026-09-30» → «30-09-2026», como se muestran las fechas en la app. */
+export const formatearFecha = (iso) => (iso ? String(iso).slice(0, 10).split("-").reverse().join("-") : "—");
+
+export const formatearCLP = (n) => (n == null ? "—" : `$${Math.round(n).toLocaleString("es-CL")}`);
+
+/** Cuántas OV lleva una ruta guardada (sumando todas sus paradas). */
+export const pedidosDeRuta = (ruta) => (ruta?.paradas ?? []).reduce((n, p) => n + (p.ordenes?.length ?? 0), 0);
+
 export const formatearKm = (km) => (km == null ? "—" : `${Number(km).toLocaleString("es-CL", { maximumFractionDigits: 1 })} km`);
 
 export function formatearMinutos(min) {

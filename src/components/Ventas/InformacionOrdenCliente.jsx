@@ -56,8 +56,8 @@ export default function InformacionOrdenCliente({
   onEmpezarEdicionFechaEntrega,
   onCancelarEdicionFechaEntrega,
   onGuardarFechaEntrega,
-  // Rutas de entrega (2026-09-30): dirección de entrega PROPIA del pedido (tienda web) y
-  // ubicación en el mapa. `onOrdenActualizada` recarga la orden después de guardar.
+  // Rutas de entrega (2026-09-30): otra dirección para ESTE pedido (no una de las guardadas del
+  // cliente) y ubicación en el mapa. `onOrdenActualizada` recarga la orden después de guardar.
   puedeEditarEntrega = false,
   puedeUbicarDireccion = false,
   onOrdenActualizada,
@@ -65,8 +65,9 @@ export default function InformacionOrdenCliente({
   const [seleccion, setSeleccion] = useState("");
   const [editandoEntrega, setEditandoEntrega] = useState(false);
   const [ubicando, setUbicando] = useState(null); // "entrega" | "despacho"
-  // La dirección propia se muestra si el cliente la usa o si la orden ya tiene una.
-  const muestraEntregaPropia = Boolean(cliente?.entrega_por_pedido || orden?.entrega_direccion);
+  // Decisión de Cristóbal (2026-09-30): cualquier pedido puede ir a otra dirección, sin marcar al
+  // cliente de ninguna forma. La sección aparece cuando el pedido la tiene.
+  const muestraEntregaPropia = Boolean(orden?.entrega_direccion);
   const [fechaEntregaBorrador, setFechaEntregaBorrador] = useState("");
   const [seleccionFacturacion, setSeleccionFacturacion] = useState("");
 
@@ -325,11 +326,22 @@ export default function InformacionOrdenCliente({
           />
         </div>
 
+        {!muestraEntregaPropia && puedeEditarEntrega && (
+          <button
+            type="button"
+            onClick={() => setEditandoEntrega(true)}
+            className="mt-2 inline-flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
+            title="Una dirección que no está entre las guardadas del cliente: sólo para este pedido, o nueva para el cliente"
+          >
+            <Home className="w-3 h-3" /> Entregar en otra dirección
+          </button>
+        )}
+
         {muestraEntregaPropia && (
           <div className="mt-3 pt-3 border-t border-border">
             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1">
               <Home className="w-3 h-3" />
-              Entrega en la dirección del comprador
+              Entrega en otra dirección (sólo este pedido)
               {puedeEditarEntrega && (
                 <button
                   type="button"
@@ -365,11 +377,7 @@ export default function InformacionOrdenCliente({
                   Este pedido se entrega acá, no en la dirección de despacho del cliente.
                 </div>
               </>
-            ) : (
-              <span className="inline-block mt-0.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
-                Falta la dirección a la que va este pedido
-              </span>
-            )}
+            ) : null}
           </div>
         )}
 

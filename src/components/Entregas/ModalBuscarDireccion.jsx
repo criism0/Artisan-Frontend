@@ -13,7 +13,9 @@ import { toast } from "../../lib/toast.js";
  * Si hay `idCliente`, arriba aparecen sus direcciones de despacho ya registradas: elegir una es
  * lo más común y no gasta una búsqueda.
  *
- * - `onElegirLugar(lugar)`: guarda un lugar del buscador.
+ * - `onElegirLugar(lugar, { guardarEnCliente })`: guarda un lugar del buscador. Al elegirlo se
+ *   pregunta si queda en las direcciones del cliente o sólo para este pedido (decisión de
+ *   Cristóbal, 2026-09-30).
  * - `onElegirDireccion(id)`: guarda una dirección del cliente (opcional).
  */
 export default function ModalBuscarDireccion({
@@ -31,6 +33,7 @@ export default function ModalBuscarDireccion({
   const [buscando, setBuscando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [direcciones, setDirecciones] = useState([]);
+  const [elegido, setElegido] = useState(null); // lugar del buscador esperando «dónde se guarda»
   const pedido = useRef(0);
 
   useEffect(() => {
@@ -38,6 +41,7 @@ export default function ModalBuscarDireccion({
     setTexto("");
     setResultados([]);
     setDirecciones([]);
+    setElegido(null);
     if (idCliente && onElegirDireccion) {
       api(`/direcciones/cliente/${idCliente}`)
         .then((ds) => setDirecciones((Array.isArray(ds) ? ds : []).filter((d) => d.tipo_direccion === "Despacho")))
@@ -124,13 +128,45 @@ export default function ModalBuscarDireccion({
           {!buscando && texto.trim().length >= 3 && resultados.length === 0 && (
             <span className="text-xs text-gray-500">Sin resultados. Prueba con la comuna o el nombre del lugar.</span>
           )}
-          <div className="flex flex-col gap-1 mt-1">
+          {elegido && (
+            <div className="mt-2 flex flex-col gap-2 border border-primary/30 bg-primary/5 rounded-lg p-3">
+              <span className="text-sm text-gray-800">
+                <MapPin className="w-4 h-4 inline -mt-0.5 mr-1 text-primary" />
+                {elegido.nombre ? `${elegido.nombre} — ` : ""}{elegido.direccion_formateada}
+              </span>
+              <span className="text-xs text-gray-600">¿Dónde se guarda?</span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={guardando}
+                  onClick={() => elegir(() => onElegirLugar(elegido, { guardarEnCliente: true }))}
+                  className="px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary-dark disabled:opacity-50"
+                  title="Queda como dirección de despacho del cliente, para usarla en otros pedidos"
+                >
+                  En las direcciones del cliente
+                </button>
+                <button
+                  type="button"
+                  disabled={guardando}
+                  onClick={() => elegir(() => onElegirLugar(elegido, { guardarEnCliente: false }))}
+                  className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50"
+                  title="La casa de un comprador de la tienda web, un despacho puntual: la ficha del cliente no se toca"
+                >
+                  Sólo para este pedido
+                </button>
+                <button type="button" onClick={() => setElegido(null)} className="px-2 py-1.5 text-sm text-gray-500 hover:text-gray-700">
+                  Volver
+                </button>
+              </div>
+            </div>
+          )}
+          <div className={`flex flex-col gap-1 mt-1 ${elegido ? "hidden" : ""}`}>
             {resultados.map((l) => (
               <button
                 key={l.id}
                 type="button"
                 disabled={guardando}
-                onClick={() => elegir(() => onElegirLugar(l))}
+                onClick={() => (idCliente ? setElegido(l) : elegir(() => onElegirLugar(l, { guardarEnCliente: false })))}
                 className="flex items-start gap-2 text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 disabled:opacity-50"
               >
                 <MapPin className="w-4 h-4 mt-0.5 text-primary shrink-0" />
