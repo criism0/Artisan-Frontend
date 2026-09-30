@@ -123,7 +123,7 @@ const LoteDetail = lazy(() => import("./pages/Lotes/LotesDetail.jsx"));
 const LoteProductoFinalDetail = lazy(() => import("./pages/Lotes/LoteProductoFinalDetail.jsx"));
 
 const LogisticaDashboard = lazy(() => import("./pages/Logistica/LogisticaDashboard"));
-const DireccionesPorCorregir = lazy(() => import("./pages/Logistica/DireccionesPorCorregir"));
+const Entregas = lazy(() => import("./pages/Logistica/Entregas"));
 const AsignarVenta = lazy(() => import("./pages/Ventas/AsignarVenta.jsx"));
 const ResumenAsignacionVenta = lazy(() => import("./pages/Ventas/ResumenAsignacionVenta.jsx"));
 
@@ -448,10 +448,10 @@ function Routing() {
             } 
           />
           <Route
-            path="/Logistica/direcciones"
+            path="/Logistica/entregas"
             element={
-              <ProtectedRoute permissions={[[ModelType.DIRECCION, ScopeType.READ]]}>
-                <DireccionesPorCorregir />
+              <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
+                <Entregas />
               </ProtectedRoute>
             }
           />

@@ -6,7 +6,7 @@
  * centro de la comuna diciendo OK igual. «Tiene coordenadas» no es «se puede rutear»: sólo la
  * puerta, la cuadra o un pin que alguien puso a mano.
  */
-export const PRECISIONES_CONFIABLES = ["ROOFTOP", "RANGE_INTERPOLATED", "MANUAL"];
+export const PRECISIONES_CONFIABLES = ["ROOFTOP", "RANGE_INTERPOLATED", "MANUAL", "LUGAR_ELEGIDO"];
 
 export function esUbicacionConfiable(lat, lng, precision) {
   return lat != null && lng != null && PRECISIONES_CONFIABLES.includes(String(precision ?? ""));
@@ -19,6 +19,7 @@ export function describirUbicacion(lat, lng, precision) {
     case "ROOFTOP": return { texto: "Ubicación exacta", tono: "ok" };
     case "RANGE_INTERPOLATED": return { texto: "Ubicada en la cuadra", tono: "ok" };
     case "MANUAL": return { texto: "Ubicada a mano", tono: "ok" };
+    case "LUGAR_ELEGIDO": return { texto: "Elegida en el buscador", tono: "ok" };
     case "GEOMETRIC_CENTER": return { texto: "Aproximada (sector)", tono: "duda" };
     case "APPROXIMATE": return { texto: "Aproximada (comuna)", tono: "duda" };
     case "PARCIAL": return { texto: "Dudosa: Google cambió la dirección", tono: "duda" };
