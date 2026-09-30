@@ -5,6 +5,7 @@ import PageHeader from "../../components/UI/PageHeader";
 import CargandoVista from "../../components/UI/CargandoVista";
 import Selector from "../../components/Forms/Selector";
 import MapaRuta from "../../components/Entregas/MapaRuta";
+import FinRuta from "../../components/Entregas/FinRuta";
 import ModalBuscarDireccion from "../../components/Entregas/ModalBuscarDireccion";
 import ModalUbicarBodega from "../../components/Entregas/ModalUbicarBodega";
 import { toast } from "../../lib/toast.js";
@@ -67,6 +68,8 @@ export default function PlanificarRuta() {
   // La ruta que se está armando: recomendada, o una guardada que se está editando (idRuta).
   const [propuesta, setPropuesta] = useState(null);
   const [idTransportista, setIdTransportista] = useState("");
+  // Si la ruta vuelve a la bodega de origen (por defecto sí) o termina en la última parada.
+  const [vuelve, setVuelve] = useState(true);
   const [recomendando, setRecomendando] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
@@ -152,7 +155,7 @@ export default function PlanificarRuta() {
     return false;
   };
 
-  const recomendar = async () => {
+  const recomendar = async (vuelveElegido = vuelve) => {
     setRecomendando(true);
     try {
       const r = await rutasApi.sugerirRuta({
@@ -160,6 +163,7 @@ export default function PlanificarRuta() {
         id_bodega: Number(idBodega),
         ordenes: seleccion.size ? [...seleccion] : undefined,
         id_ruta: propuesta?.idRuta ?? undefined,
+        vuelve_a_bodega: vuelveElegido,
       });
       if (r.vacia) {
         toast.info(`No hay pedidos comprometidos hasta el ${formatearFecha(fecha)} con dirección. Marca pedidos de la lista.`);
@@ -173,6 +177,17 @@ export default function PlanificarRuta() {
     } finally {
       setRecomendando(false);
     }
+  };
+
+  /**
+   * Una recomendación sin tocar se vuelve a pedir: sin regreso, el mejor orden puede ser otro. Si
+   * ya se ajustó a mano (o es una ruta guardada), se respeta el orden y se recalcula al guardar.
+   */
+  const cambiarVuelve = (v) => {
+    setVuelve(v);
+    if (!propuesta) return;
+    if (!propuesta.editada && !propuesta.idRuta) recomendar(v);
+    else setPropuesta((p) => ({ ...p, editada: true }));
   };
 
   const mover = (i, delta) =>
@@ -211,10 +226,10 @@ export default function PlanificarRuta() {
       const paradas = propuesta.paradas.map((p) => ({ ordenes: p.ordenes.map((o) => o.id) }));
       let r;
       if (propuesta.idRuta) {
-        r = await rutasApi.actualizarRuta(propuesta.idRuta, { paradas, id_transportista: Number(idTransportista) });
+        r = await rutasApi.actualizarRuta(propuesta.idRuta, { paradas, id_transportista: Number(idTransportista), vuelve_a_bodega: vuelve });
         toast.success("Ruta actualizada");
       } else {
-        r = await rutasApi.crearRuta({ fecha, id_bodega: Number(idBodega), id_transportista: Number(idTransportista), paradas });
+        r = await rutasApi.crearRuta({ fecha, id_bodega: Number(idBodega), id_transportista: Number(idTransportista), paradas, vuelve_a_bodega: vuelve });
         toast.success("Ruta guardada");
       }
       navigate(`/Logistica/entregas/${r.id}`);
@@ -238,6 +253,7 @@ export default function PlanificarRuta() {
       idRuta: r.id,
     });
     setIdTransportista(r.id_transportista ? String(r.id_transportista) : "");
+    setVuelve(r.vuelve_a_bodega !== false);
     setSeleccion(new Set(paradas.flatMap((p) => p.ordenes.map((o) => o.id))));
   };
 
@@ -347,7 +363,7 @@ export default function PlanificarRuta() {
           )}
           <button
             type="button"
-            onClick={recomendar}
+            onClick={() => recomendar()}
             disabled={!puedeEscribir || recomendando || !idBodega}
             className="h-10 inline-flex items-center gap-2 px-4 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark disabled:opacity-50"
             title={seleccion.size ? "Ordena los pedidos marcados por el recorrido más corto" : "Toma los pedidos comprometidos hasta este día y los ordena"}
@@ -482,7 +498,13 @@ export default function PlanificarRuta() {
 
         {/* ── Mapa y ruta ───────────────────────────────────────────────────── */}
         <div className="xl:col-span-2 flex flex-col gap-4">
-          <MapaRuta bodega={bodega} paradas={propuesta?.paradas ?? []} sueltos={sueltos} polilinea={propuesta?.editada ? null : propuesta?.polilinea} />
+          <MapaRuta
+            bodega={bodega}
+            paradas={propuesta?.paradas ?? []}
+            sueltos={sueltos}
+            polilinea={propuesta?.editada ? null : propuesta?.polilinea}
+            vuelve={vuelve}
+          />
 
           {propuesta ? (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
@@ -506,7 +528,7 @@ export default function PlanificarRuta() {
               </div>
               {propuesta.editada && (
                 <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mb-2">
-                  Cambiaste el orden o las paradas: el recorrido y el costo se recalculan al guardar.
+                  Cambiaste la ruta: el recorrido y el costo se recalculan al guardar.
                 </p>
               )}
               <ol className="flex flex-col gap-1 mb-3">
@@ -526,7 +548,7 @@ export default function PlanificarRuta() {
                     </div>
                   </li>
                 ))}
-                <li className="text-xs text-gray-500 flex items-center gap-2"><span className="w-5 h-5 rounded bg-gray-900 text-white text-[10px] font-bold flex items-center justify-center">B</span>Vuelve a {bodega?.nombre}</li>
+                <FinRuta bodega={bodega} vuelve={vuelve} onCambiar={puedeEscribir ? cambiarVuelve : undefined} disabled={recomendando} className="pt-1" />
               </ol>
               <label className="flex flex-col gap-1 text-sm text-gray-700 mb-3">
                 Encargado de la ruta

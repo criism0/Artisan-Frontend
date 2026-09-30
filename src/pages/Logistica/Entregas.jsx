@@ -108,7 +108,14 @@ export default function Entregas() {
       align: "right",
       sortable: true,
       sortValue: (r) => Number(r.km_planificados) || 0,
-      Cell: ({ value }) => formatearKm(value),
+      Cell: ({ row, value }) =>
+        row.vuelve_a_bodega === false ? (
+          <span title="Termina en la última parada: no incluye la vuelta a la bodega">
+            {formatearKm(value)} <span className="text-[11px] text-gray-400">sin vuelta</span>
+          </span>
+        ) : (
+          formatearKm(value)
+        ),
     },
     {
       header: "Costo",

@@ -6,6 +6,7 @@ import PanelAcciones from "../../components/UI/PanelAcciones";
 import CargandoVista from "../../components/UI/CargandoVista";
 import Selector from "../../components/Forms/Selector";
 import MapaRuta from "../../components/Entregas/MapaRuta";
+import FinRuta from "../../components/Entregas/FinRuta";
 import EstadoRuta from "../../components/Entregas/EstadoRuta";
 import ModalCancelarRuta from "../../components/Entregas/ModalCancelarRuta";
 import EntregaParada from "../../components/Entregas/EntregaParada";
@@ -44,7 +45,7 @@ export default function RutaDetail() {
   const [ruta, setRuta] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [transportistas, setTransportistas] = useState([]);
-  const [borrador, setBorrador] = useState(null); // { fecha, idTransportista, comentario, paradas, paradasCambiadas }
+  const [borrador, setBorrador] = useState(null); // { fecha, idTransportista, comentario, vuelve, paradas, paradasCambiadas }
   const [guardando, setGuardando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [descargandoNotas, setDescargandoNotas] = useState(false);
@@ -80,6 +81,7 @@ export default function RutaDetail() {
       fecha: ruta.fecha,
       idTransportista: ruta.id_transportista ? String(ruta.id_transportista) : "",
       comentario: ruta.comentario ?? "",
+      vuelve: ruta.vuelve_a_bodega !== false,
       paradas: paradasDeRutaGuardada(ruta),
       paradasCambiadas: false,
     });
@@ -95,6 +97,9 @@ export default function RutaDetail() {
 
   const paradasGuardadas = useMemo(() => paradasDeRutaGuardada(ruta), [ruta]);
   const paradas = borrador?.paradas ?? paradasGuardadas;
+  const vuelve = borrador ? borrador.vuelve : ruta?.vuelve_a_bodega !== false;
+  // Cambiar las paradas, su orden o la vuelta deja el recorrido guardado desactualizado hasta guardar.
+  const recorridoCambiado = Boolean(borrador && (borrador.paradasCambiadas || borrador.vuelve !== (ruta?.vuelve_a_bodega !== false)));
 
   const mover = (i, delta) =>
     setBorrador((b) => {
@@ -124,6 +129,7 @@ export default function RutaDetail() {
         comentario: borrador.comentario,
       };
       if (borrador.paradasCambiadas) datos.paradas = borrador.paradas.map((p) => ({ ordenes: p.ordenes.map((o) => o.id) }));
+      if (borrador.vuelve !== (ruta.vuelve_a_bodega !== false)) datos.vuelve_a_bodega = borrador.vuelve;
       setRuta(await rutasApi.actualizarRuta(ruta.id, datos));
       setBorrador(null);
       toast.success("Ruta actualizada");
@@ -216,9 +222,9 @@ export default function RutaDetail() {
         <Dato titulo="Tiempo manejando" valor={formatearMinutos(ruta.minutos_planificados)} />
         <Dato titulo="Costo" valor={formatearCLP(ruta.costo_estimado)} detalle={ruta.costo_km ? `${formatearCLP(ruta.costo_km)} / km` : null} />
       </div>
-      {borrador?.paradasCambiadas && (
+      {recorridoCambiado && (
         <p className="mb-4 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-          Cambiaste el orden o las paradas: el recorrido, el tiempo y el costo se recalculan al guardar.
+          Cambiaste la ruta: el recorrido, el tiempo y el costo se recalculan al guardar.
         </p>
       )}
 
@@ -254,7 +260,10 @@ export default function RutaDetail() {
                 ruta.transportista?.nombre ?? <span className="text-gray-400">Sin encargado</span>
               )}
             </Campo>
-            <Campo titulo="Sale de y vuelve a">{ruta.bodega?.nombre ?? "—"}</Campo>
+            <Campo titulo={vuelve ? "Sale de y vuelve a" : "Sale de"}>
+              {ruta.bodega?.nombre ?? "—"}
+              {!vuelve && <span className="text-gray-500"> · termina en la última parada</span>}
+            </Campo>
             <Campo titulo="Comentario">
               {borrador ? (
                 <textarea
@@ -279,7 +288,8 @@ export default function RutaDetail() {
           <MapaRuta
             bodega={ruta.bodega}
             paradas={paradas}
-            polilinea={borrador?.paradasCambiadas ? null : ruta.polilinea}
+            polilinea={recorridoCambiado ? null : ruta.polilinea}
+            vuelve={vuelve}
           />
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
@@ -339,9 +349,12 @@ export default function RutaDetail() {
                   )}
                 </li>
               ))}
-              <li className="text-xs text-gray-500 flex items-center gap-2 py-2">
-                <Marca>B</Marca>Vuelve a {ruta.bodega?.nombre}
-              </li>
+              <FinRuta
+                bodega={ruta.bodega}
+                vuelve={vuelve}
+                onCambiar={borrador ? (v) => setBorrador((b) => ({ ...b, vuelve: v })) : undefined}
+                className="py-2"
+              />
             </ol>
           </div>
         </div>

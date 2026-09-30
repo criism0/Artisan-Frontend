@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  caminoDeRuta,
   contarPorFiltro,
   decodificarPolilinea,
   etiquetaFecha,
@@ -87,4 +88,26 @@ describe("paradas de una ruta guardada", () => {
 it("minutos legibles", () => {
   expect(formatearMinutos(135)).toBe("2 h 15 min");
   expect(formatearMinutos(40)).toBe("40 min");
+});
+
+describe("el trazado en línea recta de una ruta", () => {
+  const bodega = { lat: -33.36, lng: -70.73, nombre: "Santiago" };
+  const paradas = [{ lat: -33.4, lng: -70.6 }, { lat: -33.45, lng: -70.55 }];
+
+  it("vuelve a la bodega por defecto", () => {
+    const c = caminoDeRuta(bodega, paradas);
+    expect(c).toHaveLength(4);
+    expect(c[3]).toEqual({ lat: bodega.lat, lng: bodega.lng });
+  });
+
+  it("sin vuelta termina en la última parada", () => {
+    const c = caminoDeRuta(bodega, paradas, false);
+    expect(c).toHaveLength(3);
+    expect(c[2]).toEqual(paradas[1]);
+  });
+
+  it("sin bodega ubicada o sin paradas no hay trazado", () => {
+    expect(caminoDeRuta({ lat: null }, paradas)).toEqual([]);
+    expect(caminoDeRuta(bodega, [])).toEqual([]);
+  });
 });

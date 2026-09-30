@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { cargarGoogleMaps, hayMapaInteractivo } from "../../utils/googleMaps";
 import { CENTRO_SANTIAGO } from "../../utils/ubicacion";
-import { decodificarPolilinea } from "../../utils/rutas";
+import { caminoDeRuta, decodificarPolilinea } from "../../utils/rutas";
 
 const COLOR_RUTA = "#7A5AF8";
 const COLOR_SUELTO = "#9CA3AF";
@@ -14,7 +14,7 @@ const COLOR_SUELTO = "#9CA3AF";
  * (local, o antes de configurarla), un croquis en SVG con los mismos puntos: la vista sigue
  * sirviendo para planificar, sólo sin calles.
  */
-export default function MapaRuta({ bodega, paradas = [], sueltos = [], polilinea = null, alto = 420 }) {
+export default function MapaRuta({ bodega, paradas = [], sueltos = [], polilinea = null, vuelve = true, alto = 420 }) {
   const [sinMapa, setSinMapa] = useState(!hayMapaInteractivo());
   const contenedor = useRef(null);
   const mapa = useRef(null);
@@ -45,7 +45,7 @@ export default function MapaRuta({ bodega, paradas = [], sueltos = [], polilinea
   useEffect(() => {
     if (mapa.current && window.google?.maps) dibujar(window.google.maps);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bodega, paradas, sueltos, polilinea]);
+  }, [bodega, paradas, sueltos, polilinea, vuelve]);
 
   function dibujar(maps) {
     dibujos.current.forEach((d) => d.setMap(null));
@@ -76,23 +76,19 @@ export default function MapaRuta({ bodega, paradas = [], sueltos = [], polilinea
       }));
       limites.extend({ lat: p.lat, lng: p.lng });
     });
-    const camino = polilinea
-      ? decodificarPolilinea(polilinea)
-      : bodega?.lat != null && paradas.length
-        ? [{ lat: bodega.lat, lng: bodega.lng }, ...paradas.map((p) => ({ lat: p.lat, lng: p.lng })), { lat: bodega.lat, lng: bodega.lng }]
-        : [];
+    const camino = polilinea ? decodificarPolilinea(polilinea) : caminoDeRuta(bodega, paradas, vuelve);
     if (camino.length) {
       agregar(new maps.Polyline({ map: mapa.current, path: camino, strokeColor: COLOR_RUTA, strokeOpacity: 0.8, strokeWeight: 4 }));
     }
     if (!limites.isEmpty()) mapa.current.fitBounds(limites, 48);
   }
 
-  if (sinMapa) return <Croquis bodega={bodega} paradas={paradas} sueltos={sueltos} alto={alto} />;
+  if (sinMapa) return <Croquis bodega={bodega} paradas={paradas} sueltos={sueltos} vuelve={vuelve} alto={alto} />;
   return <div ref={contenedor} style={{ height: alto }} className="w-full rounded-xl border border-gray-200 bg-gray-100" />;
 }
 
 /** Croquis sin calles: proyección lineal de los puntos a la caja. Suficiente para ver el orden. */
-function Croquis({ bodega, paradas, sueltos, alto }) {
+function Croquis({ bodega, paradas, sueltos, vuelve, alto }) {
   const puntos = [
     ...(bodega?.lat != null ? [{ lat: bodega.lat, lng: bodega.lng }] : []),
     ...paradas,
@@ -112,7 +108,7 @@ function Croquis({ bodega, paradas, sueltos, alto }) {
   const [minLat, maxLat, minLng, maxLng] = [Math.min(...lats), Math.max(...lats), Math.min(...lngs), Math.max(...lngs)];
   const escala = Math.min((ancho - 2 * margen) / Math.max(maxLng - minLng, 1e-4), (alto - 2 * margen) / Math.max(maxLat - minLat, 1e-4));
   const xy = (p) => [margen + (p.lng - minLng) * escala, alto - margen - (p.lat - minLat) * escala];
-  const camino = bodega?.lat != null && paradas.length ? [bodega, ...paradas, bodega].map(xy) : [];
+  const camino = caminoDeRuta(bodega, paradas, vuelve).map(xy);
 
   return (
     <div className="w-full rounded-xl border border-gray-200 bg-gray-50 relative">

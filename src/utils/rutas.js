@@ -119,6 +119,16 @@ export function decodificarPolilinea(codificada) {
   return puntos;
 }
 
+/**
+ * Los puntos del trazado en línea recta (sin la polilínea de Google): de la bodega por cada parada
+ * y, sólo si la ruta vuelve, de regreso a la bodega.
+ */
+export function caminoDeRuta(bodega, paradas, vuelve = true) {
+  if (bodega?.lat == null || !paradas?.length) return [];
+  const b = { lat: bodega.lat, lng: bodega.lng };
+  return [b, ...paradas.map((p) => ({ lat: p.lat, lng: p.lng })), ...(vuelve ? [b] : [])];
+}
+
 /** Las paradas de una ruta guardada, en la forma que usa el panel (igual que las recomendadas). */
 export function paradasDeRutaGuardada(ruta) {
   return (ruta?.paradas ?? []).map((p) => ({
