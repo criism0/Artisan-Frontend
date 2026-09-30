@@ -24,6 +24,7 @@ import { generarNotaVentaPDF } from "../../services/notaVentaPdf.js";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import CentroDocumentos from "../../components/DTE/CentroDocumentos.jsx";
+import EntregasDeOrden from "../../components/Entregas/EntregasDeOrden";
 import DTEPreview from "../../components/DTE/DTEPreview.jsx";
 import EstadoPosteriorBadge from "../../components/Ventas/EstadoPosteriorBadge.jsx";
 import DetalleTipoFactura from "../../components/Ventas/DetalleTipoFactura.jsx";
@@ -1255,6 +1256,9 @@ export default function OrdenVentaDetail() {
       <div className="mb-6">
         <CentroDocumentos orden={orden} onCambio={fetchOrden} />
       </div>
+
+      {/* Cómo se entregó (rutas de entrega, Fase 2): las visitas con sus respuestas y fotos. */}
+      <EntregasDeOrden idOrden={orden.id} costoEnvio={orden.costo_envio} />
 
       {/* Las pestañas quedan para lo que se pidió y lo que se pickeó — decisión de Cristóbal,
           2026-08-25. Todo lo documental vive arriba, siempre visible. */}

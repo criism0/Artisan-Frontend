@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Ban, ClipboardCheck, Route as IconoRuta } from "lucide-react";
+import { Ban, ClipboardCheck, PackageCheck, Route as IconoRuta } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
 import { EditButton, ViewDetailButton } from "../../components/Buttons/ActionButtons";
 import EstadoRuta from "../../components/Entregas/EstadoRuta";
@@ -194,6 +194,14 @@ export default function Entregas() {
         emptyMessage="Todavía no hay rutas. Arma la primera con «Planificar ruta»."
         headerActions={
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/Logistica/entregas/sin-ruta")}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+              title="Retiros en bodega y despachos por courier"
+            >
+              <PackageCheck className="w-4 h-4" /> Sin ruta
+            </button>
             <button
               type="button"
               onClick={() => navigate("/Logistica/entregas/revision")}

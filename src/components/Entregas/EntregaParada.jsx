@@ -31,7 +31,7 @@ const urlFoto = (id) => buildApiUrl(`/rutas/entregas/fotos/${id}`);
 
 /** `onAnular(entrega)`: si viene, se ofrece «Anular registro» (quien planifica, para corregir un error). */
 export default function EntregaParada({ entrega, anuladas = [], onAnular }) {
-  const [visor, setVisor] = useState(null); // índice de la foto abierta
+  const [visor, setVisor] = useState(null); // índice de la foto abierta (entre las imágenes)
   const [verTodas, setVerTodas] = useState(false);
 
   if (!entrega) {
@@ -138,7 +138,19 @@ export default function EntregaParada({ entrega, anuladas = [], onAnular }) {
 
       {entrega.fotos.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-2">
-          {entrega.fotos.map((f, i) => (
+          {entrega.fotos.map((f, i) => /\.pdf$/i.test(f.nombre) ? (
+            <a
+              key={f.id}
+              href={urlFoto(f.id)}
+              target="_blank"
+              rel="noreferrer"
+              className="w-28 h-28 flex flex-col items-center justify-center gap-1 rounded-md border border-gray-200 bg-white text-xs text-gray-600 hover:border-primary"
+              title={f.nombre}
+            >
+              <span className="font-semibold text-red-600">PDF</span>
+              <span className="px-1 truncate w-full text-center">{ETIQUETA_FOTO[f.tipo] ?? "Archivo"}</span>
+            </a>
+          ) : (
             <button
               key={f.id}
               type="button"
@@ -166,7 +178,13 @@ export default function EntregaParada({ entrega, anuladas = [], onAnular }) {
         </p>
       )}
 
-      {visor != null && <VisorFotos fotos={entrega.fotos} inicial={visor} onCerrar={() => setVisor(null)} />}
+      {visor != null && (
+        <VisorFotos
+          fotos={entrega.fotos.filter((f) => !/\.pdf$/i.test(f.nombre))}
+          inicial={entrega.fotos.filter((f) => !/\.pdf$/i.test(f.nombre)).indexOf(entrega.fotos[visor])}
+          onCerrar={() => setVisor(null)}
+        />
+      )}
     </div>
   );
 }
