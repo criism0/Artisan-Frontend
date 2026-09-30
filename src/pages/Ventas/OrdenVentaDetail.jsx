@@ -9,7 +9,6 @@ import {
   Receipt,
   RotateCcw,
   Trash2,
-  Truck,
   Undo2,
 } from "lucide-react";
 import Table from "../../components/Tables/Table";
@@ -403,33 +402,6 @@ function FacturarForm({
   );
 }
 
-// ── Subformulario: Entregar ───────────────────────────────────────────────────
-function EntregarForm({ costoEnvio, setCostoEnvio, fechaEnvio, setFechaEnvio }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">Costo de envío * <span className="text-xs text-gray-400 font-normal">(puede ser 0)</span></span>
-        <input
-          type="number"
-          value={costoEnvio}
-          onChange={(e) => setCostoEnvio(e.target.value)}
-          placeholder="Ej: 5000"
-          className={inputCls}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">Fecha de entrega *</span>
-        <input
-          type="date"
-          value={fechaEnvio}
-          onChange={(e) => setFechaEnvio(e.target.value)}
-          className={inputCls}
-        />
-      </div>
-    </div>
-  );
-}
-
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function OrdenVentaDetail() {
   const { id } = useParams();
@@ -441,7 +413,6 @@ export default function OrdenVentaDetail() {
   const [loading, setLoading] = useState(false);
   const [progresoData, setProgresoData] = useState(null);
   const [loadingProgreso, setLoadingProgreso] = useState(false);
-  const [delivering, setDelivering] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [showFacturarForm, setShowFacturarForm] = useState(false);
   // Facturación parcial: qué hacer con lo que la factura no cubre, y el cierre posterior.
@@ -449,13 +420,10 @@ export default function OrdenVentaDetail() {
   const [motivoCierreSaldo, setMotivoCierreSaldo] = useState("");
   const [showCerrarSaldo, setShowCerrarSaldo] = useState(false);
   const [motivoCerrarSaldo, setMotivoCerrarSaldo] = useState("");
-  const [showEntregarForm, setShowEntregarForm] = useState(false);
   const [tab, setTab] = useState("detalle");
   const [fechaFacturacion, setFechaFacturacion] = useState("");
   const [fechaVencimiento, setFechaVencimiento] = useState("");
   const [origenFecha, setOrigenFecha] = useState("contado");
-  const [costoEnvio, setCostoEnvio] = useState("");
-  const [fechaEnvio, setFechaEnvio] = useState("");
   const [direccionesCliente, setDireccionesCliente] = useState([]);
   const [idLocalDespacho, setIdLocalDespacho] = useState("");
   const [loadingDirecciones, setLoadingDirecciones] = useState(false);
@@ -877,35 +845,6 @@ export default function OrdenVentaDetail() {
     }
   };
 
-  const handleEntregar = async () => {
-    if (costoEnvio === "" || costoEnvio === null) {
-      toast.error("Ingresa el costo de envío (puede ser 0)");
-      return;
-    }
-    if (!fechaEnvio) {
-      toast.error("Ingresa la fecha de entrega");
-      return;
-    }
-    try {
-      setDelivering(true);
-      const res = await api(`/ordenes-venta/${id}/entregar`, {
-        method: "PUT",
-        body: JSON.stringify({ costo_envio: Number(costoEnvio), fecha_envio: fechaEnvio }),
-      });
-      const updated = res?.data?.orden || res?.orden;
-      if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
-      else setOrden((prev) => (prev ? { ...prev, estado: "Entregada" } : prev));
-      toast.success(res?.data?.message || "Orden entregada correctamente");
-      setShowEntregarForm(false);
-      setCostoEnvio("");
-      setFechaEnvio("");
-    } catch (err) {
-      toast.error(apiErrorMsg(err, "entregar esta orden"));
-    } finally {
-      setDelivering(false);
-    }
-  };
-
   // 🔴 REHECHO COMPLETO (Cristóbal, 2026-08-17): antes era un resumen genérico de "Orden de
   // Venta"; ahora reproduce, con los datos que YA vive en el sistema, el layout de la Nota de
   // Venta que Artisan usaba antes de este ERP (imagen de referencia adjunta al pedido) —
@@ -1029,14 +968,6 @@ export default function OrdenVentaDetail() {
         disabled: transitioning,
       };
 
-    if (estado === "Facturada")
-      return {
-        label: "Registrar entrega",
-        icon: <Truck className="w-4 h-4" />,
-        onClick: () => setShowEntregarForm(true),
-        disabled: delivering,
-      };
-
     return null;
   })();
 
@@ -1057,6 +988,14 @@ export default function OrdenVentaDetail() {
         texto: orden?.es_referencial
           ? "La orden referencial pasará a En picking cuando el operario inicie la declaración de cantidades desde la app móvil."
           : "La orden pasará a En picking automáticamente al registrar el primer bulto en la asignación.",
+      };
+
+    // La entrega la registra el chofer en su ruta (rutas de entrega, Fase 2): ya no hay un botón
+    // «Registrar entrega» que cierre la orden a mano.
+    if (estado === "Facturada")
+      return {
+        tono: "blue",
+        texto: "La orden pasa a Entregada cuando el chofer registra la entrega en su ruta (Logística → Entregas).",
       };
 
     if (estado === ESTADO_FACTURADA_PARCIAL) {
@@ -1502,29 +1441,6 @@ export default function OrdenVentaDetail() {
         </div>
       </Modal>
 
-      <Modal
-        abierto={showEntregarForm}
-        onCerrar={() => setShowEntregarForm(false)}
-        titulo="Registrar entrega"
-        descripcion="Con esto la orden queda cerrada."
-        pie={
-          <>
-            <button onClick={() => setShowEntregarForm(false)} className={btnCls("ghost")}>
-              Cancelar
-            </button>
-            <button onClick={handleEntregar} disabled={delivering} className={btnCls("primary")}>
-              {delivering ? "Registrando…" : "Confirmar entrega"}
-            </button>
-          </>
-        }
-      >
-        <EntregarForm
-          costoEnvio={costoEnvio}
-          setCostoEnvio={setCostoEnvio}
-          fechaEnvio={fechaEnvio}
-          setFechaEnvio={setFechaEnvio}
-        />
-      </Modal>
     </div>
   );
 }
