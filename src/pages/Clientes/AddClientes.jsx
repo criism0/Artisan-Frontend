@@ -23,6 +23,7 @@ export default function AddClientes() {
   const [selectedCanal, setSelectedCanal] = useState("");
   const [selectedListaPrecio, setSelectedListaPrecio] = useState("");
   const [selectedTipoPrecio, setSelectedTipoPrecio] = useState("");
+  const [entregaPorPedido, setEntregaPorPedido] = useState(false);
   const [direcciones, setDirecciones] = useState([]);
   const [clienteId, setClienteId] = useState(null);
 
@@ -268,6 +269,7 @@ export default function AddClientes() {
       // silencio y el cliente quedaba siempre en UNIDADES por el default del modelo. Medido en
       // producción: los ÚNICOS 2 clientes en CAJAS (Jumbo y WalMart) se marcaron por SQL.
       formato_compra_predeterminado: selectedTipoPrecio,
+      entrega_por_pedido: entregaPorPedido,
       cuenta_corriente: " ",
       banco: " "
     };
@@ -447,6 +449,25 @@ export default function AddClientes() {
                 muestran, pickean y facturan así; se puede cambiar orden por orden.
               </p>
               {errors.formato_compra && <p className="text-red-500 text-sm mt-1">{errors.formato_compra}</p>}
+            </div>
+            {/* Rutas de entrega (2026-09-30): la tienda web vende a consumidores, cada uno con
+                su dirección. Con esto la dirección se escribe en cada orden, no en el cliente. */}
+            <div className="md:col-span-2">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={entregaPorPedido}
+                  onChange={(e) => setEntregaPorPedido(e.target.checked)}
+                />
+                <span>
+                  <span className="text-gray-700 font-medium">Cada pedido trae su propia dirección de entrega</span>
+                  <span className="block text-xs text-gray-500">
+                    Para la tienda web o ventas a consumidor final: cada orden va a la casa de un comprador
+                    distinto, y la dirección se escribe en la orden en vez de elegir una del cliente.
+                  </span>
+                </span>
+              </label>
             </div>
           </div>
         </div>

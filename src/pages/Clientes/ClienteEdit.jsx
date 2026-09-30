@@ -111,6 +111,7 @@ export default function EditClientes() {
   const [selectedCanal, setSelectedCanal] = useState("");
   const [selectedListaPrecio, setSelectedListaPrecio] = useState("");
   const [selectedTipoPrecio, setSelectedTipoPrecio] = useState("");
+  const [entregaPorPedido, setEntregaPorPedido] = useState(false);
   const [direcciones, setDirecciones] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
@@ -265,6 +266,7 @@ export default function EditClientes() {
         // «Unidades» siempre, aunque el cliente fuera de cajas, y guardar lo dejaba igual. Es la
         // misma familia que el formulario que pisa un campo que nunca leyó.
         setSelectedTipoPrecio(clienteData.formato_compra_predeterminado || "UNIDADES");
+        setEntregaPorPedido(Boolean(clienteData.entrega_por_pedido));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -378,6 +380,7 @@ export default function EditClientes() {
       id_lista_precio: listaPrecioSeleccionada?.id || null,
       // El nombre que lee el backend. `tipo_precio` no existe en ninguna parte de la API.
       formato_compra_predeterminado: selectedTipoPrecio,
+      entrega_por_pedido: entregaPorPedido,
       cuenta_corriente: " ",
       banco: " ",
     };
@@ -450,6 +453,25 @@ export default function EditClientes() {
                 existen conservan el formato con el que se crearon.
               </p>
               {errors.formato_compra && <p className="text-red-500 text-sm mt-1">{errors.formato_compra}</p>}
+            </div>
+            {/* Rutas de entrega (2026-09-30): la tienda web vende a consumidores, cada uno con
+                su dirección. Con esto la dirección se escribe en cada orden, no en el cliente. */}
+            <div className="md:col-span-2">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={entregaPorPedido}
+                  onChange={(e) => setEntregaPorPedido(e.target.checked)}
+                />
+                <span>
+                  <span className="text-gray-700 font-medium">Cada pedido trae su propia dirección de entrega</span>
+                  <span className="block text-xs text-gray-500">
+                    Para la tienda web o ventas a consumidor final: cada orden va a la casa de un comprador
+                    distinto, y la dirección se escribe en la orden en vez de elegir una del cliente.
+                  </span>
+                </span>
+              </label>
             </div>
           </div>
         </div>

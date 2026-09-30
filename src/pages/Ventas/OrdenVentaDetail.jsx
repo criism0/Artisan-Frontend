@@ -38,6 +38,7 @@ import { resumenFacturable } from "../../utils/cantidadFacturable.js";
 import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
 import { puedeCancelarOV, puedeReabrirCancelacion } from "../../utils/ordenVentaCancelable.js";
 import { resumenSaldo, puedeCerrarSaldo, ESTADO_FACTURADA_PARCIAL } from "../../utils/saldoFacturacion.js";
+import { copiarComoDespacho } from "../../services/ubicacionService";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -140,7 +141,19 @@ function FacturarForm({
   setDejarSaldoPendiente = () => {},
   motivoCierreSaldo = "",
   setMotivoCierreSaldo = () => {},
+  tieneDireccionFacturacion = false,
+  onCopiarComoDespacho = null,
+  copiandoDespacho = false,
 }) {
+  // 🔴 Este selector escribe `id_local`, que es la dirección de DESPACHO (a dónde va el
+  // camión). Se llamaba «Dirección de facturación» y ofrecía todas las direcciones del cliente,
+  // así que se elegía —con razón— la de facturación: medido el 2026-09-30, 148 de 240 OV de 30
+  // días quedaron despachadas «a» una dirección de Facturación, y en 104 el cliente sí tenía
+  // una de Despacho. El receptor de la factura sale de `id_local_facturacion` (que la orden ya
+  // trae desde que se crea) y sólo si falta, de ésta. Rutas de entrega, Fase 0.
+  const direccionesDespacho = direccionesCliente.filter((d) => d.tipo_direccion === "Despacho");
+  const direccionesACopiar = direccionesCliente.filter((d) => d.tipo_direccion === "Facturación");
+
   // Lo que va a salir impreso como referencia. Se muestra, no se edita: es el `numero_oc` de la
   // orden, y si está mal se corrige en la orden — no al emitir el documento tributario.
   const { folio: folioOC, recortado, motivo: motivoOC } = derivarFolioOC(numeroOc);
@@ -232,10 +245,14 @@ function FacturarForm({
           se confirmaba a ciegas un documento que después sólo se corrige con nota de crédito. */}
       {/* La dirección y las fechas elegidas acá todavía no están en la orden: se guardan recién
           al emitir. Hay que pasárselas al preview o arma el documento sin ellas. */}
+      {/* El receptor del preview tiene que ser el mismo que el de la emisión: la dirección de
+          facturación de la orden si la tiene, y sólo si no, la de despacho elegida acá. Antes se
+          pasaba siempre la elegida, así que el preview podía mostrar un receptor distinto del
+          que salía emitido. */}
       <DTEPreview
         ordenId={ordenId}
         tipo="factura"
-        idLocal={idLocalDespacho || null}
+        idLocal={tieneDireccionFacturacion ? null : idLocalDespacho || null}
         fecha={fechaFacturacion || null}
         vencimiento={fechaVencimiento || null}
       />
@@ -270,13 +287,32 @@ function FacturarForm({
 
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-gray-700">
-          Dirección de facturación {requiereDir && <span className="text-red-500">*</span>}
+          Dirección de despacho {requiereDir && <span className="text-red-500">*</span>}
         </span>
         {loadingDirecciones ? (
           <span className="text-sm text-gray-400 py-2">Cargando direcciones...</span>
+        ) : direccionesDespacho.length === 0 ? (
+          <div className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-md px-3 py-2 flex flex-col gap-2">
+            <span>
+              El cliente no tiene dirección de <strong>despacho</strong> registrada: sin ella la entrega no se
+              puede rutear.
+            </span>
+            {onCopiarComoDespacho && direccionesACopiar.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => onCopiarComoDespacho(d.id)}
+                disabled={copiandoDespacho}
+                className="self-start px-2 py-1 rounded-md border border-amber-400 bg-white hover:bg-amber-100 disabled:opacity-50"
+              >
+                Recibe en su dirección de facturación ({[d.calle, d.numero, d.comuna].filter(Boolean).join(" ")}): usarla como despacho
+              </button>
+            ))}
+            <span>Si recibe en otro lugar, agrégalo en la ficha del cliente.</span>
+          </div>
         ) : (
           <Selector
-            options={direccionesCliente.map((d) => ({
+            options={direccionesDespacho.map((d) => ({
               value: String(d.id),
               label: [d.tipo_direccion, d.nombre_sucursal, [d.calle, d.numero].filter(Boolean).join(" "), d.comuna]
                 .filter(Boolean)
@@ -293,8 +329,8 @@ function FacturarForm({
         )}
         <span className="text-xs text-gray-400 italic">
           {requiereDir
-            ? "Debes seleccionar la dirección de facturación para poder facturar"
-            : "Confirma o ajusta la dirección antes de facturar"}
+            ? "Elige a dónde se despacha para poder facturar"
+            : "A dónde llega el pedido. La factura sale a nombre de la dirección de facturación de la orden."}
         </span>
       </div>
 
@@ -680,9 +716,12 @@ export default function OrdenVentaDetail() {
       // Sin esto el formulario abría en blanco y la previsualización no tenía con qué armar el
       // documento: mirar antes de emitir exigía elegir a mano dos datos que casi siempre son
       // los mismos.
+      // Sólo direcciones de DESPACHO: una de facturación precargada acá es justo el error que
+      // dejó 148 de 240 OV despachadas a la dirección equivocada.
       setIdLocalDespacho((actual) => {
-        if (actual) return actual;
-        const principal = direcciones.find((d) => d.es_principal) ?? direcciones[0];
+        const despacho = direcciones.filter((d) => d.tipo_direccion === "Despacho");
+        if (actual && despacho.some((d) => String(d.id) === String(actual))) return actual;
+        const principal = despacho.find((d) => d.es_principal) ?? despacho[0];
         return principal ? String(principal.id) : "";
       });
       setFechaFacturacion((actual) => actual || new Date().toLocaleDateString("en-CA"));
@@ -709,6 +748,22 @@ export default function OrdenVentaDetail() {
       toast.error("No se pudieron cargar las direcciones del cliente");
     } finally {
       setLoadingDirecciones(false);
+    }
+  };
+
+  // El cliente recibe donde factura: se copia esa dirección como de Despacho y queda elegida.
+  const [copiandoDespacho, setCopiandoDespacho] = useState(false);
+  const copiarDireccionComoDespacho = async (idDireccion) => {
+    setCopiandoDespacho(true);
+    try {
+      const nueva = await copiarComoDespacho(idDireccion);
+      setDireccionesCliente((prev) => (prev.some((d) => d.id === nueva.id) ? prev : [...prev, nueva]));
+      setIdLocalDespacho(String(nueva.id));
+      toast.success("Dirección copiada como de despacho");
+    } catch (err) {
+      toast.error(apiErrorMsg(err));
+    } finally {
+      setCopiandoDespacho(false);
     }
   };
 
@@ -1246,6 +1301,9 @@ export default function OrdenVentaDetail() {
         onEmpezarEdicionFechaEntrega={() => setEditandoFechaEntrega(true)}
         onCancelarEdicionFechaEntrega={() => setEditandoFechaEntrega(false)}
         onGuardarFechaEntrega={guardarFechaEntrega}
+        puedeEditarEntrega={canWriteSaleOrder && !["Entregada", "Cancelada"].includes(orden?.estado)}
+        puedeUbicarDireccion={checkScope(ModelType.DIRECCION, ScopeType.WRITE)}
+        onOrdenActualizada={async () => setOrden(await fetchOrden())}
       />
 
       {/* 🔴 TODO LO DOCUMENTAL, FUERA DE LAS PESTAÑAS Y EN UN SOLO LUGAR.
@@ -1396,6 +1454,9 @@ export default function OrdenVentaDetail() {
           setDejarSaldoPendiente={setDejarSaldoPendiente}
           motivoCierreSaldo={motivoCierreSaldo}
           setMotivoCierreSaldo={setMotivoCierreSaldo}
+          tieneDireccionFacturacion={Boolean(orden?.id_local_facturacion)}
+          onCopiarComoDespacho={copiarDireccionComoDespacho}
+          copiandoDespacho={copiandoDespacho}
         />
       </Modal>
 

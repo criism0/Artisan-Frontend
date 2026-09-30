@@ -1,6 +1,15 @@
 import { useState } from "react";
-import { MapPin, MessageSquare, Pencil } from "lucide-react";
+import { MapPin, MessageSquare, Pencil, Home } from "lucide-react";
 import Selector from "../Forms/Selector";
+import UbicacionBadge from "../Mapas/UbicacionBadge";
+import ModalUbicar from "../Mapas/ModalUbicar";
+import ModalDireccionEntrega from "../Mapas/ModalDireccionEntrega";
+import {
+  accionesUbicarDireccion,
+  accionesUbicarEntrega,
+  ubicacionDeDireccion,
+  ubicacionDeEntrega,
+} from "../../services/ubicacionService";
 
 /**
  * "Información de la orden" + "Cliente", como dos tarjetas separadas.
@@ -47,8 +56,17 @@ export default function InformacionOrdenCliente({
   onEmpezarEdicionFechaEntrega,
   onCancelarEdicionFechaEntrega,
   onGuardarFechaEntrega,
+  // Rutas de entrega (2026-09-30): dirección de entrega PROPIA del pedido (tienda web) y
+  // ubicación en el mapa. `onOrdenActualizada` recarga la orden después de guardar.
+  puedeEditarEntrega = false,
+  puedeUbicarDireccion = false,
+  onOrdenActualizada,
 }) {
   const [seleccion, setSeleccion] = useState("");
+  const [editandoEntrega, setEditandoEntrega] = useState(false);
+  const [ubicando, setUbicando] = useState(null); // "entrega" | "despacho"
+  // La dirección propia se muestra si el cliente la usa o si la orden ya tiene una.
+  const muestraEntregaPropia = Boolean(cliente?.entrega_por_pedido || orden?.entrega_direccion);
   const [fechaEntregaBorrador, setFechaEntregaBorrador] = useState("");
   const [seleccionFacturacion, setSeleccionFacturacion] = useState("");
 
@@ -88,6 +106,7 @@ export default function InformacionOrdenCliente({
     onGuardar,
     placeholderVacio,
     exigeSeleccion,
+    onUbicar,
   }) => (
     <div>
       <div className="text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1">
@@ -156,6 +175,11 @@ export default function InformacionOrdenCliente({
       )}
       {!editando && valor?.comentarios && (
         <div className="text-xs text-gray-500 mt-0.5 italic">{valor.comentarios}</div>
+      )}
+      {!editando && valor && onUbicar && (
+        <div className="mt-1">
+          <UbicacionBadge lat={valor.lat} lng={valor.lng} precision={valor.geo_precision} onClick={onUbicar} />
+        </div>
       )}
     </div>
   );
@@ -282,6 +306,7 @@ export default function InformacionOrdenCliente({
             onGuardar={onGuardarDireccion}
             placeholderVacio="Se confirma al facturar si no se elige antes"
             exigeSeleccion
+            onUbicar={puedeUbicarDireccion ? () => setUbicando("despacho") : undefined}
           />
           <DireccionBloque
             titulo="Dirección de facturación"
@@ -300,6 +325,54 @@ export default function InformacionOrdenCliente({
           />
         </div>
 
+        {muestraEntregaPropia && (
+          <div className="mt-3 pt-3 border-t border-border">
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1">
+              <Home className="w-3 h-3" />
+              Entrega en la dirección del comprador
+              {puedeEditarEntrega && (
+                <button
+                  type="button"
+                  onClick={() => setEditandoEntrega(true)}
+                  className="text-gray-400 hover:text-primary ml-1"
+                  title={orden?.entrega_direccion ? "Cambiar la dirección de entrega" : "Escribir la dirección de entrega"}
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            {orden?.entrega_direccion ? (
+              <>
+                <div className="text-xs text-gray-600 mt-0.5">
+                  {[orden.entrega_direccion, orden.entrega_referencia, orden.entrega_comuna, orden.entrega_region]
+                    .filter(Boolean)
+                    .join(", ")}
+                </div>
+                {(orden.entrega_destinatario || orden.entrega_telefono) && (
+                  <div className="text-xs text-gray-500">
+                    {[orden.entrega_destinatario, orden.entrega_telefono].filter(Boolean).join(" · ")}
+                  </div>
+                )}
+                <div className="mt-1">
+                  <UbicacionBadge
+                    lat={orden.entrega_lat}
+                    lng={orden.entrega_lng}
+                    precision={orden.entrega_geo_precision}
+                    onClick={puedeEditarEntrega ? () => setUbicando("entrega") : undefined}
+                  />
+                </div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  Este pedido se entrega acá, no en la dirección de despacho del cliente.
+                </div>
+              </>
+            ) : (
+              <span className="inline-block mt-0.5 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
+                Falta la dirección a la que va este pedido
+              </span>
+            )}
+          </div>
+        )}
+
         {comentarioCliente && (
           <div className="mt-3 pt-3 border-t border-border">
             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1">
@@ -310,6 +383,35 @@ export default function InformacionOrdenCliente({
           </div>
         )}
       </div>
+
+      <ModalDireccionEntrega
+        abierto={editandoEntrega}
+        onCerrar={() => setEditandoEntrega(false)}
+        orden={orden}
+        onGuardada={() => onOrdenActualizada?.()}
+      />
+      {ubicando === "entrega" && (
+        <ModalUbicar
+          abierto
+          onCerrar={() => setUbicando(null)}
+          titulo={`Entrega de la OV #${orden?.id}`}
+          texto={[orden?.entrega_direccion, orden?.entrega_comuna, orden?.entrega_region].filter(Boolean).join(", ")}
+          actual={ubicacionDeEntrega(orden)}
+          {...accionesUbicarEntrega(orden?.id)}
+          onCambio={() => onOrdenActualizada?.()}
+        />
+      )}
+      {ubicando === "despacho" && direccion && (
+        <ModalUbicar
+          abierto
+          onCerrar={() => setUbicando(null)}
+          titulo={direccion.nombre_sucursal || "Dirección de despacho"}
+          texto={[[direccion.calle, direccion.numero].filter(Boolean).join(" "), direccion.comuna, direccion.region].filter(Boolean).join(", ")}
+          actual={ubicacionDeDireccion(direccion)}
+          {...accionesUbicarDireccion(direccion.id)}
+          onCambio={() => onOrdenActualizada?.()}
+        />
+      )}
     </div>
   );
 }

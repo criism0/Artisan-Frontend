@@ -9,6 +9,8 @@ import Modal from "../../components/UI/Modal.jsx";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { buscarOvConMismaOC, describirDuplicadas } from "../../utils/ocDuplicada.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import CamposDireccionEntrega from "../../components/Mapas/CamposDireccionEntrega";
+import { entregaVacia } from "../../services/ubicacionService";
 import {
   unidadVentaDe,
   admiteFraccion,
@@ -235,8 +237,15 @@ export default function AddOrdenVenta() {
     });
   };
 
+  // Rutas de entrega (2026-09-30): si el cliente marca «cada pedido trae su propia dirección»
+  // (la tienda web), la dirección a la que va ESTE pedido se escribe acá, en la orden.
+  const [entregaPorPedido, setEntregaPorPedido] = useState(false);
+  const [entrega, setEntrega] = useState(entregaVacia());
+
   const handleClientChange = async (eOrValue) => {
     const id_cliente = eOrValue?.target ? eOrValue.target.value : eOrValue;
+    setEntregaPorPedido(false);
+    setEntrega(entregaVacia());
     setDirecciones([]);
     setClienteConfig(null);
     setPreciosLista([]);
@@ -254,6 +263,7 @@ export default function AddOrdenVenta() {
       const clienteData = resCliente.data || resCliente;
       const dirs = Array.isArray(clienteData?.direcciones) ? clienteData.direcciones : [];
       setDirecciones(dirs);
+      setEntregaPorPedido(Boolean(clienteData?.entrega_por_pedido));
       // Precarga la dirección de facturación PREDETERMINADA del cliente, si tiene una marcada.
       // Sigue siendo editable — es el punto de partida, no una decisión tomada. Sin esto había
       // que elegirla a mano cada vez aunque el cliente casi siempre facture al mismo lugar.
@@ -473,6 +483,7 @@ export default function AddOrdenVenta() {
         es_referencial: Boolean(form.es_referencial),
         comentario_cliente: form.comentario_cliente || null,
         fecha_entrega: form.fecha_entrega || null,
+        ...(entregaPorPedido ? entrega : {}),
       };
       const res = await api("/ordenes-venta", { method: "POST", body: JSON.stringify(payload) });
       const created = res?.data || res || {};
@@ -746,6 +757,17 @@ export default function AddOrdenVenta() {
                 className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-y"
               />
             </label>
+
+            {entregaPorPedido && (
+              <div className="md:col-span-2 flex flex-col gap-2 border border-primary/20 bg-primary/5 rounded-lg p-3">
+                <span className="text-sm font-medium text-gray-700">Dirección de entrega de este pedido</span>
+                <span className="text-xs text-gray-500">
+                  Este cliente vende a consumidores: cada pedido va a la dirección del comprador. Es la que
+                  usará la ruta. Si todavía no la tienes, se puede escribir después en el detalle de la orden.
+                </span>
+                <CamposDireccionEntrega valor={entrega} onChange={setEntrega} />
+              </div>
+            )}
           </div>
 
           {/* Orden referencial */}
