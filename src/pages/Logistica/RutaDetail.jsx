@@ -8,6 +8,16 @@ import Selector from "../../components/Forms/Selector";
 import MapaRuta from "../../components/Entregas/MapaRuta";
 import EstadoRuta from "../../components/Entregas/EstadoRuta";
 import ModalCancelarRuta from "../../components/Entregas/ModalCancelarRuta";
+import EntregaParada from "../../components/Entregas/EntregaParada";
+import ModalMotivo from "../../components/Entregas/ModalMotivo";
+import ModalRegistrarRespaldo from "../../components/Entregas/ModalRegistrarRespaldo";
+
+const TONO_PARADA = {
+  Pendiente: "bg-gray-50 text-gray-600 border-gray-200",
+  Entregada: "bg-green-100 text-green-800 border-green-200",
+  Parcial: "bg-amber-100 text-amber-800 border-amber-200",
+  "No entregada": "bg-red-100 text-red-800 border-red-200",
+};
 import { toast } from "../../lib/toast.js";
 import { api } from "../../lib/api";
 import { generarNotasVentaPDF } from "../../services/notaVentaPdf.js";
@@ -38,6 +48,9 @@ export default function RutaDetail() {
   const [guardando, setGuardando] = useState(false);
   const [cancelando, setCancelando] = useState(false);
   const [descargandoNotas, setDescargandoNotas] = useState(false);
+  const [anulando, setAnulando] = useState(null); // la entrega cuyo registro se anula
+  const [cerrandoAntes, setCerrandoAntes] = useState(false);
+  const [respaldo, setRespaldo] = useState(null); // id de la parada que se registra desde la web
 
   const puedeEscribir = checkScope(ModelType.RUTA, ScopeType.WRITE);
   const editable = puedeEscribir && ruta?.estado === "Planificada";
@@ -154,6 +167,11 @@ export default function RutaDetail() {
     <PanelAcciones
       principal={{ label: guardando ? "Guardando…" : "Guardar cambios", onClick: guardar, disabled: guardando }}
       secundarias={[{ label: "Descartar cambios", onClick: () => setBorrador(null), disabled: guardando }]}
+    />
+  ) : puedeEscribir && ruta.estado === "En curso" ? (
+    <PanelAcciones
+      secundarias={[accionNotas]}
+      destructivas={[{ label: "Cerrar anticipadamente", icon: <Ban className="w-4 h-4" />, onClick: () => setCerrandoAntes(true) }]}
     />
   ) : !editable ? (
     <PanelAcciones secundarias={[accionNotas]} />
@@ -274,7 +292,15 @@ export default function RutaDetail() {
                 <li key={p.clave} className="flex items-start gap-3 py-2.5">
                   <span className="w-6 h-6 mt-0.5 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center shrink-0">{i + 1}</span>
                   <div className="min-w-0 flex-1 text-sm">
-                    <div className="font-medium text-gray-900">{p.cliente}</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-gray-900">{p.cliente}</span>
+                      {ruta.estado !== "Planificada" && p.estado && (
+                        <span className={`px-2 py-0.5 rounded-full border text-[11px] ${TONO_PARADA[p.estado] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                          {p.estado}
+                        </span>
+                      )}
+                      {p.costo_asignado != null && <span className="text-[11px] text-gray-400">costo {formatearCLP(p.costo_asignado)}</span>}
+                    </div>
                     <div className="text-xs text-gray-500">{p.etiqueta}</div>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
                       {p.ordenes.map((o) => (
@@ -286,6 +312,23 @@ export default function RutaDetail() {
                         </span>
                       ))}
                     </div>
+                    {!borrador && (
+                      <EntregaParada
+                        entrega={p.entrega}
+                        anuladas={p.entregas_anuladas}
+                        onAnular={puedeEscribir && ["En curso", "Cerrada"].includes(ruta.estado) ? setAnulando : undefined}
+                      />
+                    )}
+                    {!borrador && puedeEscribir && ruta.estado === "En curso" && p.estado === "Pendiente" && (
+                      <button
+                        type="button"
+                        onClick={() => setRespaldo(p.id)}
+                        className="mt-2 text-xs px-2 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-50"
+                        title="Si el chofer no pudo registrarla en la app"
+                      >
+                        Registrar como respaldo
+                      </button>
+                    )}
                   </div>
                   {borrador && (
                     <div className="flex items-center shrink-0">
@@ -305,6 +348,39 @@ export default function RutaDetail() {
       </div>
 
       <ModalCancelarRuta ruta={cancelando ? ruta : null} onCerrar={() => setCancelando(false)} onCancelada={cargar} />
+      <ModalMotivo
+        abierto={Boolean(anulando)}
+        onCerrar={() => setAnulando(null)}
+        titulo={anulando ? `Anular el registro (${anulando.estado})` : ""}
+        descripcion={
+          ruta.estado === "En curso"
+            ? "La parada vuelve a quedar pendiente y se puede registrar de nuevo. El registro anulado queda de historial."
+            : "Lo que cubría vuelve a la lista de pendientes. El registro anulado queda de historial."
+        }
+        textoBoton="Anular registro"
+        placeholder="Por qué se anula (por ejemplo, se registró en la parada equivocada)"
+        onConfirmar={async (motivo) => {
+          await rutasApi.anularEntrega(anulando.id, motivo);
+          toast.success("Registro anulado");
+          await cargar();
+        }}
+      />
+      <ModalMotivo
+        abierto={cerrandoAntes}
+        onCerrar={() => setCerrandoAntes(false)}
+        titulo="Cerrar la ruta anticipadamente"
+        descripcion="Las paradas pendientes quedan «No entregada – Retirada por Logística» y sus pedidos vuelven a la lista. La ruta se cierra con su costo."
+        textoBoton="Cerrar ruta"
+        placeholder="Por qué no se termina (por ejemplo, falla del camión)"
+        onConfirmar={async (motivo) => {
+          await rutasApi.cerrarAnticipadamente(ruta.id, motivo);
+          toast.success("Ruta cerrada");
+          await cargar();
+        }}
+      />
+      {respaldo && (
+        <ModalRegistrarRespaldo idRuta={ruta.id} idParada={respaldo} onCerrar={() => setRespaldo(null)} onRegistrada={cargar} />
+      )}
     </div>
   );
 }

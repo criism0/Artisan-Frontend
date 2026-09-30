@@ -123,6 +123,12 @@ export function decodificarPolilinea(codificada) {
 export function paradasDeRutaGuardada(ruta) {
   return (ruta?.paradas ?? []).map((p) => ({
     clave: `guardada:${p.id}`,
+    id: p.id,
+    estado: p.estado,
+    // Lo registrado por el chofer (sólo en el detalle de una ruta): respuestas, líneas y fotos.
+    entrega: p.entrega ?? null,
+    entregas_anuladas: p.entregas_anuladas ?? [],
+    costo_asignado: p.costo_asignado ?? null,
     id_cliente: p.id_cliente,
     cliente: p.cliente?.nombre_empresa || p.cliente?.razon_social || "",
     lat: p.lat,

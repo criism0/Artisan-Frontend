@@ -180,12 +180,6 @@ export default function DetalleTipoFactura({
               <dd className="tabular-nums line-through">{formatCLP(netoPedido, 0)}</dd>
             </div>
           )}
-          {Number(costoEnvio) > 0 && (
-            <div className="flex justify-between text-gray-600">
-              <dt>Costo de envío</dt>
-              <dd className="tabular-nums">{formatCLP(costoEnvio, 0)}</dd>
-            </div>
-          )}
           <div className="flex justify-between text-gray-600">
             <dt>
               {netoPedido != null && Math.round(netoPedido) !== Math.round(totalNeto)
@@ -202,6 +196,12 @@ export default function DetalleTipoFactura({
             <dt>Total</dt>
             <dd className="tabular-nums text-primary">{formatCLP(total, 0)}</dd>
           </div>
+          {Number(costoEnvio) > 0 && (
+            <div className="flex justify-between text-xs text-gray-400 pt-2 mt-1 border-t border-dashed border-gray-200" title="Lo que costó llevarla, repartido de sus rutas cerradas. No se le cobra al cliente.">
+              <dt>Costo de entrega (interno)</dt>
+              <dd className="tabular-nums">{formatCLP(costoEnvio, 0)}</dd>
+            </div>
+          )}
         </dl>
       </div>
     </div>

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Ban, Route as IconoRuta } from "lucide-react";
+import { Ban, ClipboardCheck, Route as IconoRuta } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
 import { EditButton, ViewDetailButton } from "../../components/Buttons/ActionButtons";
 import EstadoRuta from "../../components/Entregas/EstadoRuta";
 import ModalCancelarRuta from "../../components/Entregas/ModalCancelarRuta";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
-import { listarRutas } from "../../services/rutasService";
+import { listarRevisiones, listarRutas } from "../../services/rutasService";
 import { ESTADOS_RUTA, formatearCLP, formatearFecha, formatearKm, pedidosDeRuta } from "../../utils/rutas";
 
 const nombreCliente = (p) => p.cliente?.nombre_empresa || p.cliente?.razon_social || "";
@@ -22,13 +22,15 @@ export default function Entregas() {
   const [cargando, setCargando] = useState(true);
   const [filtroEstado, setFiltroEstado] = useState("Todos");
   const [cancelando, setCancelando] = useState(null);
+  const [porRevisar, setPorRevisar] = useState(0);
 
   const puedeEscribir = checkScope(ModelType.RUTA, ScopeType.WRITE);
 
   const cargar = useCallback(async () => {
     try {
-      const r = await listarRutas();
+      const [r, rev] = await Promise.all([listarRutas(), listarRevisiones("Pendiente").catch(() => [])]);
       setRutas(Array.isArray(r) ? r : []);
+      setPorRevisar(Array.isArray(rev) ? rev.length : 0);
     } catch (e) {
       toast.error(e.message);
     } finally {
@@ -191,15 +193,25 @@ export default function Entregas() {
         loadingMessage="Cargando rutas"
         emptyMessage="Todavía no hay rutas. Arma la primera con «Planificar ruta»."
         headerActions={
-          puedeEscribir && (
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => navigate("/Logistica/entregas/planificar")}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
+              onClick={() => navigate("/Logistica/entregas/revision")}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border ${porRevisar ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100" : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}
+              title="Entregas parciales o rechazadas que alguien tiene que resolver"
             >
-              <IconoRuta className="w-4 h-4" /> Planificar ruta
+              <ClipboardCheck className="w-4 h-4" /> Revisión{porRevisar ? ` (${porRevisar})` : ""}
             </button>
-          )
+            {puedeEscribir && (
+              <button
+                type="button"
+                onClick={() => navigate("/Logistica/entregas/planificar")}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
+              >
+                <IconoRuta className="w-4 h-4" /> Planificar ruta
+              </button>
+            )}
+          </div>
         }
       />
       <ModalCancelarRuta ruta={cancelando} onCerrar={() => setCancelando(null)} onCancelada={cargar} />

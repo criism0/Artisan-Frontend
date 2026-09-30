@@ -904,9 +904,11 @@ export default function OrdenVentaDetail() {
   // pantalla mostraba el total del pedido y el documento salía con otro número.
   const resumen = useMemo(() => resumenFacturable(orderItems), [orderItems]);
 
+  // `costo_envio` es un costo INTERNO (lo que costó llevarla, repartido de sus rutas cerradas):
+  // no se le cobra al cliente, así que no suma al neto (plan de rutas §7.5).
   const costoEnvioActual = Number(orden?.costo_envio || 0);
-  const totalNeto = resumen.facturable + costoEnvioActual;
-  const netoPedidoConEnvio = resumen.pedido + costoEnvioActual;
+  const totalNeto = resumen.facturable;
+  const netoPedidoConEnvio = resumen.pedido;
   const iva = Math.round(totalNeto * 0.19);
   const total = totalNeto + iva;
 

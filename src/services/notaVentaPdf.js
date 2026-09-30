@@ -115,8 +115,8 @@ function dibujarNotaVenta(doc, autoTable, orden, progresoData) {
   const filasExtraccion = construirFilasExtraccion(progresoData);
 
   const resumen = resumenFacturable(orderItems);
-  const costoEnvioActual = Number(orden?.costo_envio || 0);
-  const totalNeto = resumen.facturable + costoEnvioActual;
+  // El costo de entrega es interno: no va en la nota de venta (plan de rutas §7.5).
+  const totalNeto = resumen.facturable;
   const iva = Math.round(totalNeto * 0.19);
   const total = totalNeto + iva;
 

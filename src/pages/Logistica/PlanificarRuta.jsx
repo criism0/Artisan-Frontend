@@ -29,8 +29,9 @@ import {
  * con `?ruta=<id>`).
  *
  * Una sola vista, sin más complejidad que lo necesario:
- * - todas las OV pendientes de entrega, primero las del día elegido, con qué tienen dirección y
- *   qué no, y la búsqueda «como en Google Maps» para definir la que falta;
+ * - las OV por entregar —sólo las que ya tienen factura o guía de despacho (decisión de
+ *   Cristóbal, 2026-10-01)—, primero las del día elegido, con qué tienen dirección y qué no, y
+ *   la búsqueda «como en Google Maps» para definir la que falta;
  * - «Recomendar ruta»: con los pedidos marcados, o sola con los comprometidos hasta ese día;
  * - el encargado (rol Transportista) y guardar, que lleva al detalle de la ruta.
  */
@@ -261,7 +262,7 @@ export default function PlanificarRuta() {
         subtitulo={
           idRutaEditar
             ? "Marca o desmarca pedidos, recalcula la ruta y guarda los cambios."
-            : "Elige pedidos (o deja que el sistema los elija), revisa la ruta recomendada y asígnala."
+            : "Pedidos facturados o con guía de despacho, por entregar. Elige (o deja que el sistema elija), revisa la ruta recomendada y asígnala."
         }
       />
 
@@ -467,7 +468,11 @@ export default function PlanificarRuta() {
               );
             })}
           </ul>
-          {filtradas.length === 0 && <p className="text-sm text-gray-500 py-6 text-center">Nada por acá.</p>}
+          {filtradas.length === 0 && (
+            <p className="text-sm text-gray-500 py-6 text-center">
+              Nada por acá. Un pedido aparece para planificar cuando ya tiene su factura o su guía de despacho.
+            </p>
+          )}
           {filtradas.length > visibles && (
             <button type="button" onClick={() => setVisibles((v) => v + PASO_LISTA)} className="mt-3 w-full py-2 text-sm text-primary hover:bg-primary/5 rounded-lg">
               Ver más ({filtradas.length - visibles} restantes)

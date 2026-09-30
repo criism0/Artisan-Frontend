@@ -33,3 +33,17 @@ export const definirPuntoEntrega = (idOrden, datos) =>
 /** { lugar } | { lat, lng, direccion_formateada? } */
 export const ubicarBodega = (idBodega, datos) =>
   api(`/rutas/bodegas/${idBodega}/ubicacion`, { method: "PUT", body: datos });
+
+// ── Entregas (Fase 2): lo que ve y corrige Logística ─────────────────────────
+
+/** Ruta con sus paradas, órdenes y lo que falta entregar línea por línea (la misma vista que la app). */
+export const obtenerRutaParaRegistrar = (id) => api(`/rutas/${id}/app`);
+
+/** estado: "Pendiente" (por defecto), "Resuelta" o "todas". */
+export const listarRevisiones = (estado = "Pendiente") => api(`/rutas/revisiones?estado=${encodeURIComponent(estado)}`);
+export const resolverRevision = (idEntrega, datos) => api(`/rutas/entregas/${idEntrega}/resolver`, { method: "PUT", body: datos });
+export const anularEntrega = (idEntrega, motivo) => api(`/rutas/entregas/${idEntrega}/anular`, { method: "PUT", body: { motivo } });
+export const cerrarAnticipadamente = (idRuta, motivo) => api(`/rutas/${idRuta}/cerrar-anticipadamente`, { method: "PUT", body: { motivo } });
+
+/** Registrar una parada desde la web (respaldo): el mismo multipart que manda la app. */
+export const registrarEntregaParada = (idParada, form) => api(`/rutas/paradas/${idParada}/entrega`, { method: "POST", body: form });
