@@ -140,6 +140,10 @@ export default function PlanificarRuta() {
     });
   };
 
+  const sinPreparar = (propuesta?.paradas ?? [])
+    .flatMap((p) => p.ordenes.map((o) => o.id))
+    .filter((id) => porId.get(id) && !porId.get(id).despacho?.preparada);
+
   const sueltos = [...seleccion]
     .filter((id) => !enLaPropuesta.has(id))
     .map((id) => porId.get(id))
@@ -443,6 +447,7 @@ export default function PlanificarRuta() {
                       <span className="text-sm text-gray-700 truncate">{o.cliente.nombre}</span>
                       <span className={`px-2 py-0.5 rounded-full border text-xs ${TONOS_FECHA[f.tono]}`}>{f.texto}</span>
                       <span className="text-xs text-gray-400">{o.estado}</span>
+                      <EtiquetaDespacho despacho={o.despacho} />
                       {o.ruta && (
                         <Link
                           to={`/Logistica/entregas/${o.ruta.id}`}
@@ -526,6 +531,12 @@ export default function PlanificarRuta() {
                 <Dato titulo="Tiempo manejando" valor={formatearMinutos(propuesta.minutos)} />
                 <Dato titulo="Costo" valor={CLP(propuesta.costo_estimado)} />
               </div>
+              {sinPreparar.length > 0 && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mb-2">
+                  {sinPreparar.map((id) => `OV #${id}`).join(", ")} sin preparar para el despacho: la ruta se guarda igual, pero no se
+                  puede iniciar hasta que bodega diga en cuántos bultos sale cada una (app, al terminar el picking).
+                </p>
+              )}
               {propuesta.editada && (
                 <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mb-2">
                   Cambiaste la ruta: el recorrido y el costo se recalculan al guardar.
@@ -539,7 +550,13 @@ export default function PlanificarRuta() {
                     <div className="min-w-0 flex-1 text-sm">
                       <div className="font-medium text-gray-800 truncate">{p.cliente}</div>
                       <div className="text-xs text-gray-500 truncate">{p.etiqueta}</div>
-                      <div className="text-xs text-gray-400">{p.ordenes.map((o) => `OV #${o.id}`).join(" · ")}</div>
+                      <div className="text-xs text-gray-400 flex flex-wrap items-center gap-x-2">
+                        {p.ordenes.map((o) => (
+                          <span key={o.id}>
+                            OV #{o.id} <EtiquetaDespacho despacho={porId.get(o.id)?.despacho ?? o.despacho} corta />
+                          </span>
+                        ))}
+                      </div>
                     </div>
                     <div className="flex items-center shrink-0">
                       <button type="button" onClick={() => mover(i, -1)} disabled={i === 0} className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30" title="Subir"><ArrowUp className="w-4 h-4" /></button>
@@ -618,6 +635,23 @@ export default function PlanificarRuta() {
         }}
       />
     </div>
+  );
+}
+
+/** Cuántos bultos listos tiene un pedido (plan §17), o que falta prepararlo. */
+function EtiquetaDespacho({ despacho, corta = false }) {
+  if (!despacho) return null;
+  if (!despacho.preparada) {
+    return <span className="px-2 py-0.5 rounded-full border text-[11px] bg-amber-50 text-amber-800 border-amber-200" title="Bodega todavía no dice en cuántos bultos sale">Sin preparar</span>;
+  }
+  const n = despacho.preparados;
+  return (
+    <span
+      className="px-2 py-0.5 rounded-full border text-[11px] bg-green-50 text-green-700 border-green-200"
+      title={despacho.sin_etiqueta ? `${despacho.sin_etiqueta} caja(s) armada(s) sin etiqueta impresa` : "Preparado para el despacho"}
+    >
+      {n} bulto{n === 1 ? "" : "s"}{!corta && despacho.sin_etiqueta ? ` · ${despacho.sin_etiqueta} sin etiqueta` : ""}
+    </span>
   );
 }
 

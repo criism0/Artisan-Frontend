@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ArrowDown, ArrowUp, Ban, ListPlus, Pencil, Receipt, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Ban, ListPlus, Pencil, Printer, Receipt, X } from "lucide-react";
 import PageHeader from "../../components/UI/PageHeader";
 import PanelAcciones from "../../components/UI/PanelAcciones";
 import CargandoVista from "../../components/UI/CargandoVista";
@@ -12,6 +12,8 @@ import ModalCancelarRuta from "../../components/Entregas/ModalCancelarRuta";
 import EntregaParada from "../../components/Entregas/EntregaParada";
 import ModalMotivo from "../../components/Entregas/ModalMotivo";
 import ModalRegistrarRespaldo from "../../components/Entregas/ModalRegistrarRespaldo";
+import FotosMini from "../../components/Entregas/FotosMini";
+import { describirBulto, TONO_BULTO } from "../../utils/despacho";
 
 const TONO_PARADA = {
   Pendiente: "bg-gray-50 text-gray-600 border-gray-200",
@@ -169,6 +171,20 @@ export default function RutaDetail() {
     },
   };
 
+  // Las etiquetas de las cajas armadas de toda la ruta (plan §17), para pegarlas antes de cargar.
+  const accionEtiquetas = {
+    label: "Etiquetas de despacho",
+    icon: <Printer className="w-4 h-4" />,
+    title: "Las etiquetas de las cajas armadas de los pedidos de esta ruta (las cerradas llevan la de su bulto)",
+    onClick: async () => {
+      try {
+        await rutasApi.abrirEtiquetasDespacho({ id_ruta: ruta.id });
+      } catch (e) {
+        toast.error(e.message);
+      }
+    },
+  };
+
   const acciones = borrador ? (
     <PanelAcciones
       principal={{ label: guardando ? "Guardando…" : "Guardar cambios", onClick: guardar, disabled: guardando }}
@@ -176,7 +192,7 @@ export default function RutaDetail() {
     />
   ) : puedeEscribir && ruta.estado === "En curso" ? (
     <PanelAcciones
-      secundarias={[accionNotas]}
+      secundarias={[accionNotas, accionEtiquetas]}
       destructivas={[{ label: "Cerrar anticipadamente", icon: <Ban className="w-4 h-4" />, onClick: () => setCerrandoAntes(true) }]}
     />
   ) : !editable ? (
@@ -186,6 +202,7 @@ export default function RutaDetail() {
       principal={{ label: "Editar", icon: <Pencil className="w-4 h-4" />, onClick: empezarEdicion }}
       secundarias={[
         accionNotas,
+        accionEtiquetas,
         {
           label: "Agregar o quitar pedidos",
           icon: <ListPlus className="w-4 h-4" />,
@@ -322,6 +339,7 @@ export default function RutaDetail() {
                         </span>
                       ))}
                     </div>
+                    {!borrador && <BultosDeParada parada={p} estadoRuta={ruta.estado} />}
                     {!borrador && (
                       <EntregaParada
                         entrega={p.entrega}
@@ -357,6 +375,19 @@ export default function RutaDetail() {
               />
             </ol>
           </div>
+
+          {(ruta.fotos_carga?.length > 0 || ruta.fotos_devolucion?.length > 0) && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h2 className="font-semibold text-gray-900 mb-2">Carga del camión</h2>
+                <FotosMini fotos={ruta.fotos_carga ?? []} tipo="CARGA" vacio="Sin foto de la carga" />
+              </div>
+              <div>
+                <h2 className="font-semibold text-gray-900 mb-2">Lo que volvió</h2>
+                <FotosMini fotos={ruta.fotos_devolucion ?? []} tipo="DEVOLUCION" vacio="No volvió nada" />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -413,6 +444,53 @@ function Campo({ titulo, children }) {
     <div className="flex flex-col gap-1">
       <span className="text-xs text-gray-500">{titulo}</span>
       <div className="text-gray-800">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Los bultos de despacho de los pedidos de una parada (plan §17): antes de salir, cuántos hay
+ * listos (o que falta prepararlos); después, cada bulto con su estado, y si al cargar o al volver
+ * el chofer contó distinto.
+ */
+function BultosDeParada({ parada, estadoRuta }) {
+  if (estadoRuta === "Planificada") {
+    return (
+      <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
+        {parada.ordenes.map((o) =>
+          o.despacho?.preparada ? (
+            <span key={o.id} className="px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-200">
+              OV #{o.id}: {o.despacho.preparados} bulto{o.despacho.preparados === 1 ? "" : "s"}{o.despacho.sin_etiqueta ? ` · ${o.despacho.sin_etiqueta} sin etiqueta` : ""}
+            </span>
+          ) : (
+            <span key={o.id} className="px-2 py-0.5 rounded-full border bg-amber-50 text-amber-800 border-amber-200">OV #{o.id}: sin preparar</span>
+          ),
+        )}
+      </div>
+    );
+  }
+  const conBultos = parada.ordenes.filter((o) => o.bultos?.length);
+  if (!conBultos.length) return null;
+  return (
+    <div className="mt-2 flex flex-col gap-1">
+      {conBultos.map((o) => {
+        const contoDistinto = o.bultos_esperados != null && o.bultos_cargados != null && o.bultos_cargados !== o.bultos_esperados;
+        return (
+          <div key={o.id} className="text-xs">
+            {contoDistinto && (
+              <p className="text-amber-800">
+                OV #{o.id}: había {o.bultos_esperados} preparados y el chofer cargó {o.bultos_cargados}.
+              </p>
+            )}
+            {o.bultos.map((b) => (
+              <div key={b.id} className="flex flex-wrap items-center gap-2">
+                <span className={`px-1.5 py-0.5 rounded-full border text-[10px] ${TONO_BULTO[b.estado] ?? ""}`}>{b.estado}</span>
+                <span className="text-gray-700">{describirBulto(b)}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }

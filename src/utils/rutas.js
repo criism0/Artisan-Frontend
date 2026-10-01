@@ -149,6 +149,12 @@ export function paradasDeRutaGuardada(ruta) {
       numero_oc: o.orden?.numero_oc,
       estado: o.orden?.estado,
       fecha_entrega: o.orden?.fecha_entrega,
+      // Bultos de despacho (plan §17): lo listo antes de salir; lo cargado, entregado y devuelto después.
+      despacho: o.despacho ?? null,
+      bultos: o.bultos ?? [],
+      bultos_esperados: o.bultos_esperados ?? null,
+      bultos_cargados: o.bultos_cargados ?? null,
+      bultos_devueltos: o.bultos_devueltos ?? null,
     })),
   }));
 }

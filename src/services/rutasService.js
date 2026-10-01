@@ -1,5 +1,5 @@
 /** Logística → Entregas: llamadas a `/rutas` (planificación de rutas). */
-import { api } from "../lib/api";
+import { api, apiBlob } from "../lib/api";
 
 export const listarPendientes = () => api("/rutas/pendientes");
 /** Todas las rutas, o las de un día. */
@@ -47,3 +47,22 @@ export const cerrarAnticipadamente = (idRuta, motivo) => api(`/rutas/${idRuta}/c
 
 /** Registrar una parada desde la web (respaldo): el mismo multipart que manda la app. */
 export const registrarEntregaParada = (idParada, form) => api(`/rutas/paradas/${idParada}/entrega`, { method: "POST", body: form });
+
+// ── Bultos de despacho (plan §17): preparar, etiquetas, devoluciones ─────────
+
+/** Lo que falta preparar de una OV, las cajas que pueden salir cerradas y sus preparaciones. */
+export const despachoDeOrden = (idOrden) => api(`/rutas/ordenes/${idOrden}/despacho`);
+/** Preparar desde la web (respaldo de la app de bodega): multipart con `datos` y fotos `preparacion`. */
+export const prepararDespacho = (idOrden, form) => api(`/rutas/ordenes/${idOrden}/preparar`, { method: "POST", body: form });
+export const anularPreparacion = (idPrep) => api(`/rutas/preparaciones/${idPrep}/anular`, { method: "PUT" });
+/** Las etiquetas de las cajas armadas de una OV ({ id_orden_venta }) o de una ruta ({ id_ruta }), en una pestaña nueva. */
+export async function abrirEtiquetasDespacho(filtro) {
+  const blob = await apiBlob("/rutas/despacho/etiquetas", { method: "POST", body: filtro });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener");
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+export const listarDevoluciones = () => api("/rutas/devoluciones");
+export const buscarDevolucion = (codigo) => api(`/rutas/devoluciones/buscar?codigo=${encodeURIComponent(codigo)}`);
+/** accion: "Reintegrar" | "Merma" | "Re-despachar" */
+export const resolverDevolucion = (idBulto, datos) => api(`/rutas/bultos-despacho/${idBulto}/resolver`, { method: "PUT", body: datos });

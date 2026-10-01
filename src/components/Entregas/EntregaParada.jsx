@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Camera, ChevronLeft, ChevronRight, X } from "lucide-react";
-import { buildApiUrl } from "../../lib/api";
+import { ETIQUETA_FOTO, urlFoto } from "./fotos";
 
 /**
  * Lo que registró el chofer en una parada (rutas de entrega, Fase 2): el resultado, las
@@ -11,12 +11,6 @@ import { buildApiUrl } from "../../lib/api";
  * S3 en producción o al archivo local en desarrollo: la misma vista funciona en los dos.
  */
 
-const ETIQUETA_FOTO = {
-  DOCUMENTO_FIRMADO: "Documento firmado",
-  HOJA_RECEPCION: "Hoja de recepción",
-  INCIDENCIA: "Incidencia",
-  COMPROBANTE_EXTERNO: "Comprobante",
-};
 
 const TONO_ENTREGA = {
   Completa: "bg-green-100 text-green-800 border-green-200",
@@ -27,7 +21,6 @@ const TONO_ENTREGA = {
 const fechaHora = (v) =>
   v ? new Date(v).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
 const cantidad = (n) => Number(n).toLocaleString("es-CL", { maximumFractionDigits: 3 });
-const urlFoto = (id) => buildApiUrl(`/rutas/entregas/fotos/${id}`);
 
 /** `onAnular(entrega)`: si viene, se ofrece «Anular registro» (quien planifica, para corregir un error). */
 export default function EntregaParada({ entrega, anuladas = [], onAnular }) {
@@ -190,7 +183,7 @@ export default function EntregaParada({ entrega, anuladas = [], onAnular }) {
 }
 
 /** Las fotos en grande, con flechas y Escape para cerrar. */
-function VisorFotos({ fotos, inicial, onCerrar }) {
+export function VisorFotos({ fotos, inicial, onCerrar }) {
   const [i, setI] = useState(inicial);
   const foto = fotos[i];
 

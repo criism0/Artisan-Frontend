@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Ban, ClipboardCheck, PackageCheck, Route as IconoRuta } from "lucide-react";
+import { Ban, ClipboardCheck, PackageCheck, Route as IconoRuta, Undo2 } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
 import { EditButton, ViewDetailButton } from "../../components/Buttons/ActionButtons";
 import EstadoRuta from "../../components/Entregas/EstadoRuta";
 import ModalCancelarRuta from "../../components/Entregas/ModalCancelarRuta";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
-import { listarRevisiones, listarRutas } from "../../services/rutasService";
+import { listarDevoluciones, listarRevisiones, listarRutas } from "../../services/rutasService";
 import { ESTADOS_RUTA, formatearCLP, formatearFecha, formatearKm, pedidosDeRuta } from "../../utils/rutas";
 
 const nombreCliente = (p) => p.cliente?.nombre_empresa || p.cliente?.razon_social || "";
@@ -23,12 +23,18 @@ export default function Entregas() {
   const [filtroEstado, setFiltroEstado] = useState("Todos");
   const [cancelando, setCancelando] = useState(null);
   const [porRevisar, setPorRevisar] = useState(0);
+  const [devueltos, setDevueltos] = useState(0);
 
   const puedeEscribir = checkScope(ModelType.RUTA, ScopeType.WRITE);
 
   const cargar = useCallback(async () => {
     try {
-      const [r, rev] = await Promise.all([listarRutas(), listarRevisiones("Pendiente").catch(() => [])]);
+      const [r, rev, dev] = await Promise.all([
+        listarRutas(),
+        listarRevisiones("Pendiente").catch(() => []),
+        listarDevoluciones().catch(() => []),
+      ]);
+      setDevueltos(Array.isArray(dev) ? dev.length : 0);
       setRutas(Array.isArray(r) ? r : []);
       setPorRevisar(Array.isArray(rev) ? rev.length : 0);
     } catch (e) {
@@ -219,6 +225,14 @@ export default function Entregas() {
               title="Entregas parciales o rechazadas que alguien tiene que resolver"
             >
               <ClipboardCheck className="w-4 h-4" /> Revisión{porRevisar ? ` (${porRevisar})` : ""}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/Logistica/entregas/devoluciones")}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border ${devueltos ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100" : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}
+              title="Lo que volvió de las rutas: reintegrar, merma o volver a despachar"
+            >
+              <Undo2 className="w-4 h-4" /> Devoluciones{devueltos ? ` (${devueltos})` : ""}
             </button>
             {puedeEscribir && (
               <button
