@@ -195,7 +195,10 @@ export default function Entregas() {
         stickyActions
         getSearchText={getSearchText}
         filters={filtros}
-        initialSort={{ key: "fecha", direction: "desc" }}
+        // Por número, la más nueva arriba (pedido de Cristóbal, 2026-10-01). La clave nueva descarta
+        // el orden por fecha que la lista ya tenía guardado en cada navegador.
+        initialSort={{ key: "id", direction: "desc" }}
+        persistKey="rutas_entregas_v2"
         loading={cargando}
         loadingMessage="Cargando rutas"
         emptyMessage="Todavía no hay rutas. Arma la primera con «Planificar ruta»."
