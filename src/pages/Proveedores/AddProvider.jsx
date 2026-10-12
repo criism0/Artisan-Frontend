@@ -132,6 +132,8 @@ export default function AddProvider() {
     banco: "",
     cuenta: "",
     email_transferencia: "",
+    sitio_web: "",
+    usuario_web: "",
     nombre_contacto: "",
     telefono: "",
   });
@@ -154,6 +156,8 @@ export default function AddProvider() {
     banco: "Banco",
     cuenta: "Tipo de Cuenta",
     email_transferencia: "Email para Transferencias",
+    sitio_web: "Sitio web de compra",
+    usuario_web: "Usuario (opcional)",
     nombre_contacto: "Nombre Contacto Comercial",
     telefono: "Teléfono de Contacto",
   };
@@ -185,6 +189,9 @@ export default function AddProvider() {
       newErrors.email_transferencia = "Debe ingresar el email";
     else if (!isWebpay && !esEmailValido(formData.email_transferencia))
       newErrors.email_transferencia = "Formato de email no válido";
+
+    if (isWebpay && !formData.sitio_web.trim())
+      newErrors.sitio_web = "Indique en qué página web se compra";
 
     if (!formData.nombre_contacto.trim())
       newErrors.nombre_contacto = "Debe ingresar el nombre del contacto";
@@ -401,16 +408,17 @@ export default function AddProvider() {
         </Section>
 
         <Section title="Información de Pago">
-          <FieldRow
-            id="cuenta_corriente"
-            label={labels.cuenta_corriente}
-            value={formData.cuenta_corriente}
-            placeholder={isWebpay ? "-" : "Ej: 12345678"}
-            error={errors.cuenta_corriente}
-            onChange={setField("cuenta_corriente")}
-            numeric
-            disabled={isWebpay}
-          />
+          {!isWebpay && (
+            <FieldRow
+              id="cuenta_corriente"
+              label={labels.cuenta_corriente}
+              value={formData.cuenta_corriente}
+              placeholder="Ej: 12345678"
+              error={errors.cuenta_corriente}
+              onChange={setField("cuenta_corriente")}
+              numeric
+            />
+          )}
           <SimpleSelectRow
             id="banco"
             label={labels.banco}
@@ -419,25 +427,47 @@ export default function AddProvider() {
             error={errors.banco}
             onChange={handleBankChange}
           />
-          <SimpleSelectRow
-            id="cuenta"
-            label={labels.cuenta}
-            value={formData.cuenta}
-            options={isWebpay ? ["-"] : TIPO_CUENTA}
-            error={errors.cuenta}
-            onChange={setField("cuenta")}
-            disabled={isWebpay}
-          />
-          <FieldRow
-            id="email_transferencia"
-            label={labels.email_transferencia}
-            type="email"
-            value={formData.email_transferencia}
-            placeholder={isWebpay ? "-" : "Ej: pagos@empresa.cl"}
-            error={errors.email_transferencia}
-            onChange={setField("email_transferencia")}
-            disabled={isWebpay}
-          />
+          {isWebpay ? (
+            <>
+              <FieldRow
+                id="sitio_web"
+                label={labels.sitio_web}
+                value={formData.sitio_web}
+                placeholder="Ej: https://www.tienda.cl"
+                error={errors.sitio_web}
+                onChange={setField("sitio_web")}
+                required
+              />
+              <FieldRow
+                id="usuario_web"
+                label={labels.usuario_web}
+                value={formData.usuario_web}
+                placeholder="Usuario con que se ingresa, si existe"
+                error={errors.usuario_web}
+                onChange={setField("usuario_web")}
+              />
+            </>
+          ) : (
+            <>
+              <SimpleSelectRow
+                id="cuenta"
+                label={labels.cuenta}
+                value={formData.cuenta}
+                options={TIPO_CUENTA}
+                error={errors.cuenta}
+                onChange={setField("cuenta")}
+              />
+              <FieldRow
+                id="email_transferencia"
+                label={labels.email_transferencia}
+                type="email"
+                value={formData.email_transferencia}
+                placeholder="Ej: pagos@empresa.cl"
+                error={errors.email_transferencia}
+                onChange={setField("email_transferencia")}
+              />
+            </>
+          )}
         </Section>
 
         <Section title="Contacto Comercial">

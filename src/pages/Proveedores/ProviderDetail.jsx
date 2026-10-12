@@ -642,6 +642,7 @@ export default function ProveedorDetail() {
   const comuna = toTitle(prov.comuna);
   const direccion = fmt(prov.direccion);
   const banco = toTitle(prov.banco);
+  const compraWeb = String(prov.banco ?? "").trim().toLowerCase() === "webpay";
   const tipoCuenta = toTitle(prov.cuenta);
   const cuentaNumero = fmt(prov.cuenta_corriente);
   const emailPago = formatEmail(prov.email_transferencia);
@@ -689,9 +690,16 @@ export default function ProveedorDetail() {
             { label: "Dirección", value: direccion },
             { type: "section", label: "Pago" },
             { label: "Banco", value: banco },
-            { label: "Tipo de Cuenta", value: tipoCuenta },
-            { label: "Nº de Cuenta", value: cuentaNumero },
-            { label: "Email para Transferencias", value: emailPago },
+            ...(compraWeb
+              ? [
+                  { label: "Sitio web de compra", value: fmt(prov.sitio_web) },
+                  { label: "Usuario", value: fmt(prov.usuario_web) },
+                ]
+              : [
+                  { label: "Tipo de Cuenta", value: tipoCuenta },
+                  { label: "Nº de Cuenta", value: cuentaNumero },
+                  { label: "Email para Transferencias", value: emailPago },
+                ]),
             { type: "section", label: "Contacto" },
             { label: "Nombre Contacto Comercial", value: nombreContacto },
             { label: "Teléfono", value: telefono },
