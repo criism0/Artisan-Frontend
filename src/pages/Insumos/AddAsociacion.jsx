@@ -105,13 +105,20 @@ export default function AddAsociacion() {
         if (id) {
           const base = insumosActivos.find((i) => i.id === parseInt(id));
           if (base) {
-            setBaseNivel({
-              formato: normalizeFormatoBaseFromUnidad(base.unidad_medida) || "Unidad",
-              unidad: base.unidad_medida || "Unidad",
-              peso_unitario: "",
-              precio_unitario: 0,
-              esBase: true,
-            });
+            // Esta carga (todos los proveedores e insumos) suele terminar DESPUÉS de la consulta de
+            // formatos existentes. Si ya llegó, su base real no se pisa con una en blanco: eso hacía
+            // que el submit intentara crear de nuevo el formato base («Litro»).
+            setBaseNivel((prev) =>
+              prev?.isExisting
+                ? prev
+                : {
+                    formato: normalizeFormatoBaseFromUnidad(base.unidad_medida) || "Unidad",
+                    unidad: base.unidad_medida || "Unidad",
+                    peso_unitario: "",
+                    precio_unitario: 0,
+                    esBase: true,
+                  }
+            );
             setFormData((prev) => ({ ...prev, id_materia_prima: id }));
           }
         }
@@ -347,8 +354,16 @@ export default function AddAsociacion() {
       const extendFrom = asociacionesExistentes?.find((a) => Number(a.id) === Number(extendFromId)) || null;
 
       // 1. Crear la unidad de consumo (base) O usar existente
+      // Si el proveedor ya tiene un formato con ese nombre, se reutiliza en vez de crearlo otra vez
+      // (el backend lo rechaza), aunque la pantalla no lo haya marcado como existente.
+      const nombreBase = String(baseNivel.formato || "").trim().toLowerCase();
+      const baseYaRegistrada = baseNivel.isExisting
+        ? null
+        : asociacionesExistentes?.find((a) => String(a.formato || "").trim().toLowerCase() === nombreBase);
       if (baseNivel.isExisting) {
         idHijoAnterior = extendFrom?.id ?? baseNivel.id;
+      } else if (baseYaRegistrada) {
+        idHijoAnterior = extendFrom?.id ?? baseYaRegistrada.id;
       } else {
         const basePayload = {
           id_proveedor: parseInt(formData.id_proveedor),
@@ -380,8 +395,8 @@ export default function AddAsociacion() {
         .filter((n) => n.formato && n.cantidad)
         .filter((n) => !n.isExisting);
 
-      let precioAcumulado = baseNivel.isExisting
-        ? (Number(extendFrom?.precio_unitario) || Number(baseNivel?.precio_unitario) || 0)
+      let precioAcumulado = baseNivel.isExisting || baseYaRegistrada
+        ? (Number(extendFrom?.precio_unitario) || Number(baseYaRegistrada?.precio_unitario) || Number(baseNivel?.precio_unitario) || 0)
         : (parseFloat(baseNivel.precio_unitario) || 0);
       
       for (const nivel of nivelesValidos) {
