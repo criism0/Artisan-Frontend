@@ -17,6 +17,8 @@ import { toast } from "../../lib/toast.js";
  *   pregunta si queda en las direcciones del cliente o sólo para este pedido (decisión de
  *   Cristóbal, 2026-09-30).
  * - `onElegirDireccion(id)`: guarda una dirección del cliente (opcional).
+ * - `iguales`: cuántos otros pedidos del cliente van a la misma dirección. Si hay, se ofrece
+ *   aplicarles también la nueva (marcado por defecto) y los callbacks reciben `aplicarAIguales`.
  */
 export default function ModalBuscarDireccion({
   abierto,
@@ -27,7 +29,9 @@ export default function ModalBuscarDireccion({
   idBodega,
   onElegirLugar,
   onElegirDireccion,
+  iguales = 0,
 }) {
+  const [aplicarAIguales, setAplicarAIguales] = useState(true);
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState([]);
   const [buscando, setBuscando] = useState(false);
@@ -42,6 +46,7 @@ export default function ModalBuscarDireccion({
     setResultados([]);
     setDirecciones([]);
     setElegido(null);
+    setAplicarAIguales(true);
     if (idCliente && onElegirDireccion) {
       api(`/direcciones/cliente/${idCliente}`)
         .then((ds) => setDirecciones((Array.isArray(ds) ? ds : []).filter((d) => d.tipo_direccion === "Despacho")))
@@ -89,6 +94,15 @@ export default function ModalBuscarDireccion({
         {contexto && (
           <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-3 py-2 whitespace-pre-line">{contexto}</div>
         )}
+        {iguales > 0 && (
+          <label className="flex items-start gap-2 text-sm text-gray-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            <input type="checkbox" className="mt-1" checked={aplicarAIguales} onChange={(e) => setAplicarAIguales(e.target.checked)} />
+            <span>
+              Aplicar también a {iguales === 1 ? "el otro pedido" : `los otros ${iguales} pedidos`} de este cliente que van a la misma
+              dirección <span className="text-gray-500">(no a los que ya están en una ruta, ni si se guarda «sólo para este pedido»)</span>
+            </span>
+          </label>
+        )}
 
         {direcciones.length > 0 && (
           <div className="flex flex-col gap-1">
@@ -98,7 +112,7 @@ export default function ModalBuscarDireccion({
                 key={d.id}
                 type="button"
                 disabled={guardando}
-                onClick={() => elegir(() => onElegirDireccion(d.id))}
+                onClick={() => elegir(() => onElegirDireccion(d.id, { aplicarAIguales: iguales > 0 && aplicarAIguales }))}
                 className="flex items-start gap-2 text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-primary hover:bg-primary/5 disabled:opacity-50"
               >
                 <Building2 className="w-4 h-4 mt-0.5 text-gray-400 shrink-0" />
@@ -139,7 +153,7 @@ export default function ModalBuscarDireccion({
                 <button
                   type="button"
                   disabled={guardando}
-                  onClick={() => elegir(() => onElegirLugar(elegido, { guardarEnCliente: true }))}
+                  onClick={() => elegir(() => onElegirLugar(elegido, { guardarEnCliente: true, aplicarAIguales: iguales > 0 && aplicarAIguales }))}
                   className="px-3 py-1.5 text-sm rounded-lg bg-primary text-white hover:bg-primary-dark disabled:opacity-50"
                   title="Queda como dirección de despacho del cliente, para usarla en otros pedidos"
                 >

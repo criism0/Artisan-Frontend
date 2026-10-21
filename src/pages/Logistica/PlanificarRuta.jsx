@@ -150,6 +150,17 @@ export default function PlanificarRuta() {
     .filter((o) => o?.punto?.lat != null)
     .map((o) => ({ lat: o.punto.lat, lng: o.punto.lng, etiqueta: `OV #${o.id} · ${o.cliente.nombre}` }));
 
+  /** Los otros pedidos del mismo cliente que van a la misma dirección guardada y no están en una ruta. */
+  const igualesA = (orden) =>
+    orden.punto?.origen === "direccion"
+      ? pendientes.filter((o) => o.id !== orden.id && o.cliente.id === orden.cliente.id && o.punto?.origen === "direccion" && o.punto.id === orden.punto.id && !o.ruta)
+      : [];
+
+  const avisarDireccionDefinida = (idOv, r) => {
+    const n = Number(r?.iguales_actualizadas ?? 0);
+    toast.success(n ? `Dirección de la OV #${idOv} definida, y de ${n} pedido${n > 1 ? "s" : ""} más del cliente` : `Dirección de la OV #${idOv} definida`);
+  };
+
   const errorBodega = (e) => {
     if (e?.data?.code === "BODEGA_SIN_UBICAR") {
       toast.error(e.message);
@@ -613,14 +624,15 @@ export default function PlanificarRuta() {
           ].filter(Boolean).join("\n")}
           idCliente={buscando.orden.cliente.id}
           idBodega={idBodega}
-          onElegirLugar={async (lugar, { guardarEnCliente }) => {
-            await rutasApi.definirPuntoEntrega(buscando.orden.id, { lugar, guardar_en_cliente: guardarEnCliente });
-            toast.success(`Dirección de la OV #${buscando.orden.id} definida`);
+          iguales={igualesA(buscando.orden).length}
+          onElegirLugar={async (lugar, { guardarEnCliente, aplicarAIguales }) => {
+            const r = await rutasApi.definirPuntoEntrega(buscando.orden.id, { lugar, guardar_en_cliente: guardarEnCliente, aplicar_a_iguales: aplicarAIguales });
+            avisarDireccionDefinida(buscando.orden.id, r);
             await cargarPendientes();
           }}
-          onElegirDireccion={async (id) => {
-            await rutasApi.definirPuntoEntrega(buscando.orden.id, { id_direccion: id });
-            toast.success(`Dirección de la OV #${buscando.orden.id} definida`);
+          onElegirDireccion={async (id, { aplicarAIguales }) => {
+            const r = await rutasApi.definirPuntoEntrega(buscando.orden.id, { id_direccion: id, aplicar_a_iguales: aplicarAIguales });
+            avisarDireccionDefinida(buscando.orden.id, r);
             await cargarPendientes();
           }}
         />
