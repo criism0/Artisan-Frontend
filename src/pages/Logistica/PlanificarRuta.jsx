@@ -150,16 +150,12 @@ export default function PlanificarRuta() {
     .filter((o) => o?.punto?.lat != null)
     .map((o) => ({ lat: o.punto.lat, lng: o.punto.lng, etiqueta: `OV #${o.id} · ${o.cliente.nombre}` }));
 
-  /** Los otros pedidos del mismo cliente que van a la misma dirección guardada y no están en una ruta. */
-  const igualesA = (orden) =>
-    orden.punto?.origen === "direccion"
-      ? pendientes.filter((o) => o.id !== orden.id && o.cliente.id === orden.cliente.id && o.punto?.origen === "direccion" && o.punto.id === orden.punto.id && !o.ruta)
-      : [];
-
-  const avisarDireccionDefinida = (idOv, r) => {
-    const n = Number(r?.iguales_actualizadas ?? 0);
-    toast.success(n ? `Dirección de la OV #${idOv} definida, y de ${n} pedido${n > 1 ? "s" : ""} más del cliente` : `Dirección de la OV #${idOv} definida`);
-  };
+  const avisarDireccionDefinida = (orden, predeterminada) =>
+    toast.success(
+      predeterminada
+        ? `Dirección de la OV #${orden.id} definida y guardada como la predeterminada de ${orden.cliente.nombre}`
+        : `Dirección de la OV #${orden.id} definida`,
+    );
 
   const errorBodega = (e) => {
     if (e?.data?.code === "BODEGA_SIN_UBICAR") {
@@ -477,6 +473,11 @@ export default function PlanificarRuta() {
                         <span className="inline-flex items-center gap-1 text-gray-600 min-w-0">
                           <MapPin className="w-3.5 h-3.5 shrink-0 text-gray-400" />
                           <span className="truncate">{o.punto.texto}</span>
+                          {o.punto.predeterminada && (
+                            <span className="text-[11px] text-gray-500 shrink-0" title="El pedido apunta a la dirección de facturación: va a la de despacho predeterminada del cliente">
+                              · predeterminada del cliente
+                            </span>
+                          )}
                           {o.estado_direccion === "revisar" && (
                             <span className="inline-flex items-center gap-1 text-amber-700 text-xs">
                               <AlertTriangle className="w-3 h-3" /> {o.motivo_direccion}
@@ -624,15 +625,15 @@ export default function PlanificarRuta() {
           ].filter(Boolean).join("\n")}
           idCliente={buscando.orden.cliente.id}
           idBodega={idBodega}
-          iguales={igualesA(buscando.orden).length}
-          onElegirLugar={async (lugar, { guardarEnCliente, aplicarAIguales }) => {
-            const r = await rutasApi.definirPuntoEntrega(buscando.orden.id, { lugar, guardar_en_cliente: guardarEnCliente, aplicar_a_iguales: aplicarAIguales });
-            avisarDireccionDefinida(buscando.orden.id, r);
+          nombreCliente={buscando.orden.cliente.nombre}
+          onElegirLugar={async (lugar, { guardarEnCliente, predeterminada }) => {
+            await rutasApi.definirPuntoEntrega(buscando.orden.id, { lugar, guardar_en_cliente: guardarEnCliente, predeterminada });
+            avisarDireccionDefinida(buscando.orden, predeterminada);
             await cargarPendientes();
           }}
-          onElegirDireccion={async (id, { aplicarAIguales }) => {
-            const r = await rutasApi.definirPuntoEntrega(buscando.orden.id, { id_direccion: id, aplicar_a_iguales: aplicarAIguales });
-            avisarDireccionDefinida(buscando.orden.id, r);
+          onElegirDireccion={async (id, { predeterminada }) => {
+            await rutasApi.definirPuntoEntrega(buscando.orden.id, { id_direccion: id, predeterminada });
+            avisarDireccionDefinida(buscando.orden, predeterminada);
             await cargarPendientes();
           }}
         />

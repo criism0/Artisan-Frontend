@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { MapPin, Search } from "lucide-react";
 import Modal from "../UI/Modal";
 import MapaPin from "../Mapas/MapaPin";
-import { buscarLugar, ubicarBodega } from "../../services/rutasService";
+import { ubicarBodega } from "../../services/rutasService";
+import useAutocompletarLugar from "../../hooks/useAutocompletarLugar";
 import { toast } from "../../lib/toast.js";
 
 /**
@@ -14,53 +15,31 @@ import { toast } from "../../lib/toast.js";
  * dijo Google para poder revisarlo después.
  */
 export default function ModalUbicarBodega({ abierto, onCerrar, bodega, onGuardada }) {
-  const [texto, setTexto] = useState("");
-  const [resultados, setResultados] = useState([]);
-  const [buscando, setBuscando] = useState(false);
+  const { texto, setTexto, sugerencias, buscando, elegir: detalle } = useAutocompletarLugar({ activo: abierto, idBodega: bodega?.id });
   const [pin, setPin] = useState({ lat: null, lng: null });
   const [lugar, setLugar] = useState(null); // { formateada, simulado }
   const [ajustado, setAjustado] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const pedido = useRef(0);
 
   // Al abrir: lo guardado, y el buscador precargado con la dirección escrita de la bodega.
   useEffect(() => {
     if (!abierto || !bodega) return;
     setTexto([bodega.direccion, bodega.comuna].filter(Boolean).join(", "));
-    setResultados([]);
     setPin({ lat: bodega.lat ?? null, lng: bodega.lng ?? null });
     setLugar(bodega.geo_direccion_formateada ? { formateada: bodega.geo_direccion_formateada, simulado: false } : null);
     setAjustado(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [abierto, bodega?.id]);
 
-  useEffect(() => {
-    if (!abierto) return undefined;
-    const t = texto.trim();
-    if (t.length < 3) {
-      setResultados([]);
-      return undefined;
+  const elegir = async (sugerencia) => {
+    try {
+      const l = await detalle(sugerencia);
+      setPin({ lat: l.lat, lng: l.lng });
+      setLugar({ formateada: l.direccion_formateada, simulado: String(l.id).startsWith("simulado") });
+      setAjustado(false);
+    } catch (e) {
+      toast.error(e.message);
     }
-    const id = ++pedido.current;
-    const timer = setTimeout(async () => {
-      setBuscando(true);
-      try {
-        const r = await buscarLugar(t, bodega?.id);
-        if (id === pedido.current) setResultados(Array.isArray(r) ? r : []);
-      } catch (e) {
-        if (id === pedido.current) toast.error(e.message);
-      } finally {
-        if (id === pedido.current) setBuscando(false);
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [texto, abierto, bodega?.id]);
-
-  const elegir = (l) => {
-    setPin({ lat: l.lat, lng: l.lng });
-    setLugar({ formateada: l.direccion_formateada, simulado: String(l.id).startsWith("simulado-") });
-    setAjustado(false);
-    setResultados([]);
   };
 
   const cambio =
@@ -115,20 +94,20 @@ export default function ModalUbicarBodega({ abierto, onCerrar, bodega, onGuardad
             placeholder="Dirección o nombre del lugar"
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          {(buscando || resultados.length > 0) && (
+          {(buscando || sugerencias.length > 0) && (
             <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-1 flex flex-col gap-1">
               {buscando && <span className="text-xs text-gray-400 px-2 py-1">Buscando…</span>}
-              {resultados.map((l) => (
+              {sugerencias.map((s) => (
                 <button
-                  key={l.id}
+                  key={s.id}
                   type="button"
-                  onClick={() => elegir(l)}
+                  onClick={() => elegir(s)}
                   className="flex items-start gap-2 text-left px-3 py-2 rounded-md hover:bg-primary/5"
                 >
                   <MapPin className="w-4 h-4 mt-0.5 text-primary shrink-0" />
                   <span className="text-sm">
-                    {l.nombre && <span className="block font-medium text-gray-800">{l.nombre}</span>}
-                    <span className="text-gray-600">{l.direccion_formateada}</span>
+                    <span className="block font-medium text-gray-800">{s.principal}</span>
+                    {s.secundario && <span className="text-gray-500">{s.secundario}</span>}
                   </span>
                 </button>
               ))}

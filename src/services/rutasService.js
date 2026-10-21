@@ -18,6 +18,13 @@ export const guardarCostoKm = (costo_km) => api("/rutas/parametros", { method: "
 export const buscarLugar = (texto, idBodega) =>
   api(`/rutas/buscar-lugar?texto=${encodeURIComponent(texto)}${idBodega ? `&id_bodega=${idBodega}` : ""}`);
 
+/** Sugerencias mientras se escribe (Google Places Autocomplete): [{ id, principal, secundario }]. */
+export const autocompletarLugar = (texto, idBodega, sesion) =>
+  api(`/rutas/autocompletar-lugar?texto=${encodeURIComponent(texto)}${idBodega ? `&id_bodega=${idBodega}` : ""}${sesion ? `&sesion=${sesion}` : ""}`);
+
+/** El lugar de una sugerencia, con su punto y la dirección en partes. */
+export const detalleLugar = (id, sesion) => api(`/rutas/lugares/${encodeURIComponent(id)}${sesion ? `?sesion=${sesion}` : ""}`);
+
 /** { fecha, id_bodega, ordenes? } → ruta recomendada (no se guarda). */
 export const sugerirRuta = (datos) => api("/rutas/sugerir", { method: "POST", body: datos });
 
