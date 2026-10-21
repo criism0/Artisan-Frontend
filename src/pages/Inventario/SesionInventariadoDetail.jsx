@@ -432,7 +432,12 @@ export default function SesionInventariadoDetail() {
             columns={[
               ...COLS_BASE,
               { key: "sis", label: "Sistema", render: (b) => fmt(b.unidades_disponibles) },
-              { key: "cont", label: "Contado", render: (b) => <span className="font-semibold">{fmt(b.unidades_contadas)}</span> },
+              { key: "cont", label: "Contado", render: (b) => fmt(b.unidades_contadas) },
+              // Lo contado es del momento del escaneo: si después hubo un consumo, un picking o una
+              // solicitud, eso se suma y no se deshace al validar.
+              { key: "mov", label: "Movido después", render: (b) =>
+                b.movimiento_posterior ? `${b.movimiento_posterior > 0 ? "+" : ""}${fmt(b.movimiento_posterior)}` : "—" },
+              { key: "res", label: "Quedará", render: (b) => <span className="font-semibold">{fmt(b.unidades_resultado ?? b.unidades_contadas)}</span> },
               { key: "dif", label: "Diferencia", render: (b) => (
                 <span className={b.diferencia_unidades < 0 ? "text-red-600" : "text-green-700"}>
                   {b.diferencia_unidades > 0 ? "+" : ""}{fmt(b.diferencia_unidades)}
@@ -465,6 +470,18 @@ export default function SesionInventariadoDetail() {
             ]}
           />
           <Seccion
+            titulo="Movidos después de contarlos (otro proceso los llevó a otra bodega o a un pallet — NO se tocan)"
+            tono="gris"
+            items={diff.movidos_despues ?? []}
+            columns={[
+              ...COLS_BASE,
+              { key: "bod", label: "Bodega actual", render: (b) => b.bodega_nombre ?? "—" },
+              { key: "cont", label: "Contado", render: (b) => fmt(b.unidades_contadas) },
+              { key: "u", label: "Unidades ahora", render: (b) => fmt(b.unidades_disponibles) },
+              COL_ESCANEO,
+            ]}
+          />
+          <Seccion
             titulo="Omitidos por estar en pallet (comprometidos en otro proceso — NO se tocan)"
             tono="gris"
             items={diff.omitidos_en_pallet}
@@ -489,6 +506,9 @@ export default function SesionInventariadoDetail() {
               <li>• <span className="font-semibold">{r.traslados}</span> traslado(s) desde otras bodegas</li>
               <li>• <span className="font-semibold">{r.reaparecidos}</span> bulto(s) desmarcados de merma</li>
               <li className="text-red-700">• <span className="font-semibold">{r.faltantes_a_merma}</span> faltante(s) se marcarán como MERMA</li>
+              {r.movidos_despues > 0 && (
+                <li className="text-gray-500">• {r.movidos_despues} movido(s) después de contarlos no se tocan</li>
+              )}
               {r.omitidos_en_pallet > 0 && (
                 <li className="text-gray-500">• {r.omitidos_en_pallet} en pallet no se tocan</li>
               )}
