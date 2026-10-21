@@ -51,12 +51,14 @@ export default function MapaRuta({ bodega, paradas = [], sueltos = [], polilinea
     dibujos.current.forEach((d) => d.setMap(null));
     dibujos.current = [];
     const limites = new maps.LatLngBounds();
+    let puntos = 0;
     const agregar = (d) => dibujos.current.push(d);
 
     if (bodega?.lat != null) {
       const p = { lat: bodega.lat, lng: bodega.lng };
       agregar(new maps.Marker({ map: mapa.current, position: p, title: `Bodega ${bodega.nombre}`, label: { text: "B", color: "#fff", fontWeight: "700" } }));
       limites.extend(p);
+      puntos += 1;
     }
     paradas.forEach((p, i) => {
       agregar(new maps.Marker({
@@ -66,6 +68,7 @@ export default function MapaRuta({ bodega, paradas = [], sueltos = [], polilinea
         label: { text: String(i + 1), color: "#fff", fontWeight: "700" },
       }));
       limites.extend({ lat: p.lat, lng: p.lng });
+      puntos += 1;
     });
     sueltos.forEach((p) => {
       agregar(new maps.Marker({
@@ -75,12 +78,18 @@ export default function MapaRuta({ bodega, paradas = [], sueltos = [], polilinea
         icon: { path: maps.SymbolPath.CIRCLE, scale: 6, fillColor: COLOR_SUELTO, fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 },
       }));
       limites.extend({ lat: p.lat, lng: p.lng });
+      puntos += 1;
     });
     const camino = polilinea ? decodificarPolilinea(polilinea) : caminoDeRuta(bodega, paradas, vuelve);
     if (camino.length) {
       agregar(new maps.Polyline({ map: mapa.current, path: camino, strokeColor: COLOR_RUTA, strokeOpacity: 0.8, strokeWeight: 4 }));
     }
-    if (!limites.isEmpty()) mapa.current.fitBounds(limites, 48);
+    // Con un solo punto (sólo la bodega, antes de elegir pedidos) `fitBounds` acerca al máximo y
+    // se ve un techo gris: se centra a escala de ciudad.
+    if (puntos === 1) {
+      mapa.current.setCenter(limites.getCenter());
+      mapa.current.setZoom(12);
+    } else if (puntos > 1) mapa.current.fitBounds(limites, 48);
   }
 
   if (sinMapa) return <Croquis bodega={bodega} paradas={paradas} sueltos={sueltos} vuelve={vuelve} alto={alto} />;

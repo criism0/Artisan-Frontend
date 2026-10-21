@@ -175,7 +175,6 @@ export default function PlanificarRuta() {
       }
       setPropuesta({ ...r, editada: false, idRuta: propuesta?.idRuta ?? null });
       setSeleccion(new Set(r.paradas.flatMap((p) => p.ordenes.map((o) => o.id))));
-      r.avisos?.forEach((a) => toast.warning(a));
     } catch (e) {
       if (!errorBodega(e)) toast.error(e.message);
     } finally {
@@ -533,10 +532,12 @@ export default function PlanificarRuta() {
               </div>
               {sinPreparar.length > 0 && (
                 <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mb-2">
-                  {sinPreparar.map((id) => `OV #${id}`).join(", ")} sin preparar para el despacho: la ruta se guarda igual, pero no se
-                  puede iniciar hasta que bodega diga en cuántos bultos sale cada una (app, al terminar el picking).
+                  {sinPreparar.slice(0, 8).map((id) => `OV #${id}`).join(", ")}
+                  {sinPreparar.length > 8 ? ` y ${sinPreparar.length - 8} más` : ""} sin preparar para el despacho: la ruta se guarda
+                  igual, pero no se puede iniciar hasta que bodega diga en cuántos bultos sale cada una (app, al terminar el picking).
                 </p>
               )}
+              <AvisosRuta avisos={propuesta.avisos} />
               {propuesta.editada && (
                 <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mb-2">
                   Cambiaste la ruta: el recorrido y el costo se recalculan al guardar.
@@ -660,6 +661,32 @@ function Dato({ titulo, valor }) {
     <div className="bg-gray-50 rounded-lg py-2">
       <div className="text-[11px] text-gray-500">{titulo}</div>
       <div className="text-sm font-semibold text-gray-900">{valor}</div>
+    </div>
+  );
+}
+
+/**
+ * Lo que la recomendación quiere que se mire: direcciones por revisar, lo que quedó fuera por
+ * lejos o por cupo. Se muestran los primeros; el resto, plegado (con la cola sin corte podían ser
+ * más de cien, y antes salía un aviso flotante por cada uno).
+ */
+function AvisosRuta({ avisos = [] }) {
+  if (!avisos.length) return null;
+  const VISIBLES = 3;
+  const Item = ({ texto }) => <li className="flex gap-1.5"><AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />{texto}</li>;
+  return (
+    <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mb-2">
+      <ul className="flex flex-col gap-1">
+        {avisos.slice(0, VISIBLES).map((a) => <Item key={a} texto={a} />)}
+      </ul>
+      {avisos.length > VISIBLES && (
+        <details className="mt-1">
+          <summary className="cursor-pointer font-medium">Ver {avisos.length - VISIBLES} aviso{avisos.length - VISIBLES > 1 ? "s" : ""} más</summary>
+          <ul className="flex flex-col gap-1 mt-1">
+            {avisos.slice(VISIBLES).map((a) => <Item key={a} texto={a} />)}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }

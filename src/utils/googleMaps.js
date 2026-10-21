@@ -31,7 +31,7 @@ export function cargarGoogleMaps() {
     };
     window.__artisanMapsListo = () => resolver(window.google.maps);
     const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(LLAVE)}&v=weekly&language=es&region=CL&callback=__artisanMapsListo`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(LLAVE)}&v=weekly&language=es&region=CL&loading=async&callback=__artisanMapsListo`;
     s.async = true;
     s.onerror = () => {
       promesa = null; // permite reintentar si fue un corte de red
