@@ -15,6 +15,8 @@ const ACCIONES = [
   { accion: "Merma", texto: "Dar de merma", tono: "bg-red-600 hover:bg-red-700", detalle: "Vuelve marcado merma: no se ofrece como stock bueno." },
   { accion: "Re-despachar", texto: "Vuelve a salir", tono: "bg-primary hover:bg-primary-dark", detalle: "Queda listo para otra ruta, sin tocar el inventario." },
 ];
+// Lo que no existía en el inventario tampoco entra como merma: queda registrado como pérdida.
+const DETALLE_MERMA_SIN_TRAZABILIDAD = "Queda registrado como merma; no entra al inventario.";
 
 /**
  * Logística → Entregas → Devoluciones (plan de rutas §17): lo que volvió de las rutas y espera
@@ -83,7 +85,13 @@ export default function Devoluciones() {
   const columns = [
     { header: "OV", accessor: "id_orden_venta", sortable: true, Cell: ({ value }) => <Link to={`/ventas/ordenes/${value}`} className="text-primary hover:underline">#{value}</Link> },
     { header: "Cliente", accessor: "cliente", sortable: true },
-    { header: "Bulto", accessor: "tipo", sortable: true, filtro: false, Cell: ({ row }) => <span className="text-sm">{describirBulto(row)}</span> },
+    { header: "Bulto", accessor: "tipo", sortable: true, filtro: false, Cell: ({ row }) => (
+        <span className="text-sm">
+          {describirBulto(row)}
+          {row.sin_trazabilidad && <span className="block text-xs text-amber-700" title="Pedido pickeado por cantidad: no se reintegra al inventario">Sin trazabilidad</span>}
+        </span>
+      ),
+    },
     {
       header: "Estado",
       accessor: "estado",
@@ -149,10 +157,17 @@ export default function Devoluciones() {
               <p className="text-xs text-gray-500 mb-1">Dónde lo dejó el chofer</p>
               <FotosMini fotos={abierta.fotos ?? []} tipo="DEVOLUCION" vacio="Sin foto de la vuelta" />
             </div>
+            {abierta.sin_trazabilidad && (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                <strong>Sin trazabilidad.</strong> Estas unidades no existían en el inventario antes de preparar el despacho: el pedido
+                se pickeó por cantidad, sin QR, así que no tienen lote ni costo de origen y no se pueden agregar al inventario.
+                Resuélvelo como merma o vuelve a despacharlo.
+              </p>
+            )}
             {decidible && puede ? (
               <>
                 <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Nota (opcional): en qué estado volvió" className="h-9 px-3 border border-gray-300 rounded-lg" />
-                {ACCIONES.filter((a) => !(a.accion === "Re-despachar" && abierta.tipo === "Suelto")).map((a) => (
+                {ACCIONES.filter((a) => !(a.accion === "Re-despachar" && abierta.tipo === "Suelto") && !(a.accion === "Reintegrar" && abierta.sin_trazabilidad)).map((a) => (
                   <button
                     key={a.accion}
                     type="button"
@@ -161,7 +176,7 @@ export default function Devoluciones() {
                     className={`text-left px-4 py-2.5 rounded-lg text-white ${a.tono} disabled:opacity-50`}
                   >
                     <span className="font-medium">{a.texto}</span>
-                    <span className="block text-xs text-white/85">{a.detalle}</span>
+                    <span className="block text-xs text-white/85">{a.accion === "Merma" && abierta.sin_trazabilidad ? DETALLE_MERMA_SIN_TRAZABILIDAD : a.detalle}</span>
                   </button>
                 ))}
               </>
