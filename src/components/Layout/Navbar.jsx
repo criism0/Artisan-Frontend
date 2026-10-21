@@ -15,7 +15,7 @@ import {
   ShieldUser,
   Bot,
   Link2,
-  PackageMinus
+  PackageMinus, MapPinned,
 } from "lucide-react";
 import { FaTruck, FaWarehouse, FaRegSmile, FaList, FaBroom, FaUsers, FaQrcode, FaClipboardCheck
 } from "react-icons/fa";
@@ -96,6 +96,7 @@ export default function Navbar() {
             <MenuGroup label="Logística" icon={<Box />}>
               <MenuLink to="/Logistica/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
               <MenuLink to="/Solicitudes" icon={<Inbox />} label="Solicitudes" isAllowed={checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.READ)} />
+              <MenuLink to="/Logistica/entregas" icon={<MapPinned />} label="Entregas" isAllowed={checkScope(ModelType.RUTA, ScopeType.READ)} />
             </MenuGroup>
           </Dropdown>
 

@@ -123,6 +123,12 @@ const LoteDetail = lazy(() => import("./pages/Lotes/LotesDetail.jsx"));
 const LoteProductoFinalDetail = lazy(() => import("./pages/Lotes/LoteProductoFinalDetail.jsx"));
 
 const LogisticaDashboard = lazy(() => import("./pages/Logistica/LogisticaDashboard"));
+const Entregas = lazy(() => import("./pages/Logistica/Entregas"));
+const PlanificarRuta = lazy(() => import("./pages/Logistica/PlanificarRuta"));
+const RutaDetail = lazy(() => import("./pages/Logistica/RutaDetail"));
+const RevisionEntregas = lazy(() => import("./pages/Logistica/RevisionEntregas"));
+const Devoluciones = lazy(() => import("./pages/Logistica/Devoluciones"));
+const EntregasSinRuta = lazy(() => import("./pages/Logistica/EntregasSinRuta"));
 const AsignarVenta = lazy(() => import("./pages/Ventas/AsignarVenta.jsx"));
 const ResumenAsignacionVenta = lazy(() => import("./pages/Ventas/ResumenAsignacionVenta.jsx"));
 
@@ -445,6 +451,54 @@ function Routing() {
                 <LogisticaDashboard />
               </ProtectedRoute>
             } 
+          />
+          <Route
+            path="/Logistica/entregas"
+            element={
+              <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
+                <Entregas />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/Logistica/entregas/planificar"
+            element={
+              <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.WRITE]]}>
+                <PlanificarRuta />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/Logistica/entregas/sin-ruta"
+            element={
+              <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
+                <EntregasSinRuta />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/Logistica/entregas/revision"
+            element={
+              <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
+                <RevisionEntregas />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/Logistica/entregas/devoluciones"
+            element={
+              <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
+                <Devoluciones />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/Logistica/entregas/:id"
+            element={
+              <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
+                <RutaDetail />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/Logistica"
