@@ -9,7 +9,7 @@ import { entregaDeOrden, entregaVacia, ubicacionDeDireccion, ubicacionDeEntrega 
 
 describe("qué ubicación sirve para rutear (espejo del backend)", () => {
   it("sólo la puerta, la cuadra o el pin manual", () => {
-    for (const p of ["ROOFTOP", "RANGE_INTERPOLATED", "MANUAL"]) expect(esUbicacionConfiable(-33, -70, p)).toBe(true);
+    for (const p of ["ROOFTOP", "RANGE_INTERPOLATED", "MANUAL", "LUGAR_ELEGIDO", "LUGAR_VERIFICADO"]) expect(esUbicacionConfiable(-33, -70, p)).toBe(true);
     for (const p of ["GEOMETRIC_CENTER", "APPROXIMATE", "PARCIAL", "COMUNA_DISTINTA", null]) {
       expect(esUbicacionConfiable(-33, -70, p)).toBe(false);
     }
