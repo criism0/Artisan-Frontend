@@ -1,0 +1,18 @@
+# Todo archivo de texto se guarda con fin de línea LF, se edite donde se edite (Windows, WSL o
+# el editor de GitHub). Sin esto, un commit desde Windows convirtió 35 archivos a CRLF sin cambiar
+# su contenido, y cualquier rama que los tocara mostraba el archivo entero como cambiado.
+* text=auto eol=lf
+
+# Binarios: nunca se convierten.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.xlsx binary
+*.docx binary
