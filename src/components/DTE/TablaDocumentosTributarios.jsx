@@ -43,16 +43,10 @@ export default function TablaDocumentosTributarios({
     return <p className="text-sm text-gray-400 italic py-3">Cargando documentos…</p>;
   }
 
+  // Vacío en una línea: un recuadro punteado de 90 px para decir «no hay nada» pesaba más que
+  // la tabla llena. Cómo traer un documento emitido afuera lo explica el «(?)» de la cabecera.
   if (documentos.length === 0) {
-    return (
-      <div className="border border-dashed border-gray-300 rounded-lg py-6 text-center">
-        <p className="text-sm text-gray-500">Esta orden todavía no tiene documentos tributarios.</p>
-        <p className="text-xs text-gray-400 mt-1">
-          Si se emitió alguno fuera del ERP —en el panel de LibreDTE o en el portal del SII— se
-          puede vincular con «Vincular documento externo».
-        </p>
-      </div>
-    );
+    return <p className="text-sm text-gray-400 py-2">Sin documentos tributarios todavía.</p>;
   }
 
   return (
@@ -86,7 +80,7 @@ export default function TablaDocumentosTributarios({
                 <td className="px-3 py-2">
                   {esExterno ? (
                     <span
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-50 text-amber-800 border border-amber-200"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs text-gray-600 border border-gray-200"
                       title={
                         'Se emitió fuera del ERP y se vinculó a mano. ' +
                         'No trae el detalle de líneas porque LibreDTE no lo entrega.' +

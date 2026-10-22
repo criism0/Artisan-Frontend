@@ -154,7 +154,7 @@ export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, compacto = 
           type="button"
           onClick={() => inputArchivo.current?.click()}
           disabled={subiendo}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
         >
           <Upload className="w-3.5 h-3.5" /> Adjuntar archivo
         </button>
@@ -229,13 +229,10 @@ export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, compacto = 
         {cargando ? (
           <p className="text-sm text-gray-500 py-3">Cargando archivos…</p>
         ) : adjuntos.length === 0 ? (
-          <div className="border border-dashed border-gray-300 rounded-lg py-6 text-center">
-            <p className="text-sm text-gray-500">No hay archivos adjuntos.</p>
-            <p className="text-xs text-gray-400 mt-1">
-              Arrastrá un archivo acá, o usá «Adjuntar archivo». Se aceptan fotos, PDF, planillas
-              y documentos.
-            </p>
-          </div>
+          // La zona sigue recibiendo archivos arrastrados: no hace falta un recuadro que lo anuncie.
+          <p className="text-sm text-gray-400 py-2">
+            Sin archivos. Arrastra uno aquí o usa «Adjuntar archivo» (fotos, PDF, planillas, documentos).
+          </p>
         ) : (
           <ul className="divide-y divide-gray-100">
             {adjuntos.map((a) => {

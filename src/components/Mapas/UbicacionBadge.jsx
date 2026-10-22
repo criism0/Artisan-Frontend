@@ -1,8 +1,9 @@
 import { MapPin, MapPinOff, AlertTriangle } from "lucide-react";
 import { describirUbicacion } from "../../utils/ubicacion";
 
+// Una ubicación bien puesta no necesita color: sólo la dudosa o la que falta piden atención.
 const ESTILOS = {
-  ok: "bg-green-50 text-green-800 border-green-200",
+  ok: "bg-white text-gray-600 border-gray-200",
   duda: "bg-amber-50 text-amber-800 border-amber-200",
   falta: "bg-red-50 text-red-700 border-red-200",
 };
