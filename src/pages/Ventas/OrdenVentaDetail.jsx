@@ -38,6 +38,7 @@ import { resumenFacturable } from "../../utils/cantidadFacturable.js";
 import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
 import { puedeCancelarOV, puedeReabrirCancelacion } from "../../utils/ordenVentaCancelable.js";
 import { resumenSaldo, puedeCerrarSaldo, ESTADO_FACTURADA_PARCIAL } from "../../utils/saldoFacturacion.js";
+import { formatFecha, getTodayDate } from "../../lib/dateUtils";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
 const btn = {
@@ -873,12 +874,7 @@ export default function OrdenVentaDetail() {
   };
 
   // ── Helpers de presentación ─────────────────────────────────────────────────
-  const formatDate = (value) => {
-    if (!value) return "—";
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("es-CL");
-  };
+  const formatDate = (value) => formatFecha(value);
 
   const fmtInt = (value) => {
     const n = Number(value ?? 0);
@@ -957,7 +953,8 @@ export default function OrdenVentaDetail() {
           loadDireccionesCliente(cliente?.id);
           // La fecha de pago se propone desde la condición del cliente, y sólo cuando se puede
           // leer con certeza. Lo que ya tenga la orden manda: alguien la escribió a propósito.
-          const hoy = new Date().toISOString().slice(0, 10);
+          // Hoy en Chile: `toISOString()` da el día UTC, que después de las 21:00 ya es mañana.
+          const hoy = getTodayDate();
           // La precedencia es la MISMA que aplica el backend al emitir: lo guardado en la orden
           // manda, después la condición del documento del cliente, y al final su ficha. Si la
           // pantalla propusiera una y el documento saliera con otra, nadie se entera.

@@ -15,6 +15,7 @@ import { Inbox, Search, RefreshCw, FileText, Truck, FileMinus, FilePlus } from '
 import { dteService } from '../../services/dteService.js';
 import { formatCLP } from '../../services/formatHelpers.js';
 import { toast } from '../../lib/toast.js';
+import { formatFecha } from '../../lib/dateUtils';
 
 const TIPO_LABEL = {
   33: 'Factura',
@@ -39,15 +40,6 @@ const TIPO_OPTIONS = [
   { value: '61', label: 'Nota de Crédito (61)' },
   { value: '56', label: 'Nota de Débito (56)' },
 ];
-
-function formatFecha(iso) {
-  if (!iso) return '—';
-  try {
-    return new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  } catch {
-    return iso;
-  }
-}
 
 export default function BandejaSII() {
   const hoy = new Date().toISOString().slice(0, 10);

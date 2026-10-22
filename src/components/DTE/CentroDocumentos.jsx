@@ -41,6 +41,7 @@ import { dteService } from '../../services/dteService.js';
 // muestran en ninguna parte.
 import { toast } from '../../lib/toast';
 import { formatCLP } from '../../services/formatHelpers.js';
+import { formatFecha } from '../../lib/dateUtils';
 
 const TIPO_LABEL = {
   33: 'Factura', 34: 'Factura exenta', 39: 'Boleta',
@@ -242,7 +243,7 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
     clave: `dte-${d.id}`,
     titulo: `${TIPO_LABEL[d.tipoDte] ?? `DTE ${d.tipoDte}`} N° ${d.folio}`,
     subtitulo: [
-      d.fechaEmision ? new Date(d.fechaEmision).toLocaleDateString() : null,
+      d.fechaEmision ? formatFecha(d.fechaEmision) : null,
       d.montoTotal > 0 ? formatCLP(d.montoTotal, 0) : null,
       d.origen === 'EXTERNO' ? 'Emitido fuera del ERP' : null,
     ].filter(Boolean).join(' · '),

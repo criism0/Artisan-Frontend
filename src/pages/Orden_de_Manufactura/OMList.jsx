@@ -7,6 +7,7 @@ import { Clipboard, Play, Package, Layers } from "lucide-react";
 import { toast } from "../../lib/toast";
 import ConfirmDeletePreviewModal from "../../components/Modals/ConfirmDeletePreviewModal";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import { formatFecha } from "../../lib/dateUtils";
 
 const getEstadoBadge = (estado) => {
   if (!estado) return "";
@@ -212,7 +213,7 @@ export default function OMList() {
       accessor: "fecha",
       sortable: true,
       sortValue: (row) => (row.fecha ? new Date(row.fecha).getTime() : 0),
-      Cell: ({ value }) => (value ? new Date(value).toLocaleDateString() : ""),
+      Cell: ({ value }) => (value ? formatFecha(value) : ""),
     },
     {
       header: "Estado",

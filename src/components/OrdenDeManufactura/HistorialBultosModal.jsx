@@ -3,6 +3,7 @@ import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import { formatFecha } from "../../lib/dateUtils";
 
 function n(val) {
   const num = Number(val);
@@ -214,7 +215,7 @@ export default function HistorialBultosModal({ open, omId, onClose, inline = fal
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatNumberCL(n(row.peso_usado_bulto), 2)}</td>
                               <td className="border border-gray-300 px-4 py-2">{row.proveedor}</td>
                               <td className="border border-gray-300 px-4 py-2">{row.lote_proveedor}</td>
-                              <td className="border border-gray-300 px-4 py-2 text-center">{fi ? fi.toLocaleDateString() : "—"}</td>
+                              <td className="border border-gray-300 px-4 py-2 text-center">{formatFecha(fi)}</td>
                               <td className="border border-gray-300 px-4 py-2 text-right">{formatCLP(row.costo_absorbido, 0)}</td>
                             </tr>
                           );
