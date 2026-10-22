@@ -1121,9 +1121,7 @@ function DatosTraslado({ valor, onCambiar }) {
   );
   return (
     <fieldset className="mt-3 grid grid-cols-2 gap-2">
-      <legend className="col-span-2 text-xs text-amber-800 mb-1">
-        Datos del traslado — los exige el SII desde el 1 de noviembre (Res. Ex. 154).
-      </legend>
+      <legend className="col-span-2 text-xs font-medium text-amber-900 mb-1">Datos del traslado</legend>
       {campo("patente", "Patente del vehículo", "BBCC12")}
       {campo("patente_carro", "Patente del carro (si lleva)", "JK1234")}
       {campo("chofer_nombre", "Nombre del chofer", "Juan Pérez")}
