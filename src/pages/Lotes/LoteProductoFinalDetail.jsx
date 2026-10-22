@@ -5,6 +5,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
+import { formatFecha } from "../../lib/dateUtils";
 
 function Row({ label, value }) {
   return (
@@ -175,9 +176,7 @@ export default function LoteProductoFinalDetail() {
             {computed.fechaVencimiento && (
               <Row
                 label="Fecha de vencimiento"
-                value={new Date(computed.fechaVencimiento).toLocaleDateString(
-                  "es-CL"
-                )}
+                value={formatFecha(computed.fechaVencimiento)}
               />
             )}
           </tbody>

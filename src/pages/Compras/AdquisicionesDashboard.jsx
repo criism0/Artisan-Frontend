@@ -34,6 +34,7 @@ import {
 } from "../../services/adquisicionesAnalytics";
 import { formatCLP, formatCLPCompact } from "../../services/formatHelpers";
 import KpiCard from "../../components/UI/KpiCard";
+import { formatFecha } from "../../lib/dateUtils";
 
 const formatEjeY = (num) => formatCLPCompact(num, true);
 
@@ -45,11 +46,7 @@ const formatoFechaLarga = (d) =>
     day: "numeric",
   });
 
-const fmtFecha = (v) => {
-  if (!v) return "—";
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("es-CL");
-};
+const fmtFecha = (v) => formatFecha(v);
 
 function seleccionarEtiquetasFecha(fechas, maxEtiquetas) {
   if (fechas.length <= maxEtiquetas) return fechas;

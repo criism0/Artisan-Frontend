@@ -17,6 +17,7 @@ import DTERecibidoPanel from "../../components/DTE/DTERecibidoPanel.jsx";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import DataTable from "../../components/Tables/DataTable";
 import AvanceItems from "../../components/AvanceItems";
+import { formatFecha } from "../../lib/dateUtils";
 
 export default function OrdenDetail() {
   const { ordenId } = useParams();
@@ -523,7 +524,7 @@ export default function OrdenDetail() {
                 Fecha de Emisión
               </td>
               <td className="px-6 py-4 text-sm text-text">
-                {new Date(orden.fecha).toLocaleDateString() || "—"}
+                {formatFecha(orden.fecha)}
               </td>
             </tr>
             <tr className="border-b border-border">

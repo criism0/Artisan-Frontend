@@ -22,8 +22,9 @@ import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
 import { puedeCancelarOV, puedeReabrirCancelacion } from "../../utils/ordenVentaCancelable.js";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 import { mensajeError } from "../../utils/mensajeError.js";
+import { formatFecha } from "../../lib/dateUtils";
 
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
+const fmtDate = (d) => formatFecha(d);
 
 /** Una sola clave para la tabla y para los filtros de esta página: se guardan y se borran juntos. */
 const CLAVE_UI = "ventas_ordenes_v1";

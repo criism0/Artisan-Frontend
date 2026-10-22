@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
+import { formatFecha } from "../../lib/dateUtils";
 
 export default function ResumenAsignacionVenta() {
   const { ordenId } = useParams();
@@ -190,13 +191,13 @@ export default function ResumenAsignacionVenta() {
           <div>
             <span className="font-medium">Fecha de Orden:</span>{" "}
             {orden.fecha_orden
-              ? new Date(orden.fecha_orden).toLocaleDateString("es-CL")
+              ? formatFecha(orden.fecha_orden)
               : "—"}
           </div>
           <div>
             <span className="font-medium">Fecha de Entrega:</span>{" "}
             {orden.fecha_envio
-              ? new Date(orden.fecha_envio).toLocaleDateString("es-CL")
+              ? formatFecha(orden.fecha_envio)
               : "—"}
           </div>
           <div>

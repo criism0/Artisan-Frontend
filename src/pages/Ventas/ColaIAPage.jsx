@@ -22,6 +22,7 @@ import {
   descuentoAGuardar,
   formatearDescuento,
 } from "../../utils/descuentoLinea";
+import { formatFecha } from "../../lib/dateUtils";
 
 const PRODUCTOS_VISIBLES = 4;
 const PAGE_SIZE = 6;
@@ -1006,7 +1007,7 @@ function OVIACard({
     }
   };
 
-  const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CL") : "—");
+  const fmtDate = (d) => formatFecha(d);
 
   const modOcMatch  = log?.error_detalle?.match(/modificacion_oc:OV#(\d+)/);
   const ovOriginalId = modOcMatch ? modOcMatch[1] : null;
