@@ -10,6 +10,15 @@ import { toast } from '../lib/toast.js';
 
 // ── Helpers internos ──────────────────────────────────────────────────────────
 
+/** Sólo las claves con algo escrito (texto sin espacios de borde). */
+function soloConValor(objeto) {
+  return Object.fromEntries(
+    Object.entries(objeto ?? {})
+      .map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+      .filter(([, v]) => v != null && v !== ''),
+  );
+}
+
 function descargarBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -92,13 +101,15 @@ export const dteService = {
    * El detalle y los valores salen de los bultos efectivamente cargados en los pallets, así que
    * la guía declara lo mismo que muestra la pantalla de la solicitud.
    */
-  emitirGuiaDespachoSolicitud: async (idSolicitud, { transportista, fechaEnvio } = {}) => {
+  // `traslado`: patente, chofer y transportista que exige la Res. Ex. SII 154 (desde el 1-nov-2026).
+  emitirGuiaDespachoSolicitud: async (idSolicitud, { transportista, fechaEnvio, traslado } = {}) => {
     const res = await api('/facturacion/emitir-guia-despacho', {
       method: 'POST',
       body: {
         id_solicitud_mercaderia: idSolicitud,
         ...(transportista ? { transportista } : {}),
         ...(fechaEnvio ? { fecha_envio_override: fechaEnvio } : {}),
+        ...soloConValor(traslado),
       },
     });
     return mapDte(res?.data ?? res);
@@ -379,6 +390,7 @@ export const dteService = {
     // vencimiento distinto al que se va a emitir, que es justo para lo que sirve mirarlo.
     if (opciones.vencimiento) params.set('vencimiento', opciones.vencimiento);
     if (opciones.transportista) params.set('transportista', opciones.transportista);
+    for (const [clave, valor] of Object.entries(soloConValor(opciones.traslado))) params.set(clave, valor);
     const query = params.toString() ? `?${params.toString()}` : '';
 
     const blob = await apiBlob(`/facturacion/previsualizar/${tipo}/${referenciaId}${query}`);
