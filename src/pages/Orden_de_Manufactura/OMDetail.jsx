@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api, apiBlob } from "../../lib/api";
-import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import { downloadBlob } from "../../lib/downloadBlob";
 import {
@@ -24,6 +23,8 @@ import { useApi } from "../../lib/api";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatFecha } from "../../lib/dateUtils";
+import PageHeader from "../../components/UI/PageHeader.jsx";
+import { EstadoOMBadge } from "../../components/Produccion/EstadoOM.jsx";
 
 const CATEGORIAS = [
   { value: "I", label: "Insumos (I)" },
@@ -327,50 +328,6 @@ export default function OMDetail() {
       </div>
     );
 
-  const getEstadoBadge = (estado) => {
-    if (!estado) return "";
-    const normalized = estado.toLowerCase();
-    const base = "px-3 py-1 rounded-full text-sm font-medium";
-    switch (normalized) {
-      case "borrador":
-        return (
-          <span className={`${base} bg-gray-200 text-gray-700`}>Borrador</span>
-        );
-      case "insumos asignados":
-        return (
-          <span className={`${base} bg-blue-100 text-blue-700`}>
-            Insumos asignados
-          </span>
-        );
-      case "en ejecución":
-        return (
-          <span className={`${base} bg-cyan-100 text-cyan-700`}>
-            En ejecución
-          </span>
-        );
-      case "esperando salidas":
-        return (
-          <span className={`${base} bg-orange-100 text-orange-700`}>
-            Esperando salidas
-          </span>
-        );
-      case "esperando pvas":
-        return (
-          <span className={`${base} bg-purple-100 text-purple-700`}>
-            Esperando PVAs
-          </span>
-        );
-      case "cerrada":
-        return (
-          <span className={`${base} bg-green-100 text-green-700`}>Cerrada</span>
-        );
-      default:
-        return (
-          <span className={`${base} bg-gray-100 text-gray-600`}>{estado}</span>
-        );
-    }
-  };
-
   const estado = om.estado;
   const hasPasos = (om?.registrosPasoProduccion?.length ?? 0) > 0;
   const esPostCierre = ["Cerrada", "Esperando PVAs"].includes(estado);
@@ -508,16 +465,26 @@ export default function OMDetail() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/Orden_de_Manufactura" />
-      </div>
-
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-text">Orden de Manufactura #{om.id ?? id}</h1>
-        <div className="flex items-center gap-3">
-          {getEstadoBadge(om.estado)}
-        </div>
-      </div>
+      {/* Acciones de la OM en el panel estándar, junto al título. Antes eran seis botones
+          sueltos de cinco colores distintos sin decir cuál correspondía al estado actual. */}
+      <PageHeader
+        volverA="/Orden_de_Manufactura"
+        titulo={`Orden de Manufactura #${om.id ?? id}`}
+        estado={<EstadoOMBadge estado={om.estado} />}
+        tituloAyuda="Cómo avanza una OM"
+        ayuda={
+          <ol className="list-decimal ml-4 space-y-1">
+            <li>En Borrador se asignan los insumos: salen de la bodega y la cantidad queda fija.</li>
+            <li>Se ejecutan los pasos de la pauta de elaboración, si la receta tiene.</li>
+            <li>
+              En la producción final se registran los bultos producidos, los subproductos y la
+              merma; ahí se calculan el costo y el rendimiento.
+            </li>
+            <li>Si el producto lleva PVA, se ejecutan antes de cerrar.</li>
+          </ol>
+        }
+        acciones={<PanelAcciones principal={accionPrincipal} secundarias={accionesSecundarias} />}
+      />
 
       {/* Panel de estado rápido: 4 tarjetas informativas */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
@@ -564,13 +531,6 @@ export default function OMDetail() {
             Bodega: {om.bodega?.nombre || "—"}
           </div>
         </div>
-      </div>
-
-      {/* Acciones de la OM, en el panel estándar y sobre las pestañas. Antes eran seis
-          botones sueltos de cinco colores distintos —blanco, primary, azul, amarillo,
-          verde— sin decir cuál correspondía al estado actual. */}
-      <div className="mb-6 flex flex-wrap justify-end">
-        <PanelAcciones principal={accionPrincipal} secundarias={accionesSecundarias} />
       </div>
 
       {/* El editor de cantidad se abre desde el panel y aparece acá, en vez de vivir
@@ -1100,17 +1060,17 @@ export default function OMDetail() {
             </tr>
             <tr className="border-b border-border">
               <td className="px-6 py-4 text-sm font-medium text-text">Peso objetivo</td>
-              <td className="px-6 py-4 text-sm text-text">{om.peso_objetivo ? `${om.peso_objetivo} kg` : "—"}</td>
+              <td className="px-6 py-4 text-sm text-text">{om.peso_objetivo ? `${formatNumberCL(om.peso_objetivo, 2)} kg` : "—"}</td>
             </tr>
             {esPostCierre && (
               <tr className="border-b border-border">
                 <td className="px-6 py-4 text-sm font-medium text-text">Peso obtenido</td>
-                <td className="px-6 py-4 text-sm text-text">{om.peso_obtenido ? `${om.peso_obtenido} kg` : "—"}</td>
+                <td className="px-6 py-4 text-sm text-text">{om.peso_obtenido ? `${formatNumberCL(om.peso_obtenido, 2)} kg` : "—"}</td>
               </tr>
             )}
             <tr className="border-b border-border">
               <td className="px-6 py-4 text-sm font-medium text-text">Costo referencial</td>
-              <td className="px-6 py-4 text-sm text-text">{om.receta?.costo_referencial_produccion != null ? `$${om.receta.costo_referencial_produccion}` : "—"}</td>
+              <td className="px-6 py-4 text-sm text-text">{om.receta?.costo_referencial_produccion != null ? formatCLP(om.receta.costo_referencial_produccion, 2) : "—"}</td>
             </tr>
             <tr className="border-b border-border">
               <td className="px-6 py-4 text-sm font-medium text-text">Costo total</td>
@@ -1118,9 +1078,8 @@ export default function OMDetail() {
             </tr>
             {esPostCierre && om.peso_objetivo && om.peso_obtenido && (
               <tr className="border-b border-border">
-                <td className="px-6 py-4 text-sm font-medium text-text">Rendimiento</td>
+                <td className="px-6 py-4 text-sm font-medium text-text">Obtenido / objetivo</td>
                 <td className="px-6 py-4 text-sm text-text">{formatNumberCL((om.peso_obtenido / om.peso_objetivo) * 100, 2)}%</td>
-                
               </tr>
             )}
           </tbody>
@@ -1160,10 +1119,12 @@ export default function OMDetail() {
                     {prod.loteProductoFinal?.productoBase?.nombre || ""}
                   </td>
                   <td className="px-4 py-3 text-sm text-text">
-                    {prod.peso_unitario}
+                    {formatNumberCL(prod.peso_unitario, 2)}
                   </td>
                   <td className="px-4 py-3 text-sm text-text">
-                    {prod.loteProductoFinal?.productoBase?.peso_unitario || ""}
+                    {prod.loteProductoFinal?.productoBase?.peso_unitario != null
+                      ? formatNumberCL(prod.loteProductoFinal.productoBase.peso_unitario, 2)
+                      : ""}
                   </td>
                   <td className="px-4 py-3 text-sm text-text">
                     {prod.loteProductoFinal?.fecha_vencimiento
@@ -1224,7 +1185,7 @@ export default function OMDetail() {
                           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4 text-sm">
                             <div>
                               <span className="font-medium text-gray-600">Peso Total:</span>
-                              <p className="text-gray-800">{totalPeso} kg</p>
+                              <p className="text-gray-800">{formatNumberCL(totalPeso, 2)} kg</p>
                             </div>
                             <div>
                               <span className="font-medium text-gray-600">Fecha Elaboración:</span>
@@ -1265,13 +1226,13 @@ export default function OMDetail() {
                                           {bulto.cantidad_unidades}
                                         </td>
                                         <td className="border border-gray-300 px-3 py-2 text-sm">
-                                          {bulto.peso_unitario} kg
+                                          {formatNumberCL(bulto.peso_unitario, 2)} kg
                                         </td>
                                         <td className="border border-gray-300 px-3 py-2 text-sm">
                                           {bulto.unidades_disponibles}
                                         </td>
                                         <td className="border border-gray-300 px-3 py-2 text-sm">
-                                          ${bulto.precio_unitario}
+                                          {formatCLP(bulto.precio_unitario, 2)}
                                         </td>
                                       </tr>
                                     ))}

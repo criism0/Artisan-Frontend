@@ -5,10 +5,10 @@ import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import Tabs from "../../components/UI/Tabs.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
-import { BackButton } from "../../components/Buttons/ActionButtons";
-import { ChevronDown, ChevronRight, AlertTriangle, CheckCircle, Download } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, Download } from "lucide-react";
 import { mensajeDelBackend } from "../../utils/mensajeError.js";
 import { abreviaturaUnidad, agruparConteo, conteoACsv } from "../../utils/tomaInventario.js";
+import PageHeader from "../../components/UI/PageHeader.jsx";
 
 const fmt = (n) => (n == null ? "—" : Number(n).toLocaleString("es-CL", { maximumFractionDigits: 4 }));
 const fmtFecha = (d) => (d ? new Date(d).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -214,48 +214,50 @@ export default function SesionInventariadoDetail() {
   return (
     <div>
       <div className="max-w-6xl mx-auto">
-      <div className="mb-4">
-        <BackButton to="/Inventario/tomas" />
-      </div>
-
-      <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold text-text">Toma de inventario #{sesion.id}</h1>
-            <span className={`px-3 py-1 rounded-full text-xs border ${getEstadoBadgeClasses(sesion.estado)}`}>
-              {sesion.estado === "Terminada" ? "Por validar" : sesion.estado}
-            </span>
-          </div>
-          <p className="text-sm text-gray-500 mt-1">
+      <PageHeader
+        volverA="/Inventario/tomas"
+        titulo={`Toma de inventario #${sesion.id}`}
+        estado={
+          <span className={`px-3 py-1 rounded-full text-xs border ${getEstadoBadgeClasses(sesion.estado)}`}>
+            {sesion.estado === "Terminada" ? "Por validar" : sesion.estado}
+          </span>
+        }
+        subtitulo={
+          <>
             Bodega <span className="font-medium">{sesion.bodega?.nombre ?? sesion.id_bodega}</span>
             {sesion.creador?.nombre ? ` · Iniciada por ${sesion.creador.nombre}` : ""}
             {sesion.validador?.nombre
               ? ` · Validada por ${sesion.validador.nombre} el ${new Date(sesion.fecha_validacion).toLocaleDateString("es-CL")}`
               : ""}
-          </p>
-        </div>
-        {sesion.estado === "Terminada" && canWrite && (
-          <button
-            onClick={() => setConfirmando(true)}
-            className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-violet-700"
-          >
-            Validar sesión…
-          </button>
-        )}
-      </div>
+          </>
+        }
+        tituloAyuda="Toma de inventario"
+        ayuda={
+          <>
+            <p>Se cuenta escaneando en la app móvil. Al terminar queda por validar.</p>
+            <p>
+              Validar aplica los cambios sobre la bodega: ajusta cantidades, trae lo que estaba
+              registrado en otra bodega y marca como merma lo que no se escaneó. Lo que se movió
+              después de contarlo o está en un pallet no se toca.
+            </p>
+          </>
+        }
+        acciones={
+          sesion.estado === "Terminada" && canWrite ? (
+            <button
+              onClick={() => setConfirmando(true)}
+              className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-violet-700"
+            >
+              Validar sesión…
+            </button>
+          ) : null
+        }
+      />
 
       {sesion.estado === "Activa" && (
         <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 rounded-md px-4 py-3 text-sm mb-4">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          Sesión aún activa en la app móvil — lo contado y la previsualización cambiarán con nuevos escaneos.
-        </div>
-      )}
-      {validada && (
-        <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 rounded-md px-4 py-3 text-sm mb-4">
-          <CheckCircle className="w-4 h-4 shrink-0" />
-          {nCambios === 0
-            ? "Sesión validada sin cambios: todo lo contado cuadraba con el sistema."
-            : `Sesión validada: se aplicaron ${nCambios} cambio${nCambios === 1 ? "" : "s"} sobre la bodega.`}
+          Sesión activa en la app móvil: lo contado sigue cambiando con cada escaneo.
         </div>
       )}
 

@@ -3,12 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { useAuth } from "../../auth/AuthContext";
 import { toast } from "../../lib/toast";
-import { BackButton } from "../../components/Buttons/ActionButtons";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import Selector from "../../components/Forms/Selector";
 import { insumoToSearchText } from "../../services/fuzzyMatch";
 import { formatNumberCL } from "../../services/formatHelpers";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import PageHeader from "../../components/UI/PageHeader.jsx";
 
 export default function AddOM() {
   const apiFetch = useApi();
@@ -43,6 +43,7 @@ export default function AddOM() {
   }, [form.tipo, form.id_seleccion, productosBase, pips]);
 
   const unidadObjetivo = seleccionActual?.unidad_medida || "";
+  const esPorUnidades = unidadObjetivo.toLowerCase() === "unidades";
 
   const [disponibilidad, setDisponibilidad] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -386,13 +387,7 @@ export default function AddOM() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/Orden_de_Manufactura" />
-      </div>
-
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-text">Crear Orden de Manufactura</h1>
-      </div>
+      <PageHeader volverA="/Orden_de_Manufactura" titulo="Crear Orden de Manufactura" />
 
       {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
       {success && <div className="mb-3 text-sm text-green-700">{success}</div>}
@@ -493,11 +488,11 @@ export default function AddOM() {
             <input
               type="number"
               min="0"
-              step="1"
+              step={esPorUnidades ? "1" : "any"}
               value={form.peso_objetivo}
               onChange={(e) => setField("peso_objetivo", e.target.value)}
               className="w-full border border-border rounded-lg px-3 py-2 bg-white text-text focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-              placeholder={unidadObjetivo === "unidades" ? "Ej: 100" : "Ej: 1000"}
+              placeholder={esPorUnidades ? "Ej: 100" : "Ej: 1000"}
             />
           </div>
 
@@ -591,7 +586,9 @@ export default function AddOM() {
                                   : "bg-red-100 text-red-800"
                               }`}
                             >
-                              {disponible ? "✓ Disponible" : "✗ Insuficiente"}
+                              {disponible
+                                ? "✓ Disponible"
+                                : `✗ Faltan ${formatNumberCL(Number(cantidadNecesaria) - Number(cantidadDisponible), 2)}${unidadItem ? ` ${unidadItem}` : ""}`}
                             </span>
                           </td>
                         </tr>
@@ -668,7 +665,9 @@ export default function AddOM() {
                                             : "bg-red-100 text-red-800"
                                         }`}
                                       >
-                                        {suficiente ? "✓ Disponible" : "✗ Insuficiente"}
+                                        {suficiente
+                                          ? "✓ Disponible"
+                                          : `✗ Faltan ${formatNumberCL(necesario - disponible, 2)}${unidad}`}
                                       </span>
                                     </td>
                                   </tr>

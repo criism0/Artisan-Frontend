@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useApi } from "../../lib/api";
 import { useParams, useNavigate } from "react-router-dom";
-import { ModifyButton, DeleteButton, BackButton } from "../../components/Buttons/ActionButtons";
+import { ModifyButton, DeleteButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import Table from "../../components/Tables/Table";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from '../../components/UI/PageHeader.jsx';
+import { formatFecha } from "../../lib/dateUtils";
 
 function formatDateTime(value) {
   if (!value) return "—";
@@ -141,13 +143,10 @@ export default function PautaElaboracionDetail() {
   return (
     <div>
       <div className="max-w-6xl mx-auto">
-        <div className="mb-4">
-          <BackButton to="/PautasElaboracion" />
-        </div>
-
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold text-text">Pauta de Elaboración: {pauta.name}</h1>
+        <PageHeader
+          volverA="/PautasElaboracion"
+          titulo={`Pauta de Elaboración: ${pauta.name}`}
+          estado={
             <span
               className={`px-3 py-1 rounded-full text-xs border ${
                 pauta.is_active
@@ -157,31 +156,27 @@ export default function PautaElaboracionDetail() {
             >
               {pauta.is_active ? 'Activa' : 'Inactiva'}
             </span>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-start md:justify-end gap-2">
-            <ModifyButton onClick={() => navigate(`/PautasElaboracion/${id}/edit`)} />
-            <DeleteButton
-              onConfirmDelete={handleDelete}
-              tooltipText="Eliminar pauta"
-              entityName="pauta de elaboración"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
-            <div className="text-xs text-gray-500 font-medium">ESTADO</div>
-            <div className="text-lg font-bold text-text mt-1">
-              {pauta.is_active ? 'Activa' : 'Inactiva'}
+          }
+          acciones={
+            <div className="flex flex-wrap items-center gap-2">
+              <ModifyButton onClick={() => navigate(`/PautasElaboracion/${id}/edit`)} />
+              <DeleteButton
+                onConfirmDelete={handleDelete}
+                tooltipText="Eliminar pauta"
+                entityName="pauta de elaboración"
+              />
             </div>
-            <div className="text-xs text-gray-600 mt-2">Actualizada: {formatDateTime(pauta.updatedAt)}</div>
-          </div>
+          }
+        />
 
+        {/* La tarjeta «Estado» repetía la etiqueta de la cabecera; su fecha pasa a la de pasos. */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
             <div className="text-xs text-gray-500 font-medium">PASOS</div>
             <div className="text-lg font-bold text-text mt-1">{(pasos || []).length}</div>
-            <div className="text-xs text-gray-600 mt-2">Creada: {formatDateTime(pauta.createdAt)}</div>
+            <div className="text-xs text-gray-600 mt-2">
+              Creada {formatFecha(pauta.createdAt)} · actualizada {formatFecha(pauta.updatedAt)}
+            </div>
           </div>
 
           <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
