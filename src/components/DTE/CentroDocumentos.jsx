@@ -55,8 +55,19 @@ function estadoIncludes(estado, ...substrings) {
   return substrings.some((sub) => s.includes(sub));
 }
 
-// Todos los botones de la cabecera con el mismo peso: ninguno es «la» acción de la vista (ésa
-// vive en el panel de acciones de la orden), así que ninguno se pinta de color.
+function Chip({ tone = 'off', children }) {
+  const tones = {
+    ok:   'bg-green-100 text-green-700',
+    warn: 'bg-yellow-100 text-yellow-700',
+    off:  'bg-gray-100 text-gray-500',
+  };
+  return (
+    <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap ${tones[tone]}`}>
+      {children}
+    </span>
+  );
+}
+
 const BOTON = 'flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50';
 
 export default function CentroDocumentos({ orden, accionPrincipal = null, onCambio }) {
@@ -171,6 +182,13 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   const puedeEmitirNC = !!facturaEmitida && (!ultimaCorreccion || ultimaCorreccion.tipoDte === 56);
   const puedeEmitirND = !!facturaEmitida && !!ultimaCorreccion && ultimaCorreccion.tipoDte === 61;
 
+  // ── Chip documental del header ──
+  const chipDocumental = facturaEmitida
+    ? { tone: 'ok', texto: `Factura folio ${facturaEmitida.folio}` }
+    : guiaEmitida
+      ? { tone: 'warn', texto: 'Guía emitida · falta factura' }
+      : { tone: 'off', texto: 'Sin documentos emitidos' };
+
   async function handleAbrirNC(factura) {
     setPreEmitiendo(true);
     try {
@@ -270,6 +288,7 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
             LibreDTE o portal del SII). No gasta folio ni mueve inventario.
           </p>
         </Ayuda>
+        <Chip tone={chipDocumental.tone}>{chipDocumental.texto}</Chip>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {puedeEmitirGD && (
             <>
@@ -287,14 +306,24 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
           )}
 
           {puedeEmitirNC && (
-            <button type="button" onClick={() => handleAbrirNC(facturaEmitida)} disabled={preEmitiendo} className={BOTON}>
+            <button
+              type="button"
+              onClick={() => handleAbrirNC(facturaEmitida)}
+              disabled={preEmitiendo}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50"
+            >
               <FileMinus size={14} />
               {preEmitiendo ? 'Verificando…' : 'Nota de Crédito'}
             </button>
           )}
 
           {puedeEmitirND && (
-            <button type="button" onClick={() => handleAbrirND(ultimaCorreccion)} disabled={preEmitiendo} className={BOTON}>
+            <button
+              type="button"
+              onClick={() => handleAbrirND(ultimaCorreccion)}
+              disabled={preEmitiendo}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-50"
+            >
               <FilePlus size={14} />
               {preEmitiendo ? 'Verificando…' : 'Nota de Débito'}
             </button>
@@ -304,7 +333,11 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
             type="button"
             onClick={() => setVinculando((v) => !v)}
             aria-pressed={vinculando}
-            className={vinculando ? `${BOTON} border-primary text-primary` : BOTON}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border ${
+              vinculando
+                ? 'bg-primary/10 border-primary text-primary'
+                : 'border-primary text-primary hover:bg-primary/5'
+            }`}
           >
             <Link2 size={14} /> Vincular documento externo
           </button>

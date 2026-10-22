@@ -793,16 +793,16 @@ export default function AddOrdenVenta() {
           </div>
 
           {/* Orden referencial */}
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
                 name="es_referencial"
                 checked={form.es_referencial}
                 onChange={(e) => setForm(prev => ({ ...prev, es_referencial: e.target.checked }))}
-                className="w-4 h-4 accent-primary flex-shrink-0"
+                className="w-4 h-4 accent-amber-500 flex-shrink-0"
               />
-              Orden referencial (picking por cantidad)
+              <span className="text-sm font-medium text-amber-800">Orden referencial (picking por cantidad)</span>
             </label>
             <Ayuda titulo="Orden referencial">
               Para mercadería que no está registrada como bultos en el sistema: bodega declara en la

@@ -39,12 +39,10 @@ import {
  */
 
 const PASO_LISTA = 40;
-// Texto con color, sin chip: cada fila llevaba tres o cuatro recuadros de colores y la lista
-// entera se veía en alerta. La fecha sigue destacando sola cuando el pedido está atrasado.
 const TONOS_FECHA = {
-  dia: "text-primary font-medium",
-  atrasada: "text-red-600 font-medium",
-  gris: "text-gray-500",
+  dia: "bg-primary/10 text-primary border-primary/20",
+  atrasada: "bg-red-50 text-red-700 border-red-200",
+  gris: "bg-gray-50 text-gray-600 border-gray-200",
 };
 
 export default function PlanificarRuta() {
@@ -475,13 +473,13 @@ export default function PlanificarRuta() {
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <Link to={`/ventas/ordenes/${o.id}`} className="font-medium text-gray-900 hover:text-primary">OV #{o.id}</Link>
                       <span className="text-sm text-gray-700 truncate">{o.cliente.nombre}</span>
-                      <span className={`text-xs ${TONOS_FECHA[f.tono]}`}>{f.texto}</span>
+                      <span className={`px-2 py-0.5 rounded-full border text-xs ${TONOS_FECHA[f.tono]}`}>{f.texto}</span>
                       <span className="text-xs text-gray-400">· {o.estado}</span>
                       <EtiquetaDespacho despacho={o.despacho} />
                       {o.ruta && (
                         <Link
                           to={`/Logistica/entregas/${o.ruta.id}`}
-                          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
                           title="Ver la ruta"
                         >
                           <Truck className="w-3 h-3" /> Ruta #{o.ruta.id} · {formatearFecha(o.ruta.fecha)}{o.ruta.transportista ? ` · ${o.ruta.transportista}` : ""}
@@ -576,8 +574,8 @@ export default function PlanificarRuta() {
               )}
               <AvisosRuta avisos={propuesta.avisos} />
               {propuesta.editada && (
-                <Aviso tono="neutro" tamano="xs" className="mb-2">
-                  El recorrido y el costo se recalculan al guardar.
+                <Aviso tamano="xs" className="mb-2">
+                  Cambiaste la ruta: el recorrido y el costo se recalculan al guardar.
                 </Aviso>
               )}
               <ol className="flex flex-col gap-1 mb-3">
@@ -680,16 +678,15 @@ export default function PlanificarRuta() {
 function EtiquetaDespacho({ despacho, corta = false }) {
   if (!despacho) return null;
   if (!despacho.preparada) {
-    return <span className="text-xs text-amber-700" title="Bodega todavía no dice en cuántos bultos sale">· Sin preparar</span>;
+    return <span className="px-2 py-0.5 rounded-full border text-[11px] bg-amber-50 text-amber-800 border-amber-200" title="Bodega todavía no dice en cuántos bultos sale">Sin preparar</span>;
   }
   const n = despacho.preparados;
   return (
     <span
-      className="text-xs text-gray-500"
+      className="px-2 py-0.5 rounded-full border text-[11px] bg-green-50 text-green-700 border-green-200"
       title={despacho.sin_etiqueta ? `${despacho.sin_etiqueta} caja(s) armada(s) sin etiqueta impresa` : "Preparado para el despacho"}
     >
-      · {n} bulto{n === 1 ? "" : "s"}
-      {!corta && despacho.sin_etiqueta ? <span className="text-amber-700"> · {despacho.sin_etiqueta} sin etiqueta</span> : ""}
+      {n} bulto{n === 1 ? "" : "s"}{!corta && despacho.sin_etiqueta ? ` · ${despacho.sin_etiqueta} sin etiqueta` : ""}
     </span>
   );
 }

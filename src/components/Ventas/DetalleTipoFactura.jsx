@@ -95,9 +95,7 @@ export default function DetalleTipoFactura({
                 : null;
 
               return (
-                // Una diferencia de picking se ve en las cifras (lo pedido tachado al lado de lo
-                // pickeado); pintar además la fila entera de ámbar decía lo mismo tres veces.
-                <tr key={it?.id}>
+                <tr key={it?.id} className={difiere ? "bg-amber-50" : undefined}>
                   <td className="px-4 py-2 text-text break-words">
                     {nombre}
                     {mostrarCajas && (
@@ -107,12 +105,12 @@ export default function DetalleTipoFactura({
                       </span>
                     )}
                     {enCajas && !mostrarCajas && (
-                      <span className="block text-xs text-gray-500">
+                      <span className="block text-xs text-amber-700">
                         Sin unidades por caja: se muestra en unidades
                       </span>
                     )}
                     {facturable <= 0 && it?.cantidad_pickeada != null && (
-                      <span className="block text-xs text-gray-500">
+                      <span className="block text-xs font-medium text-amber-800">
                         No se pickeó: no va en el documento
                       </span>
                     )}
@@ -131,7 +129,7 @@ export default function DetalleTipoFactura({
                       {it?.cantidad_pickeada == null ? (
                         <span className="text-gray-400">—</span>
                       ) : (
-                        <span className={difiere ? "font-semibold text-text" : ""}>
+                        <span className={difiere ? "font-semibold text-amber-800" : ""}>
                           {cajaPickeada?.cajas != null
                             ? `${cajaPickeada.cajas.toLocaleString("es-CL")}${cajaPickeada.unidades_sueltas > 0 ? " + " + cajaPickeada.unidades_sueltas : ""}`
                             : facturable.toLocaleString("es-CL")}
