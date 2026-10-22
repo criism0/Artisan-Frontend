@@ -2,8 +2,9 @@
  * Reglas puras de la vista Logística → Entregas: cómo se ordena y filtra la lista de pedidos, cómo
  * se etiqueta la fecha y cómo se decodifica la línea de la ruta.
  */
+import { formatFecha } from "../lib/dateUtils";
 
-const ddmm = (iso) => `${iso.slice(8, 10)}-${iso.slice(5, 7)}`;
+const ddmm =(iso) => `${iso.slice(8, 10)}-${iso.slice(5, 7)}`;
 
 /** Etiqueta de la fecha de entrega respecto del día que se está planificando. */
 export function etiquetaFecha(fechaEntrega, fechaRuta) {
@@ -69,15 +70,21 @@ export const contarPorFiltro = (ordenes) => ({
 });
 
 /** Colores del estado de una ruta (chip de la lista, del detalle y del filtro). */
+// Mismo criterio que el estado de la OV: el color dice el tramo, no el estado. «En curso» era
+// ámbar —el color de «algo pide atención»— y una ruta andando es lo normal.
 export const ESTADOS_RUTA = {
-  Planificada: { bg: "bg-sky-200", text: "text-sky-800" },
-  "En curso": { bg: "bg-amber-200", text: "text-amber-800" },
-  Cerrada: { bg: "bg-green-400", text: "text-green-900" },
-  Cancelada: { bg: "bg-gray-200", text: "text-gray-600" },
+  Planificada: { bg: "bg-gray-100", text: "text-gray-700" },
+  "En curso": { bg: "bg-violet-50", text: "text-violet-700" },
+  Cerrada: { bg: "bg-green-50", text: "text-green-700" },
+  Cancelada: { bg: "bg-gray-100", text: "text-gray-500" },
 };
 
-/** «2026-09-30» → «30-09-2026», como se muestran las fechas en la app. */
-export const formatearFecha = (iso) => (iso ? String(iso).slice(0, 10).split("-").reverse().join("-") : "—");
+/**
+ * «2026-09-30» → «30-09-2026», como se muestran las fechas en la app. Pasa por `formatFecha`:
+ * cortar el texto acertaba con un día de calendario, pero un instante con hora (la hora de una
+ * entrega) salía con el día UTC, que después de las 21:00 ya es mañana.
+ */
+export const formatearFecha = (iso) => formatFecha(iso);
 
 export const formatearCLP = (n) => (n == null ? "—" : `$${Math.round(n).toLocaleString("es-CL")}`);
 

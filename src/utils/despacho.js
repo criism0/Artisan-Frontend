@@ -13,9 +13,11 @@ export function describirBulto(b) {
 }
 
 /** Tono de la insignia de un bulto de despacho según su estado. */
+// Ámbar y rojo sólo donde hay algo que resolver (no se entregó, volvió, falta, merma); listo y en
+// camino son lo normal y van sin color fuerte.
 export const TONO_BULTO = {
-  Preparado: "bg-blue-50 text-blue-700 border-blue-200",
-  "En ruta": "bg-indigo-50 text-indigo-700 border-indigo-200",
+  Preparado: "bg-gray-50 text-gray-700 border-gray-200",
+  "En ruta": "bg-violet-50 text-violet-700 border-violet-200",
   Entregado: "bg-green-50 text-green-700 border-green-200",
   "No entregado": "bg-amber-50 text-amber-800 border-amber-200",
   Devuelto: "bg-amber-50 text-amber-800 border-amber-200",

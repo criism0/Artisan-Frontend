@@ -13,9 +13,9 @@ import { ETIQUETA_FOTO, urlFoto } from "./fotos";
 
 
 const TONO_ENTREGA = {
-  Completa: "bg-green-100 text-green-800 border-green-200",
-  Parcial: "bg-amber-100 text-amber-800 border-amber-200",
-  "No entregada": "bg-red-100 text-red-800 border-red-200",
+  Completa: "bg-green-50 text-green-700",
+  Parcial: "bg-amber-50 text-amber-800",
+  "No entregada": "bg-red-50 text-red-700",
 };
 
 const fechaHora = (v) =>
@@ -49,23 +49,17 @@ export default function EntregaParada({ entrega, anuladas = [], onAnular }) {
   return (
     <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50/60 p-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <span className={`px-2 py-0.5 rounded-full border text-xs font-medium ${TONO_ENTREGA[entrega.estado] ?? ""}`}>
+        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${TONO_ENTREGA[entrega.estado] ?? "bg-gray-100 text-gray-600"}`}>
           {entrega.estado}
         </span>
         <span className="text-gray-600">{fechaHora(entrega.fecha_hora)}</span>
         {entrega.registrador && <span className="text-gray-500">· {entrega.registrador}</span>}
-        {entrega.estado_revision === "Pendiente" && (
-          <span className="px-2 py-0.5 rounded-full border text-xs bg-amber-50 text-amber-800 border-amber-300">En revisión</span>
-        )}
+        {entrega.estado_revision === "Pendiente" && <span className="text-xs font-medium text-amber-700">· En revisión</span>}
+        {entrega.estado_revision === "Resuelta" && <span className="text-xs text-gray-500">· Resuelta: {entrega.resolucion}</span>}
         {onAnular && (
-          <button type="button" onClick={() => onAnular(entrega)} className="ml-auto text-xs text-red-600 hover:underline">
+          <button type="button" onClick={() => onAnular(entrega)} className="ml-auto text-xs text-gray-500 hover:text-red-600">
             Anular registro
           </button>
-        )}
-        {entrega.estado_revision === "Resuelta" && (
-          <span className="px-2 py-0.5 rounded-full border text-xs bg-blue-50 text-blue-800 border-blue-200">
-            Resuelta: {entrega.resolucion}
-          </span>
         )}
       </div>
       <div className="mt-1 text-xs text-gray-500">
@@ -116,7 +110,7 @@ export default function EntregaParada({ entrega, anuladas = [], onAnular }) {
                 {visibles.map((l) => {
                   const difiere = !noEntregada && Math.abs(l.recibida - l.esperada) > 1e-6;
                   return (
-                    <tr key={`${l.documento.id}:${l.linea}`} className={`border-t border-gray-200 ${difiere ? "bg-amber-50" : ""}`}>
+                    <tr key={`${l.documento.id}:${l.linea}`} className="border-t border-gray-200">
                       <td className="py-1 pr-2 text-gray-800">{l.nombre}</td>
                       <td className="py-1 text-right text-gray-600">{cantidad(l.esperada)}</td>
                       <td className={`py-1 text-right font-medium ${difiere ? "text-amber-800" : "text-gray-800"}`}>{cantidad(l.recibida)}</td>

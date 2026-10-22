@@ -7,6 +7,7 @@ import { getTodayDate } from "../../lib/dateUtils";
 import { ArrowLeft, ChevronDown, ChevronUp, Trash2, Pencil, Check, X } from "lucide-react";
 import Selector from "../../components/Forms/Selector";
 import Modal from "../../components/UI/Modal.jsx";
+import Ayuda from "../../components/UI/Ayuda.jsx";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { buscarOvConMismaOC, describirDuplicadas } from "../../utils/ocDuplicada.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
@@ -646,11 +647,11 @@ export default function AddOrdenVenta() {
                 disabled={!form.id_cliente}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
-              <span className="text-xs text-gray-400 italic">
-                {form.id_cliente && direccionesDespacho.length === 0
-                  ? "Este cliente no tiene direcciones de Despacho guardadas: elige «Otra dirección…» o se confirma al facturar."
-                  : "Si no se elige acá, se confirma al facturar la orden"}
-              </span>
+              {form.id_cliente && direccionesDespacho.length === 0 && (
+                <span className="text-xs text-amber-700">
+                  Sin direcciones de despacho guardadas: elige «Otra dirección…» o se confirma al facturar.
+                </span>
+              )}
             </label>
 
             {esOtraDireccion && (
@@ -696,7 +697,6 @@ export default function AddOrdenVenta() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 />
               )}
-              <span className="text-xs text-gray-400 italic">Si no se elige, la factura usa la dirección de despacho</span>
             </label>
 
             {/* Número OC */}
@@ -739,9 +739,6 @@ export default function AddOrdenVenta() {
                 onChange={handleFieldChange}
                 className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
-              <span className="text-xs text-gray-500">
-                Cuándo se compromete la entrega. Se puede dejar vacía y completar después.
-              </span>
             </label>
 
             {/* Bodega */}
@@ -766,12 +763,16 @@ export default function AddOrdenVenta() {
             {/* Condición de pago (solo lectura) */}
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium text-gray-700">Condición de pago</span>
-              <div className="border border-gray-200 bg-gray-50 px-3 py-2 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center">
+              <div
+                className="border border-gray-200 bg-gray-50 px-3 py-2 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center"
+                title="Sale de la ficha del cliente"
+              >
                 {condicionPagoCliente
-                  ? `${condicionPagoCliente} días`
+                  ? /^\d+$/.test(String(condicionPagoCliente).trim())
+                    ? `${condicionPagoCliente} días`
+                    : condicionPagoCliente
                   : <span className="text-gray-400">—</span>}
               </div>
-              <span className="text-xs text-gray-400 italic">Obtenida automáticamente del cliente</span>
             </div>
 
             {/* Comentario del cliente — instrucciones de despacho, horario, contacto. Reporte de
@@ -792,21 +793,23 @@ export default function AddOrdenVenta() {
           </div>
 
           {/* Orden referencial */}
-          <label className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 cursor-pointer">
-            <input
-              type="checkbox"
-              name="es_referencial"
-              checked={form.es_referencial}
-              onChange={(e) => setForm(prev => ({ ...prev, es_referencial: e.target.checked }))}
-              className="mt-0.5 w-4 h-4 accent-amber-500 flex-shrink-0"
-            />
-            <div>
-              <span className="text-sm font-medium text-amber-800">Orden referencial (sin picking)</span>
-              <p className="text-xs text-amber-600 mt-0.5">
-                Activa esta opción cuando la producción no está registrada en el sistema. La orden irá directo a Facturada sin pasar por picking.
-              </p>
-            </div>
-          </label>
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+              <input
+                type="checkbox"
+                name="es_referencial"
+                checked={form.es_referencial}
+                onChange={(e) => setForm(prev => ({ ...prev, es_referencial: e.target.checked }))}
+                className="w-4 h-4 accent-primary flex-shrink-0"
+              />
+              Orden referencial (picking por cantidad)
+            </label>
+            <Ayuda titulo="Orden referencial">
+              Para mercadería que no está registrada como bultos en el sistema: bodega declara en la
+              app cuántas unidades salen, sin escanear códigos. Después sigue el flujo normal (Lista
+              para facturación → Facturada).
+            </Ayuda>
+          </div>
         </div>
       </div>
 

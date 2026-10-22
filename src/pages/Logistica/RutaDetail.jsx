@@ -13,14 +13,8 @@ import EntregaParada from "../../components/Entregas/EntregaParada";
 import ModalMotivo from "../../components/Entregas/ModalMotivo";
 import ModalRegistrarRespaldo from "../../components/Entregas/ModalRegistrarRespaldo";
 import FotosMini from "../../components/Entregas/FotosMini";
+import Aviso from "../../components/UI/Aviso";
 import { describirBulto, TONO_BULTO } from "../../utils/despacho";
-
-const TONO_PARADA = {
-  Pendiente: "bg-gray-50 text-gray-600 border-gray-200",
-  Entregada: "bg-green-100 text-green-800 border-green-200",
-  Parcial: "bg-amber-100 text-amber-800 border-amber-200",
-  "No entregada": "bg-red-100 text-red-800 border-red-200",
-};
 import { toast } from "../../lib/toast.js";
 import { api } from "../../lib/api";
 import { generarNotasVentaPDF } from "../../services/notaVentaPdf.js";
@@ -34,6 +28,15 @@ import {
   paradasDeRutaGuardada,
   pedidosDeRuta,
 } from "../../utils/rutas";
+
+// El resultado de cada parada es lo que se viene a mirar en una ruta en curso: lleva color, pero
+// sin borde, para que cuatro paradas seguidas no se vean como cuatro alertas.
+const TONO_PARADA = {
+  Pendiente: "bg-gray-100 text-gray-600",
+  Entregada: "bg-green-50 text-green-700",
+  Parcial: "bg-amber-50 text-amber-800",
+  "No entregada": "bg-red-50 text-red-700",
+};
 
 /**
  * Detalle de una ruta de entrega: el mapa, las paradas en orden con sus pedidos, y quién la
@@ -225,14 +228,15 @@ export default function RutaDetail() {
       />
 
       {ruta.estado === "Cancelada" && (
-        <div className="mb-4 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+        <Aviso tono="neutro" className="mb-4 -mt-3">
           Cancelada{ruta.cancelador?.nombre ? ` por ${ruta.cancelador.nombre}` : ""}
           {ruta.cancelada_en ? ` el ${new Date(ruta.cancelada_en).toLocaleString("es-CL")}` : ""}
           {ruta.motivo_cancelacion ? `: ${ruta.motivo_cancelacion}` : ""}
-        </div>
+        </Aviso>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      {/* Las cinco cifras en una sola franja: eran cinco tarjetas con sombra, una por número. */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-y-3 mb-4 bg-white rounded-xl border border-gray-200 shadow-sm py-3 md:divide-x md:divide-gray-100">
         <Dato titulo="Paradas" valor={paradas.length} />
         <Dato titulo="Pedidos" valor={borrador ? paradas.reduce((n, p) => n + p.ordenes.length, 0) : pedidosDeRuta(ruta)} />
         <Dato titulo="Recorrido" valor={formatearKm(ruta.km_planificados)} />
@@ -240,9 +244,9 @@ export default function RutaDetail() {
         <Dato titulo="Costo" valor={formatearCLP(ruta.costo_estimado)} detalle={ruta.costo_km ? `${formatearCLP(ruta.costo_km)} / km` : null} />
       </div>
       {recorridoCambiado && (
-        <p className="mb-4 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-          Cambiaste la ruta: el recorrido, el tiempo y el costo se recalculan al guardar.
-        </p>
+        <Aviso tono="neutro" tamano="xs" className="mb-4 -mt-2">
+          El recorrido, el tiempo y el costo se recalculan al guardar.
+        </Aviso>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -322,7 +326,7 @@ export default function RutaDetail() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium text-gray-900">{p.cliente}</span>
                       {ruta.estado !== "Planificada" && p.estado && (
-                        <span className={`px-2 py-0.5 rounded-full border text-[11px] ${TONO_PARADA[p.estado] ?? "bg-gray-50 text-gray-600 border-gray-200"}`}>
+                        <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${TONO_PARADA[p.estado] ?? "bg-gray-100 text-gray-600"}`}>
                           {p.estado}
                         </span>
                       )}
@@ -431,7 +435,7 @@ export default function RutaDetail() {
 
 function Dato({ titulo, valor, detalle }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3">
+    <div className="px-4">
       <div className="text-xs text-gray-500">{titulo}</div>
       <div className="text-lg font-semibold text-gray-900">{valor}</div>
       {detalle && <div className="text-xs text-gray-400">{detalle}</div>}
@@ -455,15 +459,20 @@ function Campo({ titulo, children }) {
  */
 function BultosDeParada({ parada, estadoRuta }) {
   if (estadoRuta === "Planificada") {
+    // Texto, no chips: el ámbar queda sólo para lo que falta preparar. El número de OV va sólo si
+    // la parada lleva más de una: con una, ya está en la línea de arriba.
+    const prefijo = (o) => (parada.ordenes.length > 1 ? `OV #${o.id}: ` : "");
     return (
-      <div className="mt-1 flex flex-wrap gap-2 text-[11px]">
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
         {parada.ordenes.map((o) =>
           o.despacho?.preparada ? (
-            <span key={o.id} className="px-2 py-0.5 rounded-full border bg-green-50 text-green-700 border-green-200">
-              OV #{o.id}: {o.despacho.preparados} bulto{o.despacho.preparados === 1 ? "" : "s"}{o.despacho.sin_etiqueta ? ` · ${o.despacho.sin_etiqueta} sin etiqueta` : ""}
+            <span key={o.id} className="text-gray-500">
+              {prefijo(o)}
+              {o.despacho.preparados} bulto{o.despacho.preparados === 1 ? "" : "s"} listo{o.despacho.preparados === 1 ? "" : "s"}
+              {o.despacho.sin_etiqueta ? <span className="text-amber-700"> · {o.despacho.sin_etiqueta} sin etiqueta</span> : ""}
             </span>
           ) : (
-            <span key={o.id} className="px-2 py-0.5 rounded-full border bg-amber-50 text-amber-800 border-amber-200">OV #{o.id}: sin preparar</span>
+            <span key={o.id} className="text-amber-700">{prefijo(o)}Sin preparar</span>
           ),
         )}
       </div>
