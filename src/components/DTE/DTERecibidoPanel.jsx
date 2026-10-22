@@ -210,15 +210,15 @@ export default function DTERecibidoPanel({ ordenId, orden }) {
           <div className="flex items-center gap-2">
             <span className="text-base font-semibold text-gray-800">Documentos del Proveedor</span>
             {hayAlerta && (
-              <span className="animate-pulse text-xs font-semibold text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
-                ⏰ Acción requerida
+              <span className="text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                Acción requerida
               </span>
             )}
           </div>
           <button
             onClick={cargarDocumentos}
             disabled={loading}
-            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-40"
+            className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-40"
             title="Actualizar"
           >
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
@@ -227,7 +227,7 @@ export default function DTERecibidoPanel({ ordenId, orden }) {
 
         {error && (
           <div className="px-5 py-3 text-sm text-red-700 bg-red-50 border-b border-red-200">
-            ⚠ {error}
+            {error}
           </div>
         )}
 
@@ -274,7 +274,7 @@ export default function DTERecibidoPanel({ ordenId, orden }) {
 
             <button
               onClick={() => setUploadModal('guia')}
-              className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
+              className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline font-medium"
             >
               <Plus size={14} />
               Registrar nueva Guía de Despacho
@@ -360,7 +360,7 @@ export default function DTERecibidoPanel({ ordenId, orden }) {
                       <button
                         onClick={() => handleAceptar(factura.id)}
                         disabled={loading}
-                        className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                        className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium rounded-md bg-primary text-white hover:bg-hover disabled:opacity-50"
                       >
                         <CheckCircle size={12} />
                         Aceptar
@@ -383,7 +383,7 @@ export default function DTERecibidoPanel({ ordenId, orden }) {
             {!factura && (
               <button
                 onClick={() => setUploadModal('factura')}
-                className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline font-medium"
               >
                 <Plus size={14} />
                 Registrar factura del período

@@ -88,14 +88,14 @@ export default function SubproductosDecision() {
       <div className="space-y-4">
         <button
           onClick={handleSubproductosYes}
-          className="w-full px-4 py-3 bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+          className="w-full px-4 py-3 bg-primary text-white rounded hover:bg-hover font-medium"
         >
           Sí, registrar subproductos
         </button>
         
         <button
           onClick={handleSubproductosNo}
-          className="w-full px-4 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+          className="w-full px-4 py-3 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded font-medium"
         >
           No, continuar con producción final
         </button>

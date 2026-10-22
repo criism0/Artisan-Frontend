@@ -158,7 +158,7 @@ export default function QRScanner({ onScanSuccess, onClose }) {
             </p>
             <button
               onClick={requestCameraAccess}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+              className="bg-primary hover:bg-hover text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
             >
               Permitir acceso a la cámara
             </button>

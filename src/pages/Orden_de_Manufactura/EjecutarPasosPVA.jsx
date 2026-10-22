@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Dialog } from "@headlessui/react";
 import { toast } from "../../lib/toast";
 import { api } from "../../lib/api";
@@ -7,10 +7,11 @@ import { useAuth } from "../../auth/AuthContext";
 import { formatNumberCL } from "../../services/formatHelpers";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader.jsx";
+import { EstadoPVABadge } from "../../components/Produccion/EstadoOM.jsx";
 
 export default function EjecutarPasosPVA() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [pauta, setPauta] = useState(null);
   const [lote, setLote] = useState(null);
@@ -511,15 +512,7 @@ export default function EjecutarPasosPVA() {
 
   return (
     <div className="max-w-5xl mx-auto p-6 bg-white rounded shadow">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Ejecución de PVA</h1>
-        <button
-          onClick={() => navigate("/Orden_de_Manufactura")}
-          className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-        >
-          ← Volver a Órdenes
-        </button>
-      </div>
+      <PageHeader volverA="/Orden_de_Manufactura" titulo="Ejecución de PVA" />
 
       <div className="mb-4 text-sm text-gray-700">
         <p><strong>Proceso:</strong> {proceso?.descripcion || "Sin descripción"}</p>
@@ -612,7 +605,7 @@ export default function EjecutarPasosPVA() {
       ) : null}
 
       {pautaEnProceso && tienePasos ? (
-        <div className="bg-gray-200 p-4 rounded-lg mb-6">
+        <div className="mb-6">
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="p-4 font-semibold text-text">2) Ejecutar pasos</div>
 
@@ -643,17 +636,11 @@ export default function EjecutarPasosPVA() {
                         </td>
                         <td className="p-2 text-center">
                           {p.estado === "Completado" ? (
-                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
-                              Completado
-                            </span>
+                            <EstadoPVABadge estado="Completado" />
                           ) : p.estado === "En Proceso" ? (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
-                              En Proceso
-                            </span>
+                            <EstadoPVABadge estado="En Proceso" />
                           ) : (
-                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                              Pendiente
-                            </span>
+                            <EstadoPVABadge estado="Pendiente" />
                           )}
                         </td>
                         <td className="p-2 text-center">
@@ -663,7 +650,7 @@ export default function EjecutarPasosPVA() {
                                 <button
                                   onClick={() => handleComenzarPaso(p.id)}
                                   disabled={saving || !canWriteAddedValueStepRegistry}
-                                  className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 disabled:opacity-60"
+                                  className="px-3 py-1 bg-primary text-white rounded hover:bg-hover disabled:opacity-60"
                                 >
                                   Comenzar
                                 </button>
@@ -677,7 +664,7 @@ export default function EjecutarPasosPVA() {
                                 <button
                                   onClick={() => handleCompletarPaso(p.id)}
                                   disabled={saving || !canWriteAddedValueStepRegistry}
-                                  className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60"
+                                  className="px-3 py-1 bg-primary text-white rounded hover:bg-hover disabled:opacity-60"
                                 >
                                   Completar
                                 </button>
@@ -713,7 +700,7 @@ export default function EjecutarPasosPVA() {
             <button
               onClick={handleAbrirCompletar}
               disabled={saving}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded"
+              className="bg-primary hover:bg-hover text-white px-6 py-2 rounded"
             >
               Registrar salidas
             </button>
@@ -953,7 +940,7 @@ export default function EjecutarPasosPVA() {
             <button
               onClick={handleCompletarPauta}
               disabled={saving || !canWriteAddedValueGuideline}
-              className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+              className="px-4 py-2 rounded bg-primary text-white hover:bg-hover"
             >
               {saving ? "Guardando..." : "Completar"}
             </button>

@@ -542,7 +542,7 @@ export default function AsignarVenta() {
         {totalLineas > 0 && (
           <span
             className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-              todoAsignado ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+              todoAsignado ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-700"
             }`}
           >
             {lineasCompletas} de {totalLineas} líneas completas
@@ -565,9 +565,9 @@ export default function AsignarVenta() {
             {resumenProductos.map((resumen) => {
               const chip =
                 resumen.estado === "completo"
-                  ? { label: "Completo", cls: "bg-green-100 text-green-800" }
+                  ? { label: "Completo", cls: "bg-green-50 text-green-700" }
                   : resumen.estado === "parcial"
-                    ? { label: "Parcial", cls: "bg-yellow-100 text-yellow-800" }
+                    ? { label: "Parcial", cls: "bg-violet-50 text-violet-700" }
                     : { label: "Pendiente", cls: "bg-gray-100 text-gray-700" };
               const progresoPct =
                 resumen.cantidadRequerida > 0
@@ -625,30 +625,28 @@ export default function AsignarVenta() {
         <h2 className="text-xl font-bold mb-4 text-text">Pallets Asignados a la Orden</h2>
         
         {pallets.length === 0 ? (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <p className="text-yellow-700">
-              No hay pallets asignados a esta orden. Crea un pallet vacío para comenzar.
-            </p>
-          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Sin pallets todavía. Crea un pallet vacío para comenzar.
+          </p>
         ) : (
           <div className="space-y-4 mb-4">
             {pallets.map((pallet, index) => (
-              <div key={pallet.identificador} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div key={pallet.identificador} className="bg-white border border-gray-200 rounded-lg p-4">
                 <div className="flex justify-between items-start mb-2">
-                  <h3 className="text-lg font-semibold text-blue-900">
+                  <h3 className="text-lg font-semibold text-gray-900">
                     Pallet {pallet.identificador} #{index + 1}
                   </h3>
                   <div className="flex gap-2">
                     <button
                       onClick={() => setPalletEnEdicion(palletEnEdicion === pallet.identificador ? null : pallet.identificador)}
-                      className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                      className="px-3 py-1 border border-gray-300 bg-white text-gray-700 rounded text-sm hover:bg-gray-50"
                     >
                       {palletEnEdicion === pallet.identificador ? "Cerrar" : "Editar"}
                     </button>
                     <button
                       onClick={() => handleDesasociarPallet(pallet.identificador)}
                       disabled={isRemovingPallet}
-                      className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 disabled:bg-gray-400"
+                      className="px-3 py-1 border border-red-200 bg-white text-red-700 rounded text-sm hover:bg-red-50 disabled:opacity-50"
                     >
                       {isRemovingPallet ? "..." : "Desasociar"}
                     </button>
@@ -658,9 +656,9 @@ export default function AsignarVenta() {
                 {/* Mostrar bultos del pallet */}
                 {pallet.bultos && Array.isArray(pallet.bultos) && pallet.bultos.length > 0 ? (
                   <div className="ml-4 space-y-2 mb-4">
-                    <p className="text-sm text-blue-700 font-medium">Bultos en este pallet:</p>
+                    <p className="text-sm text-gray-600 font-medium">Bultos en este pallet:</p>
                     {pallet.bultos.map((bulto) => (
-                      <div key={bulto.id} className="text-sm text-blue-600 bg-white rounded p-2 flex justify-between items-center">
+                      <div key={bulto.id} className="text-sm text-gray-700 bg-gray-50 rounded p-2 flex justify-between items-center">
                         <span>
                           • Bulto {bulto.identificador || bulto.id}: {bulto.cantidad_unidades || 0} unidades
                         </span>
@@ -689,7 +687,7 @@ export default function AsignarVenta() {
                                 )
                               }
                               disabled={isRemovingBulto}
-                              className="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 disabled:bg-gray-400"
+                              className="px-2 py-1 text-xs text-gray-500 hover:text-red-600 disabled:opacity-50"
                             >
                               {isRemovingBulto ? "..." : "Quitar"}
                             </button>
@@ -699,13 +697,13 @@ export default function AsignarVenta() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-blue-600 italic mb-4">Este pallet está vacío (sin bultos asignados aún)</p>
+                  <p className="text-sm text-gray-500 mb-4">Pallet vacío.</p>
                 )}
 
                 {/* Sección para asignar bultos a este pallet específico */}
                 {palletEnEdicion === pallet.identificador && (
-                  <div className="mt-4 pt-4 border-t border-blue-300">
-                    <p className="text-sm font-medium text-blue-900 mb-2">Asignar Bultos Disponibles a Este Pallet</p>
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <p className="text-sm font-medium text-gray-900 mb-2">Asignar bultos a este pallet</p>
                     <div className="space-y-2">
                       {resumenProductos.map((resumen) => {
                         const bultosDisponibles = obtenerBultosDisponiblesPorNombre(resumen.idNombre);

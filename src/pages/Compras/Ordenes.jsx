@@ -181,29 +181,29 @@ export default function Ordenes() {
   };
 
   const getEstadoChip = (estado) => {
-    const base = "px-3 py-1 rounded-full text-xs font-medium";
+    const base = "px-2.5 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap";
 
     switch (estado) {
       case "Creada":
-        return <span className={`${base} bg-gray-200 text-gray-800`}>Creada</span>;
+        return <span className={`${base} border-gray-200 bg-gray-50 text-gray-700`}>Creada</span>;
 
       case "Validada":
-        return <span className={`${base} bg-sky-200 text-sky-800`}>Validada</span>;
+        return <span className={`${base} border-violet-200 bg-violet-50 text-violet-700`}>Validada</span>;
 
       case "Recepcionada":
-        return <span className={`${base} bg-green-200 text-green-800`}>Recepcionada</span>;
+        return <span className={`${base} border-green-200 bg-green-50 text-green-700`}>Recepcionada</span>;
 
       case "Parcialmente recepcionada":
-        return <span className={`${base} bg-amber-200 text-amber-800`}>Recep. Parcial</span>;
+        return <span className={`${base} border-amber-200 bg-amber-50 text-amber-800`}>Recep. Parcial</span>;
 
       case "Rechazada":
-        return <span className={`${base} bg-rose-200 text-rose-800`}>Rechazada</span>;
+        return <span className={`${base} border-red-200 bg-red-50 text-red-700`}>Rechazada</span>;
 
       case "Pagada":
-        return <span className={`${base} bg-lime-200 text-lime-800`}>Pagada</span>;
+        return <span className={`${base} border-green-200 bg-green-50 text-green-700`}>Pagada</span>;
 
       default:
-        return <span className={`${base} bg-gray-100 text-gray-700`}>{estado}</span>;
+        return <span className={`${base} border-gray-200 bg-gray-50 text-gray-700`}>{estado}</span>;
     }
   };
 
@@ -261,12 +261,12 @@ export default function Ordenes() {
           buttonClassName={
             row.pagada
               ? "text-green-600 hover:text-green-700"
-              : "text-gray-400 hover:text-blue-500"
+              : "text-gray-400 hover:text-primary"
           }
         />
 
         <button
-          className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded"
+          className="p-2 text-gray-400 hover:text-red-600 rounded"
           title="Eliminar orden"
           onClick={() => {
             setDeleteId(row.id);
@@ -536,7 +536,7 @@ export default function Ordenes() {
                 No
               </button>
               <button
-                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
                 onClick={handleValidarConfirm}
                 disabled={!canWritePurchaseOrder}
               >

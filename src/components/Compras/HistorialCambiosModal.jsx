@@ -41,8 +41,8 @@ const NOMBRES = {
 const OMITIDOS = new Set(["created_by", "updated_by", "archivos"]);
 
 const ACCIONES = {
-  CREAR: { texto: "Orden creada", clase: "bg-green-100 text-green-800" },
-  ACTUALIZAR: { texto: "Modificada", clase: "bg-blue-100 text-blue-800" },
+  CREAR: { texto: "Orden creada", clase: "bg-gray-100 text-gray-700" },
+  ACTUALIZAR: { texto: "Modificada", clase: "bg-gray-100 text-gray-700" },
 };
 
 function nombreCampo(campo) {

@@ -19,6 +19,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatCLP } from "../../services/formatHelpers";
 import AvanceItems from "../../components/AvanceItems";
+import Ayuda from "../../components/UI/Ayuda.jsx";
 
 // Evita que el scroll cambie el valor del input type="number"
 const handleNumberInputWheel = (e) => {
@@ -719,7 +720,7 @@ export default function RecepcionarOrden() {
               <span className="text-xs text-gray-600">{baseLabel}</span>
             </div>
             {ratio > 1.01 && cant > 0 && (
-              <span className="text-xs text-blue-600">≈ {enFormato.toFixed(2)} {row.formato}</span>
+              <span className="text-xs text-gray-500">≈ {enFormato.toFixed(2)} {row.formato}</span>
             )}
             {excede && (
               <span className="text-xs text-amber-700">Supera lo pendiente</span>
@@ -933,12 +934,13 @@ export default function RecepcionarOrden() {
         <div className="flex items-center gap-2 mb-1">
           <span className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold">1</span>
           <h2 className="text-lg text-primary font-medium">Cuadre de factura del proveedor</h2>
+          <Ayuda titulo="Cuadre de factura">
+            Por ítem, la cantidad recepcionada y el precio unitario tal como vienen en el documento
+            del proveedor. Los campos parten con lo pendiente y el precio de la OC; se muestran sólo
+            los insumos con pendientes.
+          </Ayuda>
         </div>
-        <p className="text-sm text-gray-500 mb-3">
-          Declara por ítem la <strong>cantidad recepcionada</strong> y el <strong>precio unitario</strong> tal
-          como vienen en el documento del proveedor. Los campos parten con lo pendiente y el precio de la OC —
-          ajústalos para que cuadren con la factura. Se muestran solo los insumos con pendientes.
-        </p>
+        <p className="text-sm text-gray-500 mb-3">Ajusta cantidad y precio para que cuadren con la factura.</p>
         {errors.insumos && (
           <p className="text-red-600 text-sm mb-2">{errors.insumos}</p>
         )}
@@ -989,9 +991,9 @@ export default function RecepcionarOrden() {
                         <>
                           {" "}· En bultos: <strong>{totalBase.toFixed(2)}</strong> {baseLabel}{" "}
                           {cuadra ? (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">✓ Cuadra</span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700">Cuadra</span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800">
                               Difiere en {(totalBase - declarado).toFixed(2)}
                             </span>
                           )}

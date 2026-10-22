@@ -235,7 +235,7 @@ export default function POEsList() {
                 className="text-left bg-white p-5 rounded-lg shadow hover:shadow-md hover:border-primary border border-transparent transition"
               >
                 <div className="flex items-start gap-3">
-                  <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                  <div className="p-2 bg-gray-100 rounded-lg text-gray-500">
                     <FileText size={22} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -581,7 +581,7 @@ function PreviewPOEModal({ doc, onClose, onChanged, onSwitchDoc }) {
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 inline-flex items-center gap-2"
+                className="px-3 py-1.5 bg-primary text-white rounded text-sm hover:bg-hover inline-flex items-center gap-2"
               >
                 <Download size={14} />
                 Descargar
@@ -635,7 +635,7 @@ function PreviewPOEModal({ doc, onClose, onChanged, onSwitchDoc }) {
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-3 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 inline-flex items-center gap-2"
+                className="mt-3 px-4 py-2 bg-primary text-white rounded text-sm hover:bg-hover inline-flex items-center gap-2"
               >
                 <Download size={14} />
                 Abrir archivo
@@ -731,9 +731,9 @@ function VersionesModal({ poe, onClose, onSelect }) {
                 <li key={v.id}>
                   <button
                     onClick={() => onSelect(v)}
-                    className={`w-full text-left p-3 rounded-lg border transition hover:border-primary hover:bg-blue-50 ${
+                    className={`w-full text-left p-3 rounded-lg border transition hover:border-primary hover:bg-primary/5 ${
                       v.id === poe.id
-                        ? "border-primary bg-blue-50"
+                        ? "border-primary bg-primary/5"
                         : "border-gray-200"
                     }`}
                   >
@@ -743,7 +743,7 @@ function VersionesModal({ poe, onClose, onSelect }) {
                           v{v.version}
                         </span>
                         {v.activo ? (
-                          <span className="px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-green-100 text-green-700 rounded">
+                          <span className="px-1.5 py-0.5 text-[10px] uppercase tracking-wide bg-green-50 text-green-700 rounded">
                             Activa
                           </span>
                         ) : (

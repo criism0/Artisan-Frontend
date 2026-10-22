@@ -439,12 +439,12 @@ export default function Facturas() {
                 className="block"
               />
               {!!error && (
-                <div className="text-sm text-red-700 bg-red-100 border border-red-200 rounded px-3 py-2">
+                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
                   {error}
                 </div>
               )}
               {!!okMsg && (
-                <div className="text-sm text-green-800 bg-green-100 border border-green-200 rounded px-3 py-2">
+                <div className="text-sm text-green-800 bg-green-50 border border-green-200 rounded px-3 py-2">
                   {okMsg}
                 </div>
               )}
@@ -562,12 +562,12 @@ export default function Facturas() {
               </div>
             </div>
             {!!error && (
-              <div className="mt-3 text-sm text-red-700 bg-red-100 border border-red-200 rounded px-3 py-2">
+              <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
                 {error}
               </div>
             )}
             {!!okMsg && (
-              <div className="mt-3 text-sm text-green-800 bg-green-100 border border-green-200 rounded px-3 py-2">
+              <div className="mt-3 text-sm text-green-800 bg-green-50 border border-green-200 rounded px-3 py-2">
                 {okMsg}
               </div>
             )}

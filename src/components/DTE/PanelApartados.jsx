@@ -179,7 +179,7 @@ function TarjetaApartado({ a }) {
   const motivo = explicar(a);
 
   return (
-    <div className="bg-white border border-gray-200 border-l-4 border-l-amber-400 rounded-xl">
+    <div className="bg-white border border-gray-200 rounded-xl">
       <button
         onClick={() => setAbierto((v) => !v)}
         className="w-full text-left px-3 py-2.5 flex items-start gap-2.5"

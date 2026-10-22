@@ -19,7 +19,7 @@
 
 import { useState } from 'react';
 import {
-  FileText, FileSearch, Link2, Truck, Eye, FileDown, CheckCircle2, Paperclip, AlertTriangle,
+  FileText, FileSearch, Link2, Truck, Eye, FileDown, CheckCircle2, Paperclip,
 } from 'lucide-react';
 import SeccionAdjuntos from './SeccionAdjuntos.jsx';
 import BuscadorDteExterno from './BuscadorDteExterno.jsx';
@@ -30,20 +30,8 @@ import { sePuedePrevisualizar } from '../../utils/previsualizacion.js';
 import { toast } from '../../lib/toast.js';
 import { formatCLP } from '../../services/formatHelpers.js';
 import { formatFecha } from '../../lib/dateUtils';
-
-function Chip({ tone = 'off', children }) {
-  const tones = {
-    ok:   'bg-green-100 text-green-700',
-    warn: 'bg-yellow-100 text-yellow-700',
-    info: 'bg-blue-100 text-blue-700',
-    off:  'bg-gray-100 text-gray-500',
-  };
-  return (
-    <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full whitespace-nowrap ${tones[tone]}`}>
-      {children}
-    </span>
-  );
-}
+import Ayuda from '../UI/Ayuda.jsx';
+import { DTEStatusBadge } from './DTEStatusBadge.jsx';
 
 export default function CentroDocumentosSolicitud({
   solicitudId,
@@ -119,29 +107,24 @@ export default function CentroDocumentosSolicitud({
     }
   }
 
-  const chipGuia = gds.length > 0
-    ? { tone: 'ok', texto: `Guía N° ${gds[0].folio ?? '—'}` }
-    : solicitud?.numero_guia_despacho
-      ? { tone: 'warn', texto: `Guía ${solicitud.numero_guia_despacho} · registrada a mano` }
-      : { tone: 'off', texto: 'Sin guía de despacho' };
-
   return (
     <div className="bg-white rounded-lg shadow p-5 mb-6">
 
       {/* ── Cabecera ─────────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
+      <div className="flex items-center gap-2 mb-4">
         <FileText size={18} className="text-primary" />
         <h2 className="text-base font-semibold text-gray-900">Documentos</h2>
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
-          <Chip tone="info">Solicitud: {solicitud?.estado ?? '—'}</Chip>
-          <Chip tone={chipGuia.tone}>{chipGuia.texto}</Chip>
-        </div>
       </div>
 
       {/* ── Guías de despacho ────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 uppercase tracking-wide">
           Guías de despacho
+          <Ayuda titulo="Guía de despacho">
+            La guía declara sólo lo que se despachó, con el valor de los bultos cargados en los
+            pallets. Se emite antes de enviar la solicitud y su folio queda como el número de la
+            guía. Si ya se emitió fuera del sistema, se vincula en vez de emitir otra.
+          </Ayuda>
         </h3>
         {/* Las acciones de emisión sólo aparecen mientras no haya guía: una solicitud lleva UNA,
             y su folio es el número de la guía. Ofrecer «emitir» con una ya emitida abriría la
@@ -177,8 +160,8 @@ export default function CentroDocumentosSolicitud({
               title="Si la guía ya se emitió fuera del ERP, vincularla en vez de emitir otra"
               className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border disabled:opacity-50 ${
                 vinculando
-                  ? 'bg-primary/10 border-primary text-primary'
-                  : 'bg-white border-primary text-primary hover:bg-primary/5'
+                  ? 'bg-gray-100 border-gray-300 text-gray-800'
+                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
               }`}
             >
               <Link2 className="w-4 h-4" /> Vincular guía ya emitida
@@ -191,7 +174,7 @@ export default function CentroDocumentosSolicitud({
           armar el expediente de la solicitud, y en un modal se pierde de vista la lista con la
           que hay que compararla. */}
       {vinculando && (
-        <div className="mb-4 border border-primary/30 rounded-lg p-4 bg-primary/[0.03]">
+        <div className="mb-4 border border-gray-200 rounded-lg p-4">
           <BuscadorDteExterno
             idSolicitud={solicitudId}
             onCancelar={() => setVinculando(false)}
@@ -201,14 +184,11 @@ export default function CentroDocumentosSolicitud({
       )}
 
       {gds.length === 0 ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-500 space-y-1">
-          <p>No hay guías de despacho emitidas para esta solicitud.</p>
-          <p className="text-xs text-gray-400">
-            La guía declara <strong>sólo lo que se despachó</strong>, con el valor de los bultos
-            cargados en los pallets. Emítela antes de marcar la solicitud como enviada: su folio
-            queda como el número de la guía.
-          </p>
-        </div>
+        <p className="text-sm text-gray-500">
+          {solicitud?.numero_guia_despacho
+            ? `Guía N° ${solicitud.numero_guia_despacho}, registrada a mano al enviar (sin documento en el sistema).`
+            : 'Sin guía de despacho.'}
+        </p>
       ) : (
         <div className="space-y-2">
           {gds.map((gd) => {
@@ -221,18 +201,15 @@ export default function CentroDocumentosSolicitud({
               >
                 <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-gray-800">GD N° {gd.folio ?? '—'}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      gd.estadoSii === 'aceptado' ? 'bg-green-100 text-green-800'
-                        : gd.estadoSii === 'rechazado' ? 'bg-red-100 text-red-800'
-                        : gd.estadoSii === 'anulado' ? 'bg-red-50 text-red-600 line-through'
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {gd.estadoSii?.toUpperCase() ?? 'PENDIENTE'}
-                    </span>
+                    {/* El mismo badge de estado SII que en la orden de venta. */}
+                    <DTEStatusBadge
+                      tipoDte={gd.tipoDte ?? 52}
+                      folio={gd.folio}
+                      estadoSii={gd.estadoSii ?? 'pendiente'}
+                    />
                     {gd.origen === 'EXTERNO' && (
                       <span
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-50 text-amber-800 border border-amber-200"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600"
                         title={
                           'Se emitió fuera del ERP y se vinculó a mano.' +
                           (gd.notaVinculacion ? `\n\nMotivo: ${gd.notaVinculacion}` : '')
@@ -249,9 +226,14 @@ export default function CentroDocumentosSolicitud({
                     {gd.fechaEmision && (
                       <span>· Emitida: {formatFecha(gd.fechaEmision)}</span>
                     )}
-                    {fechaLlegada
-                      ? <span className="text-green-700 font-medium">· Llegada confirmada el {new Date(fechaLlegada).toLocaleString('es-CL')}</span>
-                      : <span className="text-amber-600">· En tránsito</span>}
+                    {fechaLlegada ? (
+                      <span className="inline-flex items-center gap-1">
+                        · <CheckCircle2 className="w-3 h-3 text-green-600" />
+                        Llegó el {new Date(fechaLlegada).toLocaleString('es-CL')}
+                      </span>
+                    ) : (
+                      <span>· En tránsito</span>
+                    )}
                   </div>
                   {gd.montoTotal > 0 && (
                     <span className="text-xs text-gray-500">Total: {formatCLP(gd.montoTotal, 0)}</span>
@@ -262,7 +244,7 @@ export default function CentroDocumentosSolicitud({
                     <button
                       type="button"
                       onClick={() => onConfirmarLlegada(gd.id)}
-                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border border-green-300 text-green-700 hover:bg-green-50"
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
                     >
                       <CheckCircle2 className="w-3 h-3" /> Confirmar llegada
                     </button>
@@ -296,26 +278,25 @@ export default function CentroDocumentosSolicitud({
 
       {/* ── Archivos heredados del formulario de envío ────────────────────────────── */}
       {archivosGuiaLegado.length > 0 && (
-        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
-          <div className="flex items-start gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-            <p className="text-xs text-amber-900">
-              Estos archivos se subieron al marcar la solicitud como enviada, cuando todavía no
-              existían los adjuntos. <strong>No se veían en ninguna parte de la aplicación</strong>;
-              se muestran acá para no perderlos. Lo que se adjunte de ahora en adelante aparece
-              abajo, en «Archivos adjuntos».
-            </p>
-          </div>
-          <ul className="divide-y divide-amber-200/60">
+        <div className="mt-4">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-gray-500 mb-1">
+            Archivos subidos al enviar
+            <Ayuda titulo="Archivos subidos al enviar">
+              Se subieron al marcar la solicitud como enviada, cuando todavía no existían los
+              adjuntos, y no se veían en ninguna parte. Lo que se adjunte de ahora en adelante
+              aparece abajo, en «Archivos adjuntos».
+            </Ayuda>
+          </p>
+          <ul className="divide-y divide-gray-100">
             {archivosGuiaLegado.map((a) => {
               const verEnLinea = sePuedePrevisualizar(a.mime_type);
               return (
                 <li key={a.s3_key} className="flex items-center gap-2 py-1.5">
-                  <Paperclip className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <Paperclip className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                   <button
                     type="button"
                     onClick={() => (verEnLinea ? verEnVisor(`legado-${a.s3_key}`) : abrirLegadoFuera(a))}
-                    className="text-sm text-amber-900 hover:underline truncate text-left flex-1 min-w-0"
+                    className="text-sm text-gray-700 hover:text-primary hover:underline truncate text-left flex-1 min-w-0"
                     title={verEnLinea ? 'Ver el archivo acá mismo' : 'Abrir el archivo'}
                   >
                     {a.original_name ?? a.s3_key}

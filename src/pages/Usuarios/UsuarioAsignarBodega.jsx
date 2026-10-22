@@ -163,7 +163,7 @@ export default function UsuarioAsignarBodega(params) {
                           setSearch("");
                           setDropdownOpen(false);
                         }}
-                        className="px-3 py-2 text-sm cursor-pointer hover:bg-green-50 hover:text-green-700"
+                        className="px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 hover:text-primary"
                       >
                         {b.nombre}
                       </li>
@@ -202,7 +202,7 @@ export default function UsuarioAsignarBodega(params) {
         <button
           type="submit"
           disabled={saving}
-          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition disabled:opacity-50"
+          className="w-full bg-primary text-white py-2 rounded hover:bg-hover transition disabled:opacity-50"
         >
           {saving ? "Guardando..." : "Guardar cambios"}
         </button>

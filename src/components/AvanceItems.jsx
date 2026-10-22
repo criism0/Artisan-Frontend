@@ -41,8 +41,10 @@ const BADGES = {
     Icon: FiCheckCircle,
     text: 'Completo',
   },
+  // Parcial es avance normal, no un problema: va en el color de «en curso». El ámbar queda para
+  // el exceso, que sí pide mirarlo (se recepcionó o pickeó más de lo pedido).
   parcial: {
-    cls: 'bg-amber-100 text-amber-800 border-amber-200',
+    cls: 'bg-violet-50 text-violet-700 border-violet-200',
     Icon: FiClock,
     text: 'Parcial',
   },
@@ -52,7 +54,7 @@ const BADGES = {
     text: 'Pendiente',
   },
   exceso: {
-    cls: 'bg-violet-100 text-violet-800 border-violet-200',
+    cls: 'bg-amber-50 text-amber-800 border-amber-200',
     Icon: FiAlertTriangle,
     text: 'Exceso',
   },
@@ -60,9 +62,9 @@ const BADGES = {
 
 const BAR_COLORS = {
   completo: 'bg-green-500',
-  parcial: 'bg-amber-500',
+  parcial: 'bg-primary',
   pendiente: 'bg-gray-300',
-  exceso: 'bg-violet-500',
+  exceso: 'bg-amber-500',
 };
 
 export default function AvanceItems({ items = [], labels = {}, title = null }) {
@@ -87,11 +89,11 @@ export default function AvanceItems({ items = [], labels = {}, title = null }) {
       <div className="flex items-center gap-3 mb-4">
         <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
           <div
-            className={`h-full rounded-full transition-all ${todoListo ? 'bg-green-500' : 'bg-amber-500'}`}
+            className={`h-full rounded-full transition-all ${todoListo ? 'bg-green-500' : 'bg-primary'}`}
             style={{ width: `${rows.length ? Math.round((completos / rows.length) * 100) : 0}%` }}
           />
         </div>
-        <span className={`text-sm font-medium whitespace-nowrap ${todoListo ? 'text-green-700' : 'text-amber-700'}`}>
+        <span className={`text-sm font-medium whitespace-nowrap ${todoListo ? 'text-green-700' : 'text-gray-600'}`}>
           {completos} de {rows.length} {L.itemNoun} {completos === 1 && rows.length === 1 ? 'completo' : 'completos'}
         </span>
       </div>
@@ -135,7 +137,7 @@ export default function AvanceItems({ items = [], labels = {}, title = null }) {
                 {falta > 1e-9 && (
                   <>
                     {' · '}
-                    <span className="font-semibold text-red-600">
+                    <span className="font-semibold text-gray-800">
                       {L.pendiente}: {fmtQty(falta)}{unidad}
                     </span>
                   </>
@@ -143,7 +145,7 @@ export default function AvanceItems({ items = [], labels = {}, title = null }) {
                 {exceso > 1e-9 && (
                   <>
                     {' · '}
-                    <span className="font-semibold text-violet-700">
+                    <span className="font-semibold text-amber-700">
                       Exceso: {fmtQty(exceso)}{unidad}
                     </span>
                   </>

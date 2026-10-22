@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useApi } from "../../lib/api";
 import { useParams, useNavigate } from "react-router-dom";
-import { ModifyButton, DeleteButton, BackButton } from "../../components/Buttons/ActionButtons";
+import { ModifyButton, DeleteButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import Table from "../../components/Tables/Table";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from '../../components/UI/PageHeader.jsx';
+import { FranjaDatos, Dato } from '../../components/UI/FranjaDatos.jsx';
 
 function formatDateTime(value) {
   if (!value) return "—";
@@ -112,7 +114,7 @@ export default function PautaElaboracionDetail() {
   if (error) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="p-4 text-red-700 bg-red-100 rounded-lg">{error}</div>
+        <div className="p-4 text-red-700 bg-red-50 border border-red-200 rounded-lg">{error}</div>
       </div>
     );
   }
@@ -141,65 +143,42 @@ export default function PautaElaboracionDetail() {
   return (
     <div>
       <div className="max-w-6xl mx-auto">
-        <div className="mb-4">
-          <BackButton to="/PautasElaboracion" />
-        </div>
-
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold text-text">Pauta de Elaboración: {pauta.name}</h1>
+        <PageHeader
+          volverA="/PautasElaboracion"
+          titulo={`Pauta de Elaboración: ${pauta.name}`}
+          estado={
             <span
-              className={`px-3 py-1 rounded-full text-xs border ${
+              className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                 pauta.is_active
-                  ? 'border-green-200 bg-green-50 text-green-800'
-                  : 'border-red-200 bg-red-50 text-red-800'
+                  ? 'border-green-200 bg-green-50 text-green-700'
+                  : 'border-gray-200 bg-gray-50 text-gray-600'
               }`}
             >
               {pauta.is_active ? 'Activa' : 'Inactiva'}
             </span>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-start md:justify-end gap-2">
-            <ModifyButton onClick={() => navigate(`/PautasElaboracion/${id}/edit`)} />
-            <DeleteButton
-              onConfirmDelete={handleDelete}
-              tooltipText="Eliminar pauta"
-              entityName="pauta de elaboración"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
-            <div className="text-xs text-gray-500 font-medium">ESTADO</div>
-            <div className="text-lg font-bold text-text mt-1">
-              {pauta.is_active ? 'Activa' : 'Inactiva'}
+          }
+          acciones={
+            <div className="flex flex-wrap items-center gap-2">
+              <ModifyButton onClick={() => navigate(`/PautasElaboracion/${id}/edit`)} />
+              <DeleteButton
+                onConfirmDelete={handleDelete}
+                tooltipText="Eliminar pauta"
+                entityName="pauta de elaboración"
+              />
             </div>
-            <div className="text-xs text-gray-600 mt-2">Actualizada: {formatDateTime(pauta.updatedAt)}</div>
-          </div>
+          }
+        />
 
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-            <div className="text-xs text-gray-500 font-medium">PASOS</div>
-            <div className="text-lg font-bold text-text mt-1">{(pasos || []).length}</div>
-            <div className="text-xs text-gray-600 mt-2">Creada: {formatDateTime(pauta.createdAt)}</div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-            <div className="text-xs text-gray-500 font-medium">RECETAS VINCULADAS</div>
-            <div className="text-lg font-bold text-text mt-1">{(recetas || []).length}</div>
-            <div className="text-xs text-gray-600 mt-2">Usan esta pauta</div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
-            <div className="text-xs text-gray-500 font-medium">Análisis de Calidad</div>
-            <div className="text-lg font-bold text-text mt-1">
-              {tieneAnalisisSensorial ? `Configurado (${camposAnalisisSensorial.length})` : 'No configurado'}
-            </div>
-            <div className="text-xs text-gray-600 mt-2">
-              {tieneAnalisisSensorial ? 'Campos listos para evaluación' : 'Sin campos definidos'}
-            </div>
-          </div>
-        </div>
+        <FranjaDatos className="mb-6">
+          <Dato titulo="Pasos" detalle={`Creada: ${formatDateTime(pauta.createdAt)}`}>
+            {(pasos || []).length}
+          </Dato>
+          <Dato titulo="Recetas que la usan">{(recetas || []).length}</Dato>
+          <Dato titulo="Análisis de calidad">
+            {tieneAnalisisSensorial ? `${camposAnalisisSensorial.length} campos` : 'Sin campos'}
+          </Dato>
+          <Dato titulo="Actualizada">{formatDateTime(pauta.updatedAt)}</Dato>
+        </FranjaDatos>
 
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <h2 className="text-base font-semibold text-text">Descripción</h2>
@@ -241,13 +220,7 @@ export default function PautaElaboracionDetail() {
                         <td className="p-2 border font-medium text-text">{etiqueta}</td>
                         <td className="p-2 border text-gray-700">{tipo}</td>
                         <td className="p-2 border text-center">
-                          <span
-                            className={`px-2 py-1 rounded text-xs border ${
-                              obligatorio
-                                ? 'border-amber-200 bg-amber-50 text-amber-800'
-                                : 'border-gray-200 bg-gray-50 text-gray-700'
-                            }`}
-                          >
+                          <span className={obligatorio ? 'font-medium text-gray-800' : 'text-gray-500'}>
                             {obligatorio ? 'Sí' : 'No'}
                           </span>
                         </td>

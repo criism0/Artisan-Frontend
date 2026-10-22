@@ -178,7 +178,7 @@ export default function DocumentoRecibidoUploadModal({
                 onClick={() => { setTab(t.id); handleDeselect(); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors ${
                   tab === t.id
-                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    ? 'border-b-2 border-primary text-primary'
                     : 'text-gray-500 hover:text-gray-700'
                 }`}
               >
@@ -233,7 +233,7 @@ export default function DocumentoRecibidoUploadModal({
               <button
                 onClick={buscarEnLibreDTE}
                 disabled={ldLoading}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
               >
                 {ldLoading ? <RefreshCw size={13} className="animate-spin" /> : <Search size={13} />}
                 {ldLoading ? 'Buscando…' : 'Buscar en LibreDTE'}
@@ -250,7 +250,7 @@ export default function DocumentoRecibidoUploadModal({
                     <button
                       key={`${doc.emisor}-${doc.folio}-${i}`}
                       onClick={() => setLibreDoc(doc)}
-                      className="w-full text-left px-3 py-2.5 hover:bg-blue-50 transition-colors"
+                      className="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
@@ -274,7 +274,7 @@ export default function DocumentoRecibidoUploadModal({
                 ¿No encuentras el documento?{' '}
                 <button
                   onClick={() => setTab('pdf')}
-                  className="text-blue-500 hover:underline"
+                  className="text-primary hover:underline"
                 >
                   Súbelo manualmente
                 </button>
@@ -317,7 +317,7 @@ export default function DocumentoRecibidoUploadModal({
                 <button
                   onClick={() => fotoInputRef.current?.click()}
                   disabled={procesando}
-                  className="w-full h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-50"
+                  className="w-full h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-primary hover:text-blue-500 transition-colors disabled:opacity-50"
                 >
                   <Camera size={28} />
                   <span className="text-sm">Tomar foto / Seleccionar imagen</span>
@@ -343,14 +343,14 @@ export default function DocumentoRecibidoUploadModal({
               />
 
               {archivo ? (
-                <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-lg">
                   <div className="flex items-center gap-2 min-w-0">
-                    <FileText size={20} className="text-blue-600 flex-shrink-0" />
+                    <FileText size={20} className="text-gray-400 flex-shrink-0" />
                     <span className="text-sm text-gray-800 truncate">{archivo.name}</span>
                   </div>
                   <button
                     onClick={handleDeselect}
-                    className="ml-2 p-1 hover:bg-blue-100 rounded text-gray-400 hover:text-red-600"
+                    className="ml-2 p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-red-600"
                   >
                     <X size={14} />
                   </button>
@@ -359,7 +359,7 @@ export default function DocumentoRecibidoUploadModal({
                 <button
                   onClick={() => pdfInputRef.current?.click()}
                   disabled={procesando}
-                  className="w-full h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-50"
+                  className="w-full h-32 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 text-gray-400 hover:border-primary hover:text-blue-500 transition-colors disabled:opacity-50"
                 >
                   <Upload size={28} />
                   <span className="text-sm">Seleccionar PDF</span>
@@ -370,7 +370,7 @@ export default function DocumentoRecibidoUploadModal({
 
           {/* Estado de procesamiento OCR */}
           {procesando && (
-            <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2 text-sm text-gray-600 px-1 py-2">
               <Loader2 size={14} className="animate-spin flex-shrink-0" />
               Extrayendo datos del documento…
             </div>

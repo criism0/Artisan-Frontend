@@ -199,7 +199,7 @@ export default function AsignarInsumosPVA() {
 
       <button
         onClick={asignar}
-        className="mt-4 px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+        className="mt-4 px-6 py-2 bg-primary text-white rounded hover:bg-hover"
         disabled={!Array.isArray(pva) || pva.length === 0 || !canWriteAddedValueGuideline}
       >
         Guardar Asignaciones

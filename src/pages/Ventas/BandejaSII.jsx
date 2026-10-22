@@ -16,6 +16,7 @@ import { dteService } from '../../services/dteService.js';
 import { formatCLP } from '../../services/formatHelpers.js';
 import { toast } from '../../lib/toast.js';
 import { formatFecha } from '../../lib/dateUtils';
+import PageHeader from '../../components/UI/PageHeader.jsx';
 
 const TIPO_LABEL = {
   33: 'Factura',
@@ -26,11 +27,11 @@ const TIPO_LABEL = {
 };
 
 const TIPO_ICON = {
-  33: <FileText size={14} className="text-blue-600" />,
-  39: <FileText size={14} className="text-green-600" />,
-  52: <Truck size={14} className="text-amber-600" />,
-  56: <FilePlus size={14} className="text-purple-600" />,
-  61: <FileMinus size={14} className="text-red-600" />,
+  33: <FileText size={14} className="text-gray-400" />,
+  39: <FileText size={14} className="text-gray-400" />,
+  52: <Truck size={14} className="text-gray-400" />,
+  56: <FilePlus size={14} className="text-gray-400" />,
+  61: <FileMinus size={14} className="text-gray-400" />,
 };
 
 const TIPO_OPTIONS = [
@@ -82,18 +83,10 @@ export default function BandejaSII() {
 
   return (
     <div>
-      {/* Encabezado */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-blue-100 rounded-lg">
-          <Inbox size={22} className="text-blue-600" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-text">Bandeja SII</h1>
-          <p className="text-sm text-gray-500">
-            Documentos tributarios recibidos de proveedores vía LibreDTE
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        titulo="Bandeja SII"
+        subtitulo="Documentos tributarios recibidos de proveedores vía LibreDTE"
+      />
 
       {/* Filtros */}
       <div className="bg-white rounded-xl shadow border border-border p-4 mb-5">
@@ -151,7 +144,7 @@ export default function BandejaSII() {
           <button
             onClick={buscar}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
           >
             {loading
               ? <RefreshCw size={14} className="animate-spin" />
@@ -225,9 +218,9 @@ export default function BandejaSII() {
                       {doc.estado ? (
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                           String(doc.estado).toLowerCase().includes('acept')
-                            ? 'bg-green-100 text-green-700'
+                            ? 'bg-green-50 text-green-700'
                             : String(doc.estado).toLowerCase().includes('rechaz')
-                              ? 'bg-red-100 text-red-700'
+                              ? 'bg-red-50 text-red-700'
                               : 'bg-gray-100 text-gray-600'
                         }`}>
                           {doc.estado}

@@ -2,12 +2,23 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, apiBlob } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { BackButton } from "../../components/Buttons/ActionButtons";
 import { downloadBlob } from "../../lib/downloadBlob";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import PageHeader from "../../components/UI/PageHeader.jsx";
+import Aviso from "../../components/UI/Aviso.jsx";
+import { FranjaDatos, Dato } from "../../components/UI/FranjaDatos.jsx";
+import { EstadoOMBadge } from "../../components/Produccion/EstadoOM.jsx";
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
+// El consumo decía «kg» para todo, incluso para lo que se dosifica por unidad o en litros.
+const abreviarUnidad = (u) => {
+  const v = String(u || "").toLowerCase();
+  if (v.startsWith("unidad")) return "un.";
+  if (v.startsWith("litro")) return "L";
+  return "kg";
+};
 
 // Reparte el peso total entre N bultos con 2 decimales (lo que exige el sistema
 // para poder cerrar la OM). El último bulto absorbe el residuo del redondeo para
@@ -614,62 +625,58 @@ export default function ProduccionFinal() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to={`/Orden_de_Manufactura/${id}`} />
-      </div>
+      <PageHeader
+        volverA={`/Orden_de_Manufactura/${id}`}
+        titulo={`Producción final · OM #${id}`}
+        estado={<EstadoOMBadge estado={om?.estado} />}
+        tituloAyuda="Producción final"
+        ayuda={
+          <>
+            <p>
+              Se registra lo que salió de la OM: el peso obtenido, las unidades o cajas, los
+              subproductos y el empaque. La diferencia con lo que entró queda como merma.
+            </p>
+            <p>«Previsualizar» muestra el costo y el rendimiento antes de registrar.</p>
+          </>
+        }
+      />
 
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-text">Producción Final · OM #{id}</h1>
-      </div>
-
-      {/* Panel informativo de la OM */}
       {om && !loadingOm ? (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
-            <div className="text-xs text-gray-500 font-medium">Receta</div>
-            <div className="text-lg font-bold text-text">{om.receta?.nombre || "—"}</div>
-            <div className="text-xs text-gray-600 mt-1">
-              Costo ref: {formatCLP(Number(om.receta?.costo_referencial_produccion || 0), 2)}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-            <div className="text-xs text-gray-500 font-medium">Peso Objetivo</div>
-            <div className="text-lg font-bold text-text">{formatNumberCL(om.peso_objetivo || 0, 2)} kg</div>
-            <div className="text-xs text-gray-600 mt-1">
-              Costo OM: {formatCLP(Number(om.costo_total || 0), 2)}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-            <div className="text-xs text-gray-500 font-medium">Ingredientes</div>
-            <div className="text-lg font-bold text-text">{consumoInsumos.length}</div>
-            <div className="text-xs text-gray-600 mt-1">
-              {consumoInsumos.filter((r) => Number(r.peso_utilizado || 0) > 0).length} consumidos
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
-            <div className="text-xs text-gray-500 font-medium">Estado</div>
-            <div className="text-lg font-bold text-text capitalize">{om.estado || "—"}</div>
-            <div className="text-xs text-gray-600 mt-1">
-              {om.elaboradorEncargado?.nombre || "Sin asignar"}
-            </div>
-          </div>
-        </div>
+        <FranjaDatos className="mb-6">
+          <Dato
+            titulo="Receta"
+            detalle={`Costo ref.: ${formatCLP(Number(om.receta?.costo_referencial_produccion || 0), 2)}`}
+          >
+            {om.receta?.nombre || "—"}
+          </Dato>
+          <Dato titulo="Peso objetivo" detalle={`Costo OM: ${formatCLP(Number(om.costo_total || 0), 2)}`}>
+            {formatNumberCL(om.peso_objetivo || 0, 2)} kg
+          </Dato>
+          <Dato
+            titulo="Ingredientes"
+            detalle={`${consumoInsumos.filter((r) => Number(r.peso_utilizado || 0) > 0).length} consumidos`}
+          >
+            {consumoInsumos.length}
+          </Dato>
+          <Dato titulo="Encargado">{om.elaboradorEncargado?.nombre || "Sin asignar"}</Dato>
+        </FranjaDatos>
       ) : null}
 
       {/* Panel de consumo de insumos esperado vs actual */}
       {!loadingOm && consumoInsumos.length > 0 ? (
         <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <h2 className="text-base font-semibold text-text mb-3">📊 Consumo de Ingredientes</h2>
+          <h2 className="text-base font-semibold text-text mb-3">Consumo de ingredientes</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {consumoInsumos.slice(0, 6).map((insumo, idx) => {
               const pesoNecesario = Number(insumo.peso_necesario || 0);
               const pesoUtilizado = Number(insumo.peso_utilizado || 0);
               const porcentaje = pesoNecesario > 0 ? ((pesoUtilizado / pesoNecesario) * 100).toFixed(0) : 0;
-              const estado = pesoUtilizado >= pesoNecesario * 0.99 ? "✓ OK" : pesoUtilizado > 0 ? "⚠ Parcial" : "○ Pendiente";
-              const colorBarrra = pesoUtilizado >= pesoNecesario * 0.99 ? "bg-green-400" : pesoUtilizado > 0 ? "bg-yellow-400" : "bg-gray-300";
+              const colorBarra = pesoUtilizado >= pesoNecesario * 0.99 ? "bg-green-500" : "bg-primary";
+              const unidad = abreviarUnidad(
+                insumo?.ingredienteReceta?.materiaPrima?.unidad_medida ||
+                  insumo?.materiaPrima?.unidad_medida ||
+                  insumo?.MateriaPrima?.unidad_medida
+              );
               const nombreIngrediente =
                 insumo?.ingredienteReceta?.materiaPrima?.nombre ||
                 insumo?.materiaPrima?.nombre ||
@@ -677,18 +684,13 @@ export default function ProduccionFinal() {
                 "—";
 
               return (
-                <div key={idx} className="border border-border rounded-lg p-3 bg-gray-50">
-                  <div className="flex justify-between mb-1">
-                    <span className="text-sm font-medium text-text">{nombreIngrediente}</span>
-                    <span className={`text-xs font-bold ${pesoUtilizado >= pesoNecesario * 0.99 ? "text-green-600" : pesoUtilizado > 0 ? "text-yellow-600" : "text-gray-600"}`}>
-                      {estado}
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
-                    <div className={`${colorBarrra} h-2 rounded-full`} style={{ width: `${Math.min(porcentaje, 100)}%` }}></div>
+                <div key={idx} className="border border-gray-200 rounded-lg p-3">
+                  <div className="mb-1 text-sm font-medium text-text">{nombreIngrediente}</div>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
+                    <div className={`${colorBarra} h-1.5 rounded-full`} style={{ width: `${Math.min(porcentaje, 100)}%` }}></div>
                   </div>
                   <div className="text-xs text-gray-600 flex justify-between">
-                    <span>{formatNumberCL(pesoUtilizado, 2)} / {formatNumberCL(pesoNecesario, 2)} kg</span>
+                    <span>{formatNumberCL(pesoUtilizado, 2)} / {formatNumberCL(pesoNecesario, 2)} {unidad}</span>
                     <span>{porcentaje}%</span>
                   </div>
                 </div>
@@ -701,7 +703,7 @@ export default function ProduccionFinal() {
         </div>
       ) : null}
 
-      <div className="bg-gray-200 p-4 rounded-lg">
+      <div>
         <div className="bg-white rounded-lg shadow p-6 w-full">
           <form onSubmit={handleSubmit} className="space-y-6">
         {loadingOm ? (
@@ -946,12 +948,9 @@ export default function ProduccionFinal() {
 
                   <div className="text-xs text-gray-600">
                   {String(formatoEmpaqueId) === NO_EMPACAR_VALUE ? (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
-                      <div className="font-semibold text-yellow-800">No empacar</div>
-                      <div className="text-yellow-800">
-                        Se registrará la salida y se generará el bulto/QR del PIP, pero no se consumirán costos secos.
-                        Podrás usar este bulto en una nueva producción.
-                      </div>
+                    <div>
+                      Se genera el bulto del PIP sin consumir costos secos; se puede usar en otra
+                      producción.
                     </div>
                   ) : formatoEmpaqueSeleccionado?.descripcion ? (
                     <div>
@@ -1144,23 +1143,22 @@ export default function ProduccionFinal() {
         </div>
 
           {preview ? (
-            <div className="border-t border-border pt-4 mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
               <h2 className="text-base font-semibold text-text mb-3">Previsualización del cierre</h2>
 
               {Array.isArray(preview.advertencias) && preview.advertencias.length > 0 ? (
-                <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded p-3">
-                  <div className="text-sm font-semibold text-yellow-800">Advertencias</div>
-                  <ul className="mt-1 text-sm text-yellow-800 list-disc pl-5">
+                <Aviso className="mb-4">
+                  <ul className="list-disc pl-4 space-y-0.5">
                     {preview.advertencias.map((a, idx) => (
                       <li key={idx}>{a}</li>
                     ))}
                   </ul>
-                </div>
+                </Aviso>
               ) : null}
               
               {/* Cómo se llega al costo total (M5): suma explícita para el operario */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-4">
-                <div className="bg-white border border-blue-200 rounded p-4">
+                <div className="bg-white border border-gray-200 rounded p-4">
                   <div className="text-sm font-semibold text-text mb-3">Cómo se compone el costo</div>
                   <div className="space-y-1.5 text-sm">
                     <div className="flex justify-between items-baseline">
@@ -1183,7 +1181,7 @@ export default function ProduccionFinal() {
                     <div className="border-t border-gray-300 my-1" />
                     <div className="flex justify-between items-baseline">
                       <span className="font-medium text-gray-700">= Costo Total estimado</span>
-                      <span className="text-lg font-bold text-green-600">{formatCLP(Number(preview.costo_total_estimado || 0), 2)}</span>
+                      <span className="text-lg font-bold text-text">{formatCLP(Number(preview.costo_total_estimado || 0), 2)}</span>
                     </div>
                   </div>
                   <div className="mt-3 pt-2 border-t border-gray-200 flex justify-between items-baseline text-sm">
@@ -1193,7 +1191,7 @@ export default function ProduccionFinal() {
                 </div>
 
                 {/* Balance de masas (M5): entrada = producto + subproductos + merma */}
-                <div className="bg-white border border-blue-200 rounded p-4">
+                <div className="bg-white border border-gray-200 rounded p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-sm font-semibold text-text">Balance de masas</div>
                     <div className="text-xs text-gray-500">Objetivo: {formatNumberCL(Number(preview.peso_objetivo || 0), 2)} kg</div>
@@ -1214,7 +1212,7 @@ export default function ProduccionFinal() {
                     </div>
                     <div className="flex justify-between items-baseline">
                       <span className="text-gray-600">+ Merma estimada</span>
-                      <span className={`font-semibold ${Number(preview.peso_merma_estimado || 0) > 0.0001 ? "text-orange-700" : "text-text"}`}>
+                      <span className={`font-semibold ${Number(preview.peso_merma_estimado || 0) > 0.0001 ? "text-amber-700" : "text-text"}`}>
                         {formatNumberCL(Number(preview.peso_merma_estimado || 0), 2)} kg
                         {Number(preview.peso_ingresado_rendimiento || 0) > 0 && (
                           <span className="text-xs text-gray-400 font-normal">
@@ -1241,7 +1239,7 @@ export default function ProduccionFinal() {
               </div>
 
               {Array.isArray(preview?.costos_indirectos_estimado?.detalle) && preview.costos_indirectos_estimado.detalle.length > 0 ? (
-                <div className="mb-4 bg-white border border-blue-200 rounded p-3">
+                <div className="mb-4 bg-white border border-gray-200 rounded p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold text-text">Detalle de costos indirectos</div>
                     <div className="text-xs text-gray-700">
@@ -1275,17 +1273,12 @@ export default function ProduccionFinal() {
               ) : null}
 
               {/* Salida: cajas o bultos */}
-              <div className="bg-white border border-blue-200 rounded p-3">
+              <div className="bg-white border border-gray-200 rounded p-3">
                 <div className="text-xs text-gray-500 font-medium mb-2">
                   {preview.es_pt ? "Cajas de PT a crear" : "Bultos de PIP a crear"}
                 </div>
-                <div className="text-2xl font-bold text-primary">
+                <div className="text-2xl font-bold text-text">
                   {Array.isArray(preview.items_salida) ? preview.items_salida.length : 0}
-                </div>
-                <div className="text-xs text-gray-600 mt-1">
-                  {preview.es_pt 
-                    ? `Se crearán ${preview.items_salida?.length || 0} caja(s) de Producto Terminado`
-                    : `Se crearán ${preview.items_salida?.length || 0} bulto(s) de Producto en Proceso`}
                 </div>
 
                 {preview?.resumen_salida?.tipo === "PT" ? (
@@ -1296,7 +1289,7 @@ export default function ProduccionFinal() {
               </div>
 
               {Array.isArray(preview.items_salida) && preview.items_salida.length > 0 ? (
-                <div className="mt-4 bg-white border border-blue-200 rounded p-3">
+                <div className="mt-4 bg-white border border-gray-200 rounded p-3">
                   <div className="flex items-center justify-between gap-3 mb-2">
                     <div className="text-sm font-semibold text-text">Detalle de salida</div>
                     <div className="text-xs text-gray-600">
@@ -1325,7 +1318,7 @@ export default function ProduccionFinal() {
                           <tr key={idx} className="border-t border-border">
                             <td className="p-2">
                               {it.tipo === "CAJA_PT" ? (
-                                <span className={it.caja_abierta ? "text-yellow-700 font-semibold" : ""}>
+                                <span className={it.caja_abierta ? "text-amber-700 font-semibold" : ""}>
                                   CAJA PT{it.caja_abierta ? " (ABIERTA)" : ""}
                                 </span>
                               ) : (
@@ -1360,7 +1353,7 @@ export default function ProduccionFinal() {
               ) : null}
 
               {Array.isArray(preview.detalle_empaques) && preview.detalle_empaques.length > 0 ? (
-                <div className="mt-4 bg-white border border-blue-200 rounded p-3">
+                <div className="mt-4 bg-white border border-gray-200 rounded p-3">
                   <div className="text-sm font-semibold text-text mb-2">Detalle de empaques</div>
                   <div className="space-y-3">
                     {preview.detalle_empaques.map((emp) => (
@@ -1410,9 +1403,6 @@ export default function ProduccionFinal() {
                 </div>
               ) : null}
 
-              <div className="mt-3 p-2 bg-blue-100 border border-blue-300 rounded text-xs text-blue-700 font-medium">
-                Revisión completada. Presiona "Registrar Producción" para confirmar.
-              </div>
             </div>
           ) : null}
 

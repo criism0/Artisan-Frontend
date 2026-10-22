@@ -259,7 +259,7 @@ export default function EditProcesoValorAgregado() {
             <h2 className="text-lg font-semibold text-gray-800">Pasos del Proceso</h2>
             <button
               onClick={handleAddPaso}
-              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+              className="bg-primary hover:bg-hover text-white px-4 py-2 rounded"
             >
               Agregar Paso
             </button>

@@ -92,13 +92,13 @@ export default function FormulariosList() {
         }
         if (row.aprobado) {
           return (
-            <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+            <span className="px-2 py-1 rounded-full text-xs bg-green-50 text-green-700">
               Aprobado
             </span>
           );
         }
         return (
-          <span className="px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
+          <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-600">
             Borrador
           </span>
         );
@@ -153,7 +153,7 @@ export default function FormulariosList() {
       {row.activo && row.aprobado && (
         <button
           onClick={() => navigate(`/calidad/formularios/${row.id}/respuestas`)}
-          className="text-blue-600 hover:text-blue-700"
+          className="text-gray-400 hover:text-primary"
           title="Ver respuestas"
         >
           <FileText className="w-5 h-5" />
@@ -195,11 +195,11 @@ export default function FormulariosList() {
         <>
           <button
             onClick={() => navigate("/calidad/formularios/aprobaciones")}
-            className="px-4 py-2 border border-yellow-400 text-yellow-800 bg-yellow-50 rounded-lg hover:bg-yellow-100 text-sm flex items-center gap-2"
+            className="px-4 py-2 border border-gray-300 text-gray-700 bg-white rounded-lg hover:bg-gray-50 text-sm flex items-center gap-2"
           >
             Aprobaciones pendientes
             {pendientesCount > 0 && (
-              <span className="bg-yellow-400 text-yellow-900 text-xs font-semibold rounded-full px-2 py-0.5">
+              <span className="bg-amber-100 text-amber-800 text-xs font-semibold rounded-full px-2 py-0.5">
                 {pendientesCount}
               </span>
             )}

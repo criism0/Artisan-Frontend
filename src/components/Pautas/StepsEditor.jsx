@@ -161,7 +161,7 @@ export default function StepsEditor({ pasos, setPasos, errors, onRemovePaso, sho
           <button
             onClick={handleAddPaso}
             type="button"
-            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+            className="bg-primary hover:bg-hover text-white px-4 py-2 rounded"
           >
             Agregar Paso
           </button>

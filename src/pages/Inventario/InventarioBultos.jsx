@@ -97,10 +97,10 @@ function formatFechaIngreso(value) {
 function BadgeCategoria({ value }) {
   const v = value || "";
   const base = "inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-semibold";
-  if (v === "M") return <span className={`${base} bg-red-100 text-red-700`}>M</span>;
-  if (v === "PT") return <span className={`${base} bg-green-100 text-green-700`}>PT</span>;
-  if (v === "PIP") return <span className={`${base} bg-amber-100 text-amber-800`}>PIP</span>;
-  if (v === "I") return <span className={`${base} bg-blue-100 text-blue-700`}>I</span>;
+  // La letra ya dice la categoría; el color queda sólo para la merma, que es lo que se perdió.
+  if (v === "M") return <span className={`${base} bg-red-50 text-red-700`}>M</span>;
+  if (v === "PT" || v === "PIP" || v === "I")
+    return <span className={`${base} bg-gray-100 text-gray-700`}>{v}</span>;
   return <span className={`${base} bg-gray-100 text-gray-600`}>—</span>;
 }
 
@@ -656,7 +656,7 @@ export default function InventarioBultos() {
                     <div className="flex items-center justify-center gap-3">
                       <button
                         onClick={() => generarEtiqueta(b)}
-                        className="text-gray-400 hover:text-blue-600"
+                        className="text-gray-400 hover:text-primary"
                         title="Descargar etiqueta"
                       >
                         <FileDown className="w-5 h-5" />
@@ -665,7 +665,7 @@ export default function InventarioBultos() {
                       {canWriteBulk && (
                         <button
                           onClick={() => navigate(`/Inventario/bultos/editar/${b.id}`)}
-                          className="text-gray-400 hover:text-blue-600"
+                          className="text-gray-400 hover:text-primary"
                           title="Editar bulto"
                         >
                           <Pencil className="w-5 h-5" />
@@ -674,7 +674,7 @@ export default function InventarioBultos() {
 
                       <button
                         onClick={() => setBultoADividir(b)}
-                        className="text-gray-400 hover:text-orange-600"
+                        className="text-gray-400 hover:text-primary"
                         title="Dividir bulto"
                       >
                         <Scissors className="w-5 h-5" />

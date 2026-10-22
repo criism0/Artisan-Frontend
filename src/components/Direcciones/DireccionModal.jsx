@@ -376,8 +376,8 @@ export default function DireccionModal({
               </label>
             </div>
             {formData.es_principal && (
-              <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                Al marcar esta dirección como principal, se desmarcarán automáticamente otras direcciones principales del cliente.
+              <p className="text-xs text-gray-500">
+                Las otras direcciones principales del cliente dejan de serlo.
               </p>
             )}
           </div>
@@ -392,15 +392,15 @@ export default function DireccionModal({
                   name="es_principal_facturacion"
                   checked={formData.es_principal_facturacion}
                   onChange={handleChange}
-                  className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
                 />
                 <label className="ml-2 block text-sm text-gray-700">
                   Dirección de facturación predeterminada
                 </label>
               </div>
               {formData.es_principal_facturacion && (
-                <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded">
-                  Se precargará sola al crear una orden de venta para este cliente.
+                <p className="text-xs text-gray-500">
+                  Se precarga sola al crear una orden de venta para este cliente.
                 </p>
               )}
             </div>
@@ -418,7 +418,7 @@ export default function DireccionModal({
             <button
               type="button"
               onClick={handleSubmit}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="px-4 py-2 bg-primary text-white rounded-md hover:bg-hover focus:outline-none focus:ring-2 focus:ring-primary"
             >
               {isEditing ? "Actualizar" : "Guardar"} Dirección
             </button>

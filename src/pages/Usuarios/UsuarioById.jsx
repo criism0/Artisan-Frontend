@@ -64,7 +64,7 @@ export default function UsuarioById() {
             <p className="text-gray-500 text-sm mb-1">Estado</p>
             <span
               className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${
-                usuario.activo ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                usuario.activo ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"
               }`}
             >
               {usuario.activo ? "Activo" : "Inactivo"}

@@ -283,7 +283,7 @@ export default function CompletarFormulario() {
               label="Desvío"
               description="Hay una desviación menor que se debe documentar."
               selected={estado === "desvio"}
-              colorClass="border-yellow-500 bg-yellow-50 text-yellow-800"
+              colorClass="border-amber-500 bg-amber-50 text-amber-800"
               onSelect={() => setEstado("desvio")}
             />
             <EstadoOption
@@ -467,14 +467,14 @@ function NumeroInput({ campo, value, onChange }) {
         aria-invalid={fueraDeRango || undefined}
         className={`w-full border rounded px-3 py-2 ${
           fueraDeRango
-            ? "border-yellow-400 bg-yellow-50"
+            ? "border-amber-400 bg-amber-50"
             : "border-gray-300"
         }`}
       />
       {tieneRango &&
         (fueraDeRango ? (
-          <p className="text-xs text-yellow-700 mt-1">
-            ⚠ Fuera del rango esperado ({v.min != null ? v.min : "—"} a{" "}
+          <p className="text-xs text-amber-700 mt-1">
+            Fuera del rango esperado ({v.min != null ? v.min : "—"} a{" "}
             {v.max != null ? v.max : "—"}). Se registrará como alerta.
           </p>
         ) : (
