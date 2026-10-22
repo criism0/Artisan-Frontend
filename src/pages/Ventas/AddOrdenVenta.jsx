@@ -10,6 +10,8 @@ import Modal from "../../components/UI/Modal.jsx";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { buscarOvConMismaOC, describirDuplicadas } from "../../utils/ocDuplicada.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import CamposDireccionEntrega from "../../components/Mapas/CamposDireccionEntrega";
+import { entregaVacia } from "../../services/ubicacionService";
 import {
   unidadVentaDe,
   admiteFraccion,
@@ -236,8 +238,18 @@ export default function AddOrdenVenta() {
     });
   };
 
+  // Rutas de entrega (2026-09-30): «Otra dirección…» en el despacho = una dirección que no está
+  // entre las guardadas del cliente. Se escribe acá y queda sólo para este pedido, o se guarda
+  // también en el cliente (decisión de Cristóbal).
+  const OTRA_DIRECCION = "__otra__";
+  const [entrega, setEntrega] = useState(entregaVacia());
+  const [entregaAlCliente, setEntregaAlCliente] = useState(false);
+  const esOtraDireccion = form.id_local === OTRA_DIRECCION;
+
   const handleClientChange = async (eOrValue) => {
     const id_cliente = eOrValue?.target ? eOrValue.target.value : eOrValue;
+    setEntrega(entregaVacia());
+    setEntregaAlCliente(false);
     setDirecciones([]);
     setClienteConfig(null);
     setPreciosLista([]);
@@ -461,12 +473,16 @@ export default function AddOrdenVenta() {
   };
 
   const crearOrden = async () => {
+    if (esOtraDireccion && (!entrega.entrega_direccion.trim() || !entrega.entrega_comuna.trim())) {
+      toast.error("Escribe la calle y número y la comuna de la otra dirección de despacho.");
+      return;
+    }
     setOcDuplicada(null);
     setIsSubmitting(true);
     try {
       const payload = {
         id_cliente: Number(form.id_cliente),
-        id_local: form.id_local ? Number(form.id_local) : null,
+        id_local: form.id_local && !esOtraDireccion ? Number(form.id_local) : null,
         id_local_facturacion: form.id_local_facturacion ? Number(form.id_local_facturacion) : null,
         numero_oc: form.numero_oc,
         fecha_orden: form.fecha_orden,
@@ -474,6 +490,7 @@ export default function AddOrdenVenta() {
         es_referencial: Boolean(form.es_referencial),
         comentario_cliente: form.comentario_cliente || null,
         fecha_entrega: form.fecha_entrega || null,
+        ...(esOtraDireccion ? { ...entrega, guardar_entrega_en_cliente: entregaAlCliente } : {}),
       };
       const res = await api("/ordenes-venta", { method: "POST", body: JSON.stringify(payload) });
       const created = res?.data || res || {};
@@ -614,25 +631,49 @@ export default function AddOrdenVenta() {
             {/* Dirección de despacho — opcional acá; si no se elige, se confirma al facturar */}
             <label className="flex flex-col gap-1 col-span-2">
               <span className="text-sm font-medium text-gray-700">Dirección de despacho</span>
-              {form.id_cliente && direccionesDespacho.length === 0 ? (
-                <span className="text-xs text-amber-600">
-                  Este cliente no tiene direcciones de Despacho registradas.
-                </span>
-              ) : (
-                <Selector
-                  options={[{ value: "", label: "— Se elige al facturar —" }, ...direccionesDespacho.map((d) => ({
+              <Selector
+                options={[
+                  { value: "", label: "— Se elige al facturar —" },
+                  ...direccionesDespacho.map((d) => ({
                     value: String(d.id),
                     label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna].filter(Boolean).join(" — "),
                     searchText: [d.nombre_sucursal, d.calle, d.numero, d.comuna].filter(Boolean).join(" "),
-                  }))]}
-                  selectedValue={form.id_local}
-                  onSelect={(value) => setForm((prev) => ({ ...prev, id_local: value }))}
-                  disabled={!form.id_cliente}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                />
-              )}
-              <span className="text-xs text-gray-400 italic">Si no se elige acá, se confirma al facturar la orden</span>
+                  })),
+                  { value: OTRA_DIRECCION, label: "Otra dirección…", searchText: "otra nueva direccion" },
+                ]}
+                selectedValue={form.id_local}
+                onSelect={(value) => setForm((prev) => ({ ...prev, id_local: value }))}
+                disabled={!form.id_cliente}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+              <span className="text-xs text-gray-400 italic">
+                {form.id_cliente && direccionesDespacho.length === 0
+                  ? "Este cliente no tiene direcciones de Despacho guardadas: elige «Otra dirección…» o se confirma al facturar."
+                  : "Si no se elige acá, se confirma al facturar la orden"}
+              </span>
             </label>
+
+            {esOtraDireccion && (
+              <div className="col-span-2 flex flex-col gap-3 border border-primary/20 bg-primary/5 rounded-lg p-3">
+                <span className="text-sm font-medium text-gray-700">Otra dirección de despacho</span>
+                <CamposDireccionEntrega valor={entrega} onChange={setEntrega} />
+                <label className="flex items-start gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 accent-primary"
+                    checked={entregaAlCliente}
+                    onChange={(e) => setEntregaAlCliente(e.target.checked)}
+                  />
+                  <span>
+                    Guardar también en las direcciones del cliente
+                    <span className="block text-xs text-gray-500">
+                      Para una sucursal o bodega nueva a la que se le volverá a despachar. Sin marcar, queda sólo para
+                      este pedido (la casa de un comprador de la tienda web, un despacho puntual).
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
 
             {/* Dirección de facturación — separada de la de despacho arriba: hay clientes que
                 facturan con un RUT y despachan a la sucursal de un tercero. */}
@@ -747,6 +788,7 @@ export default function AddOrdenVenta() {
                 className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-y"
               />
             </label>
+
           </div>
 
           {/* Orden referencial */}

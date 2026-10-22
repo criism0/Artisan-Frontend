@@ -63,6 +63,15 @@ async function cargarDatos(api, ordenId) {
   return { orden, progresoData };
 }
 
+// jsPDF y su plugin de tablas se cargan al descargar, no al importar este módulo.
+async function cargarJsPdf() {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+  return { jsPDF, autoTable };
+}
+
 // `api` + `ordenId`: se obtiene todo solo (uso desde la lista).
 // `orden` + `progresoData`: ya cargados (uso desde el detalle, sin re-consultar).
 export async function generarNotaVentaPDF({ api, ordenId, orden: ordenPrecargada, progresoData: progresoPrecargado }) {
@@ -73,24 +82,44 @@ export async function generarNotaVentaPDF({ api, ordenId, orden: ordenPrecargada
 
   if (!orden) throw new Error("No se encontró la orden de venta");
 
+  const { jsPDF, autoTable } = await cargarJsPdf();
+  const doc = new jsPDF();
+  dibujarNotaVenta(doc, autoTable, orden, progresoData);
+  doc.save(nombreArchivo(orden, orden?.cliente));
+}
+
+/**
+ * Las notas de venta de varios pedidos en UN solo PDF, una tras otra y en el orden dado (el de
+ * las paradas de una ruta de entrega: se imprime una vez y sale en el orden del recorrido).
+ * Pedido de Cristóbal, 2026-09-30. Devuelve cuántas notas incluyó.
+ */
+export async function generarNotasVentaPDF({ api, ordenIds, nombre }) {
+  if (!ordenIds?.length) throw new Error("No hay pedidos para descargar");
+  const datos = await Promise.all(ordenIds.map((id) => cargarDatos(api, id)));
+  const { jsPDF, autoTable } = await cargarJsPdf();
+  const doc = new jsPDF();
+  datos.forEach(({ orden, progresoData }, i) => {
+    if (!orden) throw new Error(`No se encontró la orden de venta #${ordenIds[i]}`);
+    if (i > 0) doc.addPage();
+    dibujarNotaVenta(doc, autoTable, orden, progresoData);
+  });
+  doc.save(nombre || "notas-de-venta.pdf");
+  return datos.length;
+}
+
+/** Dibuja una nota de venta a partir de la página actual del documento. */
+function dibujarNotaVenta(doc, autoTable, orden, progresoData) {
   const cliente = orden?.cliente || {};
   const direccion = orden?.direccion || null;
   const orderItems = Array.isArray(orden?.productos) ? orden.productos : [];
   const filasExtraccion = construirFilasExtraccion(progresoData);
 
   const resumen = resumenFacturable(orderItems);
-  const costoEnvioActual = Number(orden?.costo_envio || 0);
-  const totalNeto = resumen.facturable + costoEnvioActual;
+  // El costo de entrega es interno: no va en la nota de venta (plan de rutas §7.5).
+  const totalNeto = resumen.facturable;
   const iva = Math.round(totalNeto * 0.19);
   const total = totalNeto + iva;
 
-  // jsPDF y su plugin de tablas se cargan al descargar, no al importar este módulo.
-  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-    import("jspdf"),
-    import("jspdf-autotable"),
-  ]);
-
-  const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const marginL = 15;
   const colR = pageWidth / 2 + 5;
@@ -124,9 +153,17 @@ export async function generarNotaVentaPDF({ api, ordenId, orden: ordenPrecargada
 
   const enCajasPdf = esFormatoCajas(orden?.formato_cantidad);
   const condicionPagoTexto = orden?.condiciones || cliente?.condicion_pago || "Contado";
-  const direccionTexto = direccion?.calle
-    ? [direccion.calle, direccion.numero, direccion.info_adicional].filter(Boolean).join(" ")
-    : direccion?.nombre_sucursal || "—";
+  // Un pedido con dirección «sólo para este pedido» se despacha ahí, no a la del cliente.
+  const entregaPropia = Boolean(orden?.entrega_direccion);
+  const direccionTexto = entregaPropia
+    ? [orden.entrega_direccion, orden.entrega_referencia].filter(Boolean).join(", ")
+    : direccion?.calle
+      ? [direccion.calle, direccion.numero, direccion.info_adicional].filter(Boolean).join(" ")
+      : direccion?.nombre_sucursal || "—";
+  const comunaTexto = entregaPropia ? orden.entrega_comuna || "—" : direccion?.comuna || "—";
+  const recibeTexto = entregaPropia
+    ? [orden.entrega_destinatario, orden.entrega_telefono].filter(Boolean).join(" · ") || "—"
+    : direccion?.comentarios || "—";
 
   let yL = 42;
   yL = addSection("Datos del pedido", [
@@ -145,8 +182,8 @@ export async function generarNotaVentaPDF({ api, ordenId, orden: ordenPrecargada
   ], marginL, widthL, yL);
   yL = addSection("Despacho", [
     ["Dirección", direccionTexto],
-    ["Comuna", direccion?.comuna || "—"],
-    ["Horario", direccion?.comentarios || "—"],
+    ["Comuna", comunaTexto],
+    [entregaPropia ? "Recibe" : "Horario", recibeTexto],
   ], marginL, widthL, yL);
   const finLeft = yL;
 
@@ -251,5 +288,4 @@ export async function generarNotaVentaPDF({ api, ordenId, orden: ordenPrecargada
     yTot + 10,
     { align: "center" },
   );
-  doc.save(nombreArchivo(orden, cliente));
 }
