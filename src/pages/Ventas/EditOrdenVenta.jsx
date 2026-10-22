@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
+import { esGranel } from "../../utils/formatoCantidad";
 import { toast } from "../../lib/toast";
 import { ArrowLeft, Trash2, Pencil, Check, X } from "lucide-react";
 import Selector from "../../components/Forms/Selector";
@@ -140,7 +141,7 @@ export default function EditOrdenVenta() {
               //
               // La regla que lo cierra: un formulario que reescribe un campo tiene que haberlo
               // leído. Si no lo muestra, igual tiene que conservarlo.
-              const enCajas = Boolean(item.producto_por_cajas && item.cantidad_por_caja);
+              const enCajas = !esGranel(nombreFact) && Boolean(item.producto_por_cajas && item.cantidad_por_caja);
               return {
                 id_nombre_facturacion: item.id_nombre_facturacion ?? null,
                 nombre:
@@ -186,7 +187,7 @@ export default function EditOrdenVenta() {
     if (!nombreId || !clienteConfig) return "";
     const precioLista = buscarPrecioLista(nombreId);
     const nombreFact = nombres.find((n) => n.id === nombreId);
-    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
+    const unidadesPorCaja = esGranel(nombreFact) ? 0 : Number(precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
     const precioCaja = precioLista?.precio_caja;
     const precioUnidad = precioLista?.precio_unidad;
     const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
@@ -230,7 +231,7 @@ export default function EditOrdenVenta() {
     }
     const nombreFact = nombres.find((n) => n.id === nombreId);
     const precioLista = buscarPrecioLista(nombreId);
-    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
+    const unidadesPorCaja = esGranel(nombreFact) ? 0 : Number(precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
     const esCajas = (clienteConfig?.formato || "UNIDADES").toUpperCase().includes("CAJA");
     const cantidadFormato = Number(productoForm.cantidad);
     const convertible = Boolean(esCajas && unidadesPorCaja);
