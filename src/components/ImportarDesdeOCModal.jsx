@@ -5,6 +5,7 @@ import { useApi } from '../lib/api';
 // react-toastify no se muestran. El sistema vivo es `lib/toast.js`.
 import { toast } from '../lib/toast';
 import { formatFecha } from '../lib/dateUtils';
+import { claseEstadoOC } from '../utils/estadoOrdenCompra.js';
 
 /**
  * Modal para seleccionar una Orden de Compra y precargar sus insumos
@@ -17,13 +18,6 @@ import { formatFecha } from '../lib/dateUtils';
  *     insumos: [{ id_materia_prima, cantidad_solicitada, comentario }]
  *     (cantidad_solicitada en unidad base de la materia prima)
  */
-
-const ESTADO_BADGE = {
-  Recepcionada: 'bg-green-100 text-green-700',
-  'Parcialmente recepcionada': 'bg-amber-100 text-amber-800',
-  Rechazada: 'bg-red-100 text-red-700',
-  Pagada: 'bg-blue-100 text-blue-700',
-};
 
 const fmtFecha = (d) => formatFecha(d);
 
@@ -165,7 +159,7 @@ export default function ImportarDesdeOCModal({ open, onClose, onImport }) {
           ) : (
             <ul className="divide-y divide-gray-100">
               {filtered.map((o) => {
-                const badgeCls = ESTADO_BADGE[o?.estado] || 'bg-gray-100 text-gray-600';
+                const badgeCls = `border ${claseEstadoOC(o?.estado)}`;
                 const nInsumos = Array.isArray(o?.materiasPrimas) ? o.materiasPrimas.length : null;
                 return (
                   <li key={o.id} className="py-3 flex items-center justify-between gap-3">

@@ -553,7 +553,7 @@ export default function AddClientes() {
                   <label className="inline-flex items-center">
                     <input
                       type="radio"
-                      className="form-radio text-primary"
+                      className="form-radio text-blue-600"
                       name="paymentType"
                       value="Crédito"
                       checked={paymentType === "Crédito"}

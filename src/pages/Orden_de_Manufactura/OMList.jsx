@@ -282,7 +282,7 @@ export default function OMList() {
 
         {normalized === "borrador" ? (
           <button
-            className="text-gray-400 hover:text-primary"
+            className="text-gray-400 hover:text-blue-500"
             title="Asignar insumos"
             onClick={() => navigate(`/Orden_de_Manufactura/${row.id}/insumos`)}
           >
@@ -293,7 +293,7 @@ export default function OMList() {
         {normalized === "insumos asignados" || normalized === "en ejecución" ? (
           hasPasos ? (
             <button
-              className="text-gray-400 hover:text-primary"
+              className="text-gray-400 hover:text-blue-500"
               title="Ejecutar pasos"
               onClick={() => navigate(`/Orden_de_Manufactura/${row.id}/pasos`)}
             >
@@ -301,7 +301,7 @@ export default function OMList() {
             </button>
           ) : (
             <button
-              className="text-gray-400 hover:text-primary"
+              className="text-gray-400 hover:text-green-600"
               title="Producción final"
               onClick={() => navigate(`/Orden_de_Manufactura/${row.id}/produccion-final`)}
             >
@@ -312,7 +312,7 @@ export default function OMList() {
 
         {normalized === "esperando salidas" ? (
           <button
-            className="text-gray-400 hover:text-primary"
+            className="text-gray-400 hover:text-green-600"
             title="Producción final"
             onClick={() => navigate(`/Orden_de_Manufactura/${row.id}/produccion-final`)}
           >
@@ -322,7 +322,7 @@ export default function OMList() {
 
         {normalized === "esperando pvas" ? (
           <button
-            className="text-gray-400 hover:text-primary"
+            className="text-gray-400 hover:text-purple-600"
             title="Ejecutar PVAs pendientes"
             onClick={() => void goToNextPva(row.id)}
           >

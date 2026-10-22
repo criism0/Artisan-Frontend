@@ -72,10 +72,9 @@ export default function NotaDebitoModal({ dte, onClose, onSuccess }) {
         </div>
 
         <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
-          <p className="text-xs text-gray-500">
-            Cargos adicionales sobre la factura (flete, almacenaje, precio hacia arriba). No mueve
-            inventario.
-          </p>
+          <div className="bg-purple-50 border border-purple-200 rounded-lg px-3 py-2 text-xs text-purple-700">
+            <strong>Nota de Débito:</strong> registra cargos adicionales sobre la Factura referenciada (flete, almacenaje, corrección de precio hacia arriba). No implica movimiento de inventario.
+          </div>
 
           {/* Motivo */}
           <div>
@@ -136,7 +135,7 @@ export default function NotaDebitoModal({ dte, onClose, onSuccess }) {
             <button
               type="button"
               onClick={addItem}
-              className="mt-2 flex items-center gap-1 text-xs text-primary hover:underline"
+              className="mt-2 flex items-center gap-1 text-xs text-purple-600 hover:underline"
             >
               <Plus size={12} /> Agregar línea
             </button>
@@ -154,7 +153,7 @@ export default function NotaDebitoModal({ dte, onClose, onSuccess }) {
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+              className="px-4 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
             >
               {loading ? 'Emitiendo...' : 'Emitir Nota de Débito'}
             </button>

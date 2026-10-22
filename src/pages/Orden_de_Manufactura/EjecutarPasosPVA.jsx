@@ -8,7 +8,6 @@ import { formatNumberCL } from "../../services/formatHelpers";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import PageHeader from "../../components/UI/PageHeader.jsx";
-import { EstadoPVABadge } from "../../components/Produccion/EstadoOM.jsx";
 
 export default function EjecutarPasosPVA() {
   const { id } = useParams();
@@ -605,7 +604,7 @@ export default function EjecutarPasosPVA() {
       ) : null}
 
       {pautaEnProceso && tienePasos ? (
-        <div className="mb-6">
+        <div className="bg-gray-200 p-4 rounded-lg mb-6">
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="p-4 font-semibold text-text">2) Ejecutar pasos</div>
 
@@ -636,11 +635,17 @@ export default function EjecutarPasosPVA() {
                         </td>
                         <td className="p-2 text-center">
                           {p.estado === "Completado" ? (
-                            <EstadoPVABadge estado="Completado" />
+                            <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                              Completado
+                            </span>
                           ) : p.estado === "En Proceso" ? (
-                            <EstadoPVABadge estado="En Proceso" />
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                              En Proceso
+                            </span>
                           ) : (
-                            <EstadoPVABadge estado="Pendiente" />
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
+                              Pendiente
+                            </span>
                           )}
                         </td>
                         <td className="p-2 text-center">
@@ -650,7 +655,7 @@ export default function EjecutarPasosPVA() {
                                 <button
                                   onClick={() => handleComenzarPaso(p.id)}
                                   disabled={saving || !canWriteAddedValueStepRegistry}
-                                  className="px-3 py-1 bg-primary text-white rounded hover:bg-hover disabled:opacity-60"
+                                  className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 disabled:opacity-60"
                                 >
                                   Comenzar
                                 </button>
@@ -664,7 +669,7 @@ export default function EjecutarPasosPVA() {
                                 <button
                                   onClick={() => handleCompletarPaso(p.id)}
                                   disabled={saving || !canWriteAddedValueStepRegistry}
-                                  className="px-3 py-1 bg-primary text-white rounded hover:bg-hover disabled:opacity-60"
+                                  className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60"
                                 >
                                   Completar
                                 </button>
@@ -700,7 +705,7 @@ export default function EjecutarPasosPVA() {
             <button
               onClick={handleAbrirCompletar}
               disabled={saving}
-              className="bg-primary hover:bg-hover text-white px-6 py-2 rounded"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded"
             >
               Registrar salidas
             </button>
@@ -940,7 +945,7 @@ export default function EjecutarPasosPVA() {
             <button
               onClick={handleCompletarPauta}
               disabled={saving || !canWriteAddedValueGuideline}
-              className="px-4 py-2 rounded bg-primary text-white hover:bg-hover"
+              className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
             >
               {saving ? "Guardando..." : "Completar"}
             </button>

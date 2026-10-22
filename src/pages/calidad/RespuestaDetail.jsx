@@ -27,19 +27,19 @@ const formatoFecha = (iso) => {
 const ESTADO_CONFIG = {
   conforme: {
     label: "Conforme",
-    badgeClass: "bg-green-50 text-green-700",
+    badgeClass: "bg-green-100 text-green-800",
     optionClass: "border-green-500 bg-green-50 text-green-800",
     description: "Todo dentro de norma.",
   },
   desvio: {
     label: "Desvío",
-    badgeClass: "bg-amber-50 text-amber-800",
-    optionClass: "border-amber-500 bg-amber-50 text-amber-800",
+    badgeClass: "bg-yellow-100 text-yellow-800",
+    optionClass: "border-yellow-500 bg-yellow-50 text-yellow-800",
     description: "Hay una desviación menor que se debe documentar.",
   },
   "no-conforme": {
     label: "No conforme",
-    badgeClass: "bg-red-50 text-red-700",
+    badgeClass: "bg-red-100 text-red-800",
     optionClass: "border-red-500 bg-red-50 text-red-800",
     description: "Resultado fuera de los criterios aceptables.",
   },
@@ -529,13 +529,13 @@ function EditableInput({ campo, value, onChange }) {
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={fueraDeRango || undefined}
           className={`w-full border rounded px-3 py-2 ${
-            fueraDeRango ? "border-amber-400 bg-amber-50" : "border-gray-300"
+            fueraDeRango ? "border-yellow-400 bg-yellow-50" : "border-gray-300"
           }`}
         />
         {tieneRango &&
           (fueraDeRango ? (
-            <p className="text-xs text-amber-700 mt-1">
-              Fuera del rango esperado ({v.min != null ? v.min : "—"} a{" "}
+            <p className="text-xs text-yellow-700 mt-1">
+              ⚠ Fuera del rango esperado ({v.min != null ? v.min : "—"} a{" "}
               {v.max != null ? v.max : "—"}). Se registrará como alerta.
             </p>
           ) : (

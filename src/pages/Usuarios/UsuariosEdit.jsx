@@ -227,7 +227,7 @@ export default function UsuariosEdit() {
 
         <button
           type="submit"
-          className="w-full bg-primary text-white py-2 rounded hover:bg-hover transition"
+          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition"
         >
           Guardar Cambios
         </button>

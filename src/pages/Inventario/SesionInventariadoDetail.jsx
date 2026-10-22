@@ -5,12 +5,10 @@ import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import Tabs from "../../components/UI/Tabs.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
-import { ChevronDown, ChevronRight, Download } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, Download } from "lucide-react";
 import { mensajeDelBackend } from "../../utils/mensajeError.js";
 import { abreviaturaUnidad, agruparConteo, conteoACsv } from "../../utils/tomaInventario.js";
 import PageHeader from "../../components/UI/PageHeader.jsx";
-import Aviso from "../../components/UI/Aviso.jsx";
-import { FranjaDatos, Dato } from "../../components/UI/FranjaDatos.jsx";
 
 const fmt = (n) => (n == null ? "—" : Number(n).toLocaleString("es-CL", { maximumFractionDigits: 4 }));
 const fmtFecha = (d) => (d ? new Date(d).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }) : "—");
@@ -18,11 +16,11 @@ const fmtFecha = (d) => (d ? new Date(d).toLocaleString("es-CL", { dateStyle: "s
 function getEstadoBadgeClasses(estado) {
   switch (estado) {
     case "Activa":
-      return "border-violet-200 bg-violet-50 text-violet-700";
+      return "border-sky-200 bg-sky-50 text-sky-800";
     case "Terminada":
       return "border-amber-200 bg-amber-50 text-amber-800";
     case "Validada":
-      return "border-green-200 bg-green-50 text-green-700";
+      return "border-green-200 bg-green-50 text-green-800";
     default:
       return "border-gray-200 bg-gray-50 text-gray-800";
   }
@@ -34,6 +32,8 @@ function Seccion({ titulo, tono, items, columns, defaultOpen = false }) {
   const tonos = {
     rojo: "border-red-200 bg-red-50 text-red-800",
     ambar: "border-amber-200 bg-amber-50 text-amber-800",
+    azul: "border-blue-200 bg-blue-50 text-blue-800",
+    verde: "border-green-200 bg-green-50 text-green-800",
     gris: "border-gray-200 bg-gray-50 text-gray-700",
   };
   return (
@@ -98,9 +98,18 @@ const COL_ESCANEO = {
 const TIPO_AJUSTE = {
   merma_faltante: { label: "Faltantes marcados como merma", tono: "rojo" },
   ajuste_cantidad: { label: "Ajustes de cantidad", tono: "ambar" },
-  traslado: { label: "Traslados desde otra bodega", tono: "gris" },
-  reaparecido: { label: "Reaparecidos (se desmarcó la merma)", tono: "gris" },
+  traslado: { label: "Traslados desde otra bodega", tono: "azul" },
+  reaparecido: { label: "Reaparecidos (se desmarcó la merma)", tono: "azul" },
 };
+
+function Kpi({ valor, etiqueta, color = "text-gray-800" }) {
+  return (
+    <div className="bg-white rounded-lg shadow px-4 py-3">
+      <div className={`text-2xl font-bold ${color}`}>{valor}</div>
+      <div className="text-xs text-gray-500">{etiqueta}</div>
+    </div>
+  );
+}
 
 /**
  * Detalle de una toma de inventario (rehecho el 2026-09-29).
@@ -201,7 +210,6 @@ export default function SesionInventariadoDetail() {
   const r = diff?.resumen;
   const nCambios = validada ? (ajustes?.ajustes?.length ?? 0) : null;
   const nCambiosPrevios = r ? r.ajustes_cantidad + r.traslados + r.reaparecidos + r.faltantes_a_merma : 0;
-  const nMerma = validada ? (porTipo.merma_faltante?.length ?? 0) : (r?.faltantes_a_merma ?? 0);
 
   return (
     <div>
@@ -210,7 +218,7 @@ export default function SesionInventariadoDetail() {
         volverA="/Inventario/tomas"
         titulo={`Toma de inventario #${sesion.id}`}
         estado={
-          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${getEstadoBadgeClasses(sesion.estado)}`}>
+          <span className={`px-3 py-1 rounded-full text-xs border ${getEstadoBadgeClasses(sesion.estado)}`}>
             {sesion.estado === "Terminada" ? "Por validar" : sesion.estado}
           </span>
         }
@@ -238,7 +246,7 @@ export default function SesionInventariadoDetail() {
           sesion.estado === "Terminada" && canWrite ? (
             <button
               onClick={() => setConfirmando(true)}
-              className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-hover"
+              className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-violet-700"
             >
               Validar sesión…
             </button>
@@ -247,25 +255,27 @@ export default function SesionInventariadoDetail() {
       />
 
       {sesion.estado === "Activa" && (
-        <Aviso tono="neutro" className="mb-4">
+        <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-800 rounded-md px-4 py-3 text-sm mb-4">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
           Sesión activa en la app móvil: lo contado sigue cambiando con cada escaneo.
-        </Aviso>
+        </div>
       )}
 
-      <FranjaDatos className="mb-5">
-        <Dato titulo="Bultos contados">{fmt(conteo.length)}</Dato>
-        <Dato titulo="Ítems contados">{fmt(grupos.length)}</Dato>
-        {(validada || r) && (
-          <Dato titulo={validada ? "Cambios aplicados" : "Cambios al validar"}>
-            {fmt(validada ? nCambios : nCambiosPrevios)}
-          </Dato>
-        )}
-        {(validada || r) && (
-          <Dato titulo={validada ? "Marcados como merma" : "Faltantes → merma"}>
-            <span className={nMerma > 0 ? "text-red-700" : undefined}>{fmt(nMerma)}</span>
-          </Dato>
-        )}
-      </FranjaDatos>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+        <Kpi valor={fmt(conteo.length)} etiqueta="Bultos contados" />
+        <Kpi valor={fmt(grupos.length)} etiqueta="Ítems contados" />
+        {validada ? (
+          <>
+            <Kpi valor={fmt(nCambios)} etiqueta="Cambios aplicados" color={nCambios ? "text-amber-700" : "text-green-700"} />
+            <Kpi valor={fmt(porTipo.merma_faltante?.length ?? 0)} etiqueta="Marcados como merma" color="text-red-700" />
+          </>
+        ) : r ? (
+          <>
+            <Kpi valor={fmt(nCambiosPrevios)} etiqueta="Cambios al validar" color={nCambiosPrevios ? "text-amber-700" : "text-green-700"} />
+            <Kpi valor={fmt(r.faltantes_a_merma)} etiqueta="Faltantes → merma" color="text-red-700" />
+          </>
+        ) : null}
+      </div>
 
       <Tabs
         pestanas={[
@@ -327,7 +337,7 @@ export default function SesionInventariadoDetail() {
                           <td className="px-4 py-2 text-right tabular-nums">{g.bultos}</td>
                           <td className="px-4 py-2 text-right tabular-nums font-semibold">{fmt(g.contado)} {u}</td>
                           <td className="px-4 py-2 text-right tabular-nums text-gray-600">{fmt(g.en_sistema)} {u}</td>
-                          <td className={`px-4 py-2 text-right tabular-nums ${g.diferencia < 0 ? "text-red-600" : g.diferencia > 0 ? "text-gray-700" : "text-gray-400"}`}>
+                          <td className={`px-4 py-2 text-right tabular-nums ${g.diferencia < 0 ? "text-red-600" : g.diferencia > 0 ? "text-green-700" : "text-gray-400"}`}>
                             {g.diferencia === 0 ? "—" : `${g.diferencia > 0 ? "+" : ""}${fmt(g.diferencia)} ${u}`}
                           </td>
                         </tr>
@@ -431,7 +441,7 @@ export default function SesionInventariadoDetail() {
                 b.movimiento_posterior ? `${b.movimiento_posterior > 0 ? "+" : ""}${fmt(b.movimiento_posterior)}` : "—" },
               { key: "res", label: "Quedará", render: (b) => <span className="font-semibold">{fmt(b.unidades_resultado ?? b.unidades_contadas)}</span> },
               { key: "dif", label: "Diferencia", render: (b) => (
-                <span className={b.diferencia_unidades < 0 ? "text-red-600" : "text-gray-700"}>
+                <span className={b.diferencia_unidades < 0 ? "text-red-600" : "text-green-700"}>
                   {b.diferencia_unidades > 0 ? "+" : ""}{fmt(b.diferencia_unidades)}
                 </span>
               ) },
@@ -440,7 +450,7 @@ export default function SesionInventariadoDetail() {
           />
           <Seccion
             titulo="Traslados — estaban registrados en otra bodega"
-            tono="gris"
+            tono="azul"
             defaultOpen
             items={diff.traslados}
             columns={[
@@ -452,7 +462,7 @@ export default function SesionInventariadoDetail() {
           />
           <Seccion
             titulo="Reaparecidos — estaban marcados como merma"
-            tono="gris"
+            tono="azul"
             defaultOpen
             items={diff.reaparecidos}
             columns={[
@@ -517,7 +527,7 @@ export default function SesionInventariadoDetail() {
               <button
                 onClick={validar}
                 disabled={validando}
-                className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-hover disabled:opacity-50"
+                className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
               >
                 {validando ? "Validando…" : "Validar y aplicar"}
               </button>

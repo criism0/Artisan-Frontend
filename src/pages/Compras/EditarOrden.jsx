@@ -11,7 +11,6 @@ import { useAuth } from "../../auth/AuthContext";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
-import { Paperclip } from "lucide-react";
 
 export default function EditOrden() {
   const { user } = useAuth();
@@ -579,13 +578,13 @@ export default function EditOrden() {
                     className="flex items-center justify-between p-2 bg-gray-50 rounded border"
                   >
                     <div className="flex items-center space-x-2 flex-1 min-w-0">
-                      <Paperclip className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span className="text-blue-600">📎</span>
                       {file.url ? (
                         <a
                           href={file.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-primary hover:underline truncate"
+                          className="text-sm text-blue-600 hover:underline truncate"
                         >
                           {file.original_name || `Archivo ${index + 1}`}
                         </a>
@@ -603,7 +602,7 @@ export default function EditOrden() {
                     <button
                       type="button"
                       onClick={() => handleRemoveExistingFile(index)}
-                      className="ml-2 px-2 py-1 text-xs text-gray-500 hover:text-red-600 flex-shrink-0"
+                      className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 flex-shrink-0"
                     >
                       Eliminar
                     </button>
@@ -621,10 +620,10 @@ export default function EditOrden() {
                 {form.archivosAdjuntos.map((file, index) => (
                   <li
                     key={index}
-                    className="flex items-center justify-between p-2 rounded border border-gray-200"
+                    className="flex items-center justify-between p-2 bg-green-50 rounded border border-green-200"
                   >
                     <div className="flex items-center space-x-2 flex-1 min-w-0">
-                      <Paperclip className="w-4 h-4 text-gray-400 shrink-0" />
+                      <span className="text-green-600">📎</span>
                       <span className="text-sm text-gray-700 truncate">{file.name}</span>
                       <span className="text-xs text-gray-500">
                         ({(file.size / 1024).toFixed(1)} KB)
@@ -633,7 +632,7 @@ export default function EditOrden() {
                     <button
                       type="button"
                       onClick={() => handleRemoveNewFile(index)}
-                      className="ml-2 px-2 py-1 text-xs text-gray-500 hover:text-red-600 flex-shrink-0"
+                      className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600 flex-shrink-0"
                     >
                       Quitar
                     </button>
@@ -655,7 +654,7 @@ export default function EditOrden() {
             />
             <label
               htmlFor="archivosAdjuntos"
-              className="inline-block px-4 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded cursor-pointer"
+              className="inline-block px-4 py-2 bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600"
             >
               Agregar Archivos
             </label>

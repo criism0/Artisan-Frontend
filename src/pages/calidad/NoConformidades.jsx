@@ -8,17 +8,17 @@ import { toast } from "../../lib/toast";
 const ESTADO_CONFIG = {
   "no-conforme": {
     label: "No conforme",
-    className: "bg-red-50 text-red-700",
+    className: "bg-red-100 text-red-800",
   },
   desvio: {
     label: "Desvío",
-    className: "bg-amber-50 text-amber-800",
+    className: "bg-yellow-100 text-yellow-800",
   },
 };
 
 const SEVERIDAD_CONFIG = {
-  critica: { label: "Crítica", className: "bg-red-50 text-red-700" },
-  media: { label: "Media", className: "bg-amber-50 text-amber-800" },
+  critica: { label: "Crítica", className: "bg-red-100 text-red-800" },
+  media: { label: "Media", className: "bg-yellow-100 text-yellow-800" },
 };
 
 const formatoFecha = (iso) => {
@@ -321,21 +321,25 @@ export default function NoConformidades() {
           <MiniKpi
             label="Total"
             value={kpisEstado.total}
+            borderClass="border-l-gray-400"
             valueClass="text-gray-800"
           />
           <MiniKpi
             label="No conformes"
             value={kpisEstado.noConformes}
+            borderClass="border-l-red-500"
             valueClass="text-red-700"
           />
           <MiniKpi
             label="Desvíos"
             value={kpisEstado.desvios}
-            valueClass="text-amber-700"
+            borderClass="border-l-yellow-500"
+            valueClass="text-yellow-700"
           />
           <MiniKpi
             label="Últimas 24h"
             value={kpisEstado.ultimas24h}
+            borderClass="border-l-blue-500"
             valueClass="text-gray-800"
           />
         </div>
@@ -344,21 +348,25 @@ export default function NoConformidades() {
           <MiniKpi
             label="Total alertas"
             value={kpisRangos.total}
+            borderClass="border-l-gray-400"
             valueClass="text-gray-800"
           />
           <MiniKpi
             label="Críticas"
             value={kpisRangos.criticas}
+            borderClass="border-l-red-500"
             valueClass="text-red-700"
           />
           <MiniKpi
             label="Medias"
             value={kpisRangos.medias}
+            borderClass="border-l-yellow-500"
             valueClass="text-gray-800"
           />
           <MiniKpi
             label="Últimas 24h"
             value={kpisRangos.ultimas24h}
+            borderClass="border-l-blue-500"
             valueClass="text-gray-800"
           />
         </div>
@@ -464,9 +472,9 @@ function TabButton({ active, onClick, label, badge }) {
   );
 }
 
-function MiniKpi({ label, value, valueClass }) {
+function MiniKpi({ label, value, borderClass, valueClass }) {
   return (
-    <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+    <div className={`bg-white p-4 rounded-lg shadow border-l-4 ${borderClass}`}>
       <p className="text-xs uppercase tracking-wide text-gray-500">{label}</p>
       <p className={`text-2xl font-bold mt-1 ${valueClass}`}>{value}</p>
     </div>

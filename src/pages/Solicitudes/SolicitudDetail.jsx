@@ -22,10 +22,8 @@ import { dteService } from "../../services/dteService.js";
 import { formatCLP } from "../../services/formatHelpers.js";
 import { construirLineasSolicitud } from "../../utils/lineasSolicitud.js";
 import { bultosSinEtiqueta } from "../../utils/contenidoPallet.js";
-import Aviso from "../../components/UI/Aviso.jsx";
 import Ayuda from "../../components/UI/Ayuda.jsx";
 import { EstadoSolicitudBadge, normalizeEstadoSolicitud } from "../../utils/estadoSolicitud.jsx";
-import { FranjaDatos, Dato } from "../../components/UI/FranjaDatos.jsx";
 
 function downloadBlob(blob, filename) {
   const url = window.URL.createObjectURL(blob);
@@ -687,6 +685,7 @@ export default function SolicitudDetail() {
         <PageHeader
           volverA="/Solicitudes"
           titulo={`Solicitud #${solicitud.id}`}
+          estado={<EstadoSolicitudBadge estado={solicitud.estado} />}
           tituloAyuda="Cómo avanza una solicitud"
           ayuda={
             <ul className="list-disc ml-4 space-y-1">
@@ -700,7 +699,6 @@ export default function SolicitudDetail() {
               </li>
             </ul>
           }
-          estado={<EstadoSolicitudBadge estado={solicitud.estado} />}
           acciones={
             <PanelAcciones
               principal={accionPrincipal}
@@ -710,28 +708,38 @@ export default function SolicitudDetail() {
           }
         />
 
-        {/* Una franja de datos. Antes eran cuatro tarjetas con un borde de color cada una, y la
-            primera repetía el estado que ya está junto al título. */}
-        <FranjaDatos className="mb-6">
-          <Dato titulo="Bodegas" detalle={`Solicita: ${solicitanteNombre}`}>
-            {solicitud.bodegaProveedora?.nombre ?? "—"} → {solicitud.bodegaSolicitante?.nombre ?? "—"}
-          </Dato>
-          <Dato
-            titulo="Insumos"
-            detalle={
-              totales.insumos === 0
-                ? null
-                : `en ${palletsData.length} pallet${palletsData.length === 1 ? "" : "s"}`
-            }
-          >
-            {totales.insumos}
-          </Dato>
-          <Dato
-            titulo="Productos terminados"
-            detalle={totales.productosTerminados === 0 ? null : resumenPT()}
-          >
-            {totales.productosTerminados}
-          </Dato>
+        {/* Una sola fila de indicadores. Antes había dos filas de tarjetas seguidas —las 4
+            de cabecera y las 2 del resumen— que decían cosas parecidas y ocupaban una
+            pantalla entera antes de llegar al contenido. */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Bodegas</div>
+            <div className="font-bold text-text mt-2">{solicitud.bodegaProveedora?.nombre ?? "—"}</div>
+            <div className="text-xs text-gray-600 mt-1">
+              → {solicitud.bodegaSolicitante?.nombre ?? "—"} · Solicita: {solicitanteNombre}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Insumos</div>
+            <div className="text-3xl font-bold text-gray-800 mt-1">{totales.insumos}</div>
+            <div className="text-xs text-gray-600 mt-1">
+              {totales.insumos === 0 ? "Sin insumos" : `en ${palletsData.length} pallet${palletsData.length === 1 ? "" : "s"}`}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+              Productos terminados
+            </div>
+            <div className="text-3xl font-bold text-gray-800 mt-1">
+              {totales.productosTerminados}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              {totales.productosTerminados === 0 ? "Esta solicitud no lleva PT" : resumenPT()}
+            </div>
+          </div>
+
           {/*
             🔴 EL MONTO SE MUESTRA AUNQUE EL DESPACHO SEA PARCIAL.
 
@@ -751,33 +759,43 @@ export default function SolicitudDetail() {
 
             Vivía en la pestaña de Insumos; acá se ve sin abrir nada y cubre también los PT.
           */}
-          <Dato titulo="Valor despachado">
-            {valorDespacho > 0 ? formatCLP(valorDespacho, 0) : "—"}
-          </Dato>
-        </FranjaDatos>
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">
+              Valor despachado
+            </div>
+            <div className="text-3xl font-bold text-gray-800 mt-1">
+              {valorDespacho > 0 ? formatCLP(valorDespacho, 0) : "—"}
+            </div>
+            <div className="text-xs text-gray-600 mt-1">
+              {valorDespacho > 0 ? "costo de los bultos en los pallets" : "Sin bultos cargados"}
+            </div>
+          </div>
+        </div>
 
         {/* Va en la cabecera y no dentro de la pestaña de pallets: es lo único que puede
             arruinar la recepción entera, y tiene que verse sin buscarlo. */}
         {sinEtiqueta.length > 0 && (
-          <Aviso
-            className="mb-6"
-            tituloAyuda="Bultos sin QR"
-            ayuda="Nacieron de dividir un bulto y todavía no tienen su QR pegado. Sin él no se pueden escanear al recepcionar."
-            accion={
-              <button
-                onClick={descargarEtiquetasPendientes}
-                disabled={loading}
-                className="px-3 py-1 rounded-md border border-amber-300 bg-white text-amber-900 hover:bg-amber-100 disabled:opacity-50"
-              >
-                Descargar QR
-              </button>
-            }
-          >
-            <strong>
-              {sinEtiqueta.length} bulto{sinEtiqueta.length === 1 ? "" : "s"}
-            </strong>{" "}
-            sin QR pegado.
-          </Aviso>
+          <div className="flex items-center justify-between gap-4 flex-wrap text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-6">
+            <span className="flex items-center gap-1.5">
+              <span>
+                <strong>
+                  {sinEtiqueta.length} bulto{sinEtiqueta.length === 1 ? "" : "s"}
+                </strong>{" "}
+                sin QR pegado.
+              </span>
+              <Ayuda titulo="Bultos sin QR">
+                Nacieron de dividir un bulto y todavía no tienen su QR pegado. Sin él no se pueden
+                escanear al recepcionar.
+              </Ayuda>
+            </span>
+            <button
+              onClick={descargarEtiquetasPendientes}
+              disabled={loading}
+              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 shrink-0"
+            >
+              Descargar QR de bultos nuevos
+            </button>
+          </div>
         )}
 
         {/* 🔴 TODO LO DOCUMENTAL, FUERA DE LAS PESTAÑAS. Igual que en la orden de venta: las
@@ -927,29 +945,28 @@ export default function SolicitudDetail() {
                 La guía es UNA sola: su folio es el número de la guía, así que emitirla llena
                 el campo de abajo y nadie transcribe nada. */}
             {gds.length === 0 ? (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                <span className="flex items-center gap-1.5">
-                  Sin guía de despacho.
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+                <p className="font-medium flex items-center gap-1.5">
+                  Esta solicitud todavía no tiene guía de despacho.
                   <Ayuda titulo="Guía de despacho">
                     Declara lo que se despachó, con el valor de los bultos cargados, y su folio
                     queda como número de la guía. Si se emitió fuera del sistema, escribe su
-                    número abajo.
+                    número abajo y continúa.
                   </Ayuda>
-                </span>
+                </p>
                 <button
                   type="button"
                   onClick={handleEmitirGD}
                   disabled={emitiendoGD}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+                  className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
                 >
                   <FileText className="w-4 h-4" />
-                  {emitiendoGD ? "Emitiendo…" : "Emitir guía"}
+                  {emitiendoGD ? "Emitiendo…" : "Emitir guía de despacho"}
                 </button>
               </div>
             ) : (
-              <div className="flex flex-wrap items-center gap-1.5 text-sm text-gray-700">
-                <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-                Guía de despacho <strong>N° {gds[0]?.folio ?? "—"}</strong> emitida.
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-900">
+                Guía de Despacho electrónica <strong>N° {gds[0]?.folio ?? "—"}</strong> emitida.
                 {gds[0]?.folio && String(gds[0].folio) !== guiaDespacho.trim() && (
                   <>
                     {" "}

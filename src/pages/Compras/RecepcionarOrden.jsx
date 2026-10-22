@@ -720,7 +720,7 @@ export default function RecepcionarOrden() {
               <span className="text-xs text-gray-600">{baseLabel}</span>
             </div>
             {ratio > 1.01 && cant > 0 && (
-              <span className="text-xs text-gray-500">≈ {enFormato.toFixed(2)} {row.formato}</span>
+              <span className="text-xs text-blue-600">≈ {enFormato.toFixed(2)} {row.formato}</span>
             )}
             {excede && (
               <span className="text-xs text-amber-700">Supera lo pendiente</span>
@@ -991,9 +991,9 @@ export default function RecepcionarOrden() {
                         <>
                           {" "}· En bultos: <strong>{totalBase.toFixed(2)}</strong> {baseLabel}{" "}
                           {cuadra ? (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700">Cuadra</span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">✓ Cuadra</span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
                               Difiere en {(totalBase - declarado).toFixed(2)}
                             </span>
                           )}

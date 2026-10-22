@@ -1,15 +1,13 @@
-// Esperando al SII (pendiente o enviado) es gris: es lo normal minutos después de emitir. Verde
-// cuando lo aceptó, rojo cuando lo rechazó, ámbar el documento de prueba sin firma.
 const ESTADOS = {
-  temporal:  { label: 'Demo / Sin firma', cls: 'bg-amber-50 text-amber-800'  },
+  temporal:  { label: 'Demo / Sin firma', cls: 'bg-amber-100 text-amber-800' },
   pendiente: { label: 'Pendiente SII',    cls: 'bg-gray-100 text-gray-600'   },
-  enviado:   { label: 'Enviado al SII',   cls: 'bg-gray-100 text-gray-600'   },
-  aceptado:  { label: 'Aceptado SII',     cls: 'bg-green-50 text-green-700'  },
-  rechazado: { label: 'Rechazado SII',    cls: 'bg-red-50 text-red-700'      },
+  enviado:   { label: 'Enviado al SII',   cls: 'bg-blue-100 text-blue-700'   },
+  aceptado:  { label: 'Aceptado SII',     cls: 'bg-green-100 text-green-700' },
+  rechazado: { label: 'Rechazado SII',    cls: 'bg-red-100 text-red-700'     },
   // Un documento anulado sigue existiendo y su folio sigue consumido: se muestra, tachado. Este
   // estado llega sobre todo desde LibreDTE al vincular un documento emitido fuera del ERP, y
   // faltaba — por eso la pestaña de documentos se había hecho un badge propio en paralelo.
-  anulado:   { label: 'Anulado',          cls: 'bg-gray-100 text-gray-400 line-through' },
+  anulado:   { label: 'Anulado',          cls: 'bg-red-50 text-red-600 line-through' },
 };
 
 const TIPOS = {

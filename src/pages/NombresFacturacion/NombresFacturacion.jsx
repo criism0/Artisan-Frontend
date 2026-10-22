@@ -654,7 +654,7 @@ export default function NombresFacturacion() {
               type="button"
               onClick={() => toggleExpanded(row.id)}
               className={`px-2 py-1 rounded-full text-xs font-medium inline-flex items-center gap-1 ${
-                n >= 1 ? "bg-gray-100 text-gray-700 hover:bg-gray-200" : "bg-amber-50 text-amber-800"
+                n > 1 ? "bg-blue-100 text-blue-800 hover:bg-blue-200" : n === 1 ? "bg-gray-100 text-gray-700 hover:bg-gray-200" : "bg-amber-100 text-amber-800"
               }`}
               title={n === 0 ? "Sin productos" : "Ver productos del grupo"}
               disabled={n === 0}
@@ -890,7 +890,7 @@ export default function NombresFacturacion() {
                 </div>
               </div>
               {mergeDestinoId === n.id && (
-                <span className="px-2 py-0.5 bg-violet-50 text-violet-700 text-xs rounded-full">Destino</span>
+                <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">Destino</span>
               )}
             </label>
           ))}

@@ -588,7 +588,7 @@ export default function AddReceta() {
           <button
             type="button"
             onClick={() => setShowAddIngredient(true)}
-            className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 px-4 py-2 rounded"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
           >
             Agregar Nuevo Ingrediente
           </button>
@@ -658,7 +658,7 @@ export default function AddReceta() {
               <button
                 type="button"
                 onClick={handleAddIngrediente}
-                className="bg-primary hover:bg-hover text-white px-4 py-2 rounded"
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
               >
                 Agregar
               </button>
@@ -670,7 +670,7 @@ export default function AddReceta() {
                   setIngredientPeso("");
                   setIngredientUnidad("");
                 }}
-                className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 px-4 py-2 rounded"
+                className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
               >
                 Cancelar
               </button>
@@ -718,14 +718,13 @@ export default function AddReceta() {
         {/* Add Subproduct Form */}
         {!showAddSubproduct ? (
           <button
-            type="button"
             onClick={() => setShowAddSubproduct(true)}
-            className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 px-4 py-2 rounded"
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
           >
             Agregar Subproducto
           </button>
         ) : (
-          <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg space-y-4">
+          <div className="bg-blue-50 p-4 rounded-lg space-y-4">
             <h3 className="font-medium text-gray-800">
               Agregar Nuevo Subproducto
             </h3>
@@ -749,7 +748,7 @@ export default function AddReceta() {
               </div>
               <button
                 onClick={handleAddSubproducto}
-                className="bg-primary hover:bg-hover text-white px-4 py-2 rounded"
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
               >
                 Agregar
               </button>
@@ -758,7 +757,7 @@ export default function AddReceta() {
                   setShowAddSubproduct(false);
                   setSelectedMateriaPrima("");
                 }}
-                className="border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 px-4 py-2 rounded"
+                className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
               >
                 Cancelar
               </button>

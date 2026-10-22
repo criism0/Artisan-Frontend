@@ -177,9 +177,9 @@ export default function FacturaOCComparacionModal({
                   </p>
                   <div className="space-y-1">
                     {guiasExistentes.map((g) => (
-                      <div key={g.id} className="flex justify-between text-sm bg-gray-50 rounded px-2 py-1">
-                        <span className="text-gray-700">GD #{g.folio ?? g.id} — {g.fechaEmision ?? '—'}</span>
-                        <span className="text-gray-800 font-medium">{formatCLP(g.montoTotal ?? 0, 0)}</span>
+                      <div key={g.id} className="flex justify-between text-sm bg-blue-50 rounded px-2 py-1">
+                        <span className="text-blue-800">GD #{g.folio ?? g.id} — {g.fechaEmision ?? '—'}</span>
+                        <span className="text-blue-700 font-medium">{formatCLP(g.montoTotal ?? 0, 0)}</span>
                       </div>
                     ))}
                   </div>
@@ -191,7 +191,7 @@ export default function FacturaOCComparacionModal({
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                   Datos de la {tipoLabel}
                   {ocrDetecto && (
-                    <span className="ml-2 font-normal text-gray-500 normal-case">extraídos por OCR — revisa y corrige</span>
+                    <span className="ml-2 font-normal text-blue-600 normal-case">extraídos por OCR — revisa y corrige</span>
                   )}
                 </p>
                 <div className="space-y-3 text-sm">
@@ -238,14 +238,14 @@ export default function FacturaOCComparacionModal({
 
               {/* Descuadre vs OC (solo facturas) */}
               {tipo === 'factura' && montoDocumento > 0 && (
-                <div className={`rounded-lg text-sm ${hayDescuadre ? 'p-3 bg-amber-50 border border-amber-200' : ''}`}>
+                <div className={`rounded-lg p-3 text-sm ${hayDescuadre ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
                   {hayDescuadre ? (
                     <div className="flex justify-between font-semibold text-amber-700">
                       <span className="flex items-center gap-1"><AlertTriangle size={13} />Diferencia vs OC</span>
                       <span>{descuadre > 0 ? '+' : ''}{formatCLP(descuadre, 0)}</span>
                     </div>
                   ) : (
-                    <div className="text-green-700">Total coincide con la OC</div>
+                    <div className="text-green-700 font-semibold">✅ Total coincide con la OC</div>
                   )}
                 </div>
               )}
@@ -285,7 +285,7 @@ export default function FacturaOCComparacionModal({
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-100">
               Cancelar
             </button>
-            <button type="button" onClick={handleConfirmar} disabled={loading} className="flex items-center gap-2 px-5 py-2 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50">
+            <button type="button" onClick={handleConfirmar} disabled={loading} className="flex items-center gap-2 px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
               {loading
                 ? <><Loader2 size={14} className="animate-spin" /> Guardando…</>
                 : <><Check size={14} /> Confirmar y guardar</>

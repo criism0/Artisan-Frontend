@@ -24,8 +24,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatFecha } from "../../lib/dateUtils";
 import PageHeader from "../../components/UI/PageHeader.jsx";
-import { FranjaDatos, Dato } from "../../components/UI/FranjaDatos.jsx";
-import { EstadoOMBadge, EstadoPVABadge } from "../../components/Produccion/EstadoOM.jsx";
+import { EstadoOMBadge } from "../../components/Produccion/EstadoOM.jsx";
 
 const CATEGORIAS = [
   { value: "I", label: "Insumos (I)" },
@@ -70,11 +69,24 @@ function BadgeCategoria({ value }) {
   const v = value || "";
   const base =
     "inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-semibold";
-  // La letra ya dice la categoría; el color queda sólo para la merma, que es lo que se perdió.
-  if (v === "M") return <span className={`${base} bg-red-50 text-red-700`}>M</span>;
-  if (v === "PT" || v === "PIP" || v === "I")
-    return <span className={`${base} bg-gray-100 text-gray-700`}>{v}</span>;
+  if (v === "M") return <span className={`${base} bg-red-100 text-red-700`}>M</span>;
+  if (v === "PT") return <span className={`${base} bg-green-100 text-green-700`}>PT</span>;
+  if (v === "PIP") return <span className={`${base} bg-amber-100 text-amber-800`}>PIP</span>;
+  if (v === "I") return <span className={`${base} bg-blue-100 text-blue-700`}>I</span>;
   return <span className={`${base} bg-gray-100 text-gray-600`}>—</span>;
+}
+
+function BadgeEstadoPVA({ value }) {
+  const v = String(value || "").toLowerCase();
+  const base = "px-2 py-0.5 rounded-full text-xs font-semibold";
+  if (!v) return <span className={`${base} bg-gray-100 text-gray-600`}>—</span>;
+  if (v.includes("pend")) return <span className={`${base} bg-amber-100 text-amber-800`}>Pendiente</span>;
+  if (v.includes("progres") || v.includes("ejec") || v.includes("inici"))
+    return <span className={`${base} bg-blue-100 text-blue-700`}>En progreso</span>;
+  if (v.includes("termin") || v.includes("complet"))
+    return <span className={`${base} bg-green-100 text-green-700`}>Completado</span>;
+  if (v.includes("cancel")) return <span className={`${base} bg-red-100 text-red-700`}>Cancelado</span>;
+  return <span className={`${base} bg-gray-100 text-gray-600`}>{value}</span>;
 }
 
 export default function OMDetail() {
@@ -454,8 +466,7 @@ export default function OMDetail() {
   return (
     <div>
       {/* Acciones de la OM en el panel estándar, junto al título. Antes eran seis botones
-          sueltos de cinco colores distintos —blanco, primary, azul, amarillo, verde— sin decir
-          cuál correspondía al estado actual. */}
+          sueltos de cinco colores distintos sin decir cuál correspondía al estado actual. */}
       <PageHeader
         volverA="/Orden_de_Manufactura"
         titulo={`Orden de Manufactura #${om.id ?? id}`}
@@ -475,20 +486,52 @@ export default function OMDetail() {
         acciones={<PanelAcciones principal={accionPrincipal} secundarias={accionesSecundarias} />}
       />
 
-      <FranjaDatos className="mb-6">
-        <Dato titulo="Receta" detalle={`Costo ref.: ${formatCLP(om.receta?.costo_referencial_produccion, 2)}`}>
-          {om.receta?.nombre || "—"}
-        </Dato>
-        <Dato titulo="Ingredientes" detalle={`${insumosConsumidos}/${totalInsumos} consumidos`}>
-          {porcentajeInsumos}%
-        </Dato>
-        <Dato titulo="Costo total" detalle={`Objetivo: ${formatNumberCL(om.peso_objetivo || 0, 2)} kg`}>
-          {formatCLP(om.costo_total, 0)}
-        </Dato>
-        <Dato titulo="Encargado" detalle={`Bodega: ${om.bodega?.nombre || "—"}`}>
-          {om.elaboradorEncargado?.nombre || "—"}
-        </Dato>
-      </FranjaDatos>
+      {/* Panel de estado rápido: 4 tarjetas informativas */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+        {/* Receta */}
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
+          <div className="text-xs text-gray-500 font-medium">RECETA</div>
+          <div className="font-bold text-text mt-1">{om.receta?.nombre || "—"}</div>
+          <div className="text-xs text-gray-600 mt-2">
+            Costo ref: {formatCLP(om.receta?.costo_referencial_produccion, 2)}
+          </div>
+        </div>
+
+        {/* Progreso de ingredientes */}
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+          <div className="text-xs text-gray-500 font-medium">INGREDIENTES</div>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="flex-1">
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-500 h-2 rounded-full" 
+                  style={{ width: `${porcentajeInsumos}%` }}
+                ></div>
+              </div>
+            </div>
+            <span className="text-sm font-bold">{porcentajeInsumos}%</span>
+          </div>
+          <div className="text-xs text-gray-600 mt-2">{insumosConsumidos}/{totalInsumos} consumidos</div>
+        </div>
+
+        {/* Costos */}
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+          <div className="text-xs text-gray-500 font-medium">COSTO TOTAL</div>
+          <div className="text-lg font-bold text-text mt-1">{formatCLP(om.costo_total, 0)}</div>
+          <div className="text-xs text-gray-600 mt-2">
+            Objetivo: {formatNumberCL(om.peso_objetivo || 0, 2)} kg
+          </div>
+        </div>
+
+        {/* Información de estado */}
+        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
+          <div className="text-xs text-gray-500 font-medium">ENCARGADO</div>
+          <div className="font-bold text-text mt-1">{om.elaboradorEncargado?.nombre || "—"}</div>
+          <div className="text-xs text-gray-600 mt-2">
+            Bodega: {om.bodega?.nombre || "—"}
+          </div>
+        </div>
+      </div>
 
       {/* El editor de cantidad se abre desde el panel y aparece acá, en vez de vivir
           permanentemente dentro de la barra de acciones. */}
@@ -573,7 +616,7 @@ export default function OMDetail() {
                 </div>
                 <div className="flex justify-between items-baseline">
                   <span className="text-gray-600">+ Merma</span>
-                  <span className={`font-semibold ${pesoMerma > 0.0001 ? "text-amber-700" : "text-text"}`}>
+                  <span className={`font-semibold ${pesoMerma > 0.0001 ? "text-orange-700" : "text-text"}`}>
                     {Number.isFinite(pesoMerma) ? `${formatNumberCL(pesoMerma, 2)} kg` : "—"}
                   </span>
                 </div>
@@ -789,7 +832,7 @@ export default function OMDetail() {
                         <div className="flex items-center justify-center gap-3">
                           <button
                             onClick={() => descargarEtiquetas([b.id], `etiqueta_${b?.identificador || b.id}.pdf`)}
-                            className="text-gray-400 hover:text-primary"
+                            className="text-gray-400 hover:text-blue-600"
                             title="Descargar etiqueta"
                           >
                             <FileDown className="w-5 h-5" />
@@ -797,7 +840,7 @@ export default function OMDetail() {
 
                           <button
                             onClick={() => navigate(`/Inventario/bultos/editar/${b.id}`)}
-                            className="text-gray-400 hover:text-primary"
+                            className="text-gray-400 hover:text-blue-600"
                             title="Editar bulto"
                           >
                             <Pencil className="w-5 h-5" />
@@ -940,7 +983,7 @@ export default function OMDetail() {
                             </div>
                           </td>
                           <td className="p-2 border text-center">
-                            <EstadoPVABadge estado={p?.estado} />
+                            <BadgeEstadoPVA value={p?.estado} />
                           </td>
                           <td className="p-2 border">
                             <div className="flex items-center justify-center gap-2">

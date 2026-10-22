@@ -19,12 +19,11 @@ import {
   textoBusqueda,
 } from "../../utils/inventarioVista.js";
 
-// El tipo es un dato de la fila, no un estado: la etiqueta ya dice cuál es. Eran cuatro colores.
 const TONO_TIPO = {
-  materia_prima: "bg-gray-100 text-gray-700",
-  pip: "bg-gray-100 text-gray-700",
-  subproducto: "bg-gray-100 text-gray-700",
-  producto_terminado: "bg-gray-100 text-gray-700",
+  materia_prima: "bg-blue-100 text-blue-700",
+  pip: "bg-amber-100 text-amber-800",
+  subproducto: "bg-purple-100 text-purple-700",
+  producto_terminado: "bg-green-100 text-green-700",
 };
 
 const fmtFecha = (d) =>
@@ -198,9 +197,9 @@ export default function Inventario() {
       accessor: "estado_stock",
       sortable: true,
       Cell: ({ value }) => value === "Peligro"
-        ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold border border-amber-200 bg-amber-50 text-amber-800">Bajo crítico</span>
+        ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold border border-red-200 bg-red-50 text-red-800">Bajo crítico</span>
         : value === "Bien"
-          ? <span className="text-xs text-gray-500">Bien</span>
+          ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold border border-green-200 bg-green-50 text-green-800">Bien</span>
           : <span className="text-gray-400">—</span>,
     },
     {

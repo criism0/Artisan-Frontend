@@ -1,12 +1,11 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
-  RefreshCw, ExternalLink, AlertTriangle, AlertCircle, Info,
+  Scale, RefreshCw, ExternalLink, AlertTriangle, AlertCircle, Info,
   CheckCircle2, Unlock, CloudOff, FileText, Truck, FileMinus, FilePlus,
 } from 'lucide-react';
 import { dteService } from '../../services/dteService.js';
 import { formatCLP } from '../../services/formatHelpers.js';
 import { toast } from '../../lib/toast.js';
-import PageHeader from '../../components/UI/PageHeader.jsx';
 
 /**
  * Conciliación con LibreDTE (B5).
@@ -18,11 +17,11 @@ import PageHeader from '../../components/UI/PageHeader.jsx';
 
 const TIPO_LABEL = { 33: 'Factura', 39: 'Boleta', 52: 'Guía de Despacho', 56: 'Nota de Débito', 61: 'Nota de Crédito' };
 const TIPO_ICON = {
-  33: <FileText size={14} className="text-gray-400" />,
-  39: <FileText size={14} className="text-gray-400" />,
-  52: <Truck size={14} className="text-gray-400" />,
-  56: <FilePlus size={14} className="text-gray-400" />,
-  61: <FileMinus size={14} className="text-gray-400" />,
+  33: <FileText size={14} className="text-blue-600" />,
+  39: <FileText size={14} className="text-green-600" />,
+  52: <Truck size={14} className="text-amber-600" />,
+  56: <FilePlus size={14} className="text-purple-600" />,
+  61: <FileMinus size={14} className="text-red-600" />,
 };
 
 const CLASE = {
@@ -34,9 +33,9 @@ const CLASE = {
 };
 
 const SEVERIDAD = {
-  alta:  { chip: 'bg-red-50 text-red-700 border-red-200',       icono: <AlertTriangle size={15} className="text-red-600" /> },
-  media: { chip: 'bg-amber-50 text-amber-700 border-amber-200', icono: <AlertCircle size={15} className="text-amber-600" /> },
-  baja:  { chip: 'bg-gray-100 text-gray-600 border-gray-200',   icono: <Info size={15} className="text-gray-500" /> },
+  alta:  { chip: 'bg-red-100 text-red-700 border-red-200',       icono: <AlertTriangle size={15} className="text-red-600" />,   barra: 'border-l-red-500' },
+  media: { chip: 'bg-amber-100 text-amber-700 border-amber-200', icono: <AlertCircle size={15} className="text-amber-600" />,  barra: 'border-l-amber-500' },
+  baja:  { chip: 'bg-gray-100 text-gray-600 border-gray-200',    icono: <Info size={15} className="text-gray-500" />,          barra: 'border-l-gray-300' },
 };
 
 const hoyISO = () => new Date().toISOString().slice(0, 10);
@@ -130,8 +129,9 @@ function ModalLiberar({ discrepancia, onCerrar, onLiberado }) {
 }
 
 function Fila({ d, onLiberar }) {
+  const sev = SEVERIDAD[d.severidad] ?? SEVERIDAD.baja;
   return (
-    <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
+    <div className={`bg-white border border-gray-200 border-l-4 ${sev.barra} rounded-lg px-4 py-3`}>
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap text-sm">
@@ -230,10 +230,18 @@ export default function ConciliacionLibreDTE() {
 
   return (
     <div>
-      <PageHeader
-        titulo="Conciliación con LibreDTE"
-        ayuda="Cruza nuestros documentos con los emitidos y los borradores de LibreDTE. Ante cualquier diferencia, manda LibreDTE."
-      />
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-2 bg-indigo-100 rounded-lg">
+          <Scale size={22} className="text-indigo-600" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-text">Conciliación con LibreDTE</h1>
+          <p className="text-sm text-gray-500">
+            Cruza nuestros documentos con los emitidos y los borradores de LibreDTE. Ante cualquier
+            diferencia, manda LibreDTE.
+          </p>
+        </div>
+      </div>
 
       {/* Rango */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 flex flex-wrap items-end gap-3">
@@ -299,16 +307,20 @@ export default function ConciliacionLibreDTE() {
           <Tarjeta
             etiqueta="Diferencias"
             valor={resultado.totales.discrepancias}
-            tono={resultado.totales.discrepancias ? 'text-amber-600' : 'text-text'}
+            tono={resultado.totales.discrepancias ? 'text-amber-600' : 'text-green-600'}
           />
         </div>
       )}
 
       {sinDiferencias && resultado.libredte_respondio && (
-        <p className="flex items-center justify-center gap-2 py-6 text-sm text-gray-600">
-          <CheckCircle2 size={18} className="text-green-600" />
-          Todo cuadra en este rango.
-        </p>
+        <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
+          <CheckCircle2 size={28} className="text-green-600 mx-auto mb-2" />
+          <p className="font-medium text-green-900">Todo cuadra en este rango.</p>
+          <p className="text-sm text-green-700 mt-1">
+            Cada documento del ERP tiene su par en LibreDTE, no hay emisiones trabadas y no
+            quedaron borradores sueltos.
+          </p>
+        </div>
       )}
 
       <div className="space-y-6">

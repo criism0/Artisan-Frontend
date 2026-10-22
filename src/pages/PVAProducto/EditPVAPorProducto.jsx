@@ -362,7 +362,7 @@ export default function EditPVAPorProducto() {
                 <div className="flex gap-3">
                   <button
                     onClick={() => handleSaveInsumo(insumo)}
-                    className="bg-primary hover:bg-hover text-white px-4 py-2 rounded text-sm"
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm"
                   >
                     Guardar
                   </button>

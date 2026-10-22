@@ -10,16 +10,6 @@ import { formatNumberCL } from "../../services/formatHelpers";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 import PageHeader from "../../components/UI/PageHeader.jsx";
 
-/** Sólo lo que falta se marca, y dice cuánto. */
-function EstadoDisponibilidad({ suficiente, falta, unidad }) {
-  if (suficiente) return <span className="text-xs text-gray-500">Disponible</span>;
-  return (
-    <span className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 whitespace-nowrap">
-      {Number(falta) > 0 ? `Faltan ${formatNumberCL(Number(falta), 2)}${unidad ? ` ${unidad}` : ""}` : "Insuficiente"}
-    </span>
-  );
-}
-
 export default function AddOM() {
   const apiFetch = useApi();
   const navigate = useNavigate();
@@ -402,7 +392,7 @@ export default function AddOM() {
       {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
       {success && <div className="mb-3 text-sm text-green-700">{success}</div>}
 
-      <div>
+      <div className="bg-gray-200 p-4 rounded-lg">
         <form onSubmit={handleSubmit} className="space-y-6 bg-white rounded-lg shadow p-6">
           <div>
             <label className="block text-sm font-medium mb-1">¿Qué deseas producir?</label>
@@ -519,7 +509,7 @@ export default function AddOM() {
       </div>
 
       {disponibilidad && (
-        <div className="mt-6">
+        <div className="mt-6 bg-gray-200 p-4 rounded-lg">
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="font-semibold mb-4 text-lg text-text">Disponibilidad de insumos</h2>
 
@@ -578,7 +568,7 @@ export default function AddOM() {
                         Number(cantidadDisponible) >= Number(cantidadNecesaria);
 
                       return (
-                        <tr key={index}>
+                        <tr key={index} className={disponible ? "bg-green-50" : "bg-red-50"}>
                           <td className="border border-gray-300 px-4 py-2 text-sm">{nombreInsumo}</td>
                           <td className="border border-gray-300 px-4 py-2 text-sm">
                             {formatNumberCL(Number(cantidadNecesaria || 0), 2)}
@@ -589,11 +579,17 @@ export default function AddOM() {
                             {unidadItem ? ` ${unidadItem}` : ""}
                           </td>
                           <td className="border border-gray-300 px-4 py-2 text-sm">
-                            <EstadoDisponibilidad
-                              suficiente={disponible}
-                              falta={Number(cantidadNecesaria) - Number(cantidadDisponible)}
-                              unidad={unidadItem}
-                            />
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-medium ${
+                                disponible
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              {disponible
+                                ? "✓ Disponible"
+                                : `✗ Faltan ${formatNumberCL(Number(cantidadNecesaria) - Number(cantidadDisponible), 2)}${unidadItem ? ` ${unidadItem}` : ""}`}
+                            </span>
                           </td>
                         </tr>
                       );
@@ -617,10 +613,18 @@ export default function AddOM() {
               disponibilidadNormalizada.costosSecos.formatos.length > 0 ? (
                 <div className="space-y-3">
                   {disponibilidadNormalizada.costosSecos.formatos.map((formato) => (
-                    <div key={formato.id} className="border border-gray-200 rounded-lg p-3">
+                    <div key={formato.id} className="border border-border rounded-lg p-3 bg-gray-50">
                       <div className="flex items-center justify-between gap-3">
                         <div className="font-medium text-text">{formato.nombre}</div>
-                        <EstadoDisponibilidad suficiente={formato.disponible} />
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            formato.disponible
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
+                        >
+                          {formato.disponible ? "✓ Disponible" : "✗ Insuficiente"}
+                        </span>
                       </div>
 
                       {Array.isArray(formato.insumos) && formato.insumos.length > 0 ? (
@@ -643,7 +647,7 @@ export default function AddOM() {
                                 const suficiente = insumo?.suficiente !== false;
 
                                 return (
-                                  <tr key={idx}>
+                                  <tr key={idx} className={suficiente ? "bg-green-50" : "bg-red-50"}>
                                     <td className="border border-gray-300 px-4 py-2 text-sm">
                                       {mp?.nombre || "Insumo"}
                                     </td>
@@ -654,11 +658,17 @@ export default function AddOM() {
                                       {formatNumberCL(disponible, 2)}{unidad}
                                     </td>
                                     <td className="border border-gray-300 px-4 py-2 text-sm">
-                                      <EstadoDisponibilidad
-                                        suficiente={suficiente}
-                                        falta={necesario - disponible}
-                                        unidad={mp?.unidad_medida}
-                                      />
+                                      <span
+                                        className={`px-2 py-1 rounded text-xs font-medium ${
+                                          suficiente
+                                            ? "bg-green-100 text-green-800"
+                                            : "bg-red-100 text-red-800"
+                                        }`}
+                                      >
+                                        {suficiente
+                                          ? "✓ Disponible"
+                                          : `✗ Faltan ${formatNumberCL(necesario - disponible, 2)}${unidad}`}
+                                      </span>
                                     </td>
                                   </tr>
                                 );

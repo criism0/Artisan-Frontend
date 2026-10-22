@@ -19,6 +19,7 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatCLP } from "../../services/formatHelpers";
 import { mensajeDelBackend } from "../../utils/mensajeError.js";
 import { formatFecha } from "../../lib/dateUtils";
+import { claseEstadoOC } from "../../utils/estadoOrdenCompra.js";
 
 export default function Ordenes() {
   const { user } = useAuth();
@@ -181,30 +182,12 @@ export default function Ordenes() {
   };
 
   const getEstadoChip = (estado) => {
-    const base = "px-2.5 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap";
-
-    switch (estado) {
-      case "Creada":
-        return <span className={`${base} border-gray-200 bg-gray-50 text-gray-700`}>Creada</span>;
-
-      case "Validada":
-        return <span className={`${base} border-violet-200 bg-violet-50 text-violet-700`}>Validada</span>;
-
-      case "Recepcionada":
-        return <span className={`${base} border-green-200 bg-green-50 text-green-700`}>Recepcionada</span>;
-
-      case "Parcialmente recepcionada":
-        return <span className={`${base} border-amber-200 bg-amber-50 text-amber-800`}>Recep. Parcial</span>;
-
-      case "Rechazada":
-        return <span className={`${base} border-red-200 bg-red-50 text-red-700`}>Rechazada</span>;
-
-      case "Pagada":
-        return <span className={`${base} border-green-200 bg-green-50 text-green-700`}>Pagada</span>;
-
-      default:
-        return <span className={`${base} border-gray-200 bg-gray-50 text-gray-700`}>{estado}</span>;
-    }
+    if (!estado) return null;
+    return (
+      <span className={`px-3 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${claseEstadoOC(estado)}`}>
+        {estado === "Parcialmente recepcionada" ? "Recep. Parcial" : estado}
+      </span>
+    );
   };
 
   const renderAcciones = (row) => {
@@ -261,12 +244,12 @@ export default function Ordenes() {
           buttonClassName={
             row.pagada
               ? "text-green-600 hover:text-green-700"
-              : "text-gray-400 hover:text-primary"
+              : "text-gray-400 hover:text-blue-500"
           }
         />
 
         <button
-          className="p-2 text-gray-400 hover:text-red-600 rounded"
+          className="p-2 bg-red-100 hover:bg-red-200 text-red-600 rounded"
           title="Eliminar orden"
           onClick={() => {
             setDeleteId(row.id);
@@ -536,7 +519,7 @@ export default function Ordenes() {
                 No
               </button>
               <button
-                className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                 onClick={handleValidarConfirm}
                 disabled={!canWritePurchaseOrder}
               >

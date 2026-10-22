@@ -56,7 +56,7 @@ export default function AsignarRoles() {
           <button
             onClick={() => handleApplyRoleChange(row.id)}
             disabled={tempRoleChanges[row.id] === undefined}
-            className="px-3 py-1 bg-primary text-white rounded text-sm hover:bg-hover disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             Cambiar
           </button>

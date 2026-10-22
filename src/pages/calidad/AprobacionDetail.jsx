@@ -125,7 +125,7 @@ export default function AprobacionDetail() {
             <button
               onClick={handleAprobar}
               disabled={saving || formulario.aprobado }
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm disabled:opacity-50 flex items-center gap-2"
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50 flex items-center gap-2"
             >
               {saving && <Spinner size="sm"/>}
               {saving ? "Aprobando..." : "Aprobar"}
@@ -135,11 +135,11 @@ export default function AprobacionDetail() {
 
         <div className="mb-4">
           {formulario.aprobado ? (
-            <span className="inline-block px-2 py-1 rounded-full text-xs bg-green-50 text-green-700">
+            <span className="inline-block px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
               Ya aprobado
             </span>
           ) : (
-            <span className="inline-block px-2 py-1 rounded-full text-xs bg-amber-50 text-amber-800">
+            <span className="inline-block px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
             Pendiente de aprobación
           </span>
           )}
@@ -203,7 +203,7 @@ export default function AprobacionDetail() {
           <button
             onClick={handleAprobar}
             disabled={saving || formulario.aprobado}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm disabled:opacity-50"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm disabled:opacity-50"
           >
             {saving ? "Aprobando..." : "Aprobar"}
           </button>
@@ -275,7 +275,7 @@ function CampoPreview({ campo, index }) {
             return (
               <span
                 key={i}
-                className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded"
+                className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded"
               >
                 {label}
               </span>

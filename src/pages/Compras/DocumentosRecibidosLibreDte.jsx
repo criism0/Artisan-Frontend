@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Link2, Loader2, Unlink } from "lucide-react";
+import { AlertTriangle, Check, Link2, Loader2, Unlink } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
 import Selector from "../../components/Forms/Selector";
 import { toast } from "../../lib/toast";
@@ -39,7 +39,7 @@ const TIPO_LABEL = { 33: "Factura", 34: "Factura exenta", 39: "Boleta", 52: "Gu�
 function EstadoDocumento({ doc }) {
   if (doc.vinculo) {
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700">
+      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
         <Check className="w-3 h-3" />
         OC #{doc.vinculo.id_orden_compra}
         {doc.vinculo.metodo_vinculacion === "manual" && <span className="text-green-600">(manual)</span>}
@@ -48,7 +48,7 @@ function EstadoDocumento({ doc }) {
   }
   if (doc.cliente) {
     return (
-      <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600" title="Este RUT es un cliente, no un proveedor — no corresponde vincular a una OC">
+      <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800" title="Este RUT es un cliente, no un proveedor — no corresponde vincular a una OC">
         Es cliente: {doc.cliente.nombre_empresa}
       </span>
     );
@@ -62,7 +62,7 @@ function EstadoDocumento({ doc }) {
   }
   if (!doc.proveedor) {
     return (
-      <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800" title="Este RUT no corresponde a ningún proveedor registrado en el ERP">
+      <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800" title="Este RUT no corresponde a ningún proveedor registrado en el ERP">
         Proveedor no registrado
       </span>
     );
@@ -193,24 +193,25 @@ function PanelVincular({ doc, onCerrar, onVinculado }) {
           <Loader2 className="w-4 h-4 animate-spin" /> Buscando a qué orden corresponde…
         </div>
       ) : sugerencia?.orden_compra ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-md p-3 mb-3">
-          <div className="text-sm text-gray-800">
+        <div className="bg-green-50 border border-green-200 rounded-md p-3 mb-3">
+          <div className="text-sm text-green-900">
             El documento declara la <strong>OC #{sugerencia.orden_compra.id}</strong> — {sugerencia.orden_compra.estado},
             {" "}{formatCLP(Number(sugerencia.orden_compra.total_pago || 0), 0)}.
           </div>
           <button
             onClick={confirmarAutomatico}
             disabled={guardando}
-            className="mt-2 w-full px-3 py-2 bg-primary text-white rounded-md text-sm hover:bg-hover disabled:opacity-50 flex items-center justify-center gap-1.5"
+            className="mt-2 w-full px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-1.5"
           >
             {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             Confirmar vínculo con la OC #{sugerencia.orden_compra.id}
           </button>
         </div>
       ) : (
-        <p className="mb-3 text-xs text-gray-600">
-          {sugerencia?.motivo ?? "No se pudo determinar la orden de compra sola."}
-        </p>
+        <div className="bg-amber-50 border border-amber-200 rounded-md p-2.5 mb-3 text-xs text-amber-800 flex gap-1.5">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{sugerencia?.motivo ?? "No se pudo determinar la orden de compra sola."}</span>
+        </div>
       )}
 
       {!doc.proveedor ? (

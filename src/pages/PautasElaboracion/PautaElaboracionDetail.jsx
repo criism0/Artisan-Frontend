@@ -7,7 +7,6 @@ import Table from "../../components/Tables/Table";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import PageHeader from '../../components/UI/PageHeader.jsx';
-import { FranjaDatos, Dato } from '../../components/UI/FranjaDatos.jsx';
 
 function formatDateTime(value) {
   if (!value) return "—";
@@ -114,7 +113,7 @@ export default function PautaElaboracionDetail() {
   if (error) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="p-4 text-red-700 bg-red-50 border border-red-200 rounded-lg">{error}</div>
+        <div className="p-4 text-red-700 bg-red-100 rounded-lg">{error}</div>
       </div>
     );
   }
@@ -148,10 +147,10 @@ export default function PautaElaboracionDetail() {
           titulo={`Pauta de Elaboración: ${pauta.name}`}
           estado={
             <span
-              className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+              className={`px-3 py-1 rounded-full text-xs border ${
                 pauta.is_active
-                  ? 'border-green-200 bg-green-50 text-green-700'
-                  : 'border-gray-200 bg-gray-50 text-gray-600'
+                  ? 'border-green-200 bg-green-50 text-green-800'
+                  : 'border-red-200 bg-red-50 text-red-800'
               }`}
             >
               {pauta.is_active ? 'Activa' : 'Inactiva'}
@@ -169,16 +168,32 @@ export default function PautaElaboracionDetail() {
           }
         />
 
-        <FranjaDatos className="mb-6">
-          <Dato titulo="Pasos" detalle={`Creada: ${formatDateTime(pauta.createdAt)}`}>
-            {(pasos || []).length}
-          </Dato>
-          <Dato titulo="Recetas que la usan">{(recetas || []).length}</Dato>
-          <Dato titulo="Análisis de calidad">
-            {tieneAnalisisSensorial ? `${camposAnalisisSensorial.length} campos` : 'Sin campos'}
-          </Dato>
-          <Dato titulo="Actualizada">{formatDateTime(pauta.updatedAt)}</Dato>
-        </FranjaDatos>
+        {/* La tarjeta «Estado» repetía la etiqueta de la cabecera; su fecha pasa a la de pasos. */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+            <div className="text-xs text-gray-500 font-medium">PASOS</div>
+            <div className="text-lg font-bold text-text mt-1">{(pasos || []).length}</div>
+            <div className="text-xs text-gray-600 mt-2">
+              Creada: {formatDateTime(pauta.createdAt)} · Actualizada: {formatDateTime(pauta.updatedAt)}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+            <div className="text-xs text-gray-500 font-medium">RECETAS VINCULADAS</div>
+            <div className="text-lg font-bold text-text mt-1">{(recetas || []).length}</div>
+            <div className="text-xs text-gray-600 mt-2">Usan esta pauta</div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
+            <div className="text-xs text-gray-500 font-medium">Análisis de Calidad</div>
+            <div className="text-lg font-bold text-text mt-1">
+              {tieneAnalisisSensorial ? `Configurado (${camposAnalisisSensorial.length})` : 'No configurado'}
+            </div>
+            <div className="text-xs text-gray-600 mt-2">
+              {tieneAnalisisSensorial ? 'Campos listos para evaluación' : 'Sin campos definidos'}
+            </div>
+          </div>
+        </div>
 
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <h2 className="text-base font-semibold text-text">Descripción</h2>
@@ -220,7 +235,13 @@ export default function PautaElaboracionDetail() {
                         <td className="p-2 border font-medium text-text">{etiqueta}</td>
                         <td className="p-2 border text-gray-700">{tipo}</td>
                         <td className="p-2 border text-center">
-                          <span className={obligatorio ? 'font-medium text-gray-800' : 'text-gray-500'}>
+                          <span
+                            className={`px-2 py-1 rounded text-xs border ${
+                              obligatorio
+                                ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                : 'border-gray-200 bg-gray-50 text-gray-700'
+                            }`}
+                          >
                             {obligatorio ? 'Sí' : 'No'}
                           </span>
                         </td>

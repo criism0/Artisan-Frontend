@@ -17,7 +17,7 @@ const CHIPS_VISIBLES = 6;
 
 const COLOR_ESTADO = {
   Preparando: "border-gray-200 bg-gray-50 text-gray-700",
-  "En preparación": "border-violet-200 bg-violet-50 text-violet-800",
+  "En preparación": "border-amber-200 bg-amber-50 text-amber-800",
   "En tránsito": "border-violet-200 bg-violet-50 text-violet-800",
   Recepcionado: "border-green-200 bg-green-50 text-green-800",
 };

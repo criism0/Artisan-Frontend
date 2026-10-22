@@ -239,7 +239,7 @@ export default function EjecutarPasos() {
     <div>
       <PageHeader volverA={`/Orden_de_Manufactura/${id}`} titulo={`Ejecución de pasos · OM #${id}`} />
 
-      <div>
+      <div className="bg-gray-200 p-4 rounded-lg">
         <div className="bg-white rounded-lg shadow overflow-hidden">
           {pasos.length === 0 ? (
             <div className="p-6 text-gray-600">
@@ -269,6 +269,33 @@ export default function EjecutarPasos() {
               <td className="p-2 text-gray-700 align-top">
                 <div className="max-w-md whitespace-normal break-words">
                   {p.pasoPautaElaboracion?.descripcion}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {p.pasoPautaElaboracion?.requires_ph && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                        pH
+                      </span>
+                    )}
+                    {p.pasoPautaElaboracion?.requires_temperature && (
+                      <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded">
+                        Temp
+                      </span>
+                    )}
+                    {p.pasoPautaElaboracion?.requires_obtained_quantity && (
+                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                        Cantidad
+                      </span>
+                    )}
+                    {p.extra_input_defs && p.extra_input_defs.length > 0 && (
+                      p.extra_input_defs.map((def, iDef) => (
+                        <span
+                          key={iDef}
+                          className="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded"
+                        >
+                          {def.name}
+                        </span>
+                      ))
+                    )}
+                  </div>
                 </div>
               </td>
               <td className="p-2">

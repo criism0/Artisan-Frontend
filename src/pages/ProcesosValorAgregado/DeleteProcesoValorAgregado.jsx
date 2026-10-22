@@ -80,7 +80,7 @@ export default function DeleteProcesoValorAgregado() {
           <button
             onClick={handleDelete}
             disabled={!canDeleteAddedValueProcess}
-            className="bg-primary hover:bg-hover text-white px-6 py-2 rounded"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded"
           >
             Sí, eliminar
           </button>

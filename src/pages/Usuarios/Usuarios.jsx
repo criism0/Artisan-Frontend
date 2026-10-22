@@ -91,7 +91,7 @@ export default function UsuariosPage() {
         return (
           <span
             className={`px-2 py-1 rounded-full text-xs font-medium ${
-              role ? "bg-gray-100 text-gray-800" : "bg-gray-50 text-gray-500"
+              role ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"
             }`}
           >
             {roleName(row)}
@@ -109,7 +109,7 @@ export default function UsuariosPage() {
         <div className="flex justify-center">
           <span
             className={`px-2 py-1 rounded-full text-xs font-medium ${
-              value ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"
+              value ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
             }`}
           >
             {value ? "Activo" : "Inactivo"}
@@ -137,7 +137,7 @@ export default function UsuariosPage() {
 
       <button
         onClick={() => navigate(`/Usuarios/${row.id}/Contrasena`)}
-        className="text-gray-400 hover:text-primary"
+        className="text-gray-400 hover:text-blue-500"
         title="Cambiar contraseña"
       >
         <KeyRound className="w-5 h-5" />

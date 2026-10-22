@@ -367,7 +367,7 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
 
                       <button
                         type="button"
-                        className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium"
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
                         onClick={editId ? handleAddInsumoToDraft : handleAddInsumoToNuevo}
                         disabled={loading}
                       >
@@ -456,7 +456,7 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
                         key={f.id}
                         className={`border rounded-lg p-3 transition-all ${
                           Number(editId) === Number(f.id)
-                            ? "border-primary bg-primary/5"
+                            ? "border-primary bg-blue-50"
                             : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                         }`}
                       >
@@ -478,7 +478,7 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
                               }`}
                               onClick={() => (Number(editId) === Number(f.id) ? cancelEdit() : startEdit(f))}
                             >
-                              {Number(editId) === Number(f.id) ? "Listo" : "Editar"}
+                              {Number(editId) === Number(f.id) ? "✓" : "Editar"}
                             </button>
                             <button
                               type="button"

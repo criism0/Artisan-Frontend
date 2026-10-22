@@ -167,14 +167,14 @@ export default function RegistrarSubproductos() {
           <div className="flex gap-4">
             <button
               type="button"
-              className="px-4 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded"
+              className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
               onClick={() => navigate(`/Orden_de_Manufactura/${id}`)}
             >
               Cancelar
             </button>
             <button
               type="button"
-              className="px-4 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               onClick={() =>
                 navigate(`/Orden_de_Manufactura/${id}/produccion-final`)
               }
@@ -185,7 +185,7 @@ export default function RegistrarSubproductos() {
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-primary text-white rounded hover:bg-hover disabled:opacity-60"
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-60"
           >
             {loading ? "Guardando…" : "Registrar Subproducto"}
           </button>

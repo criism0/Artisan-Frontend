@@ -724,13 +724,11 @@ export default function AsignarInsumos() {
           ayuda="Para cada insumo se eligen los bultos y cuánto se usa de cada uno, hasta cubrir lo que pide la receta. Lo asignado sale de la bodega."
           estado={
             <span
-              className={`px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                todoAsignado
-                  ? "border-green-200 bg-green-50 text-green-700"
-                  : "border-gray-200 bg-gray-50 text-gray-700"
+              className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                todoAsignado ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
               }`}
             >
-              {insumosCompletos} de {insumos.length} completos
+              {insumosCompletos} de {insumos.length} insumos completos
             </span>
           }
         />
@@ -764,10 +762,10 @@ export default function AsignarInsumos() {
 
         const estadoChip = yaAsignado
           ? objetivoCubierto
-            ? { label: "Completo", cls: "bg-green-50 text-green-700" }
-            : { label: "Completo (tolerancia)", cls: "bg-green-50 text-green-700" }
+            ? { label: "Completo", cls: "bg-green-100 text-green-800" }
+            : { label: "Completo (tolerancia)", cls: "bg-yellow-100 text-yellow-800" }
           : utilizado > 0
-            ? { label: "Parcial", cls: "bg-violet-50 text-violet-700" }
+            ? { label: "Parcial", cls: "bg-yellow-100 text-yellow-800" }
             : { label: "Pendiente", cls: "bg-gray-100 text-gray-700" };
 
         const busqueda = String(busquedaPorRegistro[insumo.id] || "").trim().toLowerCase();

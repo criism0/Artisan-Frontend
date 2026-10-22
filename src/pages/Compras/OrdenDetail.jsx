@@ -18,7 +18,6 @@ import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import DataTable from "../../components/Tables/DataTable";
 import AvanceItems from "../../components/AvanceItems";
 import { formatFecha } from "../../lib/dateUtils";
-import { Paperclip } from "lucide-react";
 
 export default function OrdenDetail() {
   const { ordenId } = useParams();
@@ -368,7 +367,7 @@ export default function OrdenDetail() {
   if (!orden && !loading)
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="p-4 text-red-700 bg-red-50 border border-red-200 rounded-lg">
+        <div className="p-4 text-red-700 bg-red-100 rounded-lg">
           No se encontró la orden o hubo un error al cargar.
         </div>
       </div>
@@ -502,7 +501,7 @@ export default function OrdenDetail() {
       />
 
       {tab === "datos" && (
-      <div>
+      <div className="bg-gray-200 p-4 rounded-lg">
         <table className="w-full bg-white rounded-lg shadow overflow-hidden">
           
           <thead className="bg-gray-100 text-sm text-gray-600">
@@ -640,7 +639,7 @@ export default function OrdenDetail() {
                             href={file.signed_url || file.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="ml-4 px-3 py-1 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded text-sm transition"
+                            className="ml-4 px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition"
                           >
                             Descargar
                           </a>
@@ -664,7 +663,7 @@ export default function OrdenDetail() {
       )}
 
       {tab === "insumos" && (
-        <div>
+        <div className="bg-gray-200 p-4 rounded-lg">
                 {orden.materiasPrimas?.length > 0 && (
                   <div className="p-4 rounded-lg">
 
@@ -721,8 +720,8 @@ export default function OrdenDetail() {
                       <tr className="border-t border-gray-200">
                         <td className="px-6 py-3" />
                         <td className="px-6 py-3" />
-                        <td className="px-6 py-3 text-sm font-semibold text-text bg-gray-50">Total</td>
-                        <td className="px-6 py-3 text-sm font-semibold text-text bg-gray-50">
+                        <td className="px-6 py-3 text-sm font-semibold text-text bg-purple-200">Total</td>
+                        <td className="px-6 py-3 text-sm font-semibold text-text bg-purple-200">
                           {formatCLP(orden.total_pago, 0)}
                         </td>
                       </tr>
@@ -905,10 +904,10 @@ export default function OrdenDetail() {
                   {nuevosArchivos.map((file, index) => (
                     <li
                       key={index}
-                      className="flex items-center justify-between p-3 rounded border border-gray-200"
+                      className="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-200"
                     >
                       <div className="flex items-center space-x-2 flex-1 min-w-0">
-                        <Paperclip className="w-4 h-4 text-gray-400 shrink-0" />
+                        <span className="text-blue-600 text-xl">📎</span>
                         <div className="flex-1 min-w-0">
                           <p className="text-sm text-gray-800 truncate font-medium">{file.name}</p>
                           <p className="text-xs text-gray-500">
@@ -919,7 +918,7 @@ export default function OrdenDetail() {
                       <button
                         type="button"
                         onClick={() => handleRemoveNewFile(index)}
-                        className="ml-2 px-2 py-1 text-xs text-gray-500 hover:text-red-600 flex-shrink-0"
+                        className="ml-2 px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600 flex-shrink-0"
                       >
                         Quitar
                       </button>
@@ -941,7 +940,7 @@ export default function OrdenDetail() {
                 />
                 <label
                   htmlFor="modal-archivos"
-                  className="inline-block px-4 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded cursor-pointer"
+                  className="inline-block px-4 py-2 bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600"
                 >
                   Seleccionar Archivos
                 </label>
@@ -954,7 +953,7 @@ export default function OrdenDetail() {
                     setMostrarModalArchivos(false);
                     setNuevosArchivos([]);
                   }}
-                  className="px-4 py-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 rounded"
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
                 >
                   Cancelar
                 </button>
@@ -963,7 +962,7 @@ export default function OrdenDetail() {
                     type="button"
                     onClick={handleAdjuntarArchivos}
                     disabled={subiendoArchivos || !canWritePurchaseOrder}
-                    className="px-4 py-2 bg-primary text-white rounded hover:bg-hover disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
                     {subiendoArchivos ? "Subiendo..." : `Adjuntar ${nuevosArchivos.length} archivo(s)`}
                   </button>

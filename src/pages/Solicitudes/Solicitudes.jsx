@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { formatFecha } from "../../lib/dateUtils";
-import { EstadoSolicitudBadge, normalizeEstadoSolicitud } from "../../utils/estadoSolicitud.jsx";
+import { EstadoSolicitudBadge, claseEstadoSolicitud, normalizeEstadoSolicitud } from "../../utils/estadoSolicitud.jsx";
 
 const fmtFecha = (value) => formatFecha(value);
 
@@ -168,15 +168,15 @@ export default function Solicitudes() {
         <div className="flex flex-wrap gap-2 px-1">
           {estadoOptions.map((opt) => {
             const isActive = filtroEstado === opt;
+            const color =
+              opt === "Todos" ? "border-gray-300 bg-gray-100 text-gray-700" : claseEstadoSolicitud(opt);
             return (
               <button
                 key={opt}
                 type="button"
                 onClick={() => setFiltroEstado(opt)}
-                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                  isActive
-                    ? "border-primary bg-primary text-white"
-                    : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${color} ${
+                  isActive ? "ring-2 ring-offset-1 ring-primary" : "opacity-80 hover:opacity-100"
                 }`}
                 aria-pressed={isActive}
               >

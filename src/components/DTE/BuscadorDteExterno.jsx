@@ -24,11 +24,11 @@
  */
 
 import { useState } from 'react';
-import { Search, Link2 } from 'lucide-react';
+import { Search, Link2, AlertTriangle } from 'lucide-react';
 import { dteService } from '../../services/dteService.js';
 import { toast } from '../../lib/toast.js';
 import { formatCLP } from '../../services/formatHelpers.js';
-import Aviso from '../UI/Aviso.jsx';
+import Ayuda from '../UI/Ayuda.jsx';
 
 const TIPOS_DTE = [
   { value: 33, label: '33 — Factura electrónica' },
@@ -127,20 +127,15 @@ export default function BuscadorDteExterno({ idOrdenVenta, idSolicitud, onCancel
     <div>
       {/* 🔴 Va ARRIBA y siempre visible: es lo que distingue vincular de facturar, y confundirlos
           haría creer que el inventario se movió. Una línea; el detalle, en el «(?)». */}
-      <Aviso
-        tono="neutro"
-        className="mb-4"
-        tituloAyuda="Vincular un documento"
-        ayuda={
-          <>
-            El documento se asocia a {destino} para poder consultarlo desde acá. No se mueve
-            inventario, no se corrigen los montos de la orden y no se emite ni anula nada. Si el
-            total no calza con el del proceso, se vincula igual y se muestra la diferencia.
-          </>
-        }
-      >
-        Vincular sólo deja constancia: no mueve inventario ni cambia montos.
-      </Aviso>
+      <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+        <AlertTriangle className="w-4 h-4 shrink-0" />
+        <p className="font-medium">Vincular deja constancia; no mueve nada.</p>
+        <Ayuda titulo="Vincular un documento">
+          El documento se asocia a {destino} para poder consultarlo desde acá. No se mueve
+          inventario, no se corrigen los montos de la orden y no se emite ni anula nada. Si el
+          total no calza con el del proceso, se vincula igual y se muestra la diferencia.
+        </Ayuda>
+      </div>
 
       {/* Buscador */}
       <form onSubmit={buscar} className="mb-4">
@@ -270,7 +265,7 @@ export default function BuscadorDteExterno({ idOrdenVenta, idSolicitud, onCancel
                           ) : d.ya_registrado ? (
                             <span className="text-amber-700">En el sistema, sin vincular</span>
                           ) : (
-                            <span className="text-gray-700">Sólo en LibreDTE</span>
+                            <span className="text-blue-700">Sólo en LibreDTE</span>
                           )}
                         </td>
                       </tr>
