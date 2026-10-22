@@ -317,12 +317,16 @@ export default function SolicitudDetail() {
   // que queda escrito en `numero_guia_despacho`. Un solo número, un solo documento.
   const [emitiendoGD, setEmitiendoGD] = useState(false);
   const [viendoBorradorGD, setViendoBorradorGD] = useState(false);
+  // Res. Ex. SII 154 (desde el 1-nov-2026): la guía declara el vehículo, el chofer y el
+  // transportista. Casi siempre es el mismo camión, así que se recuerda lo último usado.
+  const [traslado, setTraslado] = useState(leerTrasladoGuardado);
+  const cambiarTraslado = (campo, valor) => setTraslado((t) => ({ ...t, [campo]: valor }));
 
   // Ver la guía como saldrá, antes de gastar el folio. Una guía emitida no se edita.
   const handleVerBorradorGD = async () => {
     setViendoBorradorGD(true);
     try {
-      await dteService.verPrevisualizacion('guia-solicitud', solicitudId);
+      await dteService.verPrevisualizacion('guia-solicitud', solicitudId, { traslado });
     } catch (err) {
       toast.error('No se pudo generar el borrador: ' + (err?.message ?? err));
     } finally {
@@ -335,7 +339,9 @@ export default function SolicitudDetail() {
     try {
       const gd = await dteService.emitirGuiaDespachoSolicitud(solicitudId, {
         transportista: medioTransporte.trim() || undefined,
+        traslado,
       });
+      guardarTraslado(traslado);
       toast.success(`Guía de despacho N° ${gd?.folio ?? ''} emitida ✓`);
       // El folio es EL número de la guía: se escribe solo para que nadie lo transcriba mal.
       if (gd?.folio) setGuiaDespacho(String(gd.folio));
@@ -999,6 +1005,7 @@ export default function SolicitudDetail() {
                   Emítela acá: declara lo que se despachó, con el valor de los bultos cargados,
                   y su folio queda como número de la guía.
                 </p>
+                <DatosTraslado valor={traslado} onCambiar={cambiarTraslado} />
                 <button
                   type="button"
                   onClick={handleEmitirGD}
@@ -1076,5 +1083,50 @@ export default function SolicitudDetail() {
         </Modal>
       </div>
     </div>
+  );
+}
+
+const CLAVE_TRASLADO = "artisan:ultimo-traslado-guia";
+const TRASLADO_VACIO = { patente: "", patente_carro: "", rut_transportista: "", chofer_nombre: "", chofer_rut: "" };
+
+function leerTrasladoGuardado() {
+  try {
+    return { ...TRASLADO_VACIO, ...JSON.parse(localStorage.getItem(CLAVE_TRASLADO) || "{}") };
+  } catch {
+    return { ...TRASLADO_VACIO };
+  }
+}
+
+function guardarTraslado(t) {
+  try {
+    localStorage.setItem(CLAVE_TRASLADO, JSON.stringify(t));
+  } catch {
+    // Sin almacenamiento la próxima vez se escribe de nuevo; no impide emitir.
+  }
+}
+
+/** Patente, transportista y chofer de la guía (Res. Ex. SII N° 154, desde el 1-nov-2026). */
+function DatosTraslado({ valor, onCambiar }) {
+  const campo = (clave, etiqueta, placeholder, clase = "") => (
+    <label className={`block ${clase}`}>
+      <span className="block text-xs font-medium text-amber-900 mb-0.5">{etiqueta}</span>
+      <input
+        type="text"
+        value={valor[clave] ?? ""}
+        onChange={(e) => onCambiar(clave, e.target.value)}
+        placeholder={placeholder}
+        className="w-full border border-amber-300 bg-white rounded-md px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
+      />
+    </label>
+  );
+  return (
+    <fieldset className="mt-3 grid grid-cols-2 gap-2">
+      <legend className="col-span-2 text-xs font-medium text-amber-900 mb-1">Datos del traslado</legend>
+      {campo("patente", "Patente del vehículo", "BBCC12")}
+      {campo("patente_carro", "Patente del carro (si lleva)", "JK1234")}
+      {campo("chofer_nombre", "Nombre del chofer", "Juan Pérez")}
+      {campo("chofer_rut", "RUT del chofer", "12.345.678-5")}
+      {campo("rut_transportista", "RUT del transportista", "RUT de quien transporta", "col-span-2")}
+    </fieldset>
   );
 }
