@@ -7,7 +7,7 @@
 //   2) DECLARACIÓN DE BULTOS: recién después se declara en cuántos bultos
 //      llegó cada ítem; la suma de los bultos debe CUADRAR con la cantidad
 //      declarada en la factura (la factura manda).
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Table from "../../components/Tables/Table";
 import { BackButton } from "../../components/Buttons/ActionButtons";
@@ -39,6 +39,10 @@ export default function RecepcionarOrden() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showRejectPopup, setShowRejectPopup] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  // Un doble clic en «Recepcionar» mandaba la recepción dos veces y creaba el doble de bultos
+  // (OC 758). El ref corta en el mismo instante; el estado deshabilita el botón en pantalla.
+  const recepcionandoRef = useRef(false);
+  const [recepcionando, setRecepcionando] = useState(false);
   const fechaActual = new Date().toISOString().split("T")[0];
 
   const canWritePurchaseOrder = checkScope(ModelType.ORDEN_COMPRA, ScopeType.WRITE);
@@ -452,6 +456,7 @@ export default function RecepcionarOrden() {
   };
 
   const handleFinalizarRecepcion = async () => {
+    if (recepcionandoRef.current) return;
     const newErrors = {};
     if (!ordenData?.id_bodega_recepcion) {
       newErrors.id_bodega_recepcion = "Debe seleccionar la bodega donde se recepciona.";
@@ -547,6 +552,8 @@ export default function RecepcionarOrden() {
       return;
     }
 
+    recepcionandoRef.current = true;
+    setRecepcionando(true);
     try {
       const payload = {
         pagada: true,
@@ -602,7 +609,10 @@ export default function RecepcionarOrden() {
         toast.error("Error enviando email tras validar orden:" + emailErr);
       }
     } catch (error) {
-      toast.error("Error al recepcionar la orden: " + error);
+      toast.error("Error al recepcionar la orden: " + (error?.message || error));
+    } finally {
+      recepcionandoRef.current = false;
+      setRecepcionando(false);
     }
   };
 
@@ -1061,10 +1071,10 @@ export default function RecepcionarOrden() {
         </button>
         <button
           onClick={handleFinalizarRecepcion}
-          disabled={!canWritePurchaseOrder || !canWriteBulk}
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+          disabled={!canWritePurchaseOrder || !canWriteBulk || recepcionando}
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          Recepcionar
+          {recepcionando ? "Recepcionando…" : "Recepcionar"}
         </button>
       </div>
 
