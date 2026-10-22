@@ -17,6 +17,8 @@ import { dteService } from "../../services/dteService.js";
 import { generarNotaVentaPDF } from "../../services/notaVentaPdf.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import EstadoPosteriorBadge from "../../components/Ventas/EstadoPosteriorBadge.jsx";
+import EstadoOVBadge from "../../components/Ventas/EstadoOVBadge.jsx";
+import Ayuda from "../../components/UI/Ayuda.jsx";
 import { POSTERIOR_LABEL } from "../../utils/estadoPosteriorFactura.js";
 import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
 import { puedeCancelarOV, puedeReabrirCancelacion } from "../../utils/ordenVentaCancelable.js";
@@ -28,22 +30,6 @@ const fmtDate = (d) => formatFecha(d);
 
 /** Una sola clave para la tabla y para los filtros de esta página: se guardan y se borran juntos. */
 const CLAVE_UI = "ventas_ordenes_v1";
-
-function EstadoBadge({ estado }) {
-  const base = "px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap";
-  const map = {
-    "Creada": "bg-gray-200 text-gray-700",
-    "Validada": "bg-blue-100 text-blue-700",
-    "En picking": "bg-indigo-100 text-indigo-700",
-    "Lista para facturación": "bg-cyan-100 text-cyan-700",
-    "Facturada parcial": "bg-orange-100 text-orange-700",
-    "Facturada": "bg-yellow-100 text-yellow-700",
-    "Entregada": "bg-green-100 text-green-700",
-    "Cancelada": "bg-red-100 text-red-700",
-  };
-  return <span className={`${base} ${map[estado] || "bg-gray-100 text-gray-600"}`}>{estado}</span>;
-}
-
 
 export default function OrdenesVentaPage() {
   const navigate = useNavigate();
@@ -89,8 +75,10 @@ export default function OrdenesVentaPage() {
       await api(`/ordenes-venta/${id}`, { method: "DELETE" });
       setOrdenes((prev) => prev.filter((x) => x.id !== id));
       toast.success("Orden eliminada correctamente");
-    } catch {
-      toast.error("No se pudo eliminar la orden");
+    } catch (err) {
+      // El detalle ya decía por qué falló (un 403 de permisos, una factura emitida); la lista se
+      // tragaba el motivo y decía sólo «No se pudo eliminar».
+      toast.error(mensajeError(err, "eliminar esta orden"));
     }
   };
 
@@ -139,6 +127,90 @@ export default function OrdenesVentaPage() {
   const columns = [
     { header: "N°", accessor: "id", sortable: true, hideable: false, filtro: "numero" },
     {
+      // Se acota igual que la OC: medido en producción hay nombres de hasta 41 caracteres
+      // («Lokal - Emitir Guias despacho NO facturar»), 16 filas sobre 28, y sin tope esa fila
+      // empujaba el resto de las columnas fuera de la pantalla.
+      header: "Cliente",
+      accessor: "cliente",
+      sortable: true,
+      filtro: "valores",
+      sortValue: (row) => row.cliente?.nombre_empresa || "",
+      Cell: ({ value }) =>
+        value?.nombre_empresa ? (
+          <span className="block max-w-[190px] truncate" title={value.nombre_empresa}>
+            {value.nombre_empresa}
+          </span>
+        ) : (
+          "—"
+        ),
+    },
+    {
+      // 🔴 El N° de factura va DENTRO de esta columna, no en una propia — pedido literal de
+      // Hernán («que salga el N° de factura en la columna Estado»). Y además es lo correcto de
+      // ancho: la tabla ya scrollea horizontal, y el folio sólo tiene sentido leído junto al
+      // estado que lo explica.
+      //
+      // Averiguar el folio de una orden obligaba hasta ahora a entrar al detalle y abrir el
+      // centro de documentos, y es la consulta más frecuente del día: el cliente llama citando
+      // un folio, o hay que cruzar la orden contra la cartola.
+      //
+      // Va junto al cliente y con el folio en la MISMA línea: al final de la tabla quedaba fuera
+      // de pantalla a 1366 px, y en dos líneas hacía que unas filas midieran el doble que otras.
+      header: "Estado",
+      accessor: "estado",
+      sortable: true,
+      hideable: false,
+      filtro: "valores",
+      Cell: ({ row, value }) => (
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <EstadoOVBadge estado={value} />
+          {row.factura?.folio != null && (
+            <span
+              className={`text-xs font-mono ${
+                row.factura.estado_sii === "ANULADO"
+                  ? "text-gray-400 line-through"
+                  : "text-gray-500"
+              }`}
+              title={
+                row.factura.estado_sii === "ANULADO"
+                  ? `Documento ${row.factura.tipo_dte}-${row.factura.folio} — ANULADO`
+                  : `${row.factura.tipo_dte === 39 ? "Boleta" : "Factura"} N° ${row.factura.folio}` +
+                    ` · ${formatCLP(Number(row.factura.monto_total || 0), 0)} bruto facturado` +
+                    (row.factura.origen === "EXTERNO" ? " · emitida fuera del ERP" : "")
+              }
+            >
+              N° {row.factura.folio}
+              {/* Facturación parcial (2026-09-16): la más reciente y el resto como «+N». */}
+              {Number(row.factura.vigentes) > 1 && (
+                <span className="ml-1 text-[10px]" title={`${row.factura.vigentes} facturas vigentes`}>
+                  +{Number(row.factura.vigentes) - 1}
+                </span>
+              )}
+              {row.factura.origen === "EXTERNO" && (
+                <span className="ml-1 text-[10px]" title="Emitida fuera del ERP">ext</span>
+              )}
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      // Columna APARTE de "Estado" — pedido explícito de Cristóbal ("en segundo círculo"),
+      // para que se pueda buscar/ordenar sin mezclarla con el paso del flujo.
+      // «NC / ND» y no «Doc. posterior»: casi siempre va vacía, y el título largo era lo que
+      // le daba ancho, empujando comuna y montos fuera de la pantalla.
+      header: "NC / ND",
+      accessor: "estado_dte_posterior",
+      sortable: true,
+      filtro: "valores",
+      // Se filtra por la etiqueta que se LEE en pantalla ("NC Total"), no por el código
+      // interno: nadie busca "NC_TOTAL" en una lista de opciones.
+      filtroValor: (row) =>
+        row.estado_dte_posterior ? POSTERIOR_LABEL[row.estado_dte_posterior.estado] : null,
+      sortValue: (row) => row.estado_dte_posterior?.estado ?? "",
+      Cell: ({ row }) => <EstadoPosteriorBadge info={row.estado_dte_posterior} />,
+    },
+    {
       header: "Fecha",
       accessor: "fecha_orden",
       sortable: true,
@@ -162,24 +234,6 @@ export default function OrdenesVentaPage() {
         row.fecha_entrega ? new Date(row.fecha_entrega).getTime() : Number.MAX_SAFE_INTEGER,
       Cell: ({ value }) =>
         value ? fmtDate(value) : <span className="text-gray-400">—</span>,
-    },
-    {
-      // Se acota igual que la OC: medido en producción hay nombres de hasta 41 caracteres
-      // («Lokal - Emitir Guias despacho NO facturar»), 16 filas sobre 28, y sin tope esa fila
-      // empujaba el resto de las columnas fuera de la pantalla.
-      header: "Cliente",
-      accessor: "cliente",
-      sortable: true,
-      filtro: "valores",
-      sortValue: (row) => row.cliente?.nombre_empresa || "",
-      Cell: ({ value }) =>
-        value?.nombre_empresa ? (
-          <span className="block max-w-[190px] truncate" title={value.nombre_empresa}>
-            {value.nombre_empresa}
-          </span>
-        ) : (
-          "—"
-        ),
     },
     {
       // Comuna de despacho — pedido de Hernán, para armar las rutas del día sin abrir orden por
@@ -268,67 +322,6 @@ export default function OrdenesVentaPage() {
         ) : (
           formatCLP(Number(value), 0)
         ),
-    },
-    {
-      // 🔴 El N° de factura va DENTRO de esta columna, no en una propia — pedido literal de
-      // Hernán («que salga el N° de factura en la columna Estado»). Y además es lo correcto de
-      // ancho: la tabla ya scrollea horizontal, y el folio sólo tiene sentido leído junto al
-      // estado que lo explica.
-      //
-      // Averiguar el folio de una orden obligaba hasta ahora a entrar al detalle y abrir el
-      // centro de documentos, y es la consulta más frecuente del día: el cliente llama citando
-      // un folio, o hay que cruzar la orden contra la cartola.
-      header: "Estado",
-      accessor: "estado",
-      sortable: true,
-      hideable: false,
-      filtro: "valores",
-      Cell: ({ row, value }) => (
-        <div className="flex flex-col items-start gap-0.5">
-          <EstadoBadge estado={value} />
-          {row.factura?.folio != null && (
-            <span
-              className={`text-[11px] font-mono ${
-                row.factura.estado_sii === "ANULADO"
-                  ? "text-gray-400 line-through"
-                  : "text-gray-600"
-              }`}
-              title={
-                row.factura.estado_sii === "ANULADO"
-                  ? `Documento ${row.factura.tipo_dte}-${row.factura.folio} — ANULADO`
-                  : `${row.factura.tipo_dte === 39 ? "Boleta" : "Factura"} N° ${row.factura.folio}` +
-                    ` · ${formatCLP(Number(row.factura.monto_total || 0), 0)} bruto facturado` +
-                    (row.factura.origen === "EXTERNO" ? " · emitida fuera del ERP" : "")
-              }
-            >
-              N° {row.factura.folio}
-              {/* Facturación parcial (2026-09-16): la más reciente y el resto como «+N». */}
-              {Number(row.factura.vigentes) > 1 && (
-                <span className="ml-1 text-[10px] text-gray-500" title={`${row.factura.vigentes} facturas vigentes`}>
-                  +{Number(row.factura.vigentes) - 1}
-                </span>
-              )}
-              {row.factura.origen === "EXTERNO" && (
-                <span className="ml-1 text-[10px] text-amber-600" title="Emitida fuera del ERP">ext</span>
-              )}
-            </span>
-          )}
-        </div>
-      ),
-    },
-    {
-      // Columna APARTE de "Estado" — pedido explícito de Cristóbal ("en segundo círculo"),
-      // para que se pueda buscar/ordenar sin mezclarla con el paso del flujo.
-      header: "Doc. posterior",
-      accessor: "estado_dte_posterior",
-      sortable: true,
-      filtro: "valores",
-      // Se filtra por la etiqueta que se LEE en pantalla ("NC Total"), no por el código
-      // interno: nadie busca "NC_TOTAL" en una lista de opciones.
-      filtroValor: (row) =>
-        row.estado_dte_posterior ? POSTERIOR_LABEL[row.estado_dte_posterior.estado] : null,
-      sortValue: (row) => row.estado_dte_posterior?.estado ?? "",
-      Cell: ({ row }) => <EstadoPosteriorBadge info={row.estado_dte_posterior} />,
     },
   ];
 
@@ -461,10 +454,10 @@ export default function OrdenesVentaPage() {
         </select>
       </label>
 
-      <p className="text-xs text-gray-500 max-w-md">
-        El resto se filtra desde el embudo de cada columna: estado, cliente, comuna, fechas,
-        montos y documento posterior. Lo que dejes puesto se recuerda al volver a esta pantalla.
-      </p>
+      <Ayuda titulo="Filtros" className="mb-2">
+        El resto se filtra desde el embudo de cada columna: estado, cliente, comuna, fechas, montos
+        y documento posterior. Lo que dejes puesto se recuerda al volver a esta pantalla.
+      </Ayuda>
 
       {/* Un filtro que se recuerda entre visitas puede dejar la lista "vacía" sin que se vea
           por qué. Por eso el conteo y el botón de limpiar están siempre a la vista. */}
@@ -529,7 +522,7 @@ export default function OrdenesVentaPage() {
       headerActions={
         <>
           <button
-            className="px-3 py-2 bg-green-300 text-green-900 rounded-md hover:bg-green-400"
+            className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
             onClick={() => navigate("/Excel/products")}
           >
             Cargar Excel

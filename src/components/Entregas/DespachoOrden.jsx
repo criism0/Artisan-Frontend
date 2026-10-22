@@ -7,6 +7,7 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { describirBulto, TONO_BULTO } from "../../utils/despacho";
 import FotosMini from "./FotosMini";
 import ModalPrepararDespacho from "./ModalPrepararDespacho";
+import Ayuda from "../UI/Ayuda.jsx";
 
 /**
  * Cómo sale una OV (bultos de despacho, plan de rutas §17): en cuántos bultos se preparó, qué
@@ -60,31 +61,40 @@ export default function DespachoOrden({ idOrden }) {
         <h2 className="font-semibold text-gray-900 flex items-center gap-2">
           <Package className="w-4 h-4 text-primary" /> Despacho
           {d.resumen.preparados > 0 && <span className="text-xs font-normal text-gray-500">· {d.resumen.preparados} bulto{d.resumen.preparados === 1 ? "" : "s"} listo{d.resumen.preparados === 1 ? "" : "s"} para salir</span>}
+          {/* Sin preparar es un estado, no un párrafo: el porqué va en el «(?)». */}
+          {d.preparable && !vigentes.length && (
+            <span className="text-xs font-medium text-amber-700">· Sin preparar</span>
+          )}
+          <Ayuda titulo="Despacho">
+            <p>
+              Bodega declara en la app en cuántos bultos sale el pedido y saca la foto del pedido
+              armado. Sin eso la ruta que lo lleva no se puede iniciar.
+            </p>
+            <p>
+              Las cajas cerradas salen con la etiqueta de su bulto; las armadas, con la que se imprime
+              acá. Si bodega no pudo hacerlo en la app, se prepara desde «Preparar despacho».
+            </p>
+          </Ayuda>
         </h2>
         <div className="flex items-center gap-2">
           {d.resumen.preparados > 0 && puedeEscribir && (
             <button
               type="button"
               onClick={etiquetas}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border ${d.resumen.sin_etiqueta ? "border-amber-400 bg-amber-50 text-amber-900" : "border-gray-300 text-gray-700"} hover:bg-gray-50`}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-gray-300 text-gray-700 hover:bg-gray-50"
               title="Las etiquetas de las cajas armadas (las cerradas llevan la de su bulto)"
             >
-              <Printer className="w-4 h-4" /> Etiquetas{d.resumen.sin_etiqueta ? ` (${d.resumen.sin_etiqueta} sin imprimir)` : ""}
+              <Printer className="w-4 h-4" /> Etiquetas
+              {d.resumen.sin_etiqueta ? <span className="text-amber-700">({d.resumen.sin_etiqueta} sin imprimir)</span> : null}
             </button>
           )}
           {d.preparable && puedeEscribir && (
-            <button type="button" onClick={() => setPreparando(true)} className="px-3 py-1.5 rounded-lg text-sm bg-primary text-white hover:bg-primary-dark">
+            <button type="button" onClick={() => setPreparando(true)} className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 text-gray-700 hover:bg-gray-50">
               Preparar despacho
             </button>
           )}
         </div>
       </div>
-
-      {d.preparable && !vigentes.length && (
-        <p className="mt-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-          Sin preparar: bodega declara en la app en cuántos bultos sale y saca la foto. Sin eso la ruta no se puede iniciar.
-        </p>
-      )}
 
       {vigentes.map((p) => (
         <div key={p.id} className="mt-3 border-t border-gray-100 pt-3">
@@ -95,7 +105,7 @@ export default function DespachoOrden({ idOrden }) {
               {p.comentario ? ` · ${p.comentario}` : ""}
             </span>
             {p.anulable && puedeEscribir && (
-              <button type="button" onClick={() => rehacer(p.id)} className="inline-flex items-center gap-1 text-red-600 hover:underline">
+              <button type="button" onClick={() => rehacer(p.id)} className="inline-flex items-center gap-1 text-gray-500 hover:text-red-600">
                 <RotateCcw className="w-3 h-3" /> Rehacer
               </button>
             )}

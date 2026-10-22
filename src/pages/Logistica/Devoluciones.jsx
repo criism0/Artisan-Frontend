@@ -4,16 +4,19 @@ import { ScanLine, Undo2 } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import Modal from "../../components/UI/Modal";
+import Aviso from "../../components/UI/Aviso";
 import FotosMini from "../../components/Entregas/FotosMini";
 import { toast } from "../../lib/toast.js";
 import * as rutasApi from "../../services/rutasService";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { describirBulto, TONO_BULTO } from "../../utils/despacho";
 
+// Tres opciones del mismo peso, con su consecuencia escrita: eran tres botones macizos verde,
+// rojo y morado, y el color fuerte quedaba para el único que destruye algo (la merma).
 const ACCIONES = [
-  { accion: "Reintegrar", texto: "Reintegrar al stock", tono: "bg-green-600 hover:bg-green-700", detalle: "Vuelve al inventario con el lote y el costo de donde salió. Lo armado nace como bulto nuevo, con etiqueta por imprimir; la caja cerrada recupera sus unidades." },
-  { accion: "Merma", texto: "Dar de merma", tono: "bg-red-600 hover:bg-red-700", detalle: "Vuelve marcado merma: no se ofrece como stock bueno." },
-  { accion: "Re-despachar", texto: "Vuelve a salir", tono: "bg-primary hover:bg-primary-dark", detalle: "Queda listo para otra ruta, sin tocar el inventario." },
+  { accion: "Reintegrar", texto: "Reintegrar al stock", tono: "text-gray-900", detalle: "Vuelve al inventario con el lote y el costo de donde salió. Lo armado nace como bulto nuevo, con etiqueta por imprimir; la caja cerrada recupera sus unidades." },
+  { accion: "Merma", texto: "Dar de merma", tono: "text-red-700", detalle: "Vuelve marcado merma: no se ofrece como stock bueno." },
+  { accion: "Re-despachar", texto: "Vuelve a salir", tono: "text-gray-900", detalle: "Queda listo para otra ruta, sin tocar el inventario." },
 ];
 // Lo que no existía en el inventario tampoco entra como merma: queda registrado como pérdida.
 const DETALLE_MERMA_SIN_TRAZABILIDAD = "Queda registrado como merma; no entra al inventario.";
@@ -158,11 +161,13 @@ export default function Devoluciones() {
               <FotosMini fotos={abierta.fotos ?? []} tipo="DEVOLUCION" vacio="Sin foto de la vuelta" />
             </div>
             {abierta.sin_trazabilidad && (
-              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                <strong>Sin trazabilidad.</strong> Estas unidades no existían en el inventario antes de preparar el despacho: el pedido
-                se pickeó por cantidad, sin QR, así que no tienen lote ni costo de origen y no se pueden agregar al inventario.
-                Resuélvelo como merma o vuelve a despacharlo.
-              </p>
+              <Aviso
+                tamano="xs"
+                ayuda="El pedido se pickeó por cantidad, sin QR: estas unidades no existían en el inventario antes de preparar el despacho, así que no tienen lote ni costo de origen."
+                tituloAyuda="Sin trazabilidad"
+              >
+                <strong>Sin trazabilidad:</strong> no se puede reintegrar al inventario. Resuélvelo como merma o vuelve a despacharlo.
+              </Aviso>
             )}
             {decidible && puede ? (
               <>
@@ -173,10 +178,10 @@ export default function Devoluciones() {
                     type="button"
                     disabled={enviando}
                     onClick={() => resolver(a.accion)}
-                    className={`text-left px-4 py-2.5 rounded-lg text-white ${a.tono} disabled:opacity-50`}
+                    className="text-left px-4 py-2.5 rounded-lg border border-gray-200 bg-white hover:border-primary hover:bg-gray-50 disabled:opacity-50"
                   >
-                    <span className="font-medium">{a.texto}</span>
-                    <span className="block text-xs text-white/85">{a.accion === "Merma" && abierta.sin_trazabilidad ? DETALLE_MERMA_SIN_TRAZABILIDAD : a.detalle}</span>
+                    <span className={`font-medium ${a.tono}`}>{a.texto}</span>
+                    <span className="block text-xs text-gray-500">{a.accion === "Merma" && abierta.sin_trazabilidad ? DETALLE_MERMA_SIN_TRAZABILIDAD : a.detalle}</span>
                   </button>
                 ))}
               </>

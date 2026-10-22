@@ -11,11 +11,13 @@ import {
   Trash2,
   Undo2,
 } from "lucide-react";
-import Table from "../../components/Tables/Table";
 import PageHeader from "../../components/UI/PageHeader.jsx";
 import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
 import Tabs from "../../components/UI/Tabs.jsx";
 import Modal from "../../components/UI/Modal.jsx";
+import Aviso from "../../components/UI/Aviso.jsx";
+import Ayuda from "../../components/UI/Ayuda.jsx";
+import EstadoOVBadge from "../../components/Ventas/EstadoOVBadge.jsx";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { formatCLP } from "../../services/formatHelpers";
@@ -75,6 +77,25 @@ const PASOS_OV = [
   "Entregada",
 ];
 
+// Cómo avanza una orden. Antes cada estado lo explicaba en un recuadro azul bajo el título;
+// ahora vive en el «(?)» y en pantalla quedan sólo los avisos que piden hacer algo.
+const AYUDA_FLUJO_OV = (
+  <ul className="list-disc ml-4 space-y-1">
+    <li><strong>Creada → Validada</strong> con «Validar orden».</li>
+    <li>
+      <strong>Validada → En picking</strong> al registrar el primer bulto. Si la orden es
+      referencial, cuando bodega empieza a declarar cantidades en la app (sin escanear bultos).
+    </li>
+    <li><strong>En picking → Lista para facturación</strong> con «Completar picking».</li>
+    <li><strong>Lista para facturación → Facturada</strong> con «Facturar orden», que emite la factura electrónica.</li>
+    <li>
+      <strong>Facturada → Entregada</strong> cuando el chofer registra la entrega en su ruta
+      (Logística → Entregas).
+    </li>
+    <li>Si se factura menos que lo pedido queda <strong>Facturada parcial</strong> hasta despachar o cerrar el saldo.</li>
+  </ul>
+);
+
 /**
  * Barra de progreso de la orden.
  *
@@ -88,29 +109,32 @@ function StepBar({ estadoActual }) {
   const paso = estadoActual === ESTADO_FACTURADA_PARCIAL ? "Facturada" : estadoActual;
   const actual = PASOS_OV.indexOf(paso ?? "");
 
+  // Sin tarjeta propia: es parte de la cabecera (dónde va la orden), no una sección más.
   return (
-    <div className="bg-white rounded-lg shadow p-4 mb-6">
-      <div className="flex items-center justify-between">
+    <div className="mb-6 -mt-2">
+      {/* Arriba y no centrado: «Lista para facturación» ocupa dos líneas y, centrado, su punto
+          quedaba más alto que los demás. */}
+      <div className="flex items-start justify-between">
         {PASOS_OV.map((paso, idx) => {
           const hecho = idx < actual;
           const activo = idx === actual;
           return (
-            <div key={paso} className="flex items-center flex-1">
+            <div key={paso} className="flex items-start flex-1">
               <div className="flex flex-col items-center flex-1">
                 <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
-                    ${hecho ? "bg-primary text-white" : activo ? "bg-primary text-white ring-2 ring-primary ring-offset-2" : "bg-gray-200 text-gray-500"}`}
+                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold
+                    ${hecho ? "bg-primary text-white" : activo ? "bg-primary text-white ring-2 ring-primary/30 ring-offset-1" : "bg-gray-200 text-gray-500"}`}
                 >
                   {hecho ? "✓" : idx + 1}
                 </div>
                 <span
-                  className={`mt-1 text-xs text-center leading-tight ${activo ? "font-semibold text-primary" : hecho ? "text-gray-600" : "text-gray-400"}`}
+                  className={`mt-1 text-[11px] text-center leading-tight ${activo ? "font-semibold text-primary" : hecho ? "text-gray-500" : "text-gray-400"}`}
                 >
                   {paso}
                 </span>
               </div>
               {idx < PASOS_OV.length - 1 && (
-                <div className={`h-0.5 flex-1 mx-1 ${idx < actual ? "bg-primary" : "bg-gray-200"}`} />
+                <div className={`h-px flex-1 mx-1 mt-2.5 ${idx < actual ? "bg-primary" : "bg-gray-200"}`} />
               )}
             </div>
           );
@@ -175,71 +199,59 @@ function FacturarForm({
           pickeado desde entonces. Se dice antes que nada, porque el total de la orden no es el
           de este documento. */}
       {saldo?.hayFacturaPrevia && (
-        <div className="text-xs text-blue-900 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
-          <strong>Esta orden ya se facturó en parte</strong> ({formatCLP(saldo.netoFacturado, 0)} neto).
-          Esta factura lleva sólo lo pickeado desde entonces:{" "}
-          <strong>{formatCLP(saldo.netoPorFacturar, 0)} neto</strong>.
-        </div>
+        <Aviso tono="neutro" tamano="xs">
+          Ya se facturaron {formatCLP(saldo.netoFacturado, 0)} neto. Esta factura lleva lo pickeado
+          desde entonces: <strong>{formatCLP(saldo.netoPorFacturar, 0)} neto</strong>.
+        </Aviso>
       )}
 
       {saldo?.quedaSaldoTras && (
-        <div className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-md px-3 py-2 flex flex-col gap-2">
-          <div>
-            <strong>Esta factura no cubre todo el pedido.</strong> Queda por despachar:
-            <ul className="mt-1 ml-4 list-disc">
-              {saldo.lineasConSaldo.map((l) => (
-                <li key={l.nombre}>
-                  {l.nombre}: {l.saldo_tras.toLocaleString("es-CL")} de {l.pedida.toLocaleString("es-CL")}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={dejarSaldoPendiente}
-              onChange={(e) => setDejarSaldoPendiente(e.target.checked)}
-            />
+        <Aviso
+          tamano="xs"
+          ayuda="Con el saldo pendiente la orden queda en Facturada parcial y bodega pickea lo que falta desde la app; después se emite otra factura. Si no se deja pendiente, la orden queda Facturada y lo no despachado sigue visible con su motivo."
+          tituloAyuda="Saldo de la orden"
+        >
+          <div className="flex flex-col gap-1.5">
             <span>
-              Dejar el saldo pendiente para una próxima factura. La orden queda en{" "}
-              <strong>Facturada parcial</strong> y bodega puede pickear lo que falta desde la app.
+              <strong>Esta factura no cubre todo el pedido.</strong> Falta:{" "}
+              {saldo.lineasConSaldo
+                .map((l) => `${l.nombre} (${l.saldo_tras.toLocaleString("es-CL")} de ${l.pedida.toLocaleString("es-CL")})`)
+                .join(" · ")}
             </span>
-          </label>
-          {!dejarSaldoPendiente && (
-            <label className="flex flex-col gap-1">
-              <span>¿Por qué no se despacha el resto? (queda registrado)</span>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={dejarSaldoPendiente}
+                onChange={(e) => setDejarSaldoPendiente(e.target.checked)}
+              />
+              <span>Dejar el saldo pendiente para una próxima factura</span>
+            </label>
+            {!dejarSaldoPendiente && (
               <input
                 type="text"
                 value={motivoCierreSaldo}
                 onChange={(e) => setMotivoCierreSaldo(e.target.value)}
-                placeholder="Ej.: quiebre de stock, el cliente no lo quiere"
+                placeholder="¿Por qué no se despacha el resto? Ej.: quiebre de stock"
+                aria-label="Motivo para no despachar el resto"
                 className="px-2 py-1 border border-amber-300 rounded-md bg-white text-gray-800"
               />
-            </label>
-          )}
-        </div>
+            )}
+          </div>
+        </Aviso>
       )}
 
       {resumenPicking?.difieren && !saldo?.hayFacturaPrevia && (
-        <div className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-md px-3 py-2">
-          <strong>La factura sale por lo pickeado, no por lo pedido.</strong>{" "}
-          {resumenPicking.diferencias.length === 1 ? "Una línea salió" : `${resumenPicking.diferencias.length} líneas salieron`}{" "}
-          distinta de lo que pidió el cliente:
-          <ul className="mt-1 ml-4 list-disc">
-            {resumenPicking.diferencias.map((d) => (
-              <li key={d.nombre}>
-                {d.nombre}: pidió {d.pedida.toLocaleString("es-CL")}, se pickeó{" "}
-                <strong>{d.pickeada.toLocaleString("es-CL")}</strong>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-1">
-            Neto pedido {formatCLP(resumenPicking.pedido, 0)} → a facturar{" "}
-            <strong>{formatCLP(resumenPicking.facturable, 0)}</strong>. Si la diferencia no es
-            correcta, corrige el picking antes de emitir.
-          </div>
-        </div>
+        <Aviso
+          tamano="xs"
+          ayuda="La factura declara lo que bodega pickeó, que es lo que viaja. Si la diferencia no corresponde, corrige el picking antes de emitir: una factura emitida sólo se corrige con nota de crédito."
+          tituloAyuda="Se factura lo pickeado"
+        >
+          <strong>Se factura lo pickeado:</strong>{" "}
+          {resumenPicking.diferencias
+            .map((d) => `${d.nombre} (pidió ${d.pedida.toLocaleString("es-CL")}, se pickeó ${d.pickeada.toLocaleString("es-CL")})`)
+            .join(" · ")}
+          . Neto {formatCLP(resumenPicking.pedido, 0)} → <strong>{formatCLP(resumenPicking.facturable, 0)}</strong>.
+        </Aviso>
       )}
 
       {/* Lo que va a decir el documento, con la MISMA vista que la pestaña Documentos.
@@ -262,56 +274,64 @@ function FacturarForm({
       {/* 🔴 La orden de compra. Sin ella el retail rechaza la factura porque no puede casarla
           con su pedido. Va de sólo lectura: sale del `numero_oc` de la orden. */}
       <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">Orden de compra del cliente</span>
+        <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+          Orden de compra del cliente
+          <Ayuda titulo="Orden de compra">
+            Sale impresa en la factura como «Orden de compra N° …»: sin ella el retail rechaza la
+            factura porque no la puede casar con su pedido. Es el N° OC de la orden; si está mal,
+            se corrige en la orden.
+          </Ayuda>
+        </span>
         {folioOC ? (
           <>
             <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-800 font-medium">
               {folioOC}
             </div>
-            <span className="text-xs text-gray-400 italic">
-              Sale en la factura como «Orden de compra N° {folioOC}».
-            </span>
             {recortado && (
-              <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
-                El número de OC de la orden trae texto adicional («{numeroOc}») y en el documento
-                sólo cabe el número. Si <strong>{folioOC}</strong> no es el que usa el cliente,
-                corrígelo en la orden antes de facturar.
-              </span>
+              <Aviso tamano="xs">
+                En el documento sólo cabe el número (la orden dice «{numeroOc}»). Si{" "}
+                <strong>{folioOC}</strong> no es el que usa el cliente, corrígelo en la orden.
+              </Aviso>
             )}
           </>
         ) : (
-          <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-            {motivoOC} <strong>La factura saldrá sin referencia a la orden de compra</strong>, y
-            el retail suele rechazarla por eso.
-          </span>
+          <Aviso tamano="xs">
+            {motivoOC} <strong>La factura saldrá sin orden de compra</strong> y el retail suele
+            rechazarla.
+          </Aviso>
         )}
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">
+        <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
           Dirección de despacho {requiereDir && <span className="text-red-500">*</span>}
+          <Ayuda titulo="Dirección de despacho">
+            A dónde llega el pedido: es la que usa la ruta de entrega. La factura sale a nombre de
+            la dirección de facturación de la orden, y sólo si la orden no tiene una, de ésta.
+          </Ayuda>
         </span>
         {loadingDirecciones ? (
           <span className="text-sm text-gray-400 py-2">Cargando direcciones...</span>
         ) : direccionesDespacho.length === 0 ? (
-          <div className="text-xs text-amber-900 bg-amber-50 border border-amber-300 rounded-md px-3 py-2 flex flex-col gap-2">
-            <span>
-              El cliente no tiene dirección de <strong>despacho</strong> registrada: sin ella la entrega no se
-              puede rutear.
-            </span>
-            {onCopiarComoDespacho && direccionesACopiar.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() => onCopiarComoDespacho(d.id)}
-                disabled={copiandoDespacho}
-                className="self-start px-2 py-1 rounded-md border border-amber-400 bg-white hover:bg-amber-100 disabled:opacity-50"
-              >
-                Recibe en su dirección de facturación ({[d.calle, d.numero, d.comuna].filter(Boolean).join(" ")}): usarla como despacho
-              </button>
-            ))}
-            <span>Si recibe en otro lugar, agrégalo en la ficha del cliente.</span>
-          </div>
+          <Aviso tamano="xs">
+            <div className="flex flex-col gap-1.5">
+              <span>
+                El cliente no tiene dirección de <strong>despacho</strong>: sin ella la entrega no se
+                puede rutear. Si recibe en otro lugar, agrégalo en la ficha del cliente.
+              </span>
+              {onCopiarComoDespacho && direccionesACopiar.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => onCopiarComoDespacho(d.id)}
+                  disabled={copiandoDespacho}
+                  className="self-start px-2 py-1 rounded-md border border-amber-400 bg-white hover:bg-amber-100 disabled:opacity-50"
+                >
+                  Recibe en su dirección de facturación ({[d.calle, d.numero, d.comuna].filter(Boolean).join(" ")}): usarla como despacho
+                </button>
+              ))}
+            </div>
+          </Aviso>
         ) : (
           <Selector
             options={direccionesDespacho.map((d) => ({
@@ -329,11 +349,6 @@ function FacturarForm({
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
           />
         )}
-        <span className="text-xs text-gray-400 italic">
-          {requiereDir
-            ? "Elige a dónde se despacha para poder facturar"
-            : "A dónde llega el pedido. La factura sale a nombre de la dirección de facturación de la orden."}
-        </span>
       </div>
 
       <div className="flex flex-col gap-1">
@@ -350,7 +365,14 @@ function FacturarForm({
           de la venta, no de la facturación. Los pedidos EDI del retail la traen declarada y el
           formulario de la OV la deja editar; esto es la última confirmación antes de emitir. */}
       <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">Fecha de pago</span>
+        <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+          Fecha de pago
+          <Ayuda titulo="Fecha de pago">
+            Sale en la factura como vencimiento y pago programado. Se propone desde lo guardado en
+            la orden, después la condición del documento del cliente y al final su ficha. Sin fecha,
+            la factura sale al contado.
+          </Ayuda>
+        </span>
         <input
           type="date"
           value={fechaVencimiento}
@@ -367,39 +389,22 @@ function FacturarForm({
             que saber al confirmarla antes de emitir. Mismo criterio que `OrigenPrecio`. */}
         {fechaVencimiento ? (
           <span className="text-xs text-gray-500">
-            {origenFecha === "orden" && "Guardada en esta orden. "}
-            {origenFecha === "condicion_orden" && (
-              <>Calculada desde la condición del <strong>documento del cliente</strong>
-                {condicionPago ? ` (${condicionPago})` : ""}. </>
-            )}
-            {origenFecha === "condicion_cliente" && (
-              <>Calculada desde la condición de la <strong>ficha del cliente</strong>
-                {condicionCliente ? ` (${condicionCliente})` : ""}. </>
-            )}
-            {origenFecha === "manual" && "Escrita a mano. "}
-            <span className="text-gray-400 italic">
-              Sale en la factura como vencimiento y como pago programado.
-            </span>
+            {origenFecha === "orden" && "Guardada en esta orden."}
+            {origenFecha === "condicion_orden" &&
+              `Desde el documento del cliente${condicionPago ? ` (${condicionPago})` : ""}.`}
+            {origenFecha === "condicion_cliente" &&
+              `Desde la ficha del cliente${condicionCliente ? ` (${condicionCliente})` : ""}.`}
+            {origenFecha === "manual" && "Escrita a mano."}
           </span>
         ) : esAPlazo ? (
           // Vacío no siempre significa contado: si es a plazo, la factura sin vencimiento es un
           // dato que falta, no una decisión. No bloquea, pero tiene que verse antes de emitir.
-          <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
-            Esta venta es <strong>a plazo</strong>
-            {glosaFecha ? ` (${glosaFecha})` : ""} y no tiene fecha de pago. La factura saldrá
-            <strong> sin vencimiento</strong>, que es lo que el cliente usa para pagar.
-          </span>
-        ) : (
-          <span className="text-xs text-gray-400 italic">
-            Sin fecha, la factura sale como venta al contado y sin vencimiento.
-          </span>
-        )}
-      </div>
-
-      {/* B5: facturar = emitir el documento tributario (sin documento no hay factura) */}
-      <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-        Al confirmar se <strong>emite la Factura Electrónica (SII vía LibreDTE)</strong>.
-        El cliente debe tener RUT, razón social y giro registrados.
+          <Aviso tamano="xs">
+            Es una venta <strong>a plazo</strong>
+            {glosaFecha ? ` (${glosaFecha})` : ""} sin fecha de pago: la factura saldrá sin
+            vencimiento.
+          </Aviso>
+        ) : null}
       </div>
     </div>
   );
@@ -878,22 +883,6 @@ export default function OrdenVentaDetail() {
     return new Intl.NumberFormat("es-CL").format(Math.trunc(n));
   };
 
-  const getEstadoBadge = (estado) => {
-    if (!estado) return <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">—</span>;
-    const base = "px-3 py-1 rounded-full text-sm font-medium";
-    const map = {
-      "Creada":             `${base} bg-gray-200 text-gray-700`,
-      "Validada":           `${base} bg-blue-100 text-blue-700`,
-      "En picking":         `${base} bg-indigo-100 text-indigo-700`,
-      "Lista para facturación":`${base} bg-cyan-100 text-cyan-700`,
-      "Facturada parcial":  `${base} bg-orange-100 text-orange-700`,
-      "Facturada":          `${base} bg-yellow-100 text-yellow-700`,
-      "Entregada":          `${base} bg-green-100 text-green-700`,
-      "Cancelada":          `${base} bg-red-100 text-red-700`,
-    };
-    return <span className={map[estado] || `${base} bg-gray-100 text-gray-600`}>{estado}</span>;
-  };
-
   // Facturación parcial: qué cubren las facturas vigentes y qué va en la próxima.
   const saldo = useMemo(() => resumenSaldo(orderItems), [orderItems]);
 
@@ -972,64 +961,49 @@ export default function OrdenVentaDetail() {
     return null;
   })();
 
-  // Lo que el estado explica pero no permite hacer. Antes ocupaba una tarjeta entera al pie
-  // de la página; es información, no una acción, así que va bajo la cabecera.
+  // Lo que el estado obliga a saber AHORA. Lo que sólo explica cómo avanza la orden («pasa a
+  // En picking al registrar el primer bulto», «pasa a Entregada cuando el chofer…») ya no va en
+  // un recuadro: está en el «(?)» del título (`AYUDA_FLUJO_OV`).
   const avisoDeEstado = (() => {
     const estado = orden?.estado;
 
     if (estado === "Creada" && !canValidar)
-      return {
-        tono: "amber",
-        texto: "Sin permisos para validar esta orden. Contacta a un administrador.",
-      };
-
-    if (estado === "Validada")
-      return {
-        tono: "blue",
-        texto: orden?.es_referencial
-          ? "La orden referencial pasará a En picking cuando el operario inicie la declaración de cantidades desde la app móvil."
-          : "La orden pasará a En picking automáticamente al registrar el primer bulto en la asignación.",
-      };
-
-    // La entrega la registra el chofer en su ruta (rutas de entrega, Fase 2): ya no hay un botón
-    // «Registrar entrega» que cierre la orden a mano.
-    if (estado === "Facturada")
-      return {
-        tono: "blue",
-        texto: "La orden pasa a Entregada cuando el chofer registra la entrega en su ruta (Logística → Entregas).",
-      };
+      return { tono: "neutro", texto: "No tienes permiso para validar esta orden." };
 
     if (estado === ESTADO_FACTURADA_PARCIAL) {
       const n = orden?.saldo_facturacion?.facturas_vigentes ?? 0;
-      return {
-        tono: "amber",
-        texto: orden?.saldo_facturacion?.hay_por_facturar
-          ? `Facturada en parte (${n} factura${n === 1 ? "" : "s"}) y ya hay mercadería del saldo pickeada sin facturar: marca la orden lista para facturación desde la app para emitir la siguiente.`
-          : `Facturada en parte (${n} factura${n === 1 ? "" : "s"}). Queda saldo por despachar: bodega lo pickea desde la app y la orden vuelve a Lista para facturación. Si el cliente ya no lo quiere, usa «Cerrar saldo».`,
-      };
+      const facturas = `${n} factura${n === 1 ? "" : "s"}`;
+      return orden?.saldo_facturacion?.hay_por_facturar
+        ? {
+            tono: "atencion",
+            texto: `Facturada en parte (${facturas}) y con saldo pickeado sin facturar.`,
+            ayuda: "Desde la app, marca la orden lista para facturación para emitir la siguiente factura.",
+          }
+        : {
+            tono: "atencion",
+            texto: `Facturada en parte (${facturas}): queda saldo por despachar.`,
+            ayuda: "Bodega pickea el saldo desde la app y la orden vuelve a Lista para facturación. Si el cliente ya no lo quiere, usa «Cerrar saldo».",
+          };
     }
 
     if (estado === "Facturada" && orden?.saldo_cerrado_en) {
       return {
-        tono: "blue",
+        tono: "neutro",
         texto:
           `Saldo cerrado el ${formatDate(orden.saldo_cerrado_en)}${orden?.saldoCerradoPor?.nombre ? ` por ${orden.saldoCerradoPor.nombre}` : ""}.` +
           (orden?.motivo_cierre_saldo ? ` Motivo: ${orden.motivo_cierre_saldo}` : ""),
       };
     }
 
-    if (estado === "Entregada")
-      return { tono: "green", texto: "Orden completada y entregada." };
-
     if (estado === "Cancelada") {
       const cuando = orden?.cancelado_en ? formatDate(orden.cancelado_en) : null;
       const quien = orden?.canceladoPor?.nombre;
       return {
-        tono: "red",
+        tono: "neutro",
         texto:
-          `Pedido cancelado${cuando ? ` el ${cuando}` : ""}${quien ? ` por ${quien}` : ""}.` +
-          (orden?.motivo_cancelacion ? ` Motivo: ${orden.motivo_cancelacion}` : "") +
-          ` Vuelve a ${orden?.estado_previo_cancelacion || "su estado anterior"} con «Reabrir pedido».`,
+          `Cancelada${cuando ? ` el ${cuando}` : ""}${quien ? ` por ${quien}` : ""}.` +
+          (orden?.motivo_cancelacion ? ` Motivo: ${orden.motivo_cancelacion}` : ""),
+        ayuda: `«Reabrir pedido» la devuelve a ${orden?.estado_previo_cancelacion || "su estado anterior"}, tal como estaba.`,
       };
     }
 
@@ -1159,23 +1133,32 @@ export default function OrdenVentaDetail() {
   ];
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  const TONOS_AVISO = {
-    amber: "text-amber-700 bg-amber-50 border-amber-200",
-    blue: "text-blue-700 bg-blue-50 border-blue-200",
-    green: "text-green-700 bg-green-50 border-green-200",
-    red: "text-red-700 bg-red-50 border-red-200",
-  };
+  // El total va en la cabecera, junto al cliente: es lo que se mira de un vistazo. Antes era una
+  // tarjeta suelta a la derecha con media pantalla vacía al lado, y el desglose se repetía abajo.
+  const nombreCliente = cliente?.razon_social || cliente?.nombre_empresa;
 
   return (
     <div>
       <PageHeader
         volverA="/ventas/ordenes"
         titulo={`Orden de Venta #${orden.id}`}
+        ayuda={AYUDA_FLUJO_OV}
+        tituloAyuda="Cómo avanza una orden"
+        subtitulo={
+          <>
+            {nombreCliente && <span className="text-gray-700">{nombreCliente}</span>}
+            {nombreCliente && " · "}
+            <span className="font-semibold text-text">{formatCLP(total, 0)}</span> con IVA
+          </>
+        }
         estado={
           <>
-            {getEstadoBadge(orden?.estado)}
+            <EstadoOVBadge estado={orden?.estado} size="md" />
             {orden?.es_referencial && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+              <span
+                className="px-2 py-0.5 rounded-full text-xs border border-gray-300 text-gray-600"
+                title="Se pickea declarando cantidades en la app, sin escanear bultos"
+              >
                 Referencial
               </span>
             )}
@@ -1192,25 +1175,18 @@ export default function OrdenVentaDetail() {
       />
 
       {avisoDeEstado && (
-        <p
-          className={`text-sm border rounded-md px-3 py-2 mb-6 ${TONOS_AVISO[avisoDeEstado.tono]}`}
+        <Aviso
+          tono={avisoDeEstado.tono}
+          ayuda={avisoDeEstado.ayuda}
+          className={avisoDeEstado.tono === "neutro" ? "mb-4 -mt-3" : "mb-6"}
         >
           {avisoDeEstado.texto}
-        </p>
+        </Aviso>
       )}
 
       {/* Un pedido cancelado salió del flujo — pintar la barra de pasos ahí sugeriría que sigue
           avanzando por alguno de ellos. El aviso de arriba ya dice todo lo que hace falta. */}
       {orden?.estado !== "Cancelada" && <StepBar estadoActual={orden?.estado} />}
-
-      {/* Total — el único número que vale la pena ver de un vistazo antes de abrir nada. El
-          resto (OC, fechas, cliente, direcciones) vive en `InformacionOrdenCliente`, cada dato
-          en un solo lugar — antes el número de OC salía dos veces en esta misma pantalla. */}
-      <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500 mb-6 max-w-xs ml-auto">
-        <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Total</div>
-        <div className="text-lg font-bold text-text mt-1">{formatCLP(total, 0)}</div>
-        <div className="text-xs text-gray-600 mt-2">Neto: {formatCLP(totalNeto, 0)} · IVA: {formatCLP(iva, 0)}</div>
-      </div>
 
       <InformacionOrdenCliente
         orden={orden}
@@ -1312,25 +1288,25 @@ export default function OrdenVentaDetail() {
               {filasExtraccion.length === 0 ? (
                 <div className="text-sm text-gray-500">No hay bultos asignados.</div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border border-gray-300">
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="min-w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50">
-                        <th className="border border-gray-300 px-4 py-2 text-left">Producto</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Producto físico</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Bulto</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Pallet</th>
-                        <th className="border border-gray-300 px-4 py-2 text-right">Unidades pickeadas</th>
+                      <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+                        <th className="px-4 py-2 text-left font-medium">Producto</th>
+                        <th className="px-4 py-2 text-left font-medium">Producto físico</th>
+                        <th className="px-4 py-2 text-left font-medium">Bulto</th>
+                        <th className="px-4 py-2 text-left font-medium">Pallet</th>
+                        <th className="px-4 py-2 text-right font-medium">Unidades pickeadas</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-gray-100">
                       {filasExtraccion.map((row) => (
                         <tr key={row.key} className="hover:bg-gray-50">
-                          <td className="border border-gray-300 px-4 py-2 whitespace-normal break-words">{row.producto}</td>
-                          <td className="border border-gray-300 px-4 py-2 whitespace-normal break-words text-gray-600">{row.producto_fisico}</td>
-                          <td className="border border-gray-300 px-4 py-2">{row.bulto}</td>
-                          <td className="border border-gray-300 px-4 py-2">{row.pallet}</td>
-                          <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(row.unidades_pickeadas)}</td>
+                          <td className="px-4 py-2 whitespace-normal break-words">{row.producto}</td>
+                          <td className="px-4 py-2 whitespace-normal break-words text-gray-600">{row.producto_fisico}</td>
+                          <td className="px-4 py-2 font-mono text-xs">{row.bulto}</td>
+                          <td className="px-4 py-2 font-mono text-xs">{row.pallet}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{fmtInt(row.unidades_pickeadas)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1356,7 +1332,7 @@ export default function OrdenVentaDetail() {
         // detalle salía larguísimo y costaba dimensionar lo que se iba a emitir.
         ancho="max-w-4xl"
         titulo="Facturar orden"
-        descripcion="Confirma la dirección y la fecha antes de emitir el documento."
+        descripcion="Revisa el documento antes de emitirlo: al confirmar se envía al SII y sólo se corrige con nota de crédito."
         pie={
           <>
             <button

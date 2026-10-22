@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowDown, ArrowUp, MapPin, Route as IconoRuta, Search, Sparkles, Truck, X, AlertTriangle, Pencil } from "lucide-react";
 import PageHeader from "../../components/UI/PageHeader";
 import CargandoVista from "../../components/UI/CargandoVista";
+import Aviso from "../../components/UI/Aviso";
 import Selector from "../../components/Forms/Selector";
 import MapaRuta from "../../components/Entregas/MapaRuta";
 import FinRuta from "../../components/Entregas/FinRuta";
@@ -38,10 +39,12 @@ import {
  */
 
 const PASO_LISTA = 40;
+// Texto con color, sin chip: cada fila llevaba tres o cuatro recuadros de colores y la lista
+// entera se veía en alerta. La fecha sigue destacando sola cuando el pedido está atrasado.
 const TONOS_FECHA = {
-  dia: "bg-primary/10 text-primary border-primary/20",
-  atrasada: "bg-red-50 text-red-700 border-red-200",
-  gris: "bg-gray-50 text-gray-600 border-gray-200",
+  dia: "text-primary font-medium",
+  atrasada: "text-red-600 font-medium",
+  gris: "text-gray-500",
 };
 
 export default function PlanificarRuta() {
@@ -285,10 +288,30 @@ export default function PlanificarRuta() {
       <PageHeader
         volverA={idRutaEditar ? `/Logistica/entregas/${idRutaEditar}` : "/Logistica/entregas"}
         titulo={idRutaEditar ? `Editar pedidos de la ruta #${idRutaEditar}` : "Planificar ruta"}
-        subtitulo={
-          idRutaEditar
-            ? "Marca o desmarca pedidos, recalcula la ruta y guarda los cambios."
-            : "Pedidos facturados o con guía de despacho, por entregar. Elige (o deja que el sistema elija), revisa la ruta recomendada y asígnala."
+        tituloAyuda={idRutaEditar ? "Editar la ruta" : "Cómo se planifica"}
+        ayuda={
+          <>
+            {idRutaEditar ? (
+              <p>Marca o desmarca pedidos, vuelve a recomendar el orden si quieres y guarda los cambios.</p>
+            ) : (
+              <>
+                <p>
+                  Aparecen los pedidos con factura o guía de despacho que todavía no se entregan, primero
+                  los comprometidos para el día elegido.
+                </p>
+                <p>
+                  Marca pedidos y aprieta «Recomendar ruta» para ordenarlos por el recorrido más corto,
+                  o apriétalo sin marcar nada para que tome los comprometidos hasta ese día. Revisa el
+                  orden, elige el encargado y guarda.
+                </p>
+              </>
+            )}
+            <p>
+              Un pedido sin dirección no se puede marcar: defínela con «Definir dirección». Uno sin
+              preparar entra a la ruta, pero la ruta no se inicia hasta que bodega lo prepare.
+            </p>
+            {corte && <p>Se muestran los pedidos desde el {formatearFecha(corte)}; los anteriores se entregaban por AppSheet.</p>}
+          </>
         }
       />
 
@@ -385,14 +408,18 @@ export default function PlanificarRuta() {
       </div>
 
       {bodega && bodega.lat == null && (
-        <div className="mb-4 text-sm text-amber-900 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 flex flex-wrap items-center justify-between gap-2">
-          <span>No encontramos en el mapa la dirección de la bodega <strong>{bodega.nombre}</strong>: ubícala para que las rutas salgan desde ahí.</span>
-          {puedeEscribir && (
-            <button type="button" onClick={() => setUbicandoBodega(true)} className="px-3 py-1.5 rounded-md border border-amber-400 bg-white hover:bg-amber-100">
-              Ubicarla
-            </button>
-          )}
-        </div>
+        <Aviso
+          className="mb-4"
+          accion={
+            puedeEscribir && (
+              <button type="button" onClick={() => setUbicandoBodega(true)} className="px-3 py-1 rounded-md border border-amber-400 bg-white hover:bg-amber-100">
+                Ubicarla
+              </button>
+            )
+          }
+        >
+          La bodega <strong>{bodega.nombre}</strong> no está en el mapa: ubícala para que las rutas salgan desde ahí.
+        </Aviso>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
@@ -428,9 +455,6 @@ export default function PlanificarRuta() {
               </button>
             ))}
           </div>
-          {corte && (
-            <p className="text-xs text-gray-500 mb-2">Se muestran los pedidos desde el {formatearFecha(corte)} (antes se entregaban por AppSheet).</p>
-          )}
 
           <ul className="divide-y divide-gray-100">
             {filtradas.slice(0, visibles).map((o) => {
@@ -448,16 +472,16 @@ export default function PlanificarRuta() {
                     title={puede ? "Agregar a la ruta" : o.ruta ? "Ya está en una ruta" : "Falta la dirección"}
                   />
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <Link to={`/ventas/ordenes/${o.id}`} className="font-medium text-gray-900 hover:text-primary">OV #{o.id}</Link>
                       <span className="text-sm text-gray-700 truncate">{o.cliente.nombre}</span>
-                      <span className={`px-2 py-0.5 rounded-full border text-xs ${TONOS_FECHA[f.tono]}`}>{f.texto}</span>
-                      <span className="text-xs text-gray-400">{o.estado}</span>
+                      <span className={`text-xs ${TONOS_FECHA[f.tono]}`}>{f.texto}</span>
+                      <span className="text-xs text-gray-400">· {o.estado}</span>
                       <EtiquetaDespacho despacho={o.despacho} />
                       {o.ruta && (
                         <Link
                           to={`/Logistica/entregas/${o.ruta.id}`}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+                          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
                           title="Ver la ruta"
                         >
                           <Truck className="w-3 h-3" /> Ruta #{o.ruta.id} · {formatearFecha(o.ruta.fecha)}{o.ruta.transportista ? ` · ${o.ruta.transportista}` : ""}
@@ -501,9 +525,7 @@ export default function PlanificarRuta() {
             })}
           </ul>
           {filtradas.length === 0 && (
-            <p className="text-sm text-gray-500 py-6 text-center">
-              Nada por acá. Un pedido aparece para planificar cuando ya tiene su factura o su guía de despacho.
-            </p>
+            <p className="text-sm text-gray-500 py-6 text-center">Nada por entregar con este filtro.</p>
           )}
           {filtradas.length > visibles && (
             <button type="button" onClick={() => setVisibles((v) => v + PASO_LISTA)} className="mt-3 w-full py-2 text-sm text-primary hover:bg-primary/5 rounded-lg">
@@ -543,17 +565,20 @@ export default function PlanificarRuta() {
                 <Dato titulo="Costo" valor={CLP(propuesta.costo_estimado)} />
               </div>
               {sinPreparar.length > 0 && (
-                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mb-2">
-                  {sinPreparar.slice(0, 8).map((id) => `OV #${id}`).join(", ")}
-                  {sinPreparar.length > 8 ? ` y ${sinPreparar.length - 8} más` : ""} sin preparar para el despacho: la ruta se guarda
-                  igual, pero no se puede iniciar hasta que bodega diga en cuántos bultos sale cada una (app, al terminar el picking).
-                </p>
+                <Aviso
+                  tamano="xs"
+                  className="mb-2"
+                  ayuda="La ruta se guarda igual, pero no se puede iniciar hasta que bodega diga en cuántos bultos sale cada pedido (en la app, al terminar el picking)."
+                >
+                  Sin preparar: {sinPreparar.slice(0, 8).map((id) => `OV #${id}`).join(", ")}
+                  {sinPreparar.length > 8 ? ` y ${sinPreparar.length - 8} más` : ""}.
+                </Aviso>
               )}
               <AvisosRuta avisos={propuesta.avisos} />
               {propuesta.editada && (
-                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1 mb-2">
-                  Cambiaste la ruta: el recorrido y el costo se recalculan al guardar.
-                </p>
+                <Aviso tono="neutro" tamano="xs" className="mb-2">
+                  El recorrido y el costo se recalculan al guardar.
+                </Aviso>
               )}
               <ol className="flex flex-col gap-1 mb-3">
                 <li className="text-xs text-gray-500 flex items-center gap-2"><span className="w-5 h-5 rounded bg-gray-900 text-white text-[10px] font-bold flex items-center justify-center">B</span>Sale de {bodega?.nombre}</li>
@@ -590,9 +615,9 @@ export default function PlanificarRuta() {
                     className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
                   />
                 ) : (
-                  <span className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
-                    No hay usuarios que puedan hacerse cargo de una ruta. Dale el rol Transportista a alguien en Administración → Usuarios.
-                  </span>
+                  <Aviso tamano="xs">
+                    Nadie puede hacerse cargo de una ruta: dale el rol Transportista a alguien en Administración → Usuarios.
+                  </Aviso>
                 )}
               </label>
               <button
@@ -605,10 +630,9 @@ export default function PlanificarRuta() {
               </button>
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500">
-              Marca pedidos en la lista y aprieta <strong>Recomendar ruta</strong>, o apriétalo sin marcar nada para que el
-              sistema tome los comprometidos hasta este día.
-            </div>
+            <p className="text-sm text-gray-500 px-1">
+              Marca pedidos y aprieta «Recomendar ruta», o recomiéndala sin marcar nada.
+            </p>
           )}
 
         </div>
@@ -656,15 +680,16 @@ export default function PlanificarRuta() {
 function EtiquetaDespacho({ despacho, corta = false }) {
   if (!despacho) return null;
   if (!despacho.preparada) {
-    return <span className="px-2 py-0.5 rounded-full border text-[11px] bg-amber-50 text-amber-800 border-amber-200" title="Bodega todavía no dice en cuántos bultos sale">Sin preparar</span>;
+    return <span className="text-xs text-amber-700" title="Bodega todavía no dice en cuántos bultos sale">· Sin preparar</span>;
   }
   const n = despacho.preparados;
   return (
     <span
-      className="px-2 py-0.5 rounded-full border text-[11px] bg-green-50 text-green-700 border-green-200"
+      className="text-xs text-gray-500"
       title={despacho.sin_etiqueta ? `${despacho.sin_etiqueta} caja(s) armada(s) sin etiqueta impresa` : "Preparado para el despacho"}
     >
-      {n} bulto{n === 1 ? "" : "s"}{!corta && despacho.sin_etiqueta ? ` · ${despacho.sin_etiqueta} sin etiqueta` : ""}
+      · {n} bulto{n === 1 ? "" : "s"}
+      {!corta && despacho.sin_etiqueta ? <span className="text-amber-700"> · {despacho.sin_etiqueta} sin etiqueta</span> : ""}
     </span>
   );
 }
