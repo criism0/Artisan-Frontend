@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useApi } from "../../lib/api";
+import { esGranel } from "../../utils/formatoCantidad";
 import { toast } from "../../lib/toast";
 import { getTodayDate } from "../../lib/dateUtils";
 import { ArrowLeft, ChevronDown, ChevronUp, Trash2, Pencil, Check, X } from "lucide-react";
@@ -197,7 +198,7 @@ export default function AddOrdenVenta() {
     if (!clienteConfigActual || !nombreId) return "";
     const precioLista = buscarPrecioLista(nombreId, preciosListaActual);
     const nombreFact = nombres.find((n) => n.id === nombreId);
-    const unidadesPorCaja = Number(
+    const unidadesPorCaja = esGranel(nombreFact) ? 0 : Number(
       precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0
     ) || 0;
     const precioCaja = precioLista?.precio_caja;
@@ -221,7 +222,7 @@ export default function AddOrdenVenta() {
       const nuevoPrecio = calcularPrecioProducto(prod.id_nombre_facturacion, preciosListaActual, clienteConfigActual);
       const precioLista = buscarPrecioLista(prod.id_nombre_facturacion, preciosListaActual);
       const nombreFact = nombres.find((n) => n.id === prod.id_nombre_facturacion);
-      const unidadesPorCaja = Number(
+      const unidadesPorCaja = esGranel(nombreFact) ? 0 : Number(
         precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || prod.unidades_por_caja || 0
       ) || 0;
       return {
@@ -354,7 +355,7 @@ export default function AddOrdenVenta() {
     const nombreFact = nombres.find((n) => n.id === nombreId);
     const formato = (clienteConfig?.formato || "UNIDADES").toUpperCase();
     const precioLista = buscarPrecioLista(nombreId, preciosLista);
-    const unidadesPorCaja = Number(precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
+    const unidadesPorCaja = esGranel(nombreFact) ? 0 : Number(precioLista?.unidades_por_caja || nombreFact?.unidades_por_caja || nombreFact?.productos?.[0]?.unidades_por_caja || 0) || 0;
     const cantidad = Number(productoForm.cantidad);
     const descuento = descuentoAGuardar(productoForm.porcentaje_descuento);
     setProductosAgregados((prev) => [

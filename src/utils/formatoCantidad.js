@@ -44,8 +44,17 @@ export function lineaEnCajas(cantidadUnidades, precioUnitario, unidadesPorCaja) 
   };
 }
 
+/**
+ * ¿Se vende a granel (kilos, litros)? Eso nunca va en cajas, aunque la orden sea por cajas: el
+ * tamaño de caja del producto físico convertía 31,5 kg de feta en «1,31 cajas de 24».
+ */
+export function esGranel(nombreFacturacion) {
+  return ["Kilogramos", "Litros"].includes(nombreFacturacion?.unidad_venta);
+}
+
 /** El tamaño de caja de una línea. El nombre de facturación manda: es como se vende. */
 export function unidadesPorCajaDeLinea(linea) {
+  if (esGranel(linea?.NombreFacturacion ?? linea?.nombreFacturacion)) return null;
   const candidatos = [
     linea?.NombreFacturacion?.unidades_por_caja,
     linea?.nombreFacturacion?.unidades_por_caja,
