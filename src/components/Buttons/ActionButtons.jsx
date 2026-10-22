@@ -148,8 +148,6 @@ function ConfirmDeleteModal({ isOpen, onClose, onConfirm, entityName = "elemento
   );
 }
 
-// Gris hasta pasar el mouse: en una tabla va en cada fila, y un ícono rojo por fila tiñe la
-// lista entera de alarma. Igual pide confirmación antes de eliminar.
 export function TrashButton({ onConfirmDelete, tooltipText, entityName = "elemento" }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -165,7 +163,7 @@ export function TrashButton({ onConfirmDelete, tooltipText, entityName = "elemen
       <button
         type="button"
         onClick={handleOpenModal}
-        className="text-gray-400 hover:text-red-600"
+        className="text-red-600 hover:text-red-700"
         title={tooltipText}
       >
         <Trash className="w-5 h-5" />
@@ -185,7 +183,7 @@ export function TrashIconButton({ onClick, tooltipText }) {
     <button
       type="button"
       onClick={onClick}
-      className="text-gray-400 hover:text-red-600"
+      className="text-red-600 hover:text-red-700"
       title={tooltipText}
     >
       <Trash className="w-5 h-5" />

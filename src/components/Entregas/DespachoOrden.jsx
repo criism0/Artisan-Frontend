@@ -81,15 +81,14 @@ export default function DespachoOrden({ idOrden }) {
             <button
               type="button"
               onClick={etiquetas}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-gray-300 text-gray-700 hover:bg-gray-50"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border ${d.resumen.sin_etiqueta ? "border-amber-400 bg-amber-50 text-amber-900" : "border-gray-300 text-gray-700"} hover:bg-gray-50`}
               title="Las etiquetas de las cajas armadas (las cerradas llevan la de su bulto)"
             >
-              <Printer className="w-4 h-4" /> Etiquetas
-              {d.resumen.sin_etiqueta ? <span className="text-amber-700">({d.resumen.sin_etiqueta} sin imprimir)</span> : null}
+              <Printer className="w-4 h-4" /> Etiquetas{d.resumen.sin_etiqueta ? ` (${d.resumen.sin_etiqueta} sin imprimir)` : ""}
             </button>
           )}
           {d.preparable && puedeEscribir && (
-            <button type="button" onClick={() => setPreparando(true)} className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 text-gray-700 hover:bg-gray-50">
+            <button type="button" onClick={() => setPreparando(true)} className="px-3 py-1.5 rounded-lg text-sm bg-primary text-white hover:bg-primary-dark">
               Preparar despacho
             </button>
           )}
@@ -105,7 +104,7 @@ export default function DespachoOrden({ idOrden }) {
               {p.comentario ? ` · ${p.comentario}` : ""}
             </span>
             {p.anulable && puedeEscribir && (
-              <button type="button" onClick={() => rehacer(p.id)} className="inline-flex items-center gap-1 text-gray-500 hover:text-red-600">
+              <button type="button" onClick={() => rehacer(p.id)} className="inline-flex items-center gap-1 text-red-600 hover:underline">
                 <RotateCcw className="w-3 h-3" /> Rehacer
               </button>
             )}

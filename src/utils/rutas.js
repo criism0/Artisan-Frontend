@@ -4,7 +4,7 @@
  */
 import { formatFecha } from "../lib/dateUtils";
 
-const ddmm =(iso) => `${iso.slice(8, 10)}-${iso.slice(5, 7)}`;
+const ddmm = (iso) => `${iso.slice(8, 10)}-${iso.slice(5, 7)}`;
 
 /** Etiqueta de la fecha de entrega respecto del día que se está planificando. */
 export function etiquetaFecha(fechaEntrega, fechaRuta) {
@@ -70,13 +70,11 @@ export const contarPorFiltro = (ordenes) => ({
 });
 
 /** Colores del estado de una ruta (chip de la lista, del detalle y del filtro). */
-// Mismo criterio que el estado de la OV: el color dice el tramo, no el estado. «En curso» era
-// ámbar —el color de «algo pide atención»— y una ruta andando es lo normal.
 export const ESTADOS_RUTA = {
-  Planificada: { bg: "bg-gray-100", text: "text-gray-700" },
-  "En curso": { bg: "bg-violet-50", text: "text-violet-700" },
-  Cerrada: { bg: "bg-green-50", text: "text-green-700" },
-  Cancelada: { bg: "bg-gray-100", text: "text-gray-500" },
+  Planificada: { bg: "bg-sky-200", text: "text-sky-800" },
+  "En curso": { bg: "bg-amber-200", text: "text-amber-800" },
+  Cerrada: { bg: "bg-green-400", text: "text-green-900" },
+  Cancelada: { bg: "bg-gray-200", text: "text-gray-600" },
 };
 
 /**
