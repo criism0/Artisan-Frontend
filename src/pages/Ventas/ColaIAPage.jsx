@@ -7,6 +7,7 @@ import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import Pagination from "../../components/UI/Pagination";
 import Tabs from "../../components/UI/Tabs";
 import PanelApartados from "../../components/DTE/PanelApartados";
+import PanelReglasColaIA from "../../components/Ventas/PanelReglasColaIA";
 import { compararFormato } from "../../utils/formatoProducto";
 import { buscarOvConMismaOC, describirDuplicadas } from "../../utils/ocDuplicada.js";
 import {
@@ -1847,12 +1848,15 @@ export default function ColaIAPage() {
         pestanas={[
           { id: "validar", label: "Por validar", cantidad: ordenes.length },
           { id: "apartados", label: "Apartados", cantidad: apartados.length },
+          { id: "reglas", label: "Reglas" },
         ]}
         activa={tab}
         onCambiar={setTab}
       />
 
-      {tab === "apartados" ? (
+      {tab === "reglas" ? (
+        <PanelReglasColaIA />
+      ) : tab === "apartados" ? (
         <PanelApartados apartados={apartados} loading={false} error={errorApartados} />
       ) : (
       <>
