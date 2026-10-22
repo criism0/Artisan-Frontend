@@ -1119,10 +1119,12 @@ export default function OMDetail() {
                     {prod.loteProductoFinal?.productoBase?.nombre || ""}
                   </td>
                   <td className="px-4 py-3 text-sm text-text">
-                    {prod.peso_unitario}
+                    {formatNumberCL(prod.peso_unitario, 2)}
                   </td>
                   <td className="px-4 py-3 text-sm text-text">
-                    {prod.loteProductoFinal?.productoBase?.peso_unitario || ""}
+                    {prod.loteProductoFinal?.productoBase?.peso_unitario != null
+                      ? formatNumberCL(prod.loteProductoFinal.productoBase.peso_unitario, 2)
+                      : ""}
                   </td>
                   <td className="px-4 py-3 text-sm text-text">
                     {prod.loteProductoFinal?.fecha_vencimiento

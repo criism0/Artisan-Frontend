@@ -7,6 +7,7 @@ import Table from "../../components/Tables/Table";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import PageHeader from '../../components/UI/PageHeader.jsx';
+import { formatFecha } from "../../lib/dateUtils";
 
 function formatDateTime(value) {
   if (!value) return "—";
@@ -174,7 +175,7 @@ export default function PautaElaboracionDetail() {
             <div className="text-xs text-gray-500 font-medium">PASOS</div>
             <div className="text-lg font-bold text-text mt-1">{(pasos || []).length}</div>
             <div className="text-xs text-gray-600 mt-2">
-              Creada: {formatDateTime(pauta.createdAt)} · Actualizada: {formatDateTime(pauta.updatedAt)}
+              Creada {formatFecha(pauta.createdAt)} · actualizada {formatFecha(pauta.updatedAt)}
             </div>
           </div>
 
