@@ -13,6 +13,7 @@
 import { X } from 'lucide-react';
 import { DTEStatusBadge } from './DTEStatusBadge.jsx';
 import { formatCLP } from '../../services/formatHelpers.js';
+import { formatFecha } from '../../lib/dateUtils';
 
 const TIPO_LABEL = {
   33: 'Factura Electrónica',
@@ -28,8 +29,7 @@ const COD_REF_LABEL = {
 };
 
 function fmtDate(d) {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  return formatFecha(d);
 }
 
 export default function DTEDetallesModal({ dte, onClose }) {

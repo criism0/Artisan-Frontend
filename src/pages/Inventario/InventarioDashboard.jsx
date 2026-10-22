@@ -27,6 +27,7 @@ import {
 import { formatCLP, formatCLPCompact } from "../../services/formatHelpers";
 import KpiCard from "../../components/UI/KpiCard";
 import PanelConsumoInterno from "../../components/Inventario/PanelConsumoInterno.jsx";
+import { formatFecha } from "../../lib/dateUtils";
 
 const formatNumCL = (num) =>
   new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(num || 0);
@@ -419,7 +420,7 @@ function PanelValorInventario({ api, bodegas }) {
               <tbody>
                 {filas.map((s) => (
                   <tr key={s.id} className="border-t border-gray-100">
-                    <td className="px-3 py-2">{new Date(s.fecha).toLocaleDateString()}</td>
+                    <td className="px-3 py-2">{formatFecha(s.fecha)}</td>
                     {!bodegaId && <td className="px-3 py-2">{s.bodega || `#${s.id_bodega}`}</td>}
                     <td className="px-3 py-2 text-right font-semibold">{formatCLP(s.valor_total, 0)}</td>
                     <td className="px-3 py-2 text-right text-gray-600">{formatCLP(s.valor_insumos, 0)}</td>

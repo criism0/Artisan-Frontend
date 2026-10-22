@@ -29,6 +29,7 @@ import { urlFirmadaDeS3 } from '../../lib/uploadToS3.js';
 import { sePuedePrevisualizar } from '../../utils/previsualizacion.js';
 import { toast } from '../../lib/toast.js';
 import { formatCLP } from '../../services/formatHelpers.js';
+import { formatFecha } from '../../lib/dateUtils';
 
 function Chip({ tone = 'off', children }) {
   const tones = {
@@ -82,7 +83,7 @@ export default function CentroDocumentosSolicitud({
       clave: `gd-${gd.id}`,
       titulo: `Guía de Despacho N° ${gd.folio}`,
       subtitulo: [
-        gd.fechaEmision ? new Date(gd.fechaEmision).toLocaleDateString('es-CL') : null,
+        gd.fechaEmision ? formatFecha(gd.fechaEmision) : null,
         gd.montoTotal > 0 ? formatCLP(gd.montoTotal, 0) : null,
         gd.origen === 'EXTERNO' ? 'Emitida fuera del ERP' : null,
       ].filter(Boolean).join(' · '),
@@ -246,7 +247,7 @@ export default function CentroDocumentosSolicitud({
                     {meta.bodega_destino && <span>→ <strong>{meta.bodega_destino}</strong></span>}
                     {meta.transportista && <span>· Transportista: {meta.transportista}</span>}
                     {gd.fechaEmision && (
-                      <span>· Emitida: {new Date(gd.fechaEmision).toLocaleDateString('es-CL')}</span>
+                      <span>· Emitida: {formatFecha(gd.fechaEmision)}</span>
                     )}
                     {fechaLlegada
                       ? <span className="text-green-700 font-medium">· Llegada confirmada el {new Date(fechaLlegada).toLocaleString('es-CL')}</span>

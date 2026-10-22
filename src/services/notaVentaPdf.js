@@ -5,6 +5,7 @@ import { formatCLP } from "./formatHelpers";
 import { cantidadFacturable, resumenFacturable } from "../utils/cantidadFacturable.js";
 import { esFormatoCajas, lineaEnCajas, unidadesPorCajaDeLinea } from "../utils/formatoCantidad.js";
 import logo from "../assets/logo.png";
+import { formatFecha } from "../lib/dateUtils";
 
 const COMPANY = {
   nombre: "ELABORADORA DE ALIMENTOS GOURMET LTDA.",
@@ -14,12 +15,7 @@ const COMPANY = {
   contacto: "oc@quesosartisan.cl",
 };
 
-const formatDate = (value) => {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("es-CL");
-};
+const formatDate = (value) => formatFecha(value);
 
 // El progreso viene agrupado por nombre de facturación; cada bulto asignado trae el producto
 // físico. Misma forma que progresoRows/filasExtraccion en OrdenVentaDetail.jsx.

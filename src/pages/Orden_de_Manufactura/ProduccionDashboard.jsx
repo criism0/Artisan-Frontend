@@ -30,6 +30,7 @@ import {
   opcionesFiltrosProduccion,
 } from "../../services/produccionAnalytics";
 import KpiCard from "../../components/UI/KpiCard";
+import { formatFecha } from "../../lib/dateUtils";
 
 const formatNumCL = (num) =>
   new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(num || 0);
@@ -45,11 +46,7 @@ const formatoFechaLarga = (d) =>
     day: "numeric",
   });
 
-const fmtFecha = (v) => {
-  if (!v) return "—";
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("es-CL");
-};
+const fmtFecha = (v) => formatFecha(v);
 
 export default function ProduccionDashboard() {
   const api = useApi();

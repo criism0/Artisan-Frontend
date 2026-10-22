@@ -15,14 +15,12 @@ import DocumentoRecibidoUploadModal from './DocumentoRecibidoUploadModal.jsx';
 import { formatCLP } from '../../services/formatHelpers.js';
 import { toast } from '../../lib/toast.js';
 import { api, buildApiUrl } from '../../lib/api.js';
+import { formatFecha } from '../../lib/dateUtils';
 
 // ── helpers ────────────────────────────────────────────────────────────────────
 
 function fechaCorta(iso) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('es-CL', {
-    day: '2-digit', month: 'short', year: 'numeric',
-  });
+  return formatFecha(iso, { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 // ── Reclamar modal (inline, lightweight) ─────────────────────────────────────

@@ -4,6 +4,7 @@ import { useApi } from '../lib/api';
 // Igual que en DTEPreview: la app no monta `<ToastContainer>`, así que los toast de
 // react-toastify no se muestran. El sistema vivo es `lib/toast.js`.
 import { toast } from '../lib/toast';
+import { formatFecha } from '../lib/dateUtils';
 
 /**
  * Modal para seleccionar una Orden de Compra y precargar sus insumos
@@ -24,11 +25,7 @@ const ESTADO_BADGE = {
   Pagada: 'bg-blue-100 text-blue-700',
 };
 
-const fmtFecha = (d) => {
-  if (!d) return '—';
-  const date = new Date(d);
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('es-CL');
-};
+const fmtFecha = (d) => formatFecha(d);
 
 export default function ImportarDesdeOCModal({ open, onClose, onImport }) {
   const api = useApi();

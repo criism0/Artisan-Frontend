@@ -18,6 +18,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatCLP } from "../../services/formatHelpers";
 import { mensajeDelBackend } from "../../utils/mensajeError.js";
+import { formatFecha } from "../../lib/dateUtils";
 
 export default function Ordenes() {
   const { user } = useAuth();
@@ -365,7 +366,7 @@ export default function Ordenes() {
               id: orden.id,
               id_proveedor:
                 orden.proveedor?.nombre_empresa || orden.id_proveedor,
-              fecha: new Date(orden.fecha).toLocaleDateString(),
+              fecha: formatFecha(orden.fecha),
               fecha_raw: orden.fecha,
               total_neto: formatCLP(orden.total_neto, 0),
               total_neto_raw: Number(orden.total_neto) || 0,

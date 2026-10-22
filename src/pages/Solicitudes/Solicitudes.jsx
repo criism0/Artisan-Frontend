@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
+import { formatFecha } from "../../lib/dateUtils";
 
 const ESTADO_STYLES = {
   "Creada": { bg: "bg-gray-200", text: "text-gray-800", label: "Creada" },
@@ -44,10 +45,7 @@ const getEstadoChip = (estado) => {
   return <span className={`${base} ${s.bg} ${s.text}`}>{s.label}</span>;
 };
 
-const fmtFecha = (value) =>
-  value
-    ? new Date(value).toLocaleDateString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric" })
-    : "—";
+const fmtFecha = (value) => formatFecha(value);
 
 export default function Solicitudes() {
   const [solicitudes, setSolicitudes] = useState([]);

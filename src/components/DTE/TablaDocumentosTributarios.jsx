@@ -16,15 +16,12 @@
 import { AlertCircle, Eye, FileDown, Info, Link2, Unlink } from 'lucide-react';
 import { DTEStatusBadge } from './DTEStatusBadge.jsx';
 import { formatCLP } from '../../services/formatHelpers.js';
+import { formatFecha } from '../../lib/dateUtils';
 
 const TIPO_LABEL = {
   33: 'Factura', 34: 'Factura exenta', 39: 'Boleta',
   52: 'Guía de Despacho', 56: 'Nota de Débito', 61: 'Nota de Crédito',
 };
-
-function formatFecha(f) {
-  return f ? new Date(f).toLocaleDateString() : '—';
-}
 
 function referenciaLabel(dte) {
   const ref = dte.referencias?.[0];

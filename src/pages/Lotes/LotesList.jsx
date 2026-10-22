@@ -5,6 +5,7 @@ import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { formatFecha } from "../../lib/dateUtils";
 
 export default function LotesList() {
   const [lotes, setLotes] = useState([]);
@@ -159,7 +160,7 @@ export default function LotesList() {
       sortable: true,
       sortValue: (row) => (row.fechaElab ? new Date(row.fechaElab).getTime() : 0),
       Cell: ({ row }) =>
-        row.fechaElab ? new Date(row.fechaElab).toLocaleDateString("es-CL") : "",
+        row.fechaElab ? formatFecha(row.fechaElab) : "",
     },
     { header: "N° Elaboración", accessor: "nElaboracion", sortable: true },
     { header: "Producto", accessor: "producto", sortable: true },

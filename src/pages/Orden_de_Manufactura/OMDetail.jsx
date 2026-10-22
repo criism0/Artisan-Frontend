@@ -23,6 +23,7 @@ import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
 import { useApi } from "../../lib/api";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { formatFecha } from "../../lib/dateUtils";
 
 const CATEGORIAS = [
   { value: "I", label: "Insumos (I)" },
@@ -626,7 +627,7 @@ export default function OMDetail() {
           <div className="flex items-center justify-between gap-3 mb-3">
             <h2 className="text-base font-semibold text-text">Cierre y rendimiento</h2>
             <div className="text-xs text-gray-500">
-              {fechaVencimiento ? `Vence: ${new Date(fechaVencimiento).toLocaleDateString()}` : "—"}
+              {fechaVencimiento ? `Vence: ${formatFecha(fechaVencimiento)}` : "—"}
             </div>
           </div>
 
@@ -1094,7 +1095,7 @@ export default function OMDetail() {
             <tr className="border-b border-border">
               <td className="px-6 py-4 text-sm font-medium text-text">Fecha</td>
               <td className="px-6 py-4 text-sm text-text">
-                {om.fecha ? new Date(om.fecha).toLocaleDateString() : "—"}
+                {formatFecha(om.fecha)}
               </td>
             </tr>
             <tr className="border-b border-border">
@@ -1166,7 +1167,7 @@ export default function OMDetail() {
                   </td>
                   <td className="px-4 py-3 text-sm text-text">
                     {prod.loteProductoFinal?.fecha_vencimiento
-                      ? new Date(prod.loteProductoFinal?.fecha_vencimiento).toLocaleDateString()
+                      ? formatFecha(prod.loteProductoFinal?.fecha_vencimiento)
                       : ""}
                   </td>
                   <td className="px-4 py-3 text-sm text-text">
@@ -1228,13 +1229,13 @@ export default function OMDetail() {
                             <div>
                               <span className="font-medium text-gray-600">Fecha Elaboración:</span>
                               <p className="text-gray-800">
-                                {new Date(subproductosGroup[0].fecha_elaboracion).toLocaleDateString()}
+                                {formatFecha(subproductosGroup[0].fecha_elaboracion)}
                               </p>
                             </div>
                             <div>
                               <span className="font-medium text-gray-600">Fecha Vencimiento:</span>
                               <p className="text-gray-800">
-                                {new Date(subproductosGroup[0].fecha_vencimiento).toLocaleDateString()}
+                                {formatFecha(subproductosGroup[0].fecha_vencimiento)}
                               </p>
                             </div>
                           </div>
