@@ -60,7 +60,10 @@ export default function Ayuda({ titulo, children, etiqueta, className = "" }) {
       <button
         type="button"
         ref={boton}
-        onClick={() => setAbierta((v) => !v)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setAbierta((v) => !v);
+        }}
         aria-label={titulo ? `Ayuda: ${titulo}` : "Ayuda"}
         aria-expanded={abierta}
         aria-controls={abierta ? id : undefined}
@@ -76,6 +79,7 @@ export default function Ayuda({ titulo, children, etiqueta, className = "" }) {
             ref={panel}
             role="dialog"
             aria-label={titulo || "Ayuda"}
+            onClick={(e) => e.stopPropagation()}
             style={{ position: "fixed", top: pos?.top ?? -9999, left: pos?.left ?? -9999, width: ANCHO }}
             className="z-[70] max-w-[calc(100vw-1rem)] rounded-lg border border-gray-200 bg-white p-3 text-sm leading-relaxed text-gray-700 shadow-lg"
           >
