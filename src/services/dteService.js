@@ -115,10 +115,14 @@ export const dteService = {
     return mapDte(res?.data ?? res);
   },
 
-  emitirGuiaDespachoVenta: async (idOrdenVenta) => {
+  emitirGuiaDespachoVenta: async (idOrdenVenta, { idTransporte } = {}) => {
     const res = await api('/facturacion/emitir-guia-despacho-venta', {
       method: 'POST',
-      body: { id_orden_venta: idOrdenVenta },
+      body: {
+        id_orden_venta: idOrdenVenta,
+        // Res. Ex. SII 154: con qué transportista, chofer y patente sale.
+        ...(idTransporte ? { id_combinacion_transporte: Number(idTransporte) } : {}),
+      },
     });
     return mapDte(res?.data ?? res);
   },

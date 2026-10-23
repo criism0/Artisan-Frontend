@@ -26,6 +26,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import CentroDocumentos from "../../components/DTE/CentroDocumentos.jsx";
 import DTEPreview from "../../components/DTE/DTEPreview.jsx";
+import SelectorTransporte from "../../components/Logistica/SelectorTransporte.jsx";
 import EstadoPosteriorBadge from "../../components/Ventas/EstadoPosteriorBadge.jsx";
 import DetalleTipoFactura from "../../components/Ventas/DetalleTipoFactura.jsx";
 import InformacionOrdenCliente from "../../components/Ventas/InformacionOrdenCliente.jsx";
@@ -141,6 +142,10 @@ function FacturarForm({
   setDejarSaldoPendiente = () => {},
   motivoCierreSaldo = "",
   setMotivoCierreSaldo = () => {},
+  idBodegaOrigen = null,
+  idTransporte = null,
+  setIdTransporte = () => {},
+  setTransporteExigido = () => {},
 }) {
   // Lo que va a salir impreso como referencia. Se muestra, no se edita: es el `numero_oc` de la
   // orden, y si está mal se corrige en la orden — no al emitir el documento tributario.
@@ -239,6 +244,7 @@ function FacturarForm({
         idLocal={idLocalDespacho || null}
         fecha={fechaFacturacion || null}
         vencimiento={fechaVencimiento || null}
+        idTransporte={idTransporte}
       />
 
       {/* 🔴 La orden de compra. Sin ella el retail rechaza la factura porque no puede casarla
@@ -298,6 +304,14 @@ function FacturarForm({
             : "Confirma o ajusta la dirección antes de facturar"}
         </span>
       </div>
+
+      {/* Res. Ex. SII 154 (desde el 1-nov-2026): la factura ampara el traslado. */}
+      <SelectorTransporte
+        idBodegaOrigen={idBodegaOrigen}
+        valor={idTransporte}
+        onCambiar={setIdTransporte}
+        onExigida={setTransporteExigido}
+      />
 
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-gray-700">Fecha de facturación *</span>
@@ -412,6 +426,9 @@ export default function OrdenVentaDetail() {
   // Facturación parcial: qué hacer con lo que la factura no cubre, y el cierre posterior.
   const [dejarSaldoPendiente, setDejarSaldoPendiente] = useState(true);
   const [motivoCierreSaldo, setMotivoCierreSaldo] = useState("");
+  // Res. Ex. SII 154: con qué transportista, chofer y patente sale la venta.
+  const [idTransporte, setIdTransporte] = useState(null);
+  const [transporteExigido, setTransporteExigido] = useState(false);
   const [showCerrarSaldo, setShowCerrarSaldo] = useState(false);
   const [motivoCerrarSaldo, setMotivoCerrarSaldo] = useState("");
   const [showEntregarForm, setShowEntregarForm] = useState(false);
@@ -804,6 +821,7 @@ export default function OrdenVentaDetail() {
           ...(idLocalDespacho && { id_local: Number(idLocalDespacho) }),
           dejar_saldo_pendiente: dejarSaldoPendiente,
           ...(!dejarSaldoPendiente && motivoCierreSaldo.trim() && { motivo_cierre_saldo: motivoCierreSaldo.trim() }),
+          ...(idTransporte && { id_combinacion_transporte: Number(idTransporte) }),
         }),
       });
       const o = await fetchOrden();
@@ -815,6 +833,7 @@ export default function OrdenVentaDetail() {
       setFechaFacturacion("");
       setFechaVencimiento("");
       setIdLocalDespacho("");
+      setIdTransporte(null);
       setDireccionesCliente([]);
     } catch (err) {
       toast.error(apiErrorMsg(err, "facturar esta orden"));
@@ -1365,7 +1384,11 @@ export default function OrdenVentaDetail() {
             >
               Cancelar
             </button>
-            <button onClick={handleFacturar} disabled={transitioning} className={btnCls("primary")}>
+            <button
+              onClick={handleFacturar}
+              disabled={transitioning || (transporteExigido && !idTransporte)}
+              className={btnCls("primary")}
+            >
               {transitioning ? "Emitiendo factura…" : "Emitir Factura Electrónica"}
             </button>
           </>
@@ -1393,6 +1416,10 @@ export default function OrdenVentaDetail() {
           setDejarSaldoPendiente={setDejarSaldoPendiente}
           motivoCierreSaldo={motivoCierreSaldo}
           setMotivoCierreSaldo={setMotivoCierreSaldo}
+          idBodegaOrigen={orden?.bodega_id}
+          idTransporte={idTransporte}
+          setIdTransporte={setIdTransporte}
+          setTransporteExigido={setTransporteExigido}
         />
       </Modal>
 

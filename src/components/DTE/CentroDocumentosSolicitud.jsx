@@ -56,6 +56,9 @@ export default function CentroDocumentosSolicitud({
   onVerBorradorGD,
   onConfirmarLlegada,
   onCambio,
+  // Res. Ex. SII 154: el selector de transporte, y si emitir queda bloqueado mientras no se elija.
+  selectorTransporte = null,
+  emisionBloqueada = false,
 }) {
   const [vinculando, setVinculando] = useState(false);
   const [visorEn, setVisorEn] = useState(null);
@@ -160,7 +163,7 @@ export default function CentroDocumentosSolicitud({
             <button
               type="button"
               onClick={onEmitirGD}
-              disabled={emitiendo || cargando}
+              disabled={emitiendo || cargando || emisionBloqueada}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
             >
               <Truck className="w-4 h-4" />
@@ -186,6 +189,8 @@ export default function CentroDocumentosSolicitud({
           </div>
         )}
       </div>
+
+      {gds.length === 0 && selectorTransporte && <div className="mb-3 max-w-md">{selectorTransporte}</div>}
 
       {/* El buscador se abre acá adentro, no en un modal: buscar la guía que falta es parte de
           armar el expediente de la solicitud, y en un modal se pierde de vista la lista con la
