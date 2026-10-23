@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "../../lib/toast.js";
 // jspdf y jspdf-autotable NO se importan acá: se cargan bajo demanda dentro de
@@ -17,6 +17,7 @@ import CentroDocumentosSolicitud from "../../components/DTE/CentroDocumentosSoli
 import { adjuntosService } from "../../services/adjuntosService.js";
 import Modal from "../../components/UI/Modal.jsx";
 import PalletContenidoCard from "../../components/Pallets/PalletContenidoCard.jsx";
+import SelectorTransporte from "../../components/Logistica/SelectorTransporte.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { dteService } from "../../services/dteService.js";
 import { formatCLP } from "../../services/formatHelpers.js";
@@ -318,9 +319,15 @@ export default function SolicitudDetail() {
   const [emitiendoGD, setEmitiendoGD] = useState(false);
   const [viendoBorradorGD, setViendoBorradorGD] = useState(false);
   // Res. Ex. SII 154 (desde el 1-nov-2026): la guía declara el vehículo, el chofer y el
-  // transportista. Casi siempre es el mismo camión, así que se recuerda lo último usado.
-  const [traslado, setTraslado] = useState(leerTrasladoGuardado);
-  const cambiarTraslado = (campo, valor) => setTraslado((t) => ({ ...t, [campo]: valor }));
+  // transportista, que salen de la combinación elegida (Logística → Transporte).
+  const [idTransporte, setIdTransporte] = useState(null);
+  const [transporteExigido, setTransporteExigido] = useState(false);
+  const traslado = { id_combinacion_transporte: idTransporte };
+  const elegirTransporte = useCallback((id, combinacion) => {
+    setIdTransporte(id);
+    // El medio de transporte de la solicitud, si nadie lo escribió todavía.
+    if (combinacion) setMedioTransporte((m) => m.trim() ? m : (combinacion.transportista || combinacion.nombre));
+  }, []);
 
   // Ver la guía como saldrá, antes de gastar el folio. Una guía emitida no se edita.
   const handleVerBorradorGD = async () => {
@@ -341,7 +348,6 @@ export default function SolicitudDetail() {
         transportista: medioTransporte.trim() || undefined,
         traslado,
       });
-      guardarTraslado(traslado);
       toast.success(`Guía de despacho N° ${gd?.folio ?? ''} emitida ✓`);
       // El folio es EL número de la guía: se escribe solo para que nadie lo transcriba mal.
       if (gd?.folio) setGuiaDespacho(String(gd.folio));
@@ -842,6 +848,15 @@ export default function SolicitudDetail() {
           onVerBorradorGD={handleVerBorradorGD}
           onConfirmarLlegada={handleConfirmarLlegadaGD}
           onCambio={() => { cargarGDs(); fetchSolicitud(); }}
+          selectorTransporte={
+            <SelectorTransporte
+              idBodegaOrigen={solicitud.id_bodega_proveedora}
+              valor={idTransporte}
+              onCambiar={elegirTransporte}
+              onExigida={setTransporteExigido}
+            />
+          }
+          emisionBloqueada={transporteExigido && !idTransporte}
         />
 
         <Tabs
@@ -1005,11 +1020,18 @@ export default function SolicitudDetail() {
                   Emítela acá: declara lo que se despachó, con el valor de los bultos cargados,
                   y su folio queda como número de la guía.
                 </p>
-                <DatosTraslado valor={traslado} onCambiar={cambiarTraslado} />
+                <div className="mt-3">
+                  <SelectorTransporte
+                    idBodegaOrigen={solicitud.id_bodega_proveedora}
+                    valor={idTransporte}
+                    onCambiar={elegirTransporte}
+                    onExigida={setTransporteExigido}
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={handleEmitirGD}
-                  disabled={emitiendoGD}
+                  disabled={emitiendoGD || (transporteExigido && !idTransporte)}
                   className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
                 >
                   <FileText className="w-4 h-4" />
@@ -1083,50 +1105,5 @@ export default function SolicitudDetail() {
         </Modal>
       </div>
     </div>
-  );
-}
-
-const CLAVE_TRASLADO = "artisan:ultimo-traslado-guia";
-const TRASLADO_VACIO = { patente: "", patente_carro: "", rut_transportista: "", chofer_nombre: "", chofer_rut: "" };
-
-function leerTrasladoGuardado() {
-  try {
-    return { ...TRASLADO_VACIO, ...JSON.parse(localStorage.getItem(CLAVE_TRASLADO) || "{}") };
-  } catch {
-    return { ...TRASLADO_VACIO };
-  }
-}
-
-function guardarTraslado(t) {
-  try {
-    localStorage.setItem(CLAVE_TRASLADO, JSON.stringify(t));
-  } catch {
-    // Sin almacenamiento la próxima vez se escribe de nuevo; no impide emitir.
-  }
-}
-
-/** Patente, transportista y chofer de la guía (Res. Ex. SII N° 154, desde el 1-nov-2026). */
-function DatosTraslado({ valor, onCambiar }) {
-  const campo = (clave, etiqueta, placeholder, clase = "") => (
-    <label className={`block ${clase}`}>
-      <span className="block text-xs font-medium text-amber-900 mb-0.5">{etiqueta}</span>
-      <input
-        type="text"
-        value={valor[clave] ?? ""}
-        onChange={(e) => onCambiar(clave, e.target.value)}
-        placeholder={placeholder}
-        className="w-full border border-amber-300 bg-white rounded-md px-2 py-1.5 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
-      />
-    </label>
-  );
-  return (
-    <fieldset className="mt-3 grid grid-cols-2 gap-2">
-      <legend className="col-span-2 text-xs font-medium text-amber-900 mb-1">Datos del traslado</legend>
-      {campo("patente", "Patente del vehículo", "BBCC12")}
-      {campo("patente_carro", "Patente del carro (si lleva)", "JK1234")}
-      {campo("chofer_nombre", "Nombre del chofer", "Juan Pérez")}
-      {campo("chofer_rut", "RUT del chofer", "12.345.678-5")}
-      {campo("rut_transportista", "RUT del transportista", "RUT de quien transporta", "col-span-2")}
-    </fieldset>
   );
 }
