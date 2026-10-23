@@ -45,12 +45,13 @@ export function useDTE(ordenId) {
 
   // ── Emitir Guía de Despacho (IndTraslado=1 — despacho a cliente) ──────────
 
-  const emitirGuiaDespacho = async (/* indTraslado no se usa, siempre es 1 desde ventas */) => {
+  // `opciones.idTransporte`: la combinación de transporte elegida (Res. Ex. SII 154).
+  const emitirGuiaDespacho = async (opciones = {}) => {
     if (!ordenId) return null;
     setLoading(true);
     setError(null);
     try {
-      const gd = await dteService.emitirGuiaDespachoVenta(ordenId);
+      const gd = await dteService.emitirGuiaDespachoVenta(ordenId, opciones);
       setDocumentos((prev) => [...prev, gd]);
       toast.success(`Guía de Despacho N° ${gd.folio} emitida ✓`);
       return gd;
