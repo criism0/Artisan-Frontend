@@ -30,6 +30,7 @@ import { sePuedePrevisualizar } from '../../utils/previsualizacion.js';
 import { toast } from '../../lib/toast.js';
 import { formatCLP } from '../../services/formatHelpers.js';
 import { formatFecha } from '../../lib/dateUtils';
+import Ayuda from '../UI/Ayuda.jsx';
 
 function Chip({ tone = 'off', children }) {
   const tones = {
@@ -136,15 +137,19 @@ export default function CentroDocumentosSolicitud({
         <FileText size={18} className="text-primary" />
         <h2 className="text-base font-semibold text-gray-900">Documentos</h2>
         <div className="ml-auto flex items-center gap-2 flex-wrap">
-          <Chip tone="info">Solicitud: {solicitud?.estado ?? '—'}</Chip>
           <Chip tone={chipGuia.tone}>{chipGuia.texto}</Chip>
         </div>
       </div>
 
       {/* ── Guías de despacho ────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 uppercase tracking-wide">
           Guías de despacho
+          <Ayuda titulo="Guía de despacho">
+            La guía declara sólo lo que se despachó, con el valor de los bultos cargados en los
+            pallets. Se emite antes de marcar la solicitud como enviada y su folio queda como el
+            número de la guía.
+          </Ayuda>
         </h3>
         {/* Las acciones de emisión sólo aparecen mientras no haya guía: una solicitud lleva UNA,
             y su folio es el número de la guía. Ofrecer «emitir» con una ya emitida abriría la
@@ -206,14 +211,7 @@ export default function CentroDocumentosSolicitud({
       )}
 
       {gds.length === 0 ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-500 space-y-1">
-          <p>No hay guías de despacho emitidas para esta solicitud.</p>
-          <p className="text-xs text-gray-400">
-            La guía declara <strong>sólo lo que se despachó</strong>, con el valor de los bultos
-            cargados en los pallets. Emítela antes de marcar la solicitud como enviada: su folio
-            queda como el número de la guía.
-          </p>
-        </div>
+        <p className="text-sm text-gray-500">No hay guías de despacho emitidas para esta solicitud.</p>
       ) : (
         <div className="space-y-2">
           {gds.map((gd) => {
@@ -302,14 +300,14 @@ export default function CentroDocumentosSolicitud({
       {/* ── Archivos heredados del formulario de envío ────────────────────────────── */}
       {archivosGuiaLegado.length > 0 && (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
-          <div className="flex items-start gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-            <p className="text-xs text-amber-900">
-              Estos archivos se subieron al marcar la solicitud como enviada, cuando todavía no
-              existían los adjuntos. <strong>No se veían en ninguna parte de la aplicación</strong>;
-              se muestran acá para no perderlos. Lo que se adjunte de ahora en adelante aparece
-              abajo, en «Archivos adjuntos».
-            </p>
+          <div className="flex items-center gap-1.5 mb-2">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+            <p className="text-xs font-medium text-amber-900">Archivos subidos al enviar</p>
+            <Ayuda titulo="Archivos subidos al enviar">
+              Se subieron al marcar la solicitud como enviada, cuando todavía no existían los
+              adjuntos, y no se veían en ninguna parte. Lo que se adjunte de ahora en adelante
+              aparece abajo, en «Archivos adjuntos».
+            </Ayuda>
           </div>
           <ul className="divide-y divide-amber-200/60">
             {archivosGuiaLegado.map((a) => {

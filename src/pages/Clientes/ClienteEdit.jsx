@@ -446,8 +446,7 @@ export default function EditClientes() {
                 className="border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Cómo pide y recibe este cliente. Cambiarlo afecta a las órdenes NUEVAS; las que ya
-                existen conservan el formato con el que se crearon.
+                Cambiarlo afecta sólo a las órdenes nuevas.
               </p>
               {errors.formato_compra && <p className="text-red-500 text-sm mt-1">{errors.formato_compra}</p>}
             </div>

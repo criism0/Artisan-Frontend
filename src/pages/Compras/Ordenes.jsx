@@ -19,6 +19,7 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatCLP } from "../../services/formatHelpers";
 import { mensajeDelBackend } from "../../utils/mensajeError.js";
 import { formatFecha } from "../../lib/dateUtils";
+import { claseEstadoOC } from "../../utils/estadoOrdenCompra.js";
 
 export default function Ordenes() {
   const { user } = useAuth();
@@ -181,30 +182,12 @@ export default function Ordenes() {
   };
 
   const getEstadoChip = (estado) => {
-    const base = "px-3 py-1 rounded-full text-xs font-medium";
-
-    switch (estado) {
-      case "Creada":
-        return <span className={`${base} bg-gray-200 text-gray-800`}>Creada</span>;
-
-      case "Validada":
-        return <span className={`${base} bg-sky-200 text-sky-800`}>Validada</span>;
-
-      case "Recepcionada":
-        return <span className={`${base} bg-green-200 text-green-800`}>Recepcionada</span>;
-
-      case "Parcialmente recepcionada":
-        return <span className={`${base} bg-amber-200 text-amber-800`}>Recep. Parcial</span>;
-
-      case "Rechazada":
-        return <span className={`${base} bg-rose-200 text-rose-800`}>Rechazada</span>;
-
-      case "Pagada":
-        return <span className={`${base} bg-lime-200 text-lime-800`}>Pagada</span>;
-
-      default:
-        return <span className={`${base} bg-gray-100 text-gray-700`}>{estado}</span>;
-    }
+    if (!estado) return null;
+    return (
+      <span className={`px-3 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${claseEstadoOC(estado)}`}>
+        {estado === "Parcialmente recepcionada" ? "Recep. Parcial" : estado}
+      </span>
+    );
   };
 
   const renderAcciones = (row) => {

@@ -28,6 +28,7 @@ import { Search, Link2, AlertTriangle } from 'lucide-react';
 import { dteService } from '../../services/dteService.js';
 import { toast } from '../../lib/toast.js';
 import { formatCLP } from '../../services/formatHelpers.js';
+import Ayuda from '../UI/Ayuda.jsx';
 
 const TIPOS_DTE = [
   { value: 33, label: '33 — Factura electrónica' },
@@ -124,20 +125,16 @@ export default function BuscadorDteExterno({ idOrdenVenta, idSolicitud, onCancel
 
   return (
     <div>
-      {/* 🔴 El aviso va ARRIBA y siempre visible, no en letra chica al final: es lo que distingue
-          vincular de facturar, y confundirlos haría creer que el inventario se movió. */}
-      <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-        <div className="flex gap-2">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-          <div>
-            <p className="font-medium">Vincular deja constancia; no mueve nada.</p>
-            <p className="mt-1">
-              El documento se asocia a {destino} para poder consultarlo desde acá.
-              <strong> No se mueve inventario, no se corrigen los montos de la orden y no se emite ni anula nada.</strong>{' '}
-              Si el total del documento no calza con el del proceso, se vincula igual y se muestra la diferencia.
-            </p>
-          </div>
-        </div>
+      {/* 🔴 Va ARRIBA y siempre visible: es lo que distingue vincular de facturar, y confundirlos
+          haría creer que el inventario se movió. Una línea; el detalle, en el «(?)». */}
+      <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
+        <AlertTriangle className="w-4 h-4 shrink-0" />
+        <p className="font-medium">Vincular deja constancia; no mueve nada.</p>
+        <Ayuda titulo="Vincular un documento">
+          El documento se asocia a {destino} para poder consultarlo desde acá. No se mueve
+          inventario, no se corrigen los montos de la orden y no se emite ni anula nada. Si el
+          total no calza con el del proceso, se vincula igual y se muestra la diferencia.
+        </Ayuda>
       </div>
 
       {/* Buscador */}

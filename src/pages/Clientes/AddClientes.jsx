@@ -443,8 +443,7 @@ export default function AddClientes() {
                 className="border border-border rounded-lg px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Cómo pide y recibe este cliente. Las órdenes nuevas nacen con este formato y se
-                muestran, pickean y facturan así; se puede cambiar orden por orden.
+                Las órdenes nuevas nacen en este formato; se puede cambiar orden por orden.
               </p>
               {errors.formato_compra && <p className="text-red-500 text-sm mt-1">{errors.formato_compra}</p>}
             </div>
