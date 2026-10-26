@@ -64,12 +64,13 @@ export default function SolicitudDetail() {
   const [loadFailed, setLoadFailed] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // GDs electrónicas ya emitidas. Sólo de lectura: la emisión salió de esta vista mientras
-  // dure el bloqueo del traspaso a LibreDTE, y la guía se registra a mano al enviar.
+  // Las guías electrónicas de la solicitud. Se emiten al ENVIAR (un solo paso, ver el modal de
+  // envío); el N° de guía se escribe a mano sólo si la guía se emitió fuera del sistema.
   const [gds, setGds] = useState([]);
   const [guiaDespacho, setGuiaDespacho] = useState("");
   const [medioTransporte, setMedioTransporte] = useState("");
   const [mostrarFormularioEnvio, setMostrarFormularioEnvio] = useState(false);
+  const [guiaFueraDelSistema, setGuiaFueraDelSistema] = useState(false);
   const [tab, setTab] = useState("insumos");
   const [archivosGuia, setArchivosGuia] = useState([]);
 
@@ -277,20 +278,22 @@ export default function SolicitudDetail() {
   // solo llamador en la web ni en el móvil**: las guías de traslado se emitían fuera del ERP y
   // el folio se escribía a mano acá. Con el portal MIPYME desapareciendo, no había dónde.
   //
-  // Ahora se emite desde el mismo flujo de envío y NO abre un segundo camino: usa el
-  // transportista y la fecha de esta misma solicitud, y el folio que devuelve LibreDTE es el
-  // que queda escrito en `numero_guia_despacho`. Un solo número, un solo documento.
+  // 🔑 EMITIR LA GUÍA ES ENVIAR (Cristóbal, 2026-10-26). Eran dos pasos —emitir la guía y
+  // después «Confirmar envío» copiando su folio y escribiendo el medio de transporte— que en la
+  // operación son uno solo: la guía sale con el camión. Ahora el botón «Enviar» emite la guía con
+  // el transporte elegido y en el mismo clic despacha la solicitud con ese folio. Una guía
+  // emitida fuera del sistema se vincula o se escribe a mano, y se envía igual.
   const [emitiendoGD, setEmitiendoGD] = useState(false);
   const [viendoBorradorGD, setViendoBorradorGD] = useState(false);
   // Res. Ex. SII 154 (desde el 1-nov-2026): la guía declara el vehículo, el chofer y el
-  // transportista, que salen de la combinación elegida (Logística → Transporte).
+  // transportista, que salen de la combinación elegida (Logística → Transporte). El medio de
+  // transporte de la solicitud es esa misma combinación.
   const [idTransporte, setIdTransporte] = useState(null);
   const [transporteExigido, setTransporteExigido] = useState(false);
   const traslado = { id_combinacion_transporte: idTransporte };
   const elegirTransporte = useCallback((id, combinacion) => {
     setIdTransporte(id);
-    // El medio de transporte de la solicitud, si nadie lo escribió todavía.
-    if (combinacion) setMedioTransporte((m) => m.trim() ? m : (combinacion.transportista || combinacion.nombre));
+    if (combinacion) setMedioTransporte(combinacion.transportista || combinacion.nombre);
   }, []);
 
   // Ver la guía como saldrá, antes de gastar el folio. Una guía emitida no se edita.
@@ -302,24 +305,6 @@ export default function SolicitudDetail() {
       toast.error('No se pudo generar el borrador: ' + (err?.message ?? err));
     } finally {
       setViendoBorradorGD(false);
-    }
-  };
-
-  const handleEmitirGD = async () => {
-    setEmitiendoGD(true);
-    try {
-      const gd = await dteService.emitirGuiaDespachoSolicitud(solicitudId, {
-        transportista: medioTransporte.trim() || undefined,
-        traslado,
-      });
-      toast.success(`Guía de despacho N° ${gd?.folio ?? ''} emitida ✓`);
-      // El folio es EL número de la guía: se escribe solo para que nadie lo transcriba mal.
-      if (gd?.folio) setGuiaDespacho(String(gd.folio));
-      await cargarGDs();
-    } catch (err) {
-      toast.error('No se pudo emitir la guía: ' + (err?.message ?? err));
-    } finally {
-      setEmitiendoGD(false);
     }
   };
 
@@ -375,19 +360,46 @@ export default function SolicitudDetail() {
   };
 
   const handleEnviarSolicitud = async () => {
-    if (!guiaDespacho?.trim() || !medioTransporte?.trim()) {
-      toast.error("Debes ingresar N° de guía y medio de transporte");
-      return;
-    }
-
     if (!canWriteMerchRequest) {
       toast.permissionError([ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE]);
       setLoading(false);
       return;
     }
+    if (!medioTransporte?.trim()) {
+      toast.error("Elige el transporte");
+      return;
+    }
+
+    // El número de la guía: la ya emitida (o vinculada), la que se emite ahora, o la escrita a
+    // mano si se emitió fuera del sistema.
+    let folio = gds[0]?.folio != null ? String(gds[0].folio) : guiaDespacho.trim();
+    const hayQueEmitir = gds.length === 0 && !guiaFueraDelSistema;
+    if (!hayQueEmitir && !folio) {
+      toast.error("Escribe el N° de la guía emitida fuera del sistema");
+      return;
+    }
 
     try {
       setLoading(true);
+
+      if (hayQueEmitir) {
+        setEmitiendoGD(true);
+        try {
+          const gd = await dteService.emitirGuiaDespachoSolicitud(solicitudId, {
+            transportista: medioTransporte.trim(),
+            traslado,
+          });
+          folio = String(gd?.folio ?? "");
+          if (!folio) throw new Error("LibreDTE no devolvió el folio");
+          setGuiaDespacho(folio);
+          await cargarGDs();
+        } catch (err) {
+          toast.error("No se pudo emitir la guía; la solicitud no se envió: " + (err?.message ?? err));
+          return;
+        } finally {
+          setEmitiendoGD(false);
+        }
+      }
 
       // 🔴 LOS ARCHIVOS DE LA GUÍA VAN A LA TABLA DE ADJUNTOS, NO AL JSONB.
       //
@@ -406,7 +418,7 @@ export default function SolicitudDetail() {
           archivosGuia.map((file) =>
             adjuntosService.subir({
               archivo: file,
-              descripcion: `Guía de despacho ${guiaDespacho.trim()}`,
+              descripcion: `Guía de despacho ${folio}`,
               idSolicitud: Number(solicitudId),
             })
           )
@@ -425,18 +437,22 @@ export default function SolicitudDetail() {
       await api(`/solicitudes-mercaderia/${solicitudId}/enviar`, {
         method: "PUT",
         body: {
-          numero_guia_despacho: guiaDespacho.trim(),
+          numero_guia_despacho: folio,
           medio_transporte: medioTransporte.trim(),
         },
       });
 
-      toast.success("Solicitud enviada");
+      toast.success(hayQueEmitir ? `Guía N° ${folio} emitida y solicitud enviada` : "Solicitud enviada");
       setMostrarFormularioEnvio(false);
       setArchivosGuia([]);
       await fetchSolicitud();
     } catch (err) {
       console.error("enviarSolicitud error:", err);
-      toast.error(err?.message || "Error enviando la solicitud");
+      // Si la guía alcanzó a emitirse, queda: al volver a apretar «Enviar» se usa esa misma.
+      toast.error(
+        (err?.message || "Error enviando la solicitud") +
+          (hayQueEmitir && folio ? ` (la guía N° ${folio} quedó emitida; vuelve a apretar Enviar)` : "")
+      );
     } finally {
       setLoading(false);
     }
@@ -636,6 +652,9 @@ export default function SolicitudDetail() {
     );
   }
 
+  // Enviar emite la guía salvo que ya exista (emitida o vinculada) o se haya emitido fuera.
+  const emiteAlEnviar = gds.length === 0 && !guiaFueraDelSistema;
+
   // ── Acciones ────────────────────────────────────────────────────────────────
   // Una sola acción principal, la que corresponde al estado; todo lo demás secundario, y
   // Cancelar detrás del menú «⋯». Antes esto vivía en cuatro lugares distintos de la vista:
@@ -669,9 +688,7 @@ export default function SolicitudDetail() {
       onClick: handleDownloadSolicitudInsumosPDF,
       disabled: loading || lineas.length === 0,
     },
-    // "Emitir Guía de Despacho" ya no es una acción aparte. La guía es una sola y se
-    // registra al enviar; la emisión electrónica se enchufa a ese mismo registro cuando se
-    // levante el bloqueo del traspaso a LibreDTE. Ver el aviso del modal de envío.
+    // "Emitir guía de despacho" no es una acción aparte: «Enviar» la emite (ver el modal).
   ].filter(Boolean);
 
   const accionesDestructivas = puedeCancelar
@@ -819,21 +836,9 @@ export default function SolicitudDetail() {
           solicitud={solicitud}
           gds={gds}
           cargando={loading}
-          emitiendo={emitiendoGD}
-          viendoBorrador={viendoBorradorGD}
-          onEmitirGD={handleEmitirGD}
-          onVerBorradorGD={handleVerBorradorGD}
           onConfirmarLlegada={handleConfirmarLlegadaGD}
           onCambio={() => { cargarGDs(); fetchSolicitud(); }}
-          selectorTransporte={
-            <SelectorTransporte
-              idBodegaOrigen={solicitud.id_bodega_proveedora}
-              valor={idTransporte}
-              onCambiar={elegirTransporte}
-              onExigida={setTransporteExigido}
-            />
-          }
-          emisionBloqueada={transporteExigido && !idTransporte}
+          onEnviar={solicitud.estado === "Lista para despacho" ? () => setMostrarFormularioEnvio(true) : null}
         />
 
         <Tabs
@@ -936,15 +941,30 @@ export default function SolicitudDetail() {
           </div>
         )}
 
-        {/* Modal de envío: los datos de la guía manual y el medio de transporte. Antes era
-            un panel que se desplegaba en medio de la página y empujaba todo hacia abajo. */}
+        {/* Modal de envío. Enviar ES emitir la guía: se elige el transporte, se mira el borrador
+            si se quiere, y un solo botón emite la guía y despacha con su folio. */}
         <Modal
           abierto={mostrarFormularioEnvio}
           onCerrar={() => setMostrarFormularioEnvio(false)}
           titulo="Enviar solicitud"
-          descripcion="Al confirmar, los pallets pasan a tránsito y el stock sale de la bodega de origen."
+          descripcion={
+            emiteAlEnviar
+              ? "Se emite la guía de despacho y los pallets pasan a tránsito; el stock sale de la bodega de origen."
+              : "Los pallets pasan a tránsito y el stock sale de la bodega de origen."
+          }
           pie={
             <>
+              {emiteAlEnviar && (
+                <button
+                  type="button"
+                  onClick={handleVerBorradorGD}
+                  disabled={viendoBorradorGD || loading || (transporteExigido && !idTransporte)}
+                  className="mr-auto flex items-center gap-1.5 px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <FileText className="w-4 h-4" />
+                  {viendoBorradorGD ? "Generando…" : "Ver borrador"}
+                </button>
+              )}
               <button
                 onClick={() => setMostrarFormularioEnvio(false)}
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -953,93 +973,73 @@ export default function SolicitudDetail() {
               </button>
               <button
                 onClick={handleEnviarSolicitud}
-                disabled={loading || !guiaDespacho.trim() || !medioTransporte.trim()}
+                disabled={
+                  loading ||
+                  !medioTransporte.trim() ||
+                  (emiteAlEnviar && transporteExigido && !idTransporte) ||
+                  (guiaFueraDelSistema && gds.length === 0 && !guiaDespacho.trim())
+                }
                 className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
               >
-                Confirmar envío
+                {emitiendoGD ? "Emitiendo guía…" : emiteAlEnviar ? "Emitir guía y enviar" : "Enviar"}
               </button>
             </>
           }
         >
           <div className="space-y-4">
-            {/* 🔴 EMITIR LA GUÍA ES EL PASO ANTERIOR A ENVIAR, y por eso vive acá dentro.
-                La guía es UNA sola: su folio es el número de la guía, así que emitirla llena
-                el campo de abajo y nadie transcribe nada. */}
-            {gds.length === 0 ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
-                <p className="font-medium flex items-center gap-1.5">
-                  Esta solicitud todavía no tiene guía de despacho.
-                  <Ayuda titulo="Guía de despacho">
-                    Declara lo que se despachó, con el valor de los bultos cargados, y su folio
-                    queda como número de la guía. Si se emitió fuera del sistema, escribe su
-                    número abajo y continúa.
+            <SelectorTransporte
+              idBodegaOrigen={solicitud.id_bodega_proveedora}
+              valor={idTransporte}
+              onCambiar={elegirTransporte}
+              onExigida={setTransporteExigido}
+            />
+            {/* Sin combinación de transporte (la Res. 154 todavía no rige): se escribe. */}
+            {!idTransporte && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Medio de transporte</label>
+                <input
+                  type="text"
+                  value={medioTransporte}
+                  onChange={(e) => setMedioTransporte(e.target.value)}
+                  placeholder="Ej: Camión interno"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
+                />
+              </div>
+            )}
+
+            {gds.length > 0 ? (
+              <p className="text-sm text-gray-700">
+                Sale con la guía de despacho <strong>N° {gds[0]?.folio ?? "—"}</strong>.
+              </p>
+            ) : guiaFueraDelSistema ? (
+              <div>
+                <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 mb-1">
+                  N° de la guía emitida fuera del sistema
+                  <Ayuda titulo="Guía emitida fuera del sistema">
+                    Si la guía se emitió en LibreDTE o en el SII, también se puede vincular desde
+                    Documentos para que quede su PDF junto a la solicitud.
                   </Ayuda>
-                </p>
-                <div className="mt-3">
-                  <SelectorTransporte
-                    idBodegaOrigen={solicitud.id_bodega_proveedora}
-                    valor={idTransporte}
-                    onCambiar={elegirTransporte}
-                    onExigida={setTransporteExigido}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={handleEmitirGD}
-                  disabled={emitiendoGD || (transporteExigido && !idTransporte)}
-                  className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
-                >
-                  <FileText className="w-4 h-4" />
-                  {emitiendoGD ? "Emitiendo…" : "Emitir guía de despacho"}
+                </label>
+                <input
+                  type="text"
+                  value={guiaDespacho}
+                  onChange={(e) => setGuiaDespacho(e.target.value)}
+                  placeholder="Ej: 3471"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
+                />
+                <button type="button" onClick={() => setGuiaFueraDelSistema(false)} className="mt-1 text-xs text-primary underline">
+                  Emitir la guía acá
                 </button>
               </div>
             ) : (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-900">
-                Guía de Despacho electrónica <strong>N° {gds[0]?.folio ?? "—"}</strong> emitida.
-                {gds[0]?.folio && String(gds[0].folio) !== guiaDespacho.trim() && (
-                  <>
-                    {" "}
-                    <button
-                      type="button"
-                      onClick={() => setGuiaDespacho(String(gds[0].folio))}
-                      className="underline font-medium"
-                    >
-                      Usar ese folio
-                    </button>
-                  </>
-                )}
-              </div>
+              <button type="button" onClick={() => setGuiaFueraDelSistema(true)} className="text-xs text-gray-500 underline">
+                La guía ya se emitió fuera del sistema
+              </button>
             )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                N° de guía de despacho
-              </label>
-              <input
-                type="text"
-                value={guiaDespacho}
-                onChange={(e) => setGuiaDespacho(e.target.value)}
-                placeholder="Ej: 12345"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Medio de transporte
-              </label>
-              <input
-                type="text"
-                value={medioTransporte}
-                onChange={(e) => setMedioTransporte(e.target.value)}
-                placeholder="Ej: Camión interno"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Adjuntar la guía <span className="text-gray-400 font-normal">(opcional)</span>
+                Adjuntar la guía firmada u otros archivos <span className="text-gray-400 font-normal">(opcional)</span>
               </label>
               <input
                 type="file"
