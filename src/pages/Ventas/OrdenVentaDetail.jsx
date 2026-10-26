@@ -29,6 +29,7 @@ import CentroDocumentos from "../../components/DTE/CentroDocumentos.jsx";
 import EntregasDeOrden from "../../components/Entregas/EntregasDeOrden";
 import DespachoOrden from "../../components/Entregas/DespachoOrden";
 import DTEPreview from "../../components/DTE/DTEPreview.jsx";
+import SelectorTransporte from "../../components/Logistica/SelectorTransporte.jsx";
 import EstadoPosteriorBadge from "../../components/Ventas/EstadoPosteriorBadge.jsx";
 import DetalleTipoFactura from "../../components/Ventas/DetalleTipoFactura.jsx";
 import InformacionOrdenCliente from "../../components/Ventas/InformacionOrdenCliente.jsx";
@@ -170,6 +171,10 @@ function FacturarForm({
   tieneDireccionFacturacion = false,
   onCopiarComoDespacho = null,
   copiandoDespacho = false,
+  idBodegaOrigen = null,
+  idTransporte = null,
+  setIdTransporte = () => {},
+  setTransporteExigido = () => {},
 }) {
   // 🔴 Este selector escribe `id_local`, que es la dirección de DESPACHO (a dónde va el
   // camión). Se llamaba «Dirección de facturación» y ofrecía todas las direcciones del cliente,
@@ -269,6 +274,7 @@ function FacturarForm({
         idLocal={tieneDireccionFacturacion ? null : idLocalDespacho || null}
         fecha={fechaFacturacion || null}
         vencimiento={fechaVencimiento || null}
+        idTransporte={idTransporte}
       />
 
       {/* 🔴 La orden de compra. Sin ella el retail rechaza la factura porque no puede casarla
@@ -351,6 +357,14 @@ function FacturarForm({
         )}
       </div>
 
+      {/* Res. Ex. SII 154 (desde el 1-nov-2026): la factura ampara el traslado. */}
+      <SelectorTransporte
+        idBodegaOrigen={idBodegaOrigen}
+        valor={idTransporte}
+        onCambiar={setIdTransporte}
+        onExigida={setTransporteExigido}
+      />
+
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium text-gray-700">Fecha de facturación *</span>
         <input
@@ -426,6 +440,9 @@ export default function OrdenVentaDetail() {
   // Facturación parcial: qué hacer con lo que la factura no cubre, y el cierre posterior.
   const [dejarSaldoPendiente, setDejarSaldoPendiente] = useState(true);
   const [motivoCierreSaldo, setMotivoCierreSaldo] = useState("");
+  // Res. Ex. SII 154: con qué transportista, chofer y patente sale la venta.
+  const [idTransporte, setIdTransporte] = useState(null);
+  const [transporteExigido, setTransporteExigido] = useState(false);
   const [showCerrarSaldo, setShowCerrarSaldo] = useState(false);
   const [motivoCerrarSaldo, setMotivoCerrarSaldo] = useState("");
   const [tab, setTab] = useState("detalle");
@@ -834,6 +851,7 @@ export default function OrdenVentaDetail() {
           ...(idLocalDespacho && { id_local: Number(idLocalDespacho) }),
           dejar_saldo_pendiente: dejarSaldoPendiente,
           ...(!dejarSaldoPendiente && motivoCierreSaldo.trim() && { motivo_cierre_saldo: motivoCierreSaldo.trim() }),
+          ...(idTransporte && { id_combinacion_transporte: Number(idTransporte) }),
         }),
       });
       const o = await fetchOrden();
@@ -845,6 +863,7 @@ export default function OrdenVentaDetail() {
       setFechaFacturacion("");
       setFechaVencimiento("");
       setIdLocalDespacho("");
+      setIdTransporte(null);
       setDireccionesCliente([]);
     } catch (err) {
       toast.error(apiErrorMsg(err, "facturar esta orden"));
@@ -1350,7 +1369,11 @@ export default function OrdenVentaDetail() {
             >
               Cancelar
             </button>
-            <button onClick={handleFacturar} disabled={transitioning} className={btnCls("primary")}>
+            <button
+              onClick={handleFacturar}
+              disabled={transitioning || (transporteExigido && !idTransporte)}
+              className={btnCls("primary")}
+            >
               {transitioning ? "Emitiendo factura…" : "Emitir Factura Electrónica"}
             </button>
           </>
@@ -1381,6 +1404,10 @@ export default function OrdenVentaDetail() {
           tieneDireccionFacturacion={Boolean(orden?.id_local_facturacion)}
           onCopiarComoDespacho={copiarDireccionComoDespacho}
           copiandoDespacho={copiandoDespacho}
+          idBodegaOrigen={orden?.bodega_id}
+          idTransporte={idTransporte}
+          setIdTransporte={setIdTransporte}
+          setTransporteExigido={setTransporteExigido}
         />
       </Modal>
 

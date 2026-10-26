@@ -129,6 +129,7 @@ const RutaDetail = lazy(() => import("./pages/Logistica/RutaDetail"));
 const RevisionEntregas = lazy(() => import("./pages/Logistica/RevisionEntregas"));
 const Devoluciones = lazy(() => import("./pages/Logistica/Devoluciones"));
 const EntregasSinRuta = lazy(() => import("./pages/Logistica/EntregasSinRuta"));
+const TransportePage = lazy(() => import("./pages/Logistica/TransportePage"));
 const AsignarVenta = lazy(() => import("./pages/Ventas/AsignarVenta.jsx"));
 const ResumenAsignacionVenta = lazy(() => import("./pages/Ventas/ResumenAsignacionVenta.jsx"));
 
@@ -497,6 +498,14 @@ function Routing() {
             element={
               <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
                 <RutaDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/Logistica/transporte"
+            element={
+              <ProtectedRoute permissions={[[ModelType.BODEGA, ScopeType.READ]]}>
+                <TransportePage />
               </ProtectedRoute>
             }
           />

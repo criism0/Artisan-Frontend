@@ -37,6 +37,7 @@ import VisorArchivo from './VisorArchivo.jsx';
 import Modal from '../UI/Modal.jsx';
 import Aviso from '../UI/Aviso.jsx';
 import Ayuda from '../UI/Ayuda.jsx';
+import SelectorTransporte from '../Logistica/SelectorTransporte.jsx';
 import { useDTE } from '../../hooks/useDTE.js';
 import { dteService } from '../../services/dteService.js';
 // Del wrapper de la app, NO de react-toastify: la app no monta ToastContainer y esos avisos no se
@@ -82,6 +83,9 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   const [modalRechazo,  setModalRechazo]  = useState(null);
   const [preEmitiendo,  setPreEmitiendo]  = useState(false);
   const [viendoBorradorGuia, setViendoBorradorGuia] = useState(false);
+  // Res. Ex. SII 154: con qué transportista, chofer y patente sale la guía de la venta.
+  const [idTransporteGuia, setIdTransporteGuia] = useState(null);
+  const [transporteExigido, setTransporteExigido] = useState(false);
   const [vinculando, setVinculando] = useState(false);
   const [visorEn, setVisorEn] = useState(null);
   // Documento que se está por desvincular, con su motivo. Antes era un `window.prompt`, que no
@@ -130,7 +134,9 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   const verBorradorGuia = async () => {
     setViendoBorradorGuia(true);
     try {
-      await dteService.verPrevisualizacion('guia-venta', orden.id);
+      await dteService.verPrevisualizacion('guia-venta', orden.id, {
+        traslado: { id_combinacion_transporte: idTransporteGuia },
+      });
     } catch (err) {
       toast.error('No se pudo generar el borrador de la guía: ' + (err?.message ?? 'error desconocido'));
     } finally {
@@ -298,7 +304,12 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
                 <FileSearch size={14} />
                 {viendoBorradorGuia ? 'Generando…' : 'Ver cómo saldrá la guía'}
               </button>
-              <button type="button" onClick={() => emitirGuiaDespacho()} disabled={loading} className={BOTON}>
+              <button
+                type="button"
+                onClick={() => emitirGuiaDespacho({ idTransporte: idTransporteGuia })}
+                disabled={loading || (transporteExigido && !idTransporteGuia)}
+                className={BOTON}
+              >
                 <Truck size={14} />
                 {loading ? 'Generando…' : 'Emitir Guía de Despacho'}
               </button>
@@ -380,6 +391,17 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
 
       {/* Acción principal según estado (la entrega el padre: Facturar / Entregar) */}
       {accionPrincipal && <div className="mb-4">{accionPrincipal}</div>}
+
+      {puedeEmitirGD && (
+        <div className="mb-3 max-w-md">
+          <SelectorTransporte
+            idBodegaOrigen={orden.bodega_id}
+            valor={idTransporteGuia}
+            onCambiar={setIdTransporteGuia}
+            onExigida={setTransporteExigido}
+          />
+        </div>
+      )}
 
       {/* El buscador de LibreDTE se abre ACÁ, no en un modal: buscar el documento que falta es
           parte de armar el expediente de la orden, y en un modal se pierde de vista la lista con
