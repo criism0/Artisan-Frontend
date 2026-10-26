@@ -199,7 +199,7 @@ function FacturarForm({
           pickeado desde entonces. Se dice antes que nada, porque el total de la orden no es el
           de este documento. */}
       {saldo?.hayFacturaPrevia && (
-        <Aviso tono="neutro" tamano="xs">
+        <Aviso tono="info" tamano="xs">
           Ya se facturaron {formatCLP(saldo.netoFacturado, 0)} neto. Esta factura lleva lo pickeado
           desde entonces: <strong>{formatCLP(saldo.netoPorFacturar, 0)} neto</strong>.
         </Aviso>
@@ -968,7 +968,7 @@ export default function OrdenVentaDetail() {
     const estado = orden?.estado;
 
     if (estado === "Creada" && !canValidar)
-      return { tono: "neutro", texto: "No tienes permiso para validar esta orden." };
+      return { tono: "atencion", texto: "No tienes permiso para validar esta orden." };
 
     if (estado === ESTADO_FACTURADA_PARCIAL) {
       const n = orden?.saldo_facturacion?.facturas_vigentes ?? 0;
@@ -988,7 +988,7 @@ export default function OrdenVentaDetail() {
 
     if (estado === "Facturada" && orden?.saldo_cerrado_en) {
       return {
-        tono: "neutro",
+        tono: "info",
         texto:
           `Saldo cerrado el ${formatDate(orden.saldo_cerrado_en)}${orden?.saldoCerradoPor?.nombre ? ` por ${orden.saldoCerradoPor.nombre}` : ""}.` +
           (orden?.motivo_cierre_saldo ? ` Motivo: ${orden.motivo_cierre_saldo}` : ""),
@@ -999,7 +999,7 @@ export default function OrdenVentaDetail() {
       const cuando = orden?.cancelado_en ? formatDate(orden.cancelado_en) : null;
       const quien = orden?.canceladoPor?.nombre;
       return {
-        tono: "neutro",
+        tono: "error",
         texto:
           `Cancelada${cuando ? ` el ${cuando}` : ""}${quien ? ` por ${quien}` : ""}.` +
           (orden?.motivo_cancelacion ? ` Motivo: ${orden.motivo_cancelacion}` : ""),
@@ -1147,8 +1147,6 @@ export default function OrdenVentaDetail() {
         subtitulo={
           <>
             {nombreCliente && <span className="text-gray-700">{nombreCliente}</span>}
-            {nombreCliente && " · "}
-            <span className="font-semibold text-text">{formatCLP(total, 0)}</span> con IVA
           </>
         }
         estado={
@@ -1156,7 +1154,7 @@ export default function OrdenVentaDetail() {
             <EstadoOVBadge estado={orden?.estado} size="md" />
             {orden?.es_referencial && (
               <span
-                className="px-2 py-0.5 rounded-full text-xs border border-gray-300 text-gray-600"
+                className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700"
                 title="Se pickea declarando cantidades en la app, sin escanear bultos"
               >
                 Referencial
@@ -1178,7 +1176,7 @@ export default function OrdenVentaDetail() {
         <Aviso
           tono={avisoDeEstado.tono}
           ayuda={avisoDeEstado.ayuda}
-          className={avisoDeEstado.tono === "neutro" ? "mb-4 -mt-3" : "mb-6"}
+          className="mb-6"
         >
           {avisoDeEstado.texto}
         </Aviso>
@@ -1187,6 +1185,12 @@ export default function OrdenVentaDetail() {
       {/* Un pedido cancelado salió del flujo — pintar la barra de pasos ahí sugeriría que sigue
           avanzando por alguno de ellos. El aviso de arriba ya dice todo lo que hace falta. */}
       {orden?.estado !== "Cancelada" && <StepBar estadoActual={orden?.estado} />}
+
+      <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500 mb-6 max-w-xs ml-auto">
+        <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Total</div>
+        <div className="text-lg font-bold text-text mt-1">{formatCLP(total, 0)}</div>
+        <div className="text-xs text-gray-600 mt-2">Neto: {formatCLP(totalNeto, 0)} · IVA: {formatCLP(iva, 0)}</div>
+      </div>
 
       <InformacionOrdenCliente
         orden={orden}

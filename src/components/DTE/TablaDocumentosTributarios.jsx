@@ -80,7 +80,7 @@ export default function TablaDocumentosTributarios({
                 <td className="px-3 py-2">
                   {esExterno ? (
                     <span
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs text-gray-600 border border-gray-200"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-amber-50 text-amber-800 border border-amber-200"
                       title={
                         'Se emitió fuera del ERP y se vinculó a mano. ' +
                         'No trae el detalle de líneas porque LibreDTE no lo entrega.' +

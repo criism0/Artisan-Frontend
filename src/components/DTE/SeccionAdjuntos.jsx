@@ -154,7 +154,7 @@ export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, compacto = 
           type="button"
           onClick={() => inputArchivo.current?.click()}
           disabled={subiendo}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
         >
           <Upload className="w-3.5 h-3.5" /> Adjuntar archivo
         </button>

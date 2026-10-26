@@ -572,22 +572,24 @@ export default function EditOrdenVenta() {
           </div>
 
           {/* Orden referencial — toggle editable */}
-          <div className="flex items-center gap-2 col-span-2">
-            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+          <label className="flex items-center gap-3 cursor-pointer select-none col-span-2 w-fit">
+            <div className="relative shrink-0">
               <input
                 type="checkbox"
                 checked={form.es_referencial}
                 onChange={(e) => setForm((f) => ({ ...f, es_referencial: e.target.checked }))}
-                className="w-4 h-4 accent-primary flex-shrink-0"
+                className="sr-only"
               />
-              Orden referencial (picking por cantidad)
-            </label>
-            <Ayuda titulo="Orden referencial">
-              Para mercadería que no está registrada como bultos en el sistema: bodega declara en la
-              app cuántas unidades salen, sin escanear códigos. Después sigue el flujo normal (Lista
-              para facturación → Facturada).
-            </Ayuda>
-          </div>
+              <div className={`w-10 h-6 rounded-full transition-colors ${form.es_referencial ? "bg-primary" : "bg-gray-200"}`} />
+              <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.es_referencial ? "translate-x-4" : ""}`} />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-medium text-gray-700">Orden referencial</span>
+              <span className="text-xs text-gray-400">
+                El picking no se realiza con QR, se declara la cantidad directamente
+              </span>
+            </div>
+          </label>
         </div>
       </div>
 

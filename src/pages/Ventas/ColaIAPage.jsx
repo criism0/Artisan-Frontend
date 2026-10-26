@@ -635,7 +635,7 @@ function ProductoRow({
               <button
                 onClick={handleAcceptSuggestion}
                 disabled={saving}
-                className="shrink-0 text-primary hover:underline disabled:opacity-50 font-medium"
+                className="shrink-0 flex items-center gap-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-0.5 rounded font-medium"
               >
                 Aceptar
               </button>
@@ -1211,10 +1211,14 @@ function OVIACard({
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          {/* Sin chip «Pendiente IA»: todas las tarjetas de esta pestaña lo están. */}
-          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-            OV #{ov.id}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+              OV #{ov.id}
+            </span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+              Pendiente IA
+            </span>
+          </div>
           <h3 className="text-lg font-bold text-gray-800 mt-0.5">
             {clienteElegido?.label ?? ov.cliente?.nombre_empresa ?? (
               <span className="text-gray-500 italic">Cliente no identificado</span>
@@ -1329,7 +1333,7 @@ function OVIACard({
               <span className="text-gray-700 truncate">
                 ¿Despacha a <strong>{labelDireccionSugerida}</strong>?{" "}
                 {simDireccionPct !== null && (
-                  <span className="text-gray-400">
+                  <span className={simDireccionPct >= 80 ? "text-green-600 font-semibold" : "text-yellow-600 font-semibold"}>
                     ({simDireccionPct}%)
                   </span>
                 )}
@@ -1337,7 +1341,7 @@ function OVIACard({
               <button
                 onClick={() => handleCambiarDireccion(String(direccionSugerida.id))}
                 disabled={guardandoDireccion}
-                className="shrink-0 text-primary hover:underline disabled:opacity-50 font-medium"
+                className="shrink-0 flex items-center gap-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-0.5 rounded font-medium"
               >
                 Aceptar
               </button>
@@ -1375,7 +1379,7 @@ function OVIACard({
               <span className="text-gray-700 truncate">
                 ¿Factura a <strong>{labelDireccionSugeridaFacturacion}</strong>?{" "}
                 {simDireccionFacturacionPct !== null && (
-                  <span className="text-gray-400">
+                  <span className={simDireccionFacturacionPct >= 80 ? "text-green-600 font-semibold" : "text-yellow-600 font-semibold"}>
                     ({simDireccionFacturacionPct}%)
                   </span>
                 )}
@@ -1383,7 +1387,7 @@ function OVIACard({
               <button
                 onClick={() => handleCambiarDireccionFacturacion(String(direccionSugeridaFacturacion.id))}
                 disabled={guardandoDireccionFacturacion}
-                className="shrink-0 text-primary hover:underline disabled:opacity-50 font-medium"
+                className="shrink-0 flex items-center gap-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-2 py-0.5 rounded font-medium"
               >
                 Aceptar
               </button>
@@ -1419,7 +1423,7 @@ function OVIACard({
           {flagsInfo.map((label, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-600 border border-blue-100"
             >
               {label}
             </span>
@@ -1434,7 +1438,7 @@ function OVIACard({
           de compra nuestro RUT aparece como proveedor y la IA lo leía como cliente. */}
       {(!ov.id_cliente || cambiandoCliente) ? (
         <div className={`border rounded-xl p-3 flex flex-col gap-2 ${
-          ov.id_cliente ? "border-gray-200 bg-gray-50" : "border-amber-200 bg-amber-50"
+          ov.id_cliente ? "border-gray-200 bg-gray-50" : "border-orange-200 bg-orange-50"
         }`}>
           <p className="text-xs font-semibold text-gray-700">
             {ov.id_cliente ? "Cambiar el cliente de esta orden" : "Cliente no identificado — selecciona uno para validar"}

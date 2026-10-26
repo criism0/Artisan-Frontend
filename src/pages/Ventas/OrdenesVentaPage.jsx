@@ -187,7 +187,7 @@ export default function OrdenesVentaPage() {
                 </span>
               )}
               {row.factura.origen === "EXTERNO" && (
-                <span className="ml-1 text-[10px]" title="Emitida fuera del ERP">ext</span>
+                <span className="ml-1 text-[10px] text-amber-600" title="Emitida fuera del ERP">ext</span>
               )}
             </span>
           )}
@@ -522,7 +522,7 @@ export default function OrdenesVentaPage() {
       headerActions={
         <>
           <button
-            className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            className="px-3 py-2 bg-green-300 text-green-900 rounded-md hover:bg-green-400"
             onClick={() => navigate("/Excel/products")}
           >
             Cargar Excel
