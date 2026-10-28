@@ -32,6 +32,8 @@ export default function DTEPreview({
   idLocal = null,
   fecha = null,
   vencimiento = null,
+  // La combinación de transporte elegida (Res. Ex. SII 154): el borrador tiene que llevarla.
+  idTransporte = null,
 }) {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +45,9 @@ export default function DTEPreview({
   const abrirPdfReal = async () => {
     setAbriendoPdf(true);
     try {
-      await dteService.verPrevisualizacion(tipoPrevisualizacion, ordenId, { idLocal, fecha, vencimiento });
+      await dteService.verPrevisualizacion(tipoPrevisualizacion, ordenId, {
+        idLocal, fecha, vencimiento, traslado: { id_combinacion_transporte: idTransporte },
+      });
     } catch (err) {
       toast.error('No se pudo generar el documento: ' + (err?.message ?? 'error desconocido'));
     } finally {
