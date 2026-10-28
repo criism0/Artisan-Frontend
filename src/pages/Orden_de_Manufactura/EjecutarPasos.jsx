@@ -3,9 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "../../lib/toast";
 import { api } from "../../lib/api";
 import { useAuth } from "../../auth/AuthContext";
-import { BackButton } from "../../components/Buttons/ActionButtons";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader.jsx";
 
 export default function EjecutarPasos() {
   const { id } = useParams();
@@ -237,13 +237,7 @@ export default function EjecutarPasos() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to={`/Orden_de_Manufactura/${id}`} />
-      </div>
-
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-text">Ejecución de pasos · OM #{id}</h1>
-      </div>
+      <PageHeader volverA={`/Orden_de_Manufactura/${id}`} titulo={`Ejecución de pasos · OM #${id}`} />
 
       <div className="bg-gray-200 p-4 rounded-lg">
         <div className="bg-white rounded-lg shadow overflow-hidden">

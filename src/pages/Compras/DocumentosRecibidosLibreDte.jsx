@@ -6,6 +6,7 @@ import { toast } from "../../lib/toast";
 import { api } from "../../lib/api";
 import { dteRecibidoService } from "../../services/dteRecibidoService";
 import { formatCLP } from "../../services/formatHelpers";
+import Ayuda from "../../components/UI/Ayuda.jsx";
 
 /**
  * Vincular las facturas que recibimos de proveedores a nuestras órdenes de compra — punto 2 de
@@ -404,11 +405,16 @@ export default function DocumentosRecibidosLibreDte() {
       persistKey="documentos_recibidos_libredte_v1"
       emptyMessage="No hay documentos en este rango."
       headerExtra={
-        <p className="text-sm text-gray-500 -mt-3 mb-4 max-w-3xl">
-          Documentos que llegaron de proveedores (y a veces de clientes) contra nuestro RUT,
-          sincronizados desde el SII. {sinVincular > 0 && (
+        <p className="flex items-center gap-1.5 text-sm text-gray-500 -mt-3 mb-4">
+          {sinVincular > 0 ? (
             <span className="text-amber-700 font-medium">{sinVincular} sin vincular a una orden de compra.</span>
+          ) : (
+            "Todos vinculados."
           )}
+          <Ayuda titulo="Documentos recibidos">
+            Documentos que llegaron de proveedores (y a veces de clientes) contra nuestro RUT,
+            sincronizados desde el SII.
+          </Ayuda>
         </p>
       }
       headerActions={
