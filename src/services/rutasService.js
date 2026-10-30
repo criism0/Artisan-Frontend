@@ -27,6 +27,8 @@ export const detalleLugar = (id, sesion) => api(`/rutas/lugares/${encodeURICompo
 
 /** { fecha, id_bodega, ordenes? } → ruta recomendada (no se guarda). */
 export const sugerirRuta = (datos) => api("/rutas/sugerir", { method: "POST", body: datos });
+/** Km, minutos, trazado y costo de { id_bodega, paradas, id_ruta?, vuelve_a_bodega } en ese orden, sin guardar. */
+export const calcularRecorrido = (datos) => api("/rutas/recorrido", { method: "POST", body: datos });
 
 export const crearRuta = (datos) => api("/rutas", { method: "POST", body: datos });
 /** { fecha?, id_transportista?, paradas?, comentario? } mientras esté Planificada. */
