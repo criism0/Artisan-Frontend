@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Ban, ClipboardCheck, PackageCheck, Route as IconoRuta, Undo2 } from "lucide-react";
+import { Ban, CalendarDays, ClipboardCheck, PackageCheck, Route as IconoRuta, Undo2 } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
 import { EditButton, ViewDetailButton } from "../../components/Buttons/ActionButtons";
 import EstadoRuta from "../../components/Entregas/EstadoRuta";
@@ -233,6 +233,13 @@ export default function Entregas() {
               title="Lo que volvió de las rutas: reintegrar, merma o volver a despachar"
             >
               <Undo2 className="w-4 h-4" /> Devoluciones{devueltos ? ` (${devueltos})` : ""}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/Logistica/entregas/semana")}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              <CalendarDays className="w-4 h-4" /> Semana
             </button>
             {puedeEscribir && (
               <button

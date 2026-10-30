@@ -49,6 +49,9 @@ export default function PlanificarRuta() {
   const navigate = useNavigate();
   const [query] = useSearchParams();
   const idRutaEditar = query.get("ruta");
+  // Desde la semana: «Armar ruta» de un día llega con su fecha y sus pedidos marcados.
+  const fechaInicial = query.get("fecha");
+  const ordenesIniciales = query.get("ordenes");
   const hoy = new Date().toLocaleDateString("en-CA");
   const [fecha, setFecha] = useState(hoy);
   const [bodegas, setBodegas] = useState([]);
@@ -97,6 +100,10 @@ export default function PlanificarRuta() {
         setTransportistas(Array.isArray(ts) ? ts : []);
         setCostoKm(params?.costo_km ?? null);
         await cargarPendientes();
+        if (!idRutaEditar && fechaInicial && /^\d{4}-\d{2}-\d{2}$/.test(fechaInicial)) setFecha(fechaInicial);
+        if (!idRutaEditar && ordenesIniciales) {
+          setSeleccion(new Set(ordenesIniciales.split(",").map(Number).filter((n) => Number.isInteger(n) && n > 0)));
+        }
         if (idRutaEditar) {
           const r = await rutasApi.obtenerRuta(idRutaEditar);
           if (r.estado !== "Planificada") {
