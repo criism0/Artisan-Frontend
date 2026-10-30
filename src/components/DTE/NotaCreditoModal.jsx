@@ -25,9 +25,14 @@ const COD_REF_OPTIONS = [
   { value: 2, label: 'Corrección de texto — error en nombre o descripción (sin cambio de monto)' },
 ];
 
-export default function NotaCreditoModal({ dte, onClose, onSuccess }) {
+/**
+ * `prellenado` (acceso rápido desde la revisión de una entrega, 2026-10-29): `{ cantidades, razon }`,
+ * donde `cantidades` es índice de línea de la factura → cantidad a acreditar. Esas líneas llegan
+ * marcadas con su cantidad y el motivo escrito; se puede cambiar todo antes de emitir.
+ */
+export default function NotaCreditoModal({ dte, onClose, onSuccess, prellenado = null }) {
   const [codRef,   setCodRef]   = useState(3);
-  const [razon,    setRazon]    = useState('');
+  const [razon,    setRazon]    = useState(prellenado?.razon ?? '');
   const [loading,  setLoading]  = useState(false);
 
   // 🔴 LAS LÍNEAS SALEN DE LA FACTURA, NO DE LA ORDEN — tarea #120.
@@ -49,17 +54,20 @@ export default function NotaCreditoModal({ dte, onClose, onSuccess }) {
   const lineasFactura = Array.isArray(dte?.detalle) ? dte.detalle : [];
 
   const [items, setItems] = useState(
-    lineasFactura.map((linea, idx) => ({
+    lineasFactura.map((linea, idx) => {
+      const sugerida = prellenado?.cantidades?.[idx];
+      return {
       id: idx,
       nombre: linea.nombre,
       cantidadMax: Number(linea.cantidad ?? 0),
-      cantidadDevuelta: Number(linea.cantidad ?? 0),
+      cantidadDevuelta: sugerida != null ? Math.min(Number(sugerida), Number(linea.cantidad ?? 0)) : Number(linea.cantidad ?? 0),
       precioUnitario: Number(linea.precio_unitario ?? 0),
       descuento: Number(linea.descuento_porcentaje ?? 0),
       montoItem: Number(linea.monto_item ?? 0),
       unidad: linea.unidad_medida ?? 'Un',
-      seleccionado: false,
-    })),
+      seleccionado: sugerida != null && Number(sugerida) > 0,
+      };
+    }),
   );
 
   const esTexto    = codRef === 2;
