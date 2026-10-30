@@ -4,6 +4,7 @@ import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import Tabs from "../../components/UI/Tabs.jsx";
+import TomaSinQr from "../../components/Inventario/TomaSinQr.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { ChevronDown, ChevronRight, AlertTriangle, Download } from "lucide-react";
 import { mensajeDelBackend } from "../../utils/mensajeError.js";
@@ -281,10 +282,15 @@ export default function SesionInventariadoDetail() {
         pestanas={[
           { id: "contado", label: "Lo contado", cantidad: grupos.length },
           { id: "cambios", label: validada ? "Cambios aplicados" : "Cambios al validar", cantidad: validada ? nCambios : nCambiosPrevios },
+          { id: "sinqr", label: "Sin QR", cantidad: r?.sin_qr_contados },
         ]}
         activa={pestana}
         onCambiar={setPestana}
       />
+
+      {pestana === "sinqr" && (
+        <TomaSinQr idSesion={sesion.id} editable={sesion.estado === "Activa" && canWrite} onCambio={cargar} />
+      )}
 
       {pestana === "contado" && (
         <div className="bg-white rounded-lg shadow">
@@ -510,6 +516,9 @@ export default function SesionInventariadoDetail() {
               <li className="text-red-700">• <span className="font-semibold">{r.faltantes_a_merma}</span> faltante(s) se marcarán como MERMA</li>
               {r.movidos_despues > 0 && (
                 <li className="text-gray-500">• {r.movidos_despues} movido(s) después de contarlos no se tocan</li>
+              )}
+              {r.sin_qr_con_diferencia > 0 && (
+                <li className="text-violet-700">• <span className="font-semibold">{r.sin_qr_con_diferencia}</span> producto(s) sin QR quedan con lo contado</li>
               )}
               {r.omitidos_en_pallet > 0 && (
                 <li className="text-gray-500">• {r.omitidos_en_pallet} en pallet no se tocan</li>
