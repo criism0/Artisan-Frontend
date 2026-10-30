@@ -4,20 +4,13 @@ import { ScanLine, Undo2 } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import Modal from "../../components/UI/Modal";
-import Aviso from "../../components/UI/Aviso";
+import DecidirDevolucion from "../../components/Entregas/DecidirDevolucion";
 import FotosMini from "../../components/Entregas/FotosMini";
 import { toast } from "../../lib/toast.js";
 import * as rutasApi from "../../services/rutasService";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
-import { describirBulto, TONO_BULTO } from "../../utils/despacho";
+import { decidible as esDecidible, describirBulto, TONO_BULTO } from "../../utils/despacho";
 
-const ACCIONES = [
-  { accion: "Reintegrar", texto: "Reintegrar al stock", tono: "bg-green-600 hover:bg-green-700", detalle: "Vuelve al inventario con el lote y el costo de donde salió. Lo armado nace como bulto nuevo, con etiqueta por imprimir; la caja cerrada recupera sus unidades." },
-  { accion: "Merma", texto: "Dar de merma", tono: "bg-red-600 hover:bg-red-700", detalle: "Vuelve marcado merma: no se ofrece como stock bueno." },
-  { accion: "Re-despachar", texto: "Vuelve a salir", tono: "bg-primary hover:bg-primary-dark", detalle: "Queda listo para otra ruta, sin tocar el inventario." },
-];
-// Lo que no existía en el inventario tampoco entra como merma: queda registrado como pérdida.
-const DETALLE_MERMA_SIN_TRAZABILIDAD = "Queda registrado como merma; no entra al inventario.";
 
 /**
  * Logística → Entregas → Devoluciones (plan de rutas §17): lo que volvió de las rutas y espera
@@ -29,8 +22,6 @@ export default function Devoluciones() {
   const [cargando, setCargando] = useState(true);
   const [codigo, setCodigo] = useState("");
   const [abierta, setAbierta] = useState(null);
-  const [nota, setNota] = useState("");
-  const [enviando, setEnviando] = useState(false);
   const campo = useRef(null);
   const puede = checkScope(ModelType.RUTA, ScopeType.WRITE) || checkScope(ModelType.BULTO, ScopeType.WRITE);
 
@@ -47,7 +38,7 @@ export default function Devoluciones() {
   }, []);
   useEffect(() => { cargar(); }, [cargar]);
 
-  const abrir = (b) => { setNota(""); setAbierta(b); };
+  const abrir = (b) => setAbierta(b);
 
   const buscar = async (e) => {
     e.preventDefault();
@@ -60,26 +51,6 @@ export default function Devoluciones() {
     } finally {
       setCodigo("");
       campo.current?.focus();
-    }
-  };
-
-  const resolver = async (accion) => {
-    setEnviando(true);
-    try {
-      const r = await rutasApi.resolverDevolucion(abierta.id, { accion, nota: nota.trim() || null });
-      const nuevos = (r.lineas ?? []).flatMap((l) => l.bultos_reintegro ?? []);
-      toast.success(accion === "Re-despachar" ? "Listo para otra ruta" : accion === "Merma" ? "Dado de merma" : "Reintegrado al inventario");
-      (r.avisos ?? []).forEach((a) => toast.warning(a));
-      if (accion !== "Re-despachar" && abierta.tipo !== "Caja cerrada" && nuevos.length) {
-        toast.info(`Imprime la etiqueta del bulto nuevo en Inventario → Bultos (${nuevos.map((n) => `#${n}`).join(", ")}).`);
-      }
-      setAbierta(null);
-      await cargar();
-      campo.current?.focus();
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setEnviando(false);
     }
   };
 
@@ -103,7 +74,7 @@ export default function Devoluciones() {
     { header: "Etiqueta", accessor: "identificador", sortable: true, Cell: ({ value }) => (value ? <span className="font-mono text-xs">{value}</span> : "—") },
   ];
 
-  const decidible = abierta && ["Devuelto", "Faltante"].includes(abierta.estado);
+  const decidible = esDecidible(abierta);
 
   return (
     <>
@@ -158,31 +129,16 @@ export default function Devoluciones() {
               <p className="text-xs text-gray-500 mb-1">Dónde lo dejó el chofer</p>
               <FotosMini fotos={abierta.fotos ?? []} tipo="DEVOLUCION" vacio="Sin foto de la vuelta" />
             </div>
-            {abierta.sin_trazabilidad && (
-              <Aviso
-                tamano="xs"
-                ayuda="El pedido se pickeó por cantidad, sin QR: estas unidades no existían en el inventario antes de preparar el despacho, así que no tienen lote ni costo de origen."
-                tituloAyuda="Sin trazabilidad"
-              >
-                <strong>Sin trazabilidad:</strong> no se puede reintegrar al inventario. Resuélvelo como merma o vuelve a despacharlo.
-              </Aviso>
-            )}
             {decidible && puede ? (
-              <>
-                <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Nota (opcional): en qué estado volvió" className="h-9 px-3 border border-gray-300 rounded-lg" />
-                {ACCIONES.filter((a) => !(a.accion === "Re-despachar" && abierta.tipo === "Suelto") && !(a.accion === "Reintegrar" && abierta.sin_trazabilidad)).map((a) => (
-                  <button
-                    key={a.accion}
-                    type="button"
-                    disabled={enviando}
-                    onClick={() => resolver(a.accion)}
-                    className={`text-left px-4 py-2.5 rounded-lg text-white ${a.tono} disabled:opacity-50`}
-                  >
-                    <span className="font-medium">{a.texto}</span>
-                    <span className="block text-xs text-white/85">{a.accion === "Merma" && abierta.sin_trazabilidad ? DETALLE_MERMA_SIN_TRAZABILIDAD : a.detalle}</span>
-                  </button>
-                ))}
-              </>
+              <DecidirDevolucion
+                key={abierta.id}
+                bulto={abierta}
+                onResuelto={async () => {
+                  setAbierta(null);
+                  await cargar();
+                  campo.current?.focus();
+                }}
+              />
             ) : (
               <p className="text-gray-500">{decidible ? "No tienes permiso para resolver devoluciones." : `Este bulto está ${abierta.estado}: no hay nada que decidir.`}</p>
             )}
