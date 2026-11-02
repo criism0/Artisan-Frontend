@@ -1,3 +1,4 @@
+import { marcarRutDuplicado } from "../../utils/rutDuplicado";
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { ApiError, useApi } from "../../lib/api";
@@ -302,6 +303,7 @@ export default function AddClientes() {
       
       navigate("/clientes");
     } catch (err) {
+      if (marcarRutDuplicado(err, setErrors)) return;
       if (err instanceof ApiError && err.status === 409 && err.data?.code === "SIMILAR_NAME") {
         setPendingPayload(payload);
         setSimilarModal({
@@ -371,6 +373,7 @@ export default function AddClientes() {
     } catch (err) {
       setSimilarModal({ open: false, inputName: "", matches: [] });
       setPendingPayload(null);
+      if (marcarRutDuplicado(err, setErrors)) return;
       toast.error("Error al crear cliente: " + (err.message));
     } finally {
       setIsSubmitting(false);
