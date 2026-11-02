@@ -394,6 +394,7 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
       {puedeEmitirGD && (
         <div className="mb-3 max-w-md">
           <SelectorTransporte
+            permiteRetiro
             idBodegaOrigen={orden.bodega_id}
             valor={idTransporteGuia}
             onCambiar={setIdTransporteGuia}

@@ -305,8 +305,11 @@ function FacturarForm({
         </span>
       </div>
 
-      {/* Res. Ex. SII 154 (desde el 1-nov-2026): la factura ampara el traslado. */}
+      {/* Res. Ex. SII 144: la factura ampara el traslado. Por ahora no aparece: sólo las guías
+          llevan los datos, hasta que se encienda `DTE_RESOLUCION_154_FACTURAS`. */}
       <SelectorTransporte
+        esFactura
+        permiteRetiro
         idBodegaOrigen={idBodegaOrigen}
         valor={idTransporte}
         onCambiar={setIdTransporte}
