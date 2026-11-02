@@ -1,4 +1,5 @@
 // src/pages/ventas/ClienteEdit.jsx
+import { marcarRutDuplicado } from "../../utils/rutDuplicado";
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
@@ -386,6 +387,7 @@ export default function EditClientes() {
       await api(`/clientes/${clienteId}`, { method: "PUT", body: payload });
       navigate(`/clientes/${clienteId}`);
     } catch (err) {
+      if (marcarRutDuplicado(err, setErrors)) return;
       toast.error("Error al editar cliente: " + err.message);
     }
   };
