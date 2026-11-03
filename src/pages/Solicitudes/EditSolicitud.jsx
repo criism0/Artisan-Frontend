@@ -158,7 +158,7 @@ export default function EditSolicitud() {
     if ((insumosSeleccionados?.length ?? 0) === 0 && (productosSeleccionados?.length ?? 0) === 0)
       newErrors.insumos = "Debe agregar al menos un insumo o producto terminado";
     if (selectedUsers.length === 0)
-      newErrors.usuarios = "Debe seleccionar al menos un usuario para notificar";
+      newErrors.usuarios = "Agrega al menos una persona a notificar";
     return newErrors;
   };
 
@@ -168,9 +168,11 @@ export default function EditSolicitud() {
   );
   const isFormReady = useMemo(() => Object.keys(errors).length === 0, [errors]);
 
+  // Igual que al crear: el botón no se deshabilita por lo que falta, el toast dice qué es.
   const validateForm = () => {
     if (!isFormReady) {
       setShowErrors(true);
+      toast.error(`No se pudo guardar: ${Object.values(errors).join(" · ")}`);
       return false;
     }
     return true;
@@ -420,8 +422,7 @@ export default function EditSolicitud() {
           <div className="mt-6 flex items-center justify-end">
             <button
               onClick={handleSubmit}
-              disabled={loading || !isFormReady || !solicitudEditable}
-              title={!isFormReady ? "Completa todos los campos requeridos" : undefined}
+              disabled={loading || !solicitudEditable}
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm disabled:opacity-50"
             >
               {loading ? "Guardando…" : "Guardar cambios"}
