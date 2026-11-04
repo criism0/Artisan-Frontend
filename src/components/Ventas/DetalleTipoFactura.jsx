@@ -105,13 +105,19 @@ export default function DetalleTipoFactura({
                       </span>
                     )}
                     {enCajas && !mostrarCajas && (
-                      <span className="block text-xs text-amber-700">
-                        Sin unidades por caja definidas — se muestra en unidades
+                      <span
+                        className="block text-xs text-amber-700"
+                        title="El producto no tiene unidades por caja definidas: se muestra en unidades"
+                      >
+                        sin caja definida
                       </span>
                     )}
                     {facturable <= 0 && it?.cantidad_pickeada != null && (
-                      <span className="block text-xs font-medium text-amber-800">
-                        No se pickeó nada — esta línea no va en el documento
+                      <span
+                        className="block text-xs font-medium text-amber-800"
+                        title="No se pickeó nada: esta línea no va en el documento"
+                      >
+                        no pickeado · fuera del documento
                       </span>
                     )}
                   </td>

@@ -35,6 +35,7 @@ import SeccionAdjuntos from './SeccionAdjuntos.jsx';
 import BuscadorDteExterno from './BuscadorDteExterno.jsx';
 import VisorArchivo from './VisorArchivo.jsx';
 import Modal from '../UI/Modal.jsx';
+import Ayuda from '../UI/Ayuda.jsx';
 import SelectorTransporte from '../Logistica/SelectorTransporte.jsx';
 import { useDTE } from '../../hooks/useDTE.js';
 import { dteService } from '../../services/dteService.js';
@@ -276,7 +277,7 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
         <FileText size={18} className="text-primary" />
         <h2 className="text-base font-semibold text-gray-900">Documentos</h2>
         <div className="ml-auto flex items-center gap-2 flex-wrap">
-          <Chip tone="info">OV: {estado || '—'}</Chip>
+          {/* El estado de la OV no se repite acá: ya lo dicen el badge y la barra de pasos. */}
           <Chip tone={chipDocumental.tone}>{chipDocumental.texto}</Chip>
           {/* Con etiqueta: como ícono suelto de 14px en gris claro, nadie sabía que existía — y
               era justamente lo que hacía falta apretar para ver el estado real del SII. */}
@@ -304,18 +305,20 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
       {/* Facturada fuera del ERP: se explica, y se ofrece VINCULAR —que no gasta folio— en vez de
           un botón de emitir que crearía un segundo documento para una venta ya facturada. */}
       {facturadaSinDocumento && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 mb-3">
-          Esta orden está <strong>{estado.toLowerCase()}</strong> y no tiene documento electrónico
-          en el sistema: se facturó fuera del ERP. No se emite uno nuevo desde acá, porque sería un
-          segundo documento para una venta ya facturada — si el documento existe en LibreDTE, lo
-          que corresponde es <strong>vincularlo</strong>.
+        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 mb-3">
+          Facturada fuera del ERP: sin documento acá.
+          <Ayuda titulo="Facturada fuera del ERP">
+            <p>
+              No se emite uno nuevo desde acá: sería un segundo documento para una venta ya
+              facturada. Si el documento existe en LibreDTE, lo que corresponde es vincularlo.
+            </p>
+          </Ayuda>
         </div>
       )}
 
       {!tieneRUT && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800 mb-3">
-          ⚠ El cliente <strong>{cliente.nombre_empresa ?? '—'}</strong> no tiene RUT registrado.
-          No se puede emitir Factura Electrónica hasta que se registre.
+          ⚠ <strong>{cliente.nombre_empresa ?? 'El cliente'}</strong> sin RUT: no se puede emitir factura.
         </div>
       )}
 

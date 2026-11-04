@@ -137,8 +137,11 @@ export default function InformacionOrdenCliente({
               {valor.comuna ? `, ${valor.comuna}` : ""}
             </div>
           ) : exigeSeleccion ? (
-            <span className="inline-block text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5">
-              Sin asignar — se confirma al facturar si no se elige antes
+            <span
+              className="inline-block text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5"
+              title="Si no se elige antes, se confirma al facturar"
+            >
+              Sin asignar
             </span>
           ) : (
             <span className="text-xs text-gray-500 italic">{placeholderVacio}</span>
