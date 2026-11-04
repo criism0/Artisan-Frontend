@@ -22,7 +22,6 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { dteService } from "../../services/dteService.js";
 import { formatCLP } from "../../services/formatHelpers.js";
 import { construirLineasSolicitud } from "../../utils/lineasSolicitud.js";
-import DespachoPorCantidad from "./DespachoPorCantidad.jsx";
 import { bultosSinEtiqueta } from "../../utils/contenidoPallet.js";
 
 function downloadBlob(blob, filename) {
@@ -291,17 +290,8 @@ export default function SolicitudDetail() {
       {
         header: "Despachadas",
         accessor: "cantidad_despachada",
-        Cell: (props) =>
-          props.row?.despachoPorCantidad && despachoEditable ? (
-            <DespachoPorCantidad
-              key={`${props.row.id}-${props.row.cantidad_despachada ?? ""}`}
-              linea={props.row}
-              onGuardar={handleDespachoPorCantidad}
-              deshabilitado={loading}
-            />
-          ) : (
-            celdaCantidad(props)
-          ),
+        // Lo sin QR se carga al pallet en la app (2026-11-03): acá sólo se lee.
+        Cell: celdaCantidad,
       },
       { header: "Recepcionadas", accessor: "cantidad_recepcionada", Cell: celdaCantidad },
       celdaComentario,
@@ -346,8 +336,20 @@ export default function SolicitudDetail() {
     if (combinacion) setMedioTransporte((m) => m.trim() ? m : (combinacion.transportista || combinacion.nombre));
   }, []);
 
+  // Con PT sin QR, lo despachado se carga al pallet en la app. Si no hay nada cargado, la guía no
+  // tiene qué declarar: se dice dónde hacerlo antes de llamar al backend, cuyo mensaje («registra
+  // lo que sale del camión») no dice dónde.
+  const faltaDespachoPorCantidad = () => {
+    if (!productosTerminados.some((l) => l.despachoPorCantidad)) return false;
+    if (lineas.some((l) => Number(l.cantidad_despachada) > 0)) return false;
+    toast.error("Todavía no hay nada cargado: los productos sin QR se cargan al pallet en la app.");
+    setTab("pt");
+    return true;
+  };
+
   // Ver la guía como saldrá, antes de gastar el folio. Una guía emitida no se edita.
   const handleVerBorradorGD = async () => {
+    if (faltaDespachoPorCantidad()) return;
     setViendoBorradorGD(true);
     try {
       await dteService.verPrevisualizacion('guia-solicitud', solicitudId, { traslado });
@@ -359,6 +361,7 @@ export default function SolicitudDetail() {
   };
 
   const handleEmitirGD = async () => {
+    if (faltaDespachoPorCantidad()) return;
     setEmitiendoGD(true);
     try {
       const gd = await dteService.emitirGuiaDespachoSolicitud(solicitudId, {
@@ -383,30 +386,6 @@ export default function SolicitudDetail() {
       await cargarGDs();
     } catch (err) {
       toast.error('Error al confirmar llegada: ' + (err?.message ?? err));
-    }
-  };
-
-  // PT sin bultos con QR: lo despachado se declara acá (hotfix 2026-10-28).
-  const handleDespachoPorCantidad = async (linea, body) => {
-    try {
-      await api(`/solicitudes-mercaderia/${solicitudId}/detalles/${linea.id}/despacho-por-cantidad`, { method: "PUT", body });
-      toast.success(`${linea.nombre}: despacho guardado`);
-      await fetchSolicitud();
-    } catch (err) {
-      toast.error(err?.message || "No se pudo guardar lo despachado");
-    }
-  };
-
-  const handleListaParaDespacho = async () => {
-    try {
-      setLoading(true);
-      await api(`/solicitudes-mercaderia/${solicitudId}/lista-para-despacho`, { method: "PUT" });
-      toast.success("Solicitud lista para despacho");
-      await fetchSolicitud();
-    } catch (err) {
-      toast.error(err?.message || "No se pudo marcar lista para despacho");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -720,8 +699,6 @@ export default function SolicitudDetail() {
   const accionPrincipal = (() => {
     if (solicitud.estado === "Creada")
       return { label: "Validar", icon: <CheckCircle2 className="w-4 h-4" />, onClick: handleValidarSolicitud, disabled: loading };
-    if (solicitud.estado === "En preparación" && productosTerminados.some((l) => l.despachoPorCantidad && l.cantidad_despachada > 0))
-      return { label: "Lista para despacho", icon: <CheckCircle2 className="w-4 h-4" />, onClick: handleListaParaDespacho, disabled: loading };
     if (solicitud.estado === "Lista para despacho")
       return {
         label: mostrarFormularioEnvio ? "Cerrar envío" : "Enviar",
@@ -967,7 +944,7 @@ export default function SolicitudDetail() {
             </div>
             {despachoEditable && productosTerminados.some((l) => l.despachoPorCantidad) && (
               <p className="text-sm text-gray-600">
-                Estos productos no tienen QR: escribe cuántas cajas y unidades sueltas salen (o los kilos) y guarda. La guía se emite en unidades.
+                Sin QR: se cargan por cantidad al pallet, en la app.
               </p>
             )}
             {productosTerminados.length > 0 ? (

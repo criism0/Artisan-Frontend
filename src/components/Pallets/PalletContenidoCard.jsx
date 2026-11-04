@@ -73,7 +73,7 @@ export default function PalletContenidoCard({ pallet }) {
       </div>
 
       {productos.length === 0 ? (
-        <p className="px-4 py-3 text-sm text-gray-500">Este pallet todavía no tiene bultos.</p>
+        <p className="px-4 py-3 text-sm text-gray-500">Este pallet todavía está vacío.</p>
       ) : (
         <div className="divide-y divide-gray-100">
           {productosVisibles.map((p) => {
@@ -99,7 +99,7 @@ export default function PalletContenidoCard({ pallet }) {
                     )}
                     <span className="text-xs text-gray-400">
                       {" "}
-                      · {contar(p.bultos, "bulto", "bultos")}
+                      · {p.bultos > 0 ? contar(p.bultos, "bulto", "bultos") : "sin QR"}
                     </span>
                   </span>
                 </div>
@@ -125,14 +125,16 @@ export default function PalletContenidoCard({ pallet }) {
             );
           })}
 
-          <button
-            onClick={() => setDetalleAbierto(true)}
-            className="w-full px-4 py-2.5 text-sm text-primary hover:bg-gray-50 font-medium text-left"
-          >
-            {productosOcultos > 0
-              ? `Ver los ${productos.length} productos y sus ${totalBultos} bultos`
-              : `Ver el detalle de los ${totalBultos} bultos`}
-          </button>
+          {totalBultos > 0 && (
+            <button
+              onClick={() => setDetalleAbierto(true)}
+              className="w-full px-4 py-2.5 text-sm text-primary hover:bg-gray-50 font-medium text-left"
+            >
+              {productosOcultos > 0
+                ? `Ver los ${productos.length} productos y sus ${totalBultos} bultos`
+                : `Ver el detalle de los ${totalBultos} bultos`}
+            </button>
+          )}
         </div>
       )}
 

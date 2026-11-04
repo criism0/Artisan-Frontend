@@ -124,6 +124,30 @@ export function resumirPallet(pallet) {
       : [];
   const productos = agruparBultosPorProducto(bultos);
 
+  // Lo cargado sin QR (2026-11-03): PT sin bultos que se cargan al pallet por cantidad en la
+  // app. Va en la misma lista que los bultos para que el pallet se vea igual lleve o no QR.
+  for (const carga of pallet?.cargasSinQr ?? []) {
+    const nf = carga?.detalle?.nombreFacturacion;
+    const nombre = nf?.nombre ?? "Sin identificar";
+    const cantidad = Number(carga?.cantidad) || 0;
+    const existente = productos.find((p) => p.nombre === nombre);
+    if (existente) {
+      existente.unidades += cantidad;
+      existente.sinQr = true;
+    } else {
+      productos.push({
+        nombre,
+        unidad: nf?.unidad_venta && nf.unidad_venta !== "Unidades" ? nf.unidad_venta : null,
+        bultos: 0,
+        unidades: cantidad,
+        peso: 0,
+        identificadores: [],
+        detalle: [],
+        sinQr: true,
+      });
+    }
+  }
+
   return {
     id: pallet?.id,
     identificador: pallet?.identificador ?? `Pallet #${pallet?.id ?? "—"}`,
