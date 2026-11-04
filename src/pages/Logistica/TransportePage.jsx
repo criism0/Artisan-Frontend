@@ -7,9 +7,11 @@ import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { mensajeError } from "../../utils/mensajeError.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { MODALIDADES, etiquetaModalidad } from "../../utils/combinacionTransporte.js";
 
 const VACIA = {
   nombre: "",
+  modalidad: "autogestionado",
   transportista: "",
   rut_transportista: "",
   chofer_nombre: "",
@@ -21,7 +23,7 @@ const VACIA = {
 };
 
 /**
- * Combinaciones de transporte (Res. Ex. SII N° 154, desde el 1-nov-2026): el transportista, el
+ * Combinaciones de transporte (Res. Ex. SII N° 144, desde el 1-nov-2026): el transportista, el
  * chofer y la patente que se eligen al emitir una factura o una guía, en vez de escribirlos cada
  * vez (pedido de Hernán, 2026-10-22). La de cada bodega es la que el formulario trae puesta.
  * No se borran: una que ya no se usa se desactiva, y lo emitido guarda su copia.
@@ -82,11 +84,13 @@ export default function TransportePage() {
   const filas = useMemo(() => combinaciones.map((c) => ({
     ...c,
     bodega_nombre: c.bodegaPorDefecto?.nombre ?? "",
+    modalidad_texto: etiquetaModalidad(c.modalidad),
     estado: c.activa ? "Activa" : "Desactivada",
   })), [combinaciones]);
 
   const columns = useMemo(() => [
     { header: "Nombre", accessor: "nombre", sortable: true, hideable: false },
+    { header: "Modalidad", accessor: "modalidad_texto", sortable: true },
     {
       header: "Transportista",
       accessor: "rut_transportista",
@@ -103,7 +107,11 @@ export default function TransportePage() {
       header: "Patente",
       accessor: "patente",
       sortable: true,
-      Cell: ({ row }) => (row.patente_carro ? `${row.patente} · carro ${row.patente_carro}` : row.patente),
+      Cell: ({ row }) => {
+        if (row.modalidad === "retiro") return <span className="text-gray-400">—</span>;
+        if (!row.patente) return <span className="text-gray-500">Diferido</span>;
+        return row.patente_carro ? `${row.patente} · carro ${row.patente_carro}` : row.patente;
+      },
     },
     {
       header: "Por defecto en",
@@ -166,12 +174,27 @@ export default function TransportePage() {
       >
         <div className="grid grid-cols-2 gap-3">
           <Entrada clase="col-span-2" etiqueta="Nombre" valor={form.nombre} onCambiar={(v) => campo("nombre", v)} ejemplo="Santiago, camión de Juan" />
+          <label className="block col-span-2">
+            <span className="block text-sm font-medium text-gray-700 mb-1">Modalidad</span>
+            <select
+              value={form.modalidad}
+              onChange={(e) => campo("modalidad", e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary/30 focus:border-transparent"
+            >
+              {MODALIDADES.map((m) => <option key={m.valor} value={m.valor}>{m.etiqueta}</option>)}
+            </select>
+            {form.modalidad === "tercerizado" && (
+              <span className="block mt-1 text-xs text-gray-500">Deja vacío lo que asigna el operador: sale «DIFERIDO» en el documento.</span>
+            )}
+          </label>
+          {form.modalidad !== "retiro" && (<>
           <Entrada etiqueta="Transportista" valor={form.transportista} onCambiar={(v) => campo("transportista", v)} ejemplo="Transportes Pérez Ltda." />
           <Entrada etiqueta="RUT del transportista" valor={form.rut_transportista} onCambiar={(v) => campo("rut_transportista", v)} ejemplo="76.123.456-7" />
           <Entrada etiqueta="Chofer" valor={form.chofer_nombre} onCambiar={(v) => campo("chofer_nombre", v)} ejemplo="Juan Pérez" />
           <Entrada etiqueta="RUT del chofer" valor={form.chofer_rut} onCambiar={(v) => campo("chofer_rut", v)} ejemplo="12.345.678-5" />
           <Entrada etiqueta="Patente" valor={form.patente} onCambiar={(v) => campo("patente", v)} ejemplo="BBCC12" />
           <Entrada etiqueta="Patente del carro (si lleva)" valor={form.patente_carro} onCambiar={(v) => campo("patente_carro", v)} ejemplo="JK1234" />
+          </>)}
           <label className="block">
             <span className="block text-sm font-medium text-gray-700 mb-1">Por defecto en</span>
             <select
