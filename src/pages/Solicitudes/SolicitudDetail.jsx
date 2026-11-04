@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "../../lib/toast.js";
 // jspdf y jspdf-autotable NO se importan acá: se cargan bajo demanda dentro de
@@ -17,6 +17,7 @@ import CentroDocumentosSolicitud from "../../components/DTE/CentroDocumentosSoli
 import { adjuntosService } from "../../services/adjuntosService.js";
 import Modal from "../../components/UI/Modal.jsx";
 import PalletContenidoCard from "../../components/Pallets/PalletContenidoCard.jsx";
+import SelectorTransporte from "../../components/Logistica/SelectorTransporte.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { dteService } from "../../services/dteService.js";
 import { formatCLP } from "../../services/formatHelpers.js";
@@ -137,6 +138,8 @@ export default function SolicitudDetail() {
     [detalles]
   );
 
+  const despachoEditable = ["Validada", "En preparación"].includes(solicitud?.estado) && canWriteMerchRequest;
+
   const celdaCantidad = ({ value }) =>
     value == null ? <span className="text-gray-400">—</span> : formatCantidad(value);
 
@@ -248,12 +251,17 @@ export default function SolicitudDetail() {
           ),
       },
       { header: "Unidades", accessor: "cantidad_solicitada", Cell: celdaCantidad },
-      { header: "Despachadas", accessor: "cantidad_despachada", Cell: celdaCantidad },
+      {
+        header: "Despachadas",
+        accessor: "cantidad_despachada",
+        // Lo sin QR se carga al pallet en la app (2026-11-03): acá sólo se lee.
+        Cell: celdaCantidad,
+      },
       { header: "Recepcionadas", accessor: "cantidad_recepcionada", Cell: celdaCantidad },
       celdaComentario,
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [despachoEditable, loading]
   );
 
   const palletsData = useMemo(
@@ -281,12 +289,34 @@ export default function SolicitudDetail() {
   // que queda escrito en `numero_guia_despacho`. Un solo número, un solo documento.
   const [emitiendoGD, setEmitiendoGD] = useState(false);
   const [viendoBorradorGD, setViendoBorradorGD] = useState(false);
+  // Res. Ex. SII 154 (desde el 1-nov-2026): la guía declara el vehículo, el chofer y el
+  // transportista, que salen de la combinación elegida (Logística → Transporte).
+  const [idTransporte, setIdTransporte] = useState(null);
+  const [transporteExigido, setTransporteExigido] = useState(false);
+  const traslado = { id_combinacion_transporte: idTransporte };
+  const elegirTransporte = useCallback((id, combinacion) => {
+    setIdTransporte(id);
+    // El medio de transporte de la solicitud, si nadie lo escribió todavía.
+    if (combinacion) setMedioTransporte((m) => m.trim() ? m : (combinacion.transportista || combinacion.nombre));
+  }, []);
+
+  // Con PT sin QR, lo despachado se carga al pallet en la app. Si no hay nada cargado, la guía no
+  // tiene qué declarar: se dice dónde hacerlo antes de llamar al backend, cuyo mensaje («registra
+  // lo que sale del camión») no dice dónde.
+  const faltaDespachoPorCantidad = () => {
+    if (!productosTerminados.some((l) => l.despachoPorCantidad)) return false;
+    if (lineas.some((l) => Number(l.cantidad_despachada) > 0)) return false;
+    toast.error("Todavía no hay nada cargado: los productos sin QR se cargan al pallet en la app.");
+    setTab("pt");
+    return true;
+  };
 
   // Ver la guía como saldrá, antes de gastar el folio. Una guía emitida no se edita.
   const handleVerBorradorGD = async () => {
+    if (faltaDespachoPorCantidad()) return;
     setViendoBorradorGD(true);
     try {
-      await dteService.verPrevisualizacion('guia-solicitud', solicitudId);
+      await dteService.verPrevisualizacion('guia-solicitud', solicitudId, { traslado });
     } catch (err) {
       toast.error('No se pudo generar el borrador: ' + (err?.message ?? err));
     } finally {
@@ -295,10 +325,12 @@ export default function SolicitudDetail() {
   };
 
   const handleEmitirGD = async () => {
+    if (faltaDespachoPorCantidad()) return;
     setEmitiendoGD(true);
     try {
       const gd = await dteService.emitirGuiaDespachoSolicitud(solicitudId, {
         transportista: medioTransporte.trim() || undefined,
+        traslado,
       });
       toast.success(`Guía de despacho N° ${gd?.folio ?? ''} emitida ✓`);
       // El folio es EL número de la guía: se escribe solo para que nadie lo transcriba mal.
@@ -813,6 +845,15 @@ export default function SolicitudDetail() {
           onVerBorradorGD={handleVerBorradorGD}
           onConfirmarLlegada={handleConfirmarLlegadaGD}
           onCambio={() => { cargarGDs(); fetchSolicitud(); }}
+          selectorTransporte={
+            <SelectorTransporte
+              idBodegaOrigen={solicitud.id_bodega_proveedora}
+              valor={idTransporte}
+              onCambiar={elegirTransporte}
+              onExigida={setTransporteExigido}
+            />
+          }
+          emisionBloqueada={transporteExigido && !idTransporte}
         />
 
         <Tabs
@@ -853,6 +894,11 @@ export default function SolicitudDetail() {
                 <span className="font-semibold text-gray-900">{resumenPT()}</span>
               </div>
             </div>
+            {despachoEditable && productosTerminados.some((l) => l.despachoPorCantidad) && (
+              <p className="text-sm text-gray-600">
+                Sin QR: se cargan por cantidad al pallet, en la app.
+              </p>
+            )}
             {productosTerminados.length > 0 ? (
               <Table data={productosTerminados} columns={productosTerminadosColumns} />
             ) : (
@@ -954,10 +1000,18 @@ export default function SolicitudDetail() {
                     número abajo y continúa.
                   </Ayuda>
                 </p>
+                <div className="mt-3">
+                  <SelectorTransporte
+                    idBodegaOrigen={solicitud.id_bodega_proveedora}
+                    valor={idTransporte}
+                    onCambiar={elegirTransporte}
+                    onExigida={setTransporteExigido}
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={handleEmitirGD}
-                  disabled={emitiendoGD}
+                  disabled={emitiendoGD || (transporteExigido && !idTransporte)}
                   className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
                 >
                   <FileText className="w-4 h-4" />

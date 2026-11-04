@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   construirLineasSolicitud,
+  desglosarEnCajas,
+  totalDesdeCajas,
   normalizarLinea,
   tipoDeLinea,
 } from "../lineasSolicitud";
@@ -111,5 +113,29 @@ describe("construirLineasSolicitud", () => {
   it("descarta detalles irreconocibles en vez de mostrarlos vacíos", () => {
     const { lineas } = construirLineasSolicitud([insumo, { id: 99 }]);
     expect(lineas).toHaveLength(1);
+  });
+});
+
+// Hotfix 2026-10-28: PT sin QR despachados en cajas + sueltas (solicitudes #243/#252 en producción).
+
+describe("despacho por cantidad de PT", () => {
+  it("cajas × unidades por caja + sueltas", () => {
+    expect(totalDesdeCajas(3, 2, 5)).toBe(17);
+    expect(totalDesdeCajas("", 7, 5)).toBe(7);
+  });
+
+  it("lo despachado se vuelve a mostrar en cajas y sueltas", () => {
+    expect(desglosarEnCajas(17, 5)).toEqual({ cajas: 3, sueltas: 2 });
+    expect(desglosarEnCajas(null, 5)).toEqual({ cajas: 0, sueltas: 0 });
+  });
+
+  it("la línea trae si se despacha por cantidad y en qué unidad", () => {
+    const l = normalizarLinea({
+      id: 3208,
+      cantidad_solicitada: 10,
+      despacho_por_cantidad: true,
+      nombreFacturacion: { nombre: "Queso Provoleta - Pieza x Kg", unidad_venta: "Kilogramos", unidades_por_caja: 1 },
+    });
+    expect(l).toMatchObject({ despachoPorCantidad: true, unidadVenta: "Kilogramos", unidadesPorCajaVenta: 1 });
   });
 });

@@ -96,6 +96,7 @@ export default function Navbar() {
             <MenuGroup label="Logística" icon={<Box />}>
               <MenuLink to="/Logistica/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
               <MenuLink to="/Solicitudes" icon={<Inbox />} label="Solicitudes" isAllowed={checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.READ)} />
+              <MenuLink to="/Logistica/transporte" icon={<FaTruck />} label="Transporte" isAllowed={checkScope(ModelType.BODEGA, ScopeType.READ)} />
             </MenuGroup>
           </Dropdown>
 

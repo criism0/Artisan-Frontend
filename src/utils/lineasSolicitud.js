@@ -74,6 +74,10 @@ export function normalizarLinea(detalle) {
     unidad_medida:
       detalle?.materiaPrima?.unidad_medida ?? (tipo === TIPO_PT ? "Unidades" : "—"),
     comentario: comentarioDeLinea(detalle),
+    // PT sin bultos con QR: lo despachado se declara a mano (cajas + sueltas, o kilos).
+    despachoPorCantidad: tipo === TIPO_PT && Boolean(detalle?.despacho_por_cantidad),
+    unidadVenta: tipo === TIPO_PT ? detalle?.nombreFacturacion?.unidad_venta || "Unidades" : null,
+    unidadesPorCajaVenta: aNumero(detalle?.nombreFacturacion?.unidades_por_caja) || porCaja || 1,
     costo_unitario: costoUnitario,
     costo_despachado: costoUnitario * solicitada,
   };
@@ -106,4 +110,19 @@ export function construirLineasSolicitud(detalles) {
       unidadesPT: productosTerminados.reduce((suma, l) => suma + (l.cantidad_solicitada || 0), 0),
     },
   };
+}
+
+/**
+ * Lo despachado de un PT contado en cajas + unidades sueltas. Es lo que bodega cuenta; lo que se
+ * guarda —y lo que declara la guía— es el total en unidades.
+ */
+export function desglosarEnCajas(cantidad, porCaja) {
+  const total = aNumero(cantidad) ?? 0;
+  const n = porCaja > 0 ? porCaja : 1;
+  return { cajas: Math.floor(total / n), sueltas: total - Math.floor(total / n) * n };
+}
+
+export function totalDesdeCajas(cajas, sueltas, porCaja) {
+  const n = porCaja > 0 ? porCaja : 1;
+  return (aNumero(cajas) ?? 0) * n + (aNumero(sueltas) ?? 0);
 }
