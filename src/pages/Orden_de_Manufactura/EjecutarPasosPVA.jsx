@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Dialog } from "@headlessui/react";
 import { toast } from "../../lib/toast";
 import { api } from "../../lib/api";
@@ -7,10 +7,10 @@ import { useAuth } from "../../auth/AuthContext";
 import { formatNumberCL } from "../../services/formatHelpers";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader.jsx";
 
 export default function EjecutarPasosPVA() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [pauta, setPauta] = useState(null);
   const [lote, setLote] = useState(null);
@@ -511,15 +511,7 @@ export default function EjecutarPasosPVA() {
 
   return (
     <div className="max-w-5xl mx-auto p-6 bg-white rounded shadow">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Ejecución de PVA</h1>
-        <button
-          onClick={() => navigate("/Orden_de_Manufactura")}
-          className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-        >
-          ← Volver a Órdenes
-        </button>
-      </div>
+      <PageHeader volverA="/Orden_de_Manufactura" titulo="Ejecución de PVA" />
 
       <div className="mb-4 text-sm text-gray-700">
         <p><strong>Proceso:</strong> {proceso?.descripcion || "Sin descripción"}</p>

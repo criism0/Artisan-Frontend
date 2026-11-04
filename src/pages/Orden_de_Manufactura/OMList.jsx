@@ -8,28 +8,7 @@ import { toast } from "../../lib/toast";
 import ConfirmDeletePreviewModal from "../../components/Modals/ConfirmDeletePreviewModal";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 import { formatFecha } from "../../lib/dateUtils";
-
-const getEstadoBadge = (estado) => {
-  if (!estado) return "";
-  const normalized = estado.toLowerCase();
-  const base = "px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap";
-  switch (normalized) {
-    case "borrador":
-      return <span className={`${base} bg-gray-200 text-gray-700`}>Borrador</span>;
-    case "insumos asignados":
-      return <span className={`${base} bg-blue-100 text-blue-700`}>Insumos asignados</span>;
-    case "esperando salidas":
-      return <span className={`${base} bg-orange-100 text-orange-700`}>Esperando salidas</span>;
-    case "en ejecución":
-      return <span className={`${base} bg-cyan-100 text-cyan-700`}>En ejecución</span>;
-    case "esperando pvas":
-      return <span className={`${base} bg-purple-100 text-purple-700`}>Esperando PVAs</span>;
-    case "cerrada":
-      return <span className={`${base} bg-green-100 text-green-700`}>Cerrada</span>;
-    default:
-      return <span className={`${base} bg-gray-100 text-gray-600`}>{estado}</span>;
-  }
-};
+import { EstadoOMBadge, ResumenPVABadge } from "../../components/Produccion/EstadoOM.jsx";
 
 // Celda de resumen PVA: dispara la carga perezosa de extras al montarse
 // (solo se montan las filas visibles de la página actual del DataTable).
@@ -39,24 +18,9 @@ function PvaBadgeCell({ row, extra, isLoading, onNeedsLoad }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.id]);
 
-  const pautas = Array.isArray(extra?.pautas) ? extra.pautas : [];
-  const base = "px-2 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap";
-  if (isLoading) return <span className={`${base} bg-gray-100 text-gray-600`}>Cargando…</span>;
-  if (!extra) return <span className={`${base} bg-gray-100 text-gray-600`}>—</span>;
-  if (pautas.length === 0) return <span className={`${base} bg-gray-100 text-gray-600`}>Sin PVA</span>;
-
-  const completadas = pautas.filter((p) => String(p?.estado || "").toLowerCase().includes("complet")).length;
-  if (completadas === pautas.length) {
-    return <span className={`${base} bg-green-100 text-green-700`}>PVAs completadas</span>;
-  }
-  const enProceso = pautas.some((p) => {
-    const v = String(p?.estado || "").toLowerCase();
-    return v.includes("progres") || v.includes("ejec") || v.includes("inici");
-  });
-  if (enProceso) {
-    return <span className={`${base} bg-blue-100 text-blue-700`}>PVA en progreso</span>;
-  }
-  return <span className={`${base} bg-amber-100 text-amber-800`}>PVAs pendientes</span>;
+  if (isLoading) return <span className="text-xs text-gray-400">Cargando…</span>;
+  if (!extra) return <span className="text-xs text-gray-400">—</span>;
+  return <ResumenPVABadge pautas={extra?.pautas} />;
 }
 
 export default function OMList() {
@@ -219,7 +183,7 @@ export default function OMList() {
       header: "Estado",
       accessor: "estado",
       sortable: true,
-      Cell: ({ value }) => getEstadoBadge(value),
+      Cell: ({ value }) => <EstadoOMBadge estado={value} />,
     },
     {
       header: "PVA",

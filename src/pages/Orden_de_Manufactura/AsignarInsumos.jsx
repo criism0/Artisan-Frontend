@@ -3,10 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
-import { BackButton, UndoButton } from "../../components/Buttons/ActionButtons";
+import { UndoButton } from "../../components/Buttons/ActionButtons";
 import { formatNumberCL, formatCLP } from "../../services/formatHelpers";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader.jsx";
 
 // Evita que el scroll cambie el valor del input type="number"
 const handleNumberInputWheel = (e) => {
@@ -714,24 +715,23 @@ export default function AsignarInsumos() {
         cancelText="Cancelar"
       />
 
-      <div className="mb-4">
-        <BackButton to={`/Orden_de_Manufactura/${id}`} />
-      </div>
 
       <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Asignar insumos · OM #{id}</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Selecciona bultos y cantidades para cubrir el requerimiento de cada insumo.
-          </p>
-        </div>
-        <span
-          className={`px-3 py-1.5 rounded-full text-sm font-medium ${
-            todoAsignado ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
-          }`}
-        >
-          {insumosCompletos} de {insumos.length} insumos completos
-        </span>
+        <PageHeader
+          volverA={`/Orden_de_Manufactura/${id}`}
+          titulo={`Asignar insumos · OM #${id}`}
+          tituloAyuda="Asignar insumos"
+          ayuda="Para cada insumo se eligen los bultos y cuánto se usa de cada uno, hasta cubrir lo que pide la receta. Lo asignado sale de la bodega."
+          estado={
+            <span
+              className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                todoAsignado ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+              }`}
+            >
+              {insumosCompletos} de {insumos.length} insumos completos
+            </span>
+          }
+        />
       </div>
 
       {insumos.map((insumo) => {

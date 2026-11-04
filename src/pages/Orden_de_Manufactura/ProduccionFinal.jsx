@@ -2,12 +2,20 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api, apiBlob } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { BackButton } from "../../components/Buttons/ActionButtons";
 import { downloadBlob } from "../../lib/downloadBlob";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import PageHeader from "../../components/UI/PageHeader.jsx";
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
+// El consumo decía «kg» para todo, incluso para lo que se dosifica por unidad o en litros.
+const abreviarUnidad = (u) => {
+  const v = String(u || "").toLowerCase();
+  if (v.startsWith("unidad")) return "un.";
+  if (v.startsWith("litro")) return "L";
+  return "kg";
+};
 
 // Reparte el peso total entre N bultos con 2 decimales (lo que exige el sistema
 // para poder cerrar la OM). El último bulto absorbe el residuo del redondeo para
@@ -614,13 +622,20 @@ export default function ProduccionFinal() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to={`/Orden_de_Manufactura/${id}`} />
-      </div>
-
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-text">Producción Final · OM #{id}</h1>
-      </div>
+      <PageHeader
+        volverA={`/Orden_de_Manufactura/${id}`}
+        titulo={`Producción Final · OM #${id}`}
+        tituloAyuda="Producción final"
+        ayuda={
+          <>
+            <p>
+              Se registra lo que salió de la OM: el peso obtenido, las unidades o cajas, los
+              subproductos y el empaque. La diferencia con lo que entró queda como merma.
+            </p>
+            <p>«Previsualizar» muestra el costo y el rendimiento antes de registrar.</p>
+          </>
+        }
+      />
 
       {/* Panel informativo de la OM */}
       {om && !loadingOm ? (
@@ -670,6 +685,11 @@ export default function ProduccionFinal() {
               const porcentaje = pesoNecesario > 0 ? ((pesoUtilizado / pesoNecesario) * 100).toFixed(0) : 0;
               const estado = pesoUtilizado >= pesoNecesario * 0.99 ? "✓ OK" : pesoUtilizado > 0 ? "⚠ Parcial" : "○ Pendiente";
               const colorBarrra = pesoUtilizado >= pesoNecesario * 0.99 ? "bg-green-400" : pesoUtilizado > 0 ? "bg-yellow-400" : "bg-gray-300";
+              const unidad = abreviarUnidad(
+                insumo?.ingredienteReceta?.materiaPrima?.unidad_medida ||
+                  insumo?.materiaPrima?.unidad_medida ||
+                  insumo?.MateriaPrima?.unidad_medida
+              );
               const nombreIngrediente =
                 insumo?.ingredienteReceta?.materiaPrima?.nombre ||
                 insumo?.materiaPrima?.nombre ||
@@ -688,7 +708,7 @@ export default function ProduccionFinal() {
                     <div className={`${colorBarrra} h-2 rounded-full`} style={{ width: `${Math.min(porcentaje, 100)}%` }}></div>
                   </div>
                   <div className="text-xs text-gray-600 flex justify-between">
-                    <span>{formatNumberCL(pesoUtilizado, 2)} / {formatNumberCL(pesoNecesario, 2)} kg</span>
+                    <span>{formatNumberCL(pesoUtilizado, 2)} / {formatNumberCL(pesoNecesario, 2)} {unidad}</span>
                     <span>{porcentaje}%</span>
                   </div>
                 </div>
@@ -1410,9 +1430,6 @@ export default function ProduccionFinal() {
                 </div>
               ) : null}
 
-              <div className="mt-3 p-2 bg-blue-100 border border-blue-300 rounded text-xs text-blue-700 font-medium">
-                Revisión completada. Presiona "Registrar Producción" para confirmar.
-              </div>
             </div>
           ) : null}
 

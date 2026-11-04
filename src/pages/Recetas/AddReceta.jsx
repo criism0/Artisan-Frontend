@@ -574,7 +574,7 @@ export default function AddReceta() {
             ))}
           </select>
           <p className="text-xs text-gray-500 mt-1">
-            Selecciona una pauta de elaboración para definir los pasos del proceso de producción.
+            Los pasos de la receta salen de la pauta elegida.
           </p>
         </div>
       </div>
@@ -803,19 +803,6 @@ export default function AddReceta() {
           </div>
         )}
       </div>
-
-      {/* ─────────────── SECCIÓN 3: INFORMACIÓN DE PAUTA ─────────────── */}
-      {formData.id_pauta_elaboracion && (
-        <div className="bg-white mt-8 p-6 rounded-lg shadow space-y-4">
-          <h2 className="text-lg font-semibold text-gray-800">Pauta de Elaboración Seleccionada</h2>
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-blue-800">
-              <strong>Nota:</strong> Los pasos de elaboración se obtendrán automáticamente de la pauta seleccionada.
-              No es necesario definir pasos manualmente.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* BOTÓN FINAL */}
       <div className="flex justify-end mt-8">

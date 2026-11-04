@@ -6,44 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { formatFecha } from "../../lib/dateUtils";
-
-const ESTADO_STYLES = {
-  "Creada": { bg: "bg-gray-200", text: "text-gray-800", label: "Creada" },
-  "Validada": { bg: "bg-sky-200", text: "text-sky-800", label: "Validada" },
-  "En preparación": { bg: "bg-amber-200", text: "text-amber-800", label: "En preparación" },
-  "Lista para despacho": { bg: "bg-lime-200", text: "text-lime-800", label: "Lista para despacho" },
-  "En tránsito": { bg: "bg-indigo-200", text: "text-indigo-800", label: "En tránsito" },
-  "Recepción Completa": { bg: "bg-green-400", text: "text-green-900", label: "Recepción Completa" },
-  "Recepción Completa con Pérdida": { bg: "bg-amber-200", text: "text-amber-900", label: "Recepción Completa con Pérdida" },
-  "Recepción Parcial": { bg: "bg-yellow-200", text: "text-yellow-900", label: "Recepción Parcial" },
-  "Recepción Parcial con Pérdida": { bg: "bg-orange-200", text: "text-orange-900", label: "Recepción Parcial con Pérdida" },
-  // Compatibilidad con estados antiguos
-  "Recepcionada Parcial Falta Stock": { bg: "bg-yellow-200", text: "text-yellow-900", label: "Recepción Parcial" },
-  "Recepcionada Parcial Perdida": { bg: "bg-orange-200", text: "text-orange-900", label: "Recepción Parcial con Pérdida" },
-  "Recepcionada Completa": { bg: "bg-green-400", text: "text-green-900", label: "Recepción Completa" },
-  "Pendiente": { bg: "bg-orange-200", text: "text-orange-800", label: "Pendiente" },
-  "Cancelada": { bg: "bg-red-200", text: "text-red-800", label: "Cancelada" },
-};
-
-const normalizeEstadoSolicitud = (estado) => {
-  if (!estado) return estado;
-  switch (estado) {
-    case "Recepcionada Completa":
-      return "Recepción Completa";
-    case "Recepcionada Parcial Falta Stock":
-      return "Recepción Parcial";
-    case "Recepcionada Parcial Perdida":
-      return "Recepción Parcial con Pérdida";
-    default:
-      return estado;
-  }
-};
-
-const getEstadoChip = (estado) => {
-  const base = "px-3 py-1 rounded-full text-xs font-medium text-center whitespace-nowrap";
-  const s = ESTADO_STYLES[estado] ?? { bg: "bg-gray-100", text: "text-gray-700", label: estado };
-  return <span className={`${base} ${s.bg} ${s.text}`}>{s.label}</span>;
-};
+import { EstadoSolicitudBadge, claseEstadoSolicitud, normalizeEstadoSolicitud } from "../../utils/estadoSolicitud.jsx";
 
 const fmtFecha = (value) => formatFecha(value);
 
@@ -143,7 +106,11 @@ export default function Solicitudes() {
       accessor: "estado",
       sortable: true,
       align: "center",
-      Cell: ({ value }) => <div className="flex justify-center">{getEstadoChip(value)}</div>,
+      Cell: ({ value }) => (
+        <div className="flex justify-center">
+          <EstadoSolicitudBadge estado={value} />
+        </div>
+      ),
     },
     {
       header: "Fecha Solicitud",
@@ -201,21 +168,19 @@ export default function Solicitudes() {
         <div className="flex flex-wrap gap-2 px-1">
           {estadoOptions.map((opt) => {
             const isActive = filtroEstado === opt;
-            const style =
-              opt === "Todos"
-                ? { bg: "bg-gray-100", text: "text-gray-700", label: "Todos" }
-                : (ESTADO_STYLES[opt] ?? { bg: "bg-gray-100", text: "text-gray-700", label: opt });
+            const color =
+              opt === "Todos" ? "border-gray-300 bg-gray-100 text-gray-700" : claseEstadoSolicitud(opt);
             return (
               <button
                 key={opt}
                 type="button"
                 onClick={() => setFiltroEstado(opt)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${style.bg} ${style.text} ${
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${color} ${
                   isActive ? "ring-2 ring-offset-1 ring-primary" : "opacity-80 hover:opacity-100"
                 }`}
                 aria-pressed={isActive}
               >
-                {style.label}
+                {opt}
               </button>
             );
           })}
