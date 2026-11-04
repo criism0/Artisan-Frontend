@@ -104,16 +104,20 @@ export default function AddSolicitud() {
     else if (selectedOrigen === selectedDestino) newErrors.destino = 'La bodega de destino debe ser diferente a la de origen';
     if ((insumosSeleccionados?.length ?? 0) === 0 && (productosSeleccionados?.length ?? 0) === 0)
       newErrors.insumos = 'Debe agregar al menos un insumo o producto terminado';
-    if (selectedUsers.length === 0) newErrors.usuarios = 'Debe seleccionar al menos un usuario para notificar';
+    if (selectedUsers.length === 0) newErrors.usuarios = 'Agrega al menos una persona a notificar';
     return newErrors;
   };
 
   const errors = useMemo(() => computeErrors(), [selectedOrigen, selectedDestino, insumosSeleccionados, productosSeleccionados, selectedUsers]);
   const isFormReady = useMemo(() => Object.keys(errors).length === 0, [errors]);
 
+  // El botón no se deshabilita por lo que falta: con el botón gris no había cómo saber QUÉ faltaba
+  // (sólo un `title` al pasar el mouse) y el aviso rojo de stock parecía ser la causa. Al apretarlo,
+  // el toast dice qué falta y los campos se marcan.
   const validateForm = () => {
     if (!isFormReady) {
       setShowErrors(true);
+      toast.error(`No se pudo crear la solicitud: ${Object.values(errors).join(' · ')}`);
       return false;
     }
     return true;
@@ -328,8 +332,7 @@ export default function AddSolicitud() {
                 creaba un borrador o mandaba algo. */}
             <button
               onClick={handleSubmit}
-              disabled={loading || !isFormReady}
-              title={!isFormReady ? 'Completa todos los campos requeridos' : undefined}
+              disabled={loading}
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm disabled:opacity-50"
             >
               {loading ? 'Creando…' : 'Crear solicitud'}

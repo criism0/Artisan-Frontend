@@ -102,6 +102,19 @@ describe("resumirPallet", () => {
     expect(resumen.totalBultos).toBe(0);
     expect(resumen.productos).toEqual([]);
   });
+
+  // 2026-11-03: los PT sin QR se cargan al pallet por cantidad y se ven junto a los bultos.
+  it("suma lo cargado sin QR como producto, sin contarlo como bulto", () => {
+    const resumen = resumirPallet({
+      id: 4,
+      bultos: [bultoInsumo("A", 1, 1)],
+      cargasSinQr: [{ id: 9, cantidad: 16, detalle: { nombreFacturacion: { nombre: "Flan Vegano", unidades_por_caja: 16 } } }],
+    });
+    expect(resumen.totalBultos).toBe(1);
+    const flan = resumen.productos.find((p) => p.nombre === "Flan Vegano");
+    expect(flan).toMatchObject({ unidades: 16, bultos: 0, sinQr: true });
+    expect(resumen.idsBultos).toHaveLength(1);
+  });
 });
 
 /**
