@@ -7,6 +7,7 @@ import { FileSearch } from 'lucide-react';
 import { toast } from '../../lib/toast';
 import { dteService } from '../../services/dteService.js';
 import { formatCLP } from '../../services/formatHelpers.js';
+import Ayuda from '../UI/Ayuda.jsx';
 
 /**
  * DTEPreview — lo que va a decir el documento, tal como se va a emitir.
@@ -81,8 +82,10 @@ export default function DTEPreview({
   if (error) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800">
-        No se pudo generar la vista previa ({error}). Puedes facturar igual: el documento se
-        calcula en el servidor al emitir.
+        <strong>Sin vista previa:</strong> {error}{" "}
+        <Ayuda titulo="Sin vista previa">
+          <p>Puedes facturar igual: el documento se calcula en el servidor al emitir.</p>
+        </Ayuda>
       </div>
     );
   }
