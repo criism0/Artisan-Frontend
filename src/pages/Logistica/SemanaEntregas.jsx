@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Settings2, Route as IconoRuta } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings2, Zap, Route as IconoRuta } from "lucide-react";
 import PageHeader from "../../components/UI/PageHeader";
 import CargandoVista from "../../components/UI/CargandoVista";
 import Selector from "../../components/Forms/Selector";
 import ModalSectores from "../../components/Entregas/ModalSectores";
+import InventarioSemana from "../../components/Entregas/InventarioSemana";
+import Ayuda from "../../components/UI/Ayuda";
+import { diasSinStock, pedidoSinAlcance, planificacionRapida, tablaInventario } from "../../utils/planificacionSemana.js";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import * as rutasApi from "../../services/rutasService";
@@ -33,6 +36,9 @@ const corto = (iso) => `${diaDelMes(iso)} ${MESES[Number(iso.slice(5, 7)) - 1]}`
  * semana por día, con el sector de su comuna. Arrastrar un pedido a otro día mueve su fecha de
  * entrega (queda registrado, sin avisos); «Armar ruta» abre el planificador del día con esos
  * pedidos marcados. Lo sin fecha o atrasado espera en «Por planificar».
+ *
+ * Fase C (2026-11-05): debajo, el inventario de la semana contra lo que pide cada día, y el botón
+ * «Planificación rápida», que propone el día de lo que espera; nada se guarda hasta confirmar.
  */
 export default function SemanaEntregas() {
   const navigate = useNavigate();
@@ -46,6 +52,8 @@ export default function SemanaEntregas() {
   const [sobre, setSobre] = useState(null);
   const [editandoSectores, setEditandoSectores] = useState(false);
   const [verPool, setVerPool] = useState(PASO_POOL);
+  const [propuesta, setPropuesta] = useState(null); // { dias: Map(id → día), fuera: Set(id) }
+  const [confirmando, setConfirmando] = useState(false);
   const puedeEscribir = checkScope(ModelType.RUTA, ScopeType.WRITE);
 
   const dias = useMemo(() => DIAS.map((nombre, i) => ({ nombre, iso: sumarDias(lunes, i) })), [lunes]);
@@ -74,8 +82,16 @@ export default function SemanaEntregas() {
   const sectores = datos?.sectores ?? [];
   const colorDe = (o) => sectores.find((s) => s.id === o.id_sector)?.color ?? SIN_SECTOR;
   const visible = (o) => filtro === "todos" || (filtro === "sin" ? o.id_sector == null : o.id_sector === filtro);
-  const ordenes = datos?.ordenes ?? [];
+  const ordenesBase = useMemo(() => datos?.ordenes ?? [], [datos]);
   const hoy = hoyIso();
+  // Con la propuesta de la planificación rápida puesta (sin guardar), la semana se ve como quedaría.
+  const ordenes = useMemo(
+    () => (propuesta ? ordenesBase.map((o) => (propuesta.dias.has(o.id) ? { ...o, dia: propuesta.dias.get(o.id), propuesto: true } : o)) : ordenesBase),
+    [ordenesBase, propuesta],
+  );
+  const isoDias = useMemo(() => dias.map((d) => d.iso), [dias]);
+  const filasInventario = useMemo(() => tablaInventario(ordenes, isoDias, datos?.inventario ?? [], idBodega), [ordenes, isoDias, datos, idBodega]);
+  const diasMalos = useMemo(() => diasSinStock(filasInventario, isoDias), [filasInventario, isoDias]);
   // Lo más urgente primero: atrasado por fecha (las más viejas arriba) y después lo sin fecha.
   const porPlanificar = ordenes
     .filter((o) => !o.ruta && (!o.dia || o.dia < lunes))
@@ -83,7 +99,31 @@ export default function SemanaEntregas() {
   const poolVisible = porPlanificar.filter(visible);
   const masAdelante = ordenes.filter((o) => o.dia && o.dia > sabado).length;
 
+  const planificarRapido = () => {
+    const { propuestas, fuera } = planificacionRapida({ ordenes: ordenesBase, dias: isoDias, inventario: datos?.inventario ?? [], idBodega, hoy });
+    setPropuesta({ dias: new Map(propuestas.map((p) => [p.id, p.dia])), fuera: new Set(fuera) });
+    setElegido(null);
+  };
+  const confirmarPropuesta = async () => {
+    if (!propuesta) return;
+    setConfirmando(true);
+    let fallidas = 0;
+    for (const [id, dia] of propuesta.dias) {
+      try {
+        await rutasApi.moverFechaEntrega(id, dia);
+      } catch (e) {
+        fallidas++;
+        toast.error(`OV #${id}: ${e.message}`);
+      }
+    }
+    setPropuesta(null);
+    setConfirmando(false);
+    await cargar();
+    if (!fallidas) toast.success("Planificación guardada");
+  };
+
   const mover = async (orden, destino) => {
+    setPropuesta(null);
     setElegido(null);
     const fecha = destino === "pool" ? null : destino;
     if (orden.ruta) {
@@ -123,6 +163,7 @@ export default function SemanaEntregas() {
   const tarjeta = (o) => {
     const movida = o.fecha_original && o.fecha_original !== o.fecha_entrega;
     const atrasada = !o.ruta && o.fecha_entrega && o.fecha_entrega < hoy;
+    const sinStock = propuesta?.fuera.has(o.id) || pedidoSinAlcance(o, filasInventario, isoDias);
     return (
       <div
         key={o.id}
@@ -138,8 +179,10 @@ export default function SemanaEntregas() {
       >
         <span className="font-semibold text-gray-800 text-[13px] leading-tight truncate">{o.cliente.nombre}</span>
         <span className="text-gray-500 truncate">#{o.id}{o.comuna ? ` · ${o.comuna}` : ""}</span>
-        {(movida || atrasada || o.ruta || o.estado_direccion === "falta") && (
+        {(movida || atrasada || o.ruta || o.propuesto || sinStock || o.estado_direccion === "falta") && (
           <span className="flex flex-wrap gap-1 mt-0.5">
+            {o.propuesto && <span className="px-1 rounded bg-primary/10 text-primary font-semibold" title="Propuesta de la planificación rápida">⚡</span>}
+            {sinStock && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">sin stock</span>}
             {o.ruta && <span className="px-1 rounded bg-sky-50 text-sky-700 font-semibold inline-flex items-center gap-0.5"><IconoRuta className="w-3 h-3" />#{o.ruta.id}</span>}
             {movida && <span className="px-1 rounded bg-amber-50 text-amber-700 font-semibold" title={`Comprometida para el ${corto(o.fecha_original)}`}>↺ {corto(o.fecha_original)}</span>}
             {atrasada && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">atrasada</span>}
@@ -197,7 +240,35 @@ export default function SemanaEntregas() {
             </button>
           )}
         </div>
-        {masAdelante > 0 && <span className="ml-auto text-xs text-gray-500">{masAdelante} más adelante</span>}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {masAdelante > 0 && !propuesta && <span className="text-xs text-gray-500">{masAdelante} más adelante</span>}
+          {propuesta && (
+            <>
+              <span className="text-xs font-semibold rounded-full bg-green-50 text-green-700 px-2 py-0.5">✓ {propuesta.dias.size}</span>
+              {propuesta.fuera.size > 0 && <span className="text-xs font-semibold rounded-full bg-red-50 text-red-700 px-2 py-0.5">⚠ {propuesta.fuera.size} sin stock</span>}
+              <button type="button" onClick={confirmarPropuesta} disabled={confirmando || propuesta.dias.size === 0} className="px-3 py-1 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark disabled:opacity-50">
+                {confirmando ? "Guardando…" : "Confirmar"}
+              </button>
+              <button type="button" onClick={() => setPropuesta(null)} disabled={confirmando} className="text-sm text-gray-500 underline">Descartar</button>
+            </>
+          )}
+          {puedeEscribir && !propuesta && (
+            <>
+              <button type="button" onClick={planificarRapido} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark">
+                <Zap className="w-4 h-4" /> Planificación rápida
+              </button>
+              <Ayuda titulo="Planificación rápida">
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>De lunes a viernes, desde hoy; el sábado sólo a mano.</li>
+                  <li>Primero lo atrasado y lo de compromiso más temprano.</li>
+                  <li>Junta cada sector el mismo día, sin pasar su compromiso.</li>
+                  <li>Si no alcanza el stock en la semana, queda fuera y marcado.</li>
+                </ul>
+                <p className="mt-1">Es una propuesta: nada se guarda hasta confirmar.</p>
+              </Ayuda>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-2 grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)] items-start">
@@ -229,7 +300,7 @@ export default function SemanaEntregas() {
               <div
                 key={d.iso}
                 {...zona(d.iso)}
-                className={`rounded-xl border bg-white p-2 flex flex-col gap-1.5 min-h-[260px] ${sobre === d.iso ? "bg-primary/5 border-primary" : esHoy ? "border-primary/50" : "border-gray-200"} ${d.nombre === "Sáb" ? "opacity-80" : ""}`}
+                className={`rounded-xl border bg-white p-2 flex flex-col gap-1.5 min-h-[260px] ${sobre === d.iso ? "bg-primary/5 border-primary" : diasMalos.has(d.iso) ? "border-red-300" : esHoy ? "border-primary/50" : "border-gray-200"} ${d.nombre === "Sáb" ? "opacity-80" : ""}`}
               >
                 <div className="flex items-baseline justify-between px-0.5">
                   <span className={`text-sm font-semibold ${esHoy ? "text-primary" : "text-gray-800"}`}>{d.nombre} {diaDelMes(d.iso)}</span>
@@ -266,6 +337,8 @@ export default function SemanaEntregas() {
           })}
         </div>
       </div>
+
+      <InventarioSemana filas={filasInventario} dias={dias} />
 
       {editandoSectores && (
         <ModalSectores
