@@ -43,3 +43,6 @@ export function sinCaja(lineas, reparto, enCajasCerradas = {}) {
     redondear(l.por_preparar - (enCajasCerradas[l.id_nombre_facturacion] ?? 0) - (reparto[i] ?? []).reduce((s, n) => s + (Number(n) || 0), 0)),
   );
 }
+
+/** Un bulto de despacho que espera decisión: volvió de la ruta o no volvió. */
+export const decidible = (bulto) => ["Devuelto", "Faltante"].includes(bulto?.estado);
