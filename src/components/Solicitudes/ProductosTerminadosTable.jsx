@@ -268,8 +268,8 @@ export default function ProductosTerminadosTable({
                         </p>
                       )}
                       {fila.id_nombre_facturacion && stock != null && unidadesTotales > stock && (
-                        <p className="mt-0.5 text-xs text-red-600 leading-tight">
-                          Solicitas {unidadesTotales} un., pero hay {stock} disponibles.
+                        <p className="mt-0.5 text-xs text-amber-700 leading-tight">
+                          Hay {stock} disponibles; igual se puede solicitar.
                         </p>
                       )}
                     </td>

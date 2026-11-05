@@ -44,6 +44,18 @@ export default function RevisionEntregas() {
     cargar();
   }, [cargar]);
 
+  /** Tras emitir una NC desde la revisión: la bandeja y la entrega abierta, con su NC nueva. */
+  const refrescarAbierta = async () => {
+    try {
+      const r = await listarRevisiones(estado);
+      const lista = Array.isArray(r) ? r : [];
+      setFilas(lista);
+      setAbierta((a) => (a ? lista.find((e) => e.id === a.id) ?? a : a));
+    } catch (e) {
+      toast.error(e.message);
+    }
+  };
+
   const diferencias = (e) =>
     e.documentos.reduce((n, d) => n + d.lineas.filter((l) => Math.abs(l.recibida - l.esperada) > 1e-6).length, 0);
 
@@ -138,7 +150,13 @@ export default function RevisionEntregas() {
         loadingMessage="Cargando revisiones"
         emptyMessage={estado === "Pendiente" ? "No hay entregas esperando revisión." : "Nada por acá."}
       />
-      <ModalResolverRevision entrega={abierta} soloLectura={!puedeEscribir} onCerrar={() => setAbierta(null)} onResuelta={cargar} />
+      <ModalResolverRevision
+        entrega={abierta}
+        soloLectura={!puedeEscribir}
+        onCerrar={() => setAbierta(null)}
+        onResuelta={cargar}
+        onCambio={refrescarAbierta}
+      />
     </>
   );
 }

@@ -195,68 +195,129 @@ function FacturarForm({
   const esAPlazo = esVentaAPlazo(condicionPago) || esVentaAPlazo(condicionCliente);
   const glosaFecha = condicionPago || condicionCliente || null;
 
+  // 🔴 LO QUE ESTA FACTURA NO CUBRE COMO SE PIDIÓ, EN UN SOLO BLOQUE Y ANTES DEL DOCUMENTO.
+  // Facturar de más se deshace sólo con una nota de crédito (la OV 794, agosto). Antes eran tres
+  // recuadros —factura previa, saldo y picking corto— y dos de ellos listaban las MISMAS líneas.
+  // Ahora es una tabla: pedido · en esta factura · queda. El porqué va al «(?)».
+  const hayPickingCorto = Boolean(resumenPicking?.difieren) && !saldo?.hayFacturaPrevia;
+  const filas = new Map();
+  if (hayPickingCorto) {
+    for (const d of resumenPicking.diferencias) {
+      filas.set(d.nombre, { nombre: d.nombre, pedida: d.pedida, estaFactura: d.pickeada, queda: null });
+    }
+  }
+  for (const l of saldo?.lineasConSaldo ?? []) {
+    const previa = filas.get(l.nombre);
+    filas.set(l.nombre, {
+      nombre: l.nombre,
+      pedida: l.pedida,
+      estaFactura: previa?.estaFactura ?? l.por_facturar,
+      queda: l.saldo_tras,
+    });
+  }
+  const lineasBloque = [...filas.values()];
+  const muestraBloque = Boolean(saldo?.hayFacturaPrevia) || hayPickingCorto || Boolean(saldo?.quedaSaldoTras);
+  const fmt = (n) => Number(n ?? 0).toLocaleString("es-CL");
+
   return (
     <div className="flex flex-col gap-4">
-      {/* 🔴 EL AVISO DE PICKING VA PRIMERO, antes del documento. Facturar de más se deshace sólo
-          con una nota de crédito, y ya pasó: la OV 794 se facturó por 3.600 unidades habiendo
-          pickeado 2.376 y hubo que anularla el mismo día. */}
-      {/* Facturación parcial (2026-09-16): si la orden ya tiene factura, ésta lleva SÓLO lo
-          pickeado desde entonces. Se dice antes que nada, porque el total de la orden no es el
-          de este documento. */}
-      {saldo?.hayFacturaPrevia && (
-        <Aviso tono="info" tamano="xs">
-          Ya se facturaron {formatCLP(saldo.netoFacturado, 0)} neto. Esta factura lleva lo pickeado
-          desde entonces: <strong>{formatCLP(saldo.netoPorFacturar, 0)} neto</strong>.
-        </Aviso>
-      )}
-
-      {saldo?.quedaSaldoTras && (
-        <Aviso
-          tamano="xs"
-          ayuda="Con el saldo pendiente la orden queda en Facturada parcial y bodega pickea lo que falta desde la app; después se emite otra factura. Si no se deja pendiente, la orden queda Facturada y lo no despachado sigue visible con su motivo."
-          tituloAyuda="Saldo de la orden"
+      {muestraBloque && (
+        <div
+          className={`rounded-lg border px-3 py-3 flex flex-col gap-2 text-sm ${
+            lineasBloque.length ? "bg-amber-50 border-amber-300 text-amber-900" : "bg-blue-50 border-blue-200 text-blue-900"
+          }`}
         >
-          <div className="flex flex-col gap-1.5">
-            <span>
-              <strong>Esta factura no cubre todo el pedido.</strong> Falta:{" "}
-              {saldo.lineasConSaldo
-                .map((l) => `${l.nombre} (${l.saldo_tras.toLocaleString("es-CL")} de ${l.pedida.toLocaleString("es-CL")})`)
-                .join(" · ")}
-            </span>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={dejarSaldoPendiente}
-                onChange={(e) => setDejarSaldoPendiente(e.target.checked)}
-              />
-              <span>Dejar el saldo pendiente para una próxima factura</span>
-            </label>
-            {!dejarSaldoPendiente && (
-              <input
-                type="text"
-                value={motivoCierreSaldo}
-                onChange={(e) => setMotivoCierreSaldo(e.target.value)}
-                placeholder="¿Por qué no se despacha el resto? Ej.: quiebre de stock"
-                aria-label="Motivo para no despachar el resto"
-                className="px-2 py-1 border border-amber-300 rounded-md bg-white text-gray-800"
-              />
+          <div className="flex items-center gap-2 flex-wrap">
+            {saldo?.hayFacturaPrevia ? (
+              <>
+                <strong>Factura del saldo</strong>
+                <span>· {formatCLP(saldo.netoPorFacturar, 0)} neto (ya facturado {formatCLP(saldo.netoFacturado, 0)})</span>
+              </>
+            ) : hayPickingCorto ? (
+              <>
+                <strong>Sale por lo pickeado</strong>
+                <span>· {formatCLP(resumenPicking.facturable, 0)} de {formatCLP(resumenPicking.pedido, 0)} neto</span>
+              </>
+            ) : (
+              <strong>No cubre todo el pedido</strong>
             )}
+            <Ayuda titulo="Qué lleva esta factura">
+              <p>La factura declara lo que bodega pickeó, no lo pedido.</p>
+              {saldo?.hayFacturaPrevia && <p>La orden ya tiene factura: ésta lleva sólo lo pickeado desde entonces.</p>}
+              <p>Si la diferencia no es correcta, corrige el picking antes de emitir.</p>
+            </Ayuda>
           </div>
-        </Aviso>
-      )}
 
-      {resumenPicking?.difieren && !saldo?.hayFacturaPrevia && (
-        <Aviso
-          tamano="xs"
-          ayuda="La factura declara lo que bodega pickeó, que es lo que viaja. Si la diferencia no corresponde, corrige el picking antes de emitir: una factura emitida sólo se corrige con nota de crédito."
-          tituloAyuda="Se factura lo pickeado"
-        >
-          <strong>Se factura lo pickeado:</strong>{" "}
-          {resumenPicking.diferencias
-            .map((d) => `${d.nombre} (pidió ${d.pedida.toLocaleString("es-CL")}, se pickeó ${d.pickeada.toLocaleString("es-CL")})`)
-            .join(" · ")}
-          . Neto {formatCLP(resumenPicking.pedido, 0)} → <strong>{formatCLP(resumenPicking.facturable, 0)}</strong>.
-        </Aviso>
+          {lineasBloque.length > 0 && (
+            <table className="w-full text-xs bg-white rounded-md overflow-hidden">
+              <thead>
+                <tr className="text-gray-500 border-b border-gray-200">
+                  <th className="text-left font-medium px-2 py-1">Línea</th>
+                  <th className="text-right font-medium px-2 py-1">Pedido</th>
+                  <th className="text-right font-medium px-2 py-1">Esta factura</th>
+                  <th className="text-right font-medium px-2 py-1">Queda</th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-800">
+                {lineasBloque.map((f) => (
+                  <tr key={f.nombre} className="border-b border-gray-100 last:border-0">
+                    <td className="px-2 py-1">{f.nombre}</td>
+                    <td className="px-2 py-1 text-right tabular-nums">{fmt(f.pedida)}</td>
+                    <td className="px-2 py-1 text-right tabular-nums font-semibold text-amber-800">{fmt(f.estaFactura)}</td>
+                    <td className="px-2 py-1 text-right tabular-nums font-semibold text-amber-800">
+                      {f.queda == null ? "—" : fmt(f.queda)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {saldo?.quedaSaldoTras && (
+            <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <legend className="sr-only">Qué hacer con lo que queda</legend>
+              <span className="font-medium">Lo que queda:</span>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="saldo-factura"
+                  checked={dejarSaldoPendiente}
+                  onChange={() => setDejarSaldoPendiente(true)}
+                />
+                Dejar pendiente
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="saldo-factura"
+                  checked={!dejarSaldoPendiente}
+                  onChange={() => setDejarSaldoPendiente(false)}
+                />
+                Cerrar saldo
+              </label>
+              <Ayuda titulo="Lo que queda">
+                <p>
+                  <strong>Pendiente:</strong> la orden queda Facturada parcial y bodega pickea lo que
+                  falta desde la app para la próxima factura.
+                </p>
+                <p>
+                  <strong>Cerrar saldo:</strong> el cliente no recibirá el resto. El motivo queda
+                  registrado.
+                </p>
+              </Ayuda>
+              {!dejarSaldoPendiente && (
+                <input
+                  type="text"
+                  value={motivoCierreSaldo}
+                  onChange={(e) => setMotivoCierreSaldo(e.target.value)}
+                  placeholder="Motivo: quiebre de stock, el cliente no lo quiere…"
+                  aria-label="Motivo para cerrar el saldo"
+                  className="basis-full px-2 py-1 border border-amber-300 rounded-md bg-white text-gray-800"
+                />
+              )}
+            </fieldset>
+          )}
+        </div>
       )}
 
       {/* Lo que va a decir el documento, con la MISMA vista que la pestaña Documentos.
@@ -357,8 +418,11 @@ function FacturarForm({
         )}
       </div>
 
-      {/* Res. Ex. SII 154 (desde el 1-nov-2026): la factura ampara el traslado. */}
+      {/* Res. Ex. SII 144: la factura ampara el traslado. Por ahora no aparece: sólo las guías
+          llevan los datos, hasta que se encienda `DTE_RESOLUCION_154_FACTURAS`. */}
       <SelectorTransporte
+        esFactura
+        permiteRetiro
         idBodegaOrigen={idBodegaOrigen}
         valor={idTransporte}
         onCambiar={setIdTransporte}
@@ -992,16 +1056,23 @@ export default function OrdenVentaDetail() {
     if (estado === ESTADO_FACTURADA_PARCIAL) {
       const n = orden?.saldo_facturacion?.facturas_vigentes ?? 0;
       const facturas = `${n} factura${n === 1 ? "" : "s"}`;
+      const lineas = saldo?.lineasConSaldo ?? [];
+      const faltaTexto =
+        lineas.length === 1
+          ? `falta ${Number(lineas[0].saldo_tras).toLocaleString("es-CL")} de ${lineas[0].nombre}`
+          : lineas.length > 1
+            ? `faltan ${lineas.length} líneas`
+            : "queda saldo";
       return orden?.saldo_facturacion?.hay_por_facturar
         ? {
             tono: "atencion",
-            texto: `Facturada en parte (${facturas}) y con saldo pickeado sin facturar.`,
-            ayuda: "Desde la app, marca la orden lista para facturación para emitir la siguiente factura.",
+            texto: "Saldo pickeado sin facturar: márcala lista para facturación en la app.",
+            ayuda: `Facturada en parte (${facturas}). Desde la app, marca la orden lista para facturación para emitir la siguiente factura.`,
           }
         : {
             tono: "atencion",
-            texto: `Facturada en parte (${facturas}): queda saldo por despachar.`,
-            ayuda: "Bodega pickea el saldo desde la app y la orden vuelve a Lista para facturación. Si el cliente ya no lo quiere, usa «Cerrar saldo».",
+            texto: `Saldo: ${faltaTexto} · se pickea en la app.`,
+            ayuda: `Facturada en parte (${facturas}). Bodega pickea el saldo desde la app y la orden vuelve a Lista para facturación. Si el cliente ya no lo quiere, usa «Cerrar saldo».`,
           };
     }
 
@@ -1009,8 +1080,8 @@ export default function OrdenVentaDetail() {
       return {
         tono: "info",
         texto:
-          `Saldo cerrado el ${formatDate(orden.saldo_cerrado_en)}${orden?.saldoCerradoPor?.nombre ? ` por ${orden.saldoCerradoPor.nombre}` : ""}.` +
-          (orden?.motivo_cierre_saldo ? ` Motivo: ${orden.motivo_cierre_saldo}` : ""),
+          `Saldo cerrado el ${formatDate(orden.saldo_cerrado_en)}${orden?.saldoCerradoPor?.nombre ? ` por ${orden.saldoCerradoPor.nombre}` : ""}` +
+          (orden?.motivo_cierre_saldo ? ` · ${orden.motivo_cierre_saldo}` : ""),
       };
     }
 
@@ -1354,8 +1425,7 @@ export default function OrdenVentaDetail() {
         // caja estrecha por defecto cada línea se partía en varios renglones, así que el
         // detalle salía larguísimo y costaba dimensionar lo que se iba a emitir.
         ancho="max-w-4xl"
-        titulo="Facturar orden"
-        descripcion="Revisa el documento antes de emitirlo: al confirmar se envía al SII y sólo se corrige con nota de crédito."
+        titulo={`Facturar OV #${orden?.id ?? ""}`}
         pie={
           <>
             <button

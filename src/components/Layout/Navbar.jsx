@@ -15,8 +15,7 @@ import {
   ShieldUser,
   Bot,
   Link2,
-  PackageMinus, MapPinned,
-} from "lucide-react";
+  PackageMinus, MapPinned, PackageOpen } from "lucide-react";
 import { FaTruck, FaWarehouse, FaRegSmile, FaList, FaBroom, FaUsers, FaQrcode, FaClipboardCheck
 } from "react-icons/fa";
 
@@ -112,6 +111,7 @@ export default function Navbar() {
               <MenuLink to="/Inventario/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
               <MenuLink to="/Inventario" icon={<Boxes />} label="Inventario" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
               <MenuLink to="/Inventario/bultos" icon={<Box />} label="Bultos" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
+              <MenuLink to="/Inventario/sin-qr" icon={<PackageOpen />} label="Productos sin QR" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
               <MenuLink to="/Inventario/tomas" icon={<FaClipboardCheck />} label="Tomas de Inventario" isAllowed={checkScope(ModelType.SESION_INVENTARIADO, ScopeType.READ)} />
               <MenuLink to="/Inventario/consumo-interno" icon={<PackageMinus />} label="Consumo interno" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
             </MenuGroup>
