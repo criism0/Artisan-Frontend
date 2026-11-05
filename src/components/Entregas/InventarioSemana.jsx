@@ -23,7 +23,7 @@ export default function InventarioSemana({ filas, dias }) {
         </Ayuda>
       </h2>
       {filas.length === 0 ? (
-        <p className="text-sm text-gray-500">Ningún pedido de la semana pide productos con nombre de facturación.</p>
+        <p className="text-sm text-gray-500">Ningún pedido de la semana, ni de los que esperan, pide productos con nombre de facturación.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
@@ -43,7 +43,7 @@ export default function InventarioSemana({ filas, dias }) {
                   <td className="py-1 pr-2 text-gray-800">{f.nombre}</td>
                   <td
                     className="text-right px-2 tabular-nums"
-                    title={`Con QR ${formato(f.qr, f.unidad_venta)} · sin QR ${formato(f.sin_qr, f.unidad_venta)}`}
+                    title={`Con QR ${formato(f.qr, f.unidad_venta)} · sin QR ${formato(f.sin_qr, f.unidad_venta)}${f.comprometido > 0 ? ` · ya comprometido antes: ${formato(f.comprometido, f.unidad_venta)}` : ""}`}
                   >
                     {formato(f.disponible, f.unidad_venta)}
                   </td>

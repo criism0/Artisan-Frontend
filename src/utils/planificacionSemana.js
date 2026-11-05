@@ -9,6 +9,25 @@
 const EPS = 1e-9;
 const r3 = (n) => Math.round(n * 1000) / 1000;
 
+/**
+ * Desde cuándo un pedido «espera ser planificado»: sin fecha, o con una fecha ya pasada. Mirando la
+ * semana que viene, lo de esta semana (desde hoy) NO está atrasado: sigue en su día de esta semana.
+ */
+export function inicioDeLoPendiente(dias, hoy) {
+  return hoy && hoy < dias[0] ? hoy : dias[0];
+}
+
+/** Lo que piden, antes del primer día mostrado, los pedidos ya puestos desde hoy: consume stock de la semana. */
+function demandaPrevia(ordenes, dias, hoy) {
+  const previa = new Map();
+  if (!hoy || hoy >= dias[0]) return previa;
+  for (const o of ordenes) {
+    if (!o.dia || o.dia < hoy || o.dia >= dias[0]) continue;
+    for (const l of o.lineas ?? []) previa.set(l.id_nombre_facturacion, r3((previa.get(l.id_nombre_facturacion) ?? 0) + l.cantidad));
+  }
+  return previa;
+}
+
 /** Lo disponible por producto en la bodega: mapa id_nombre_facturacion → fila de inventario. */
 export function inventarioPorProducto(inventario, idBodega) {
   const mapa = new Map();
@@ -44,20 +63,23 @@ export function demandaPorDia(ordenes, dias) {
  * La tabla «Inventario de la semana»: por producto, lo disponible y lo que queda al cierre de cada
  * día. `pide` es lo que se pide ese día; `falta` es verdadero si ese día no alcanza.
  */
-export function tablaInventario(ordenes, dias, inventario, idBodega) {
+export function tablaInventario(ordenes, dias, inventario, idBodega, hoy) {
   const stock = inventarioPorProducto(inventario, idBodega);
   const demanda = demandaPorDia(ordenes, dias);
+  const previa = demandaPrevia(ordenes, dias, hoy);
+  const desde = inicioDeLoPendiente(dias, hoy);
   const porPlanificar = new Map();
   for (const o of ordenes) {
-    if (o.ruta || (o.dia && o.dia >= dias[0])) continue;
+    if (o.ruta || (o.dia && o.dia >= desde)) continue;
     for (const l of o.lineas ?? []) porPlanificar.set(l.id_nombre_facturacion, r3((porPlanificar.get(l.id_nombre_facturacion) ?? 0) + l.cantidad));
   }
-  const ids = new Set([...demanda.keys()]);
+  const ids = new Set([...demanda.keys(), ...porPlanificar.keys()]);
   const filas = [...ids].map((id) => {
     const s = stock.get(id);
     const disponible = Math.max(s?.disponible ?? 0, 0);
-    let queda = disponible;
-    const celdas = demanda.get(id).map((pide) => {
+    const comprometido = previa.get(id) ?? 0;
+    let queda = r3(disponible - comprometido);
+    const celdas = (demanda.get(id) ?? dias.map(() => 0)).map((pide) => {
       queda = r3(queda - pide);
       return { pide, queda, falta: pide > 0 && queda < -EPS };
     });
@@ -68,6 +90,7 @@ export function tablaInventario(ordenes, dias, inventario, idBodega) {
       qr: s?.qr ?? 0,
       sin_qr: s?.sin_qr ?? 0,
       disponible,
+      comprometido,
       celdas,
       porPlanificar: porPlanificar.get(id) ?? 0,
     };
@@ -91,9 +114,9 @@ export function pedidoSinAlcance(orden, filas, dias) {
 }
 
 /** «Alcanza» poniendo `orden` en el día `i` sin dejar sin stock ese día ni los siguientes. */
-function alcanza(orden, i, stock, demanda, dias) {
+function alcanza(orden, i, stock, demanda, dias, previa) {
   return (orden.lineas ?? []).every((l) => {
-    let queda = Math.max(stock.get(l.id_nombre_facturacion)?.disponible ?? 0, 0);
+    let queda = Math.max(stock.get(l.id_nombre_facturacion)?.disponible ?? 0, 0) - (previa.get(l.id_nombre_facturacion) ?? 0);
     const fila = demanda.get(l.id_nombre_facturacion) ?? dias.map(() => 0);
     for (let k = 0; k < dias.length; k++) {
       queda -= fila[k] + (k === i ? l.cantidad : 0);
@@ -114,8 +137,10 @@ function alcanza(orden, i, stock, demanda, dias) {
 export function planificacionRapida({ ordenes, dias, inventario, idBodega, hoy }) {
   const stock = inventarioPorProducto(inventario, idBodega);
   const habiles = dias.slice(0, 5).filter((d) => d >= hoy);
+  const desde = inicioDeLoPendiente(dias, hoy);
+  const previa = demandaPrevia(ordenes, dias, hoy);
   const pendientes = ordenes
-    .filter((o) => !o.ruta && (!o.dia || o.dia < dias[0]))
+    .filter((o) => !o.ruta && (!o.dia || o.dia < desde))
     .sort((a, b) => compromiso(a).localeCompare(compromiso(b)) || a.id - b.id);
 
   // Se parte de lo que ya está puesto en la semana; cada propuesta suma a esa demanda.
@@ -129,7 +154,7 @@ export function planificacionRapida({ ordenes, dias, inventario, idBodega, hoy }
     const tope = compromiso(o);
     const hastaTope = habiles.filter((d) => d <= tope).sort((a, b) => delSector(b, o.id_sector) - delSector(a, o.id_sector) || b.localeCompare(a));
     const despues = habiles.filter((d) => d > tope);
-    const dia = [...hastaTope, ...despues].find((d) => alcanza(o, dias.indexOf(d), stock, demanda, dias));
+    const dia = [...hastaTope, ...despues].find((d) => alcanza(o, dias.indexOf(d), stock, demanda, dias, previa));
     if (!dia) {
       fuera.push(o.id);
       continue;

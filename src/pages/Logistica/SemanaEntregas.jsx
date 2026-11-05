@@ -7,7 +7,7 @@ import Selector from "../../components/Forms/Selector";
 import ModalSectores from "../../components/Entregas/ModalSectores";
 import InventarioSemana from "../../components/Entregas/InventarioSemana";
 import Ayuda from "../../components/UI/Ayuda";
-import { diasSinStock, pedidoSinAlcance, planificacionRapida, tablaInventario } from "../../utils/planificacionSemana.js";
+import { diasSinStock, inicioDeLoPendiente, pedidoSinAlcance, planificacionRapida, tablaInventario } from "../../utils/planificacionSemana.js";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import * as rutasApi from "../../services/rutasService";
@@ -27,6 +27,8 @@ const lunesDe = (iso) => {
   const dow = new Date(`${iso}T12:00:00Z`).getUTCDay(); // 0 = domingo
   return sumarDias(iso, dow === 0 ? -6 : 1 - dow);
 };
+/** El lunes de «esta semana»: un domingo ya se planifica la que viene. */
+const lunesActual = (iso) => (new Date(`${iso}T12:00:00Z`).getUTCDay() === 0 ? sumarDias(iso, 1) : lunesDe(iso));
 const diaDelMes = (iso) => Number(iso.slice(8, 10));
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const corto = (iso) => `${diaDelMes(iso)} ${MESES[Number(iso.slice(5, 7)) - 1]}`;
@@ -42,7 +44,7 @@ const corto = (iso) => `${diaDelMes(iso)} ${MESES[Number(iso.slice(5, 7)) - 1]}`
  */
 export default function SemanaEntregas() {
   const navigate = useNavigate();
-  const [lunes, setLunes] = useState(() => lunesDe(hoyIso()));
+  const [lunes, setLunes] = useState(() => lunesActual(hoyIso()));
   const [bodegas, setBodegas] = useState([]);
   const [idBodega, setIdBodega] = useState("");
   const [datos, setDatos] = useState(null);
@@ -90,11 +92,12 @@ export default function SemanaEntregas() {
     [ordenesBase, propuesta],
   );
   const isoDias = useMemo(() => dias.map((d) => d.iso), [dias]);
-  const filasInventario = useMemo(() => tablaInventario(ordenes, isoDias, datos?.inventario ?? [], idBodega), [ordenes, isoDias, datos, idBodega]);
+  const filasInventario = useMemo(() => tablaInventario(ordenes, isoDias, datos?.inventario ?? [], idBodega, hoyIso()), [ordenes, isoDias, datos, idBodega]);
   const diasMalos = useMemo(() => diasSinStock(filasInventario, isoDias), [filasInventario, isoDias]);
   // Lo más urgente primero: atrasado por fecha (las más viejas arriba) y después lo sin fecha.
+  const desde = inicioDeLoPendiente(isoDias, hoy);
   const porPlanificar = ordenes
-    .filter((o) => !o.ruta && (!o.dia || o.dia < lunes))
+    .filter((o) => !o.ruta && (!o.dia || o.dia < desde))
     .sort((a, b) => (a.fecha_entrega ?? "9999").localeCompare(b.fecha_entrega ?? "9999") || b.id - a.id);
   const poolVisible = porPlanificar.filter(visible);
   const masAdelante = ordenes.filter((o) => o.dia && o.dia > sabado).length;
@@ -211,13 +214,23 @@ export default function SemanaEntregas() {
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex items-center rounded-lg border border-gray-300 bg-white">
-          <button type="button" className="p-2 hover:bg-gray-50" onClick={() => setLunes((l) => sumarDias(l, -7))} aria-label="Semana anterior"><ChevronLeft className="w-4 h-4" /></button>
+          <button type="button" className="p-2 hover:bg-gray-50" onClick={() => { setPropuesta(null); setLunes((l) => sumarDias(l, -7)); }} aria-label="Semana anterior"><ChevronLeft className="w-4 h-4" /></button>
           <span className="px-2 text-sm font-medium tabular-nums">{corto(lunes)} – {corto(sabado)}</span>
-          <button type="button" className="p-2 hover:bg-gray-50" onClick={() => setLunes((l) => sumarDias(l, 7))} aria-label="Semana siguiente"><ChevronRight className="w-4 h-4" /></button>
+          <button type="button" className="p-2 hover:bg-gray-50" onClick={() => { setPropuesta(null); setLunes((l) => sumarDias(l, 7)); }} aria-label="Semana siguiente"><ChevronRight className="w-4 h-4" /></button>
         </div>
-        {lunes !== lunesDe(hoy) && (
-          <button type="button" onClick={() => setLunes(lunesDe(hoy))} className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm hover:bg-gray-50">Hoy</button>
-        )}
+        <div className="inline-flex rounded-lg border border-gray-300 bg-white overflow-hidden text-sm" role="group" aria-label="Semana">
+          {[["Esta semana", lunesActual(hoy)], ["Próxima semana", sumarDias(lunesActual(hoy), 7)]].map(([nombre, l]) => (
+            <button
+              key={nombre}
+              type="button"
+              onClick={() => { setPropuesta(null); setLunes(l); }}
+              aria-pressed={lunes === l}
+              className={`px-3 py-1.5 ${lunes === l ? "bg-primary text-white font-semibold" : "hover:bg-gray-50 text-gray-700"}`}
+            >
+              {nombre}
+            </button>
+          ))}
+        </div>
         <div className="w-40">
           <Selector options={bodegas.map((b) => ({ value: String(b.id), label: b.nombre }))} selectedValue={idBodega} onSelect={setIdBodega} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm" />
         </div>

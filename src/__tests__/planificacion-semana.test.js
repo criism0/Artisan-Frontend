@@ -36,13 +36,41 @@ describe("tablaInventario", () => {
 
   it("lo que espera planificación va aparte y no consume stock de ningún día", () => {
     const filas = tablaInventario([ov(1, null, [lin(7, 5)]), ov(2, "2026-10-28", [lin(7, 2)])], DIAS, [inv(7, 1)], "3");
-    expect(filas).toHaveLength(0); // ningún día pide: la fila sólo aparece si algo ya está puesto
+    expect(filas).toHaveLength(1); // el producto sale por lo que espera, pero ningún día lo consume
+    expect(filas[0].porPlanificar).toBe(7);
+    expect(filas[0].celdas.every((c) => c.pide === 0 && !c.falta)).toBe(true);
   });
 
   it("pedidoSinAlcance avisa del pedido puesto en un día que no alcanza", () => {
     const ordenes = [ov(1, MA, [lin(7, 30)])];
     const filas = tablaInventario(ordenes, DIAS, [inv(7, 10)], "3");
     expect(pedidoSinAlcance(ordenes[0], filas, DIAS)).toBe(true);
+  });
+});
+
+describe("la semana que viene", () => {
+  const PROX = ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14"];
+  const hoy = "2026-11-05"; // jueves de la semana anterior
+
+  it("lo de esta semana no es «atrasado» ni espera planificación: sigue en su día", () => {
+    const r = planificacionRapida({ dias: PROX, idBodega: "3", hoy, inventario: [inv(7, 100)], ordenes: [ov(1, "2026-11-06", [lin(7, 5)])] });
+    expect(r.propuestas).toEqual([]);
+    expect(r.fuera).toEqual([]);
+  });
+
+  it("lo ya comprometido esta semana descuenta del stock de la próxima", () => {
+    const ordenes = [ov(1, "2026-11-06", [lin(7, 8)]), ov(2, PROX[0], [lin(7, 5)])];
+    const filas = tablaInventario(ordenes, PROX, [inv(7, 10)], "3", hoy);
+    expect(filas[0].comprometido).toBe(8);
+    expect(filas[0].celdas[0]).toMatchObject({ pide: 5, queda: -3, falta: true });
+  });
+
+  it("la planificación rápida de la próxima semana cuenta lo previo y puede usar el lunes", () => {
+    const ordenes = [ov(1, "2026-11-06", [lin(7, 8)]), ov(2, null, [lin(7, 5)], { fecha_entrega: PROX[1] })];
+    const sinStock = planificacionRapida({ dias: PROX, idBodega: "3", hoy, inventario: [inv(7, 10)], ordenes });
+    expect(sinStock.fuera).toEqual([2]);
+    const conStock = planificacionRapida({ dias: PROX, idBodega: "3", hoy, inventario: [inv(7, 20)], ordenes });
+    expect(conStock.propuestas).toEqual([{ id: 2, dia: PROX[1] }]);
   });
 });
 
