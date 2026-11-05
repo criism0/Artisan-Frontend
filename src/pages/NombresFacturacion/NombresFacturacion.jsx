@@ -118,6 +118,22 @@ function NombreForm({ form, setForm, onCancel, onSubmit, isSaving, submitLabel, 
         </p>
       </div>
 
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={form.stock_sin_qr !== false}
+          onChange={(e) => setForm((p) => ({ ...p, stock_sin_qr: e.target.checked }))}
+        />
+        <span>
+          <span className="block text-sm font-medium">Se controla sin QR</span>
+          <span className="block text-xs text-gray-500">
+            Se cuenta por cantidad en la toma y se descuenta al pickear y despachar. Apágalo si este
+            producto se maneja sólo con bultos con QR.
+          </span>
+        </span>
+      </label>
+
       <div>
         <label className="block text-sm font-medium mb-1">
           Información comercial
@@ -242,6 +258,7 @@ export default function NombresFacturacion() {
     ids_productos: [],
     // Default explicito: la venta esta estandarizada por pieza salvo lo que va a granel.
     unidad_venta: "Unidades",
+    stock_sin_qr: true,
     unidades_por_caja: "",
     codigo_sap: "",
     codigo_ean: "",
@@ -338,6 +355,7 @@ export default function NombresFacturacion() {
       // NO lleva "|| null": la unidad NUNCA se hereda del producto fisico (esa es la unidad
       // de produccion, no la de venta) y la columna es NOT NULL con default Unidades.
       unidad_venta: form.unidad_venta || "Unidades",
+      stock_sin_qr: form.stock_sin_qr !== false,
       codigo_sap: normalize(form.codigo_sap) || null,
       codigo_ean: normalize(form.codigo_ean) || null,
       codigo_dun14: normalize(form.codigo_dun14) || null,
@@ -397,6 +415,7 @@ export default function NombresFacturacion() {
       nombre: row?.nombre ?? "",
       descripcion: row?.descripcion ?? "",
       unidad_venta: row?.unidad_venta ?? "Unidades",
+      stock_sin_qr: row?.stock_sin_qr ?? true,
       unidades_por_caja: row?.unidades_por_caja != null ? String(row.unidades_por_caja) : "",
       codigo_sap: row?.codigo_sap ?? "",
       codigo_ean: row?.codigo_ean ?? "",
