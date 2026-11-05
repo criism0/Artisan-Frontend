@@ -105,42 +105,43 @@ const AYUDA_FLUJO_OV = (
  * y volvía a montar toda la barra cada vez que cambiaba cualquier estado de la vista.
  */
 function StepBar({ estadoActual }) {
-  // Una orden facturada a medias ya pasó por la facturación: en la barra se ve en ese paso. Lo
-  // que falta lo dice el aviso de estado, no un paso más.
-  const paso = estadoActual === ESTADO_FACTURADA_PARCIAL ? "Facturada" : estadoActual;
+  // Una orden facturada a medias ya pasó por la facturación: en la barra se ve en ese paso, en
+  // naranja —el color de su badge— y con su nombre. Lo que falta lo dice la línea de aviso.
+  const parcial = estadoActual === ESTADO_FACTURADA_PARCIAL;
+  const paso = parcial ? "Facturada" : estadoActual;
   const actual = PASOS_OV.indexOf(paso ?? "");
 
   // Sin tarjeta propia: es parte de la cabecera (dónde va la orden), no una sección más.
   return (
-    <div className="mb-6 -mt-2">
-      {/* Arriba y no centrado: «Lista para facturación» ocupa dos líneas y, centrado, su punto
-          quedaba más alto que los demás. */}
-      <div className="flex items-start justify-between">
-        {PASOS_OV.map((paso, idx) => {
-          const hecho = idx < actual;
-          const activo = idx === actual;
-          return (
-            <div key={paso} className="flex items-start flex-1">
-              <div className="flex flex-col items-center flex-1">
-                <div
-                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold
-                    ${hecho ? "bg-primary text-white" : activo ? "bg-primary text-white ring-2 ring-primary/30 ring-offset-1" : "bg-gray-200 text-gray-500"}`}
-                >
-                  {hecho ? "✓" : idx + 1}
-                </div>
-                <span
-                  className={`mt-1 text-[11px] text-center leading-tight ${activo ? "font-semibold text-primary" : hecho ? "text-gray-500" : "text-gray-400"}`}
-                >
-                  {paso}
-                </span>
+    <div className="flex items-center justify-between flex-1 min-w-0">
+      {PASOS_OV.map((paso, idx) => {
+        const hecho = idx < actual;
+        const activo = idx === actual;
+        const circuloActivo = parcial
+          ? "bg-orange-500 text-white ring-2 ring-orange-500 ring-offset-2"
+          : "bg-primary text-white ring-2 ring-primary ring-offset-2";
+        const textoActivo = parcial ? "font-semibold text-orange-700" : "font-semibold text-primary";
+        return (
+          <div key={paso} className="flex items-center flex-1">
+            <div className="flex flex-col items-center flex-1">
+              <div
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold
+                  ${hecho ? "bg-primary text-white" : activo ? circuloActivo : "bg-gray-200 text-gray-500"}`}
+              >
+                {hecho ? "✓" : idx + 1}
               </div>
-              {idx < PASOS_OV.length - 1 && (
-                <div className={`h-px flex-1 mx-1 mt-2.5 ${idx < actual ? "bg-primary" : "bg-gray-200"}`} />
-              )}
+              <span
+                className={`mt-1 text-xs text-center leading-tight ${activo ? textoActivo : hecho ? "text-gray-600" : "text-gray-400"}`}
+              >
+                {activo && parcial ? ESTADO_FACTURADA_PARCIAL : paso}
+              </span>
             </div>
-          );
-        })}
-      </div>
+            {idx < PASOS_OV.length - 1 && (
+              <div className={`h-0.5 flex-1 mx-1 ${idx < actual ? "bg-primary" : "bg-gray-200"}`} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -218,6 +219,13 @@ function FacturarForm({
   const lineasBloque = [...filas.values()];
   const muestraBloque = Boolean(saldo?.hayFacturaPrevia) || hayPickingCorto || Boolean(saldo?.quedaSaldoTras);
   const fmt = (n) => Number(n ?? 0).toLocaleString("es-CL");
+
+  const ORIGEN_FECHA = {
+    orden: "guardada en la orden",
+    condicion_orden: `documento${condicionPago ? ` · ${condicionPago}` : ""}`,
+    condicion_cliente: `ficha${condicionCliente ? ` · ${condicionCliente}` : ""}`,
+    manual: "a mano",
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -338,84 +346,143 @@ function FacturarForm({
         idTransporte={idTransporte}
       />
 
-      {/* 🔴 La orden de compra. Sin ella el retail rechaza la factura porque no puede casarla
-          con su pedido. Va de sólo lectura: sale del `numero_oc` de la orden. */}
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-          Orden de compra del cliente
-          <Ayuda titulo="Orden de compra">
-            Sale impresa en la factura como «Orden de compra N° …»: sin ella el retail rechaza la
-            factura porque no la puede casar con su pedido. Es el N° OC de la orden; si está mal,
-            se corrige en la orden.
-          </Ayuda>
-        </span>
-        {folioOC ? (
-          <>
-            <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-800 font-medium">
+      {/* Los datos del documento en dos columnas: menos scroll. Lo que antes se explicaba en una
+          nota bajo cada campo va al «(?)»; en pantalla sólo queda lo que falta o sorprende. */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* 🔴 La orden de compra. Sin ella el retail rechaza la factura porque no puede casarla
+            con su pedido. Va de sólo lectura: sale del `numero_oc` de la orden. */}
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+            OC del cliente
+            <Ayuda titulo="Orden de compra">
+              {folioOC ? (
+                <p>Sale en la factura como «Orden de compra N° {folioOC}». Si está mal, se corrige en la orden.</p>
+              ) : (
+                <p>{motivoOC} La factura saldrá sin referencia a la OC, y el retail suele rechazarla por eso.</p>
+              )}
+              {recortado && (
+                <p>
+                  La OC de la orden trae texto adicional («{numeroOc}») y en el documento sólo cabe
+                  el número.
+                </p>
+              )}
+            </Ayuda>
+          </span>
+          {folioOC ? (
+            <div className="px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-800 font-medium text-sm flex items-center justify-between gap-2">
               {folioOC}
+              {recortado && (
+                <span className="text-xs font-normal text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
+                  recortada
+                </span>
+              )}
             </div>
-            {recortado && (
-              <Aviso tamano="xs">
-                En el documento sólo cabe el número (la orden dice «{numeroOc}»). Si{" "}
-                <strong>{folioOC}</strong> no es el que usa el cliente, corrígelo en la orden.
-              </Aviso>
-            )}
-          </>
-        ) : (
-          <Aviso tamano="xs">
-            {motivoOC} <strong>La factura saldrá sin orden de compra</strong> y el retail suele
-            rechazarla.
-          </Aviso>
-        )}
-      </div>
+          ) : (
+            <div className="px-3 py-2 border border-amber-200 rounded-md bg-amber-50 text-amber-800 text-sm">
+              Sin OC: el retail puede rechazarla
+            </div>
+          )}
+        </div>
 
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-          Dirección de despacho {requiereDir && <span className="text-red-500">*</span>}
-          <Ayuda titulo="Dirección de despacho">
-            A dónde llega el pedido: es la que usa la ruta de entrega. La factura sale a nombre de
-            la dirección de facturación de la orden, y sólo si la orden no tiene una, de ésta.
-          </Ayuda>
-        </span>
-        {loadingDirecciones ? (
-          <span className="text-sm text-gray-400 py-2">Cargando direcciones...</span>
-        ) : direccionesDespacho.length === 0 ? (
-          <Aviso tamano="xs">
-            <div className="flex flex-col gap-1.5">
-              <span>
-                El cliente no tiene dirección de <strong>despacho</strong>: sin ella la entrega no se
-                puede rutear. Si recibe en otro lugar, agrégalo en la ficha del cliente.
-              </span>
-              {onCopiarComoDespacho && direccionesACopiar.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  onClick={() => onCopiarComoDespacho(d.id)}
-                  disabled={copiandoDespacho}
-                  className="self-start px-2 py-1 rounded-md border border-amber-400 bg-white hover:bg-amber-100 disabled:opacity-50"
-                >
-                  Recibe en su dirección de facturación ({[d.calle, d.numero, d.comuna].filter(Boolean).join(" ")}): usarla como despacho
-                </button>
-              ))}
-            </div>
-          </Aviso>
-        ) : (
-          <Selector
-            options={direccionesDespacho.map((d) => ({
-              value: String(d.id),
-              label: [d.tipo_direccion, d.nombre_sucursal, [d.calle, d.numero].filter(Boolean).join(" "), d.comuna]
-                .filter(Boolean)
-                .join(" — "),
-              searchText: [d.tipo_direccion, d.nombre_sucursal, d.calle, d.numero, d.comuna, d.region]
-                .filter(Boolean)
-                .join(" "),
-            }))}
-            selectedValue={idLocalDespacho}
-            onSelect={setIdLocalDespacho}
-            useFuzzy
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+            Dirección de despacho {requiereDir && <span className="text-red-500">*</span>}
+            <Ayuda titulo="Dirección de despacho">
+              A dónde llega el pedido: es la que usa la ruta de entrega. La factura sale a nombre de
+              la dirección de facturación de la orden, y sólo si la orden no tiene una, de ésta.
+            </Ayuda>
+          </span>
+          {loadingDirecciones ? (
+            <span className="text-sm text-gray-400 py-2">Cargando direcciones...</span>
+          ) : direccionesDespacho.length === 0 ? (
+            <Aviso tamano="xs">
+              <div className="flex flex-col gap-1.5">
+                <span>
+                  El cliente no tiene dirección de <strong>despacho</strong>: sin ella la entrega no se
+                  puede rutear. Si recibe en otro lugar, agrégalo en la ficha del cliente.
+                </span>
+                {onCopiarComoDespacho && direccionesACopiar.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => onCopiarComoDespacho(d.id)}
+                    disabled={copiandoDespacho}
+                    className="self-start px-2 py-1 rounded-md border border-amber-400 bg-white hover:bg-amber-100 disabled:opacity-50"
+                  >
+                    Recibe en su dirección de facturación ({[d.calle, d.numero, d.comuna].filter(Boolean).join(" ")}): usarla como despacho
+                  </button>
+                ))}
+              </div>
+            </Aviso>
+          ) : (
+            <Selector
+              options={direccionesDespacho.map((d) => ({
+                value: String(d.id),
+                label: [d.tipo_direccion, d.nombre_sucursal, [d.calle, d.numero].filter(Boolean).join(" "), d.comuna]
+                  .filter(Boolean)
+                  .join(" — "),
+                searchText: [d.tipo_direccion, d.nombre_sucursal, d.calle, d.numero, d.comuna, d.region]
+                  .filter(Boolean)
+                  .join(" "),
+              }))}
+              selectedValue={idLocalDespacho}
+              onSelect={setIdLocalDespacho}
+              useFuzzy
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+            />
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-gray-700">Fecha de facturación *</span>
+          <input
+            type="date"
+            value={fechaFacturacion}
+            onChange={(e) => setFechaFacturacion(e.target.value)}
+            className={inputCls}
           />
-        )}
+        </div>
+
+        {/* La fecha de pago SÍ es editable acá, pero su lugar natural es la ORDEN: es un término
+            de la venta, no de la facturación. Esto es la última confirmación antes de emitir. */}
+        <div className="flex flex-col gap-1">
+          <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5 flex-wrap">
+            Fecha de pago
+            {/* 🔴 DE DÓNDE SALIÓ LA FECHA, como chip: el número solo no dice si alguien la decidió
+                o si el sistema la dedujo de la ficha. Vacío no siempre es contado: a plazo y sin
+                fecha es un dato que falta, y se ve en ámbar. */}
+            {fechaVencimiento ? (
+              <span className="text-xs font-normal rounded px-1.5 py-0.5 bg-violet-100 text-violet-700">
+                {ORIGEN_FECHA[origenFecha] ?? "a mano"}
+              </span>
+            ) : esAPlazo ? (
+              <span className="text-xs font-normal rounded px-1.5 py-0.5 bg-amber-100 text-amber-800">
+                a plazo{glosaFecha ? ` (${glosaFecha})` : ""}, sin fecha
+              </span>
+            ) : (
+              <span className="text-xs font-normal rounded px-1.5 py-0.5 bg-gray-100 text-gray-600">
+                contado
+              </span>
+            )}
+            <Ayuda titulo="Fecha de pago">
+              <p>Sale en la factura como vencimiento y como pago programado.</p>
+              <p>
+                Sin fecha, la factura sale al contado. Si la venta es a plazo, el cliente usa esta
+                fecha para pagar.
+              </p>
+            </Ayuda>
+          </span>
+          <input
+            type="date"
+            value={fechaVencimiento}
+            onChange={(e) => {
+              setFechaVencimiento(e.target.value);
+              // Escrita a mano deja de ser «la que propuso el sistema».
+              setOrigenFecha("manual");
+            }}
+            className={inputCls}
+          />
+        </div>
       </div>
 
       {/* Res. Ex. SII 144: la factura ampara el traslado. Por ahora no aparece: sólo las guías
@@ -428,62 +495,6 @@ function FacturarForm({
         onCambiar={setIdTransporte}
         onExigida={setTransporteExigido}
       />
-
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">Fecha de facturación *</span>
-        <input
-          type="date"
-          value={fechaFacturacion}
-          onChange={(e) => setFechaFacturacion(e.target.value)}
-          className={inputCls}
-        />
-      </div>
-
-      {/* La fecha de pago SÍ es editable acá, pero su lugar natural es la ORDEN: es un término
-          de la venta, no de la facturación. Los pedidos EDI del retail la traen declarada y el
-          formulario de la OV la deja editar; esto es la última confirmación antes de emitir. */}
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
-          Fecha de pago
-          <Ayuda titulo="Fecha de pago">
-            Sale en la factura como vencimiento y pago programado. Se propone desde lo guardado en
-            la orden, después la condición del documento del cliente y al final su ficha. Sin fecha,
-            la factura sale al contado.
-          </Ayuda>
-        </span>
-        <input
-          type="date"
-          value={fechaVencimiento}
-          onChange={(e) => {
-            setFechaVencimiento(e.target.value);
-            // Escrita a mano deja de ser «la que propuso el sistema». Decirlo evita que alguien
-            // lea una fecha tecleada como si viniera de la condición del cliente.
-            setOrigenFecha("manual");
-          }}
-          className={inputCls}
-        />
-        {/* 🔴 DE DÓNDE SALIÓ LA FECHA. El número solo no dice si alguien la decidió para esta
-            orden o si el sistema la dedujo de la ficha del cliente, y eso es justo lo que hay
-            que saber al confirmarla antes de emitir. Mismo criterio que `OrigenPrecio`. */}
-        {fechaVencimiento ? (
-          <span className="text-xs text-gray-500">
-            {origenFecha === "orden" && "Guardada en esta orden."}
-            {origenFecha === "condicion_orden" &&
-              `Desde el documento del cliente${condicionPago ? ` (${condicionPago})` : ""}.`}
-            {origenFecha === "condicion_cliente" &&
-              `Desde la ficha del cliente${condicionCliente ? ` (${condicionCliente})` : ""}.`}
-            {origenFecha === "manual" && "Escrita a mano."}
-          </span>
-        ) : esAPlazo ? (
-          // Vacío no siempre significa contado: si es a plazo, la factura sin vencimiento es un
-          // dato que falta, no una decisión. No bloquea, pero tiene que verse antes de emitir.
-          <Aviso tamano="xs">
-            Es una venta <strong>a plazo</strong>
-            {glosaFecha ? ` (${glosaFecha})` : ""} sin fecha de pago: la factura saldrá sin
-            vencimiento.
-          </Aviso>
-        ) : null}
-      </div>
     </div>
   );
 }
@@ -1044,36 +1055,37 @@ export default function OrdenVentaDetail() {
     return null;
   })();
 
-  // Lo que el estado obliga a saber AHORA. Lo que sólo explica cómo avanza la orden («pasa a
-  // En picking al registrar el primer bulto», «pasa a Entregada cuando el chofer…») ya no va en
-  // un recuadro: está en el «(?)» del título (`AYUDA_FLUJO_OV`).
+  // Lo que el estado explica pero no permite hacer, en UNA línea dentro de la tarjeta de la
+  // barra de pasos. Antes era un párrafo propio que repetía el estado que ya dicen el badge y la
+  // barra (pedido de Cristóbal, 2026-09-21: «algunos dicen dos veces lo mismo»). En pantalla
+  // queda el dato; el porqué va al «(?)». `texto: null` = sólo el «(?)», sin línea.
   const avisoDeEstado = (() => {
     const estado = orden?.estado;
 
     if (estado === "Creada" && !canValidar)
-      return { tono: "atencion", texto: "No tienes permiso para validar esta orden." };
+      return {
+        tono: "amber",
+        texto: "Sin permiso para validar",
+        ayuda: "Pide a un administrador que valide esta orden o que te dé el permiso.",
+      };
+
+    // Cómo avanza una orden Validada lo explica el «(?)» del título (`AYUDA_FLUJO_OV`).
 
     if (estado === ESTADO_FACTURADA_PARCIAL) {
-      const n = orden?.saldo_facturacion?.facturas_vigentes ?? 0;
-      const facturas = `${n} factura${n === 1 ? "" : "s"}`;
       const lineas = saldo?.lineasConSaldo ?? [];
-      const faltaTexto =
-        lineas.length === 1
-          ? `falta ${Number(lineas[0].saldo_tras).toLocaleString("es-CL")} de ${lineas[0].nombre}`
+      const texto = orden?.saldo_facturacion?.hay_por_facturar
+        ? "Saldo pickeado sin facturar: márcala lista para facturación en la app"
+        : lineas.length === 1
+          ? `Saldo: falta ${Number(lineas[0].saldo_tras).toLocaleString("es-CL")} de ${lineas[0].nombre} · se pickea en la app`
           : lineas.length > 1
-            ? `faltan ${lineas.length} líneas`
-            : "queda saldo";
-      return orden?.saldo_facturacion?.hay_por_facturar
-        ? {
-            tono: "atencion",
-            texto: "Saldo pickeado sin facturar: márcala lista para facturación en la app.",
-            ayuda: `Facturada en parte (${facturas}). Desde la app, marca la orden lista para facturación para emitir la siguiente factura.`,
-          }
-        : {
-            tono: "atencion",
-            texto: `Saldo: ${faltaTexto} · se pickea en la app.`,
-            ayuda: `Facturada en parte (${facturas}). Bodega pickea el saldo desde la app y la orden vuelve a Lista para facturación. Si el cliente ya no lo quiere, usa «Cerrar saldo».`,
-          };
+            ? `Saldo: faltan ${lineas.length} líneas · se pickean en la app`
+            : "Queda saldo por despachar";
+      return {
+        tono: "orange",
+        texto,
+        ayuda:
+          "La orden ya tiene factura. Bodega pickea lo que falta desde la app y la orden vuelve a Lista para facturación. Si el cliente ya no lo quiere, usa «Cerrar saldo».",
+      };
     }
 
     if (estado === "Facturada" && orden?.saldo_cerrado_en) {
@@ -1091,9 +1103,9 @@ export default function OrdenVentaDetail() {
       return {
         tono: "error",
         texto:
-          `Cancelada${cuando ? ` el ${cuando}` : ""}${quien ? ` por ${quien}` : ""}.` +
-          (orden?.motivo_cancelacion ? ` Motivo: ${orden.motivo_cancelacion}` : ""),
-        ayuda: `«Reabrir pedido» la devuelve a ${orden?.estado_previo_cancelacion || "su estado anterior"}, tal como estaba.`,
+          `Cancelado${cuando ? ` el ${cuando}` : ""}${quien ? ` por ${quien}` : ""}` +
+          (orden?.motivo_cancelacion ? ` · ${orden.motivo_cancelacion}` : ""),
+        ayuda: `«Reabrir pedido» lo devuelve a ${orden?.estado_previo_cancelacion || "su estado anterior"}.`,
       };
     }
 
@@ -1223,9 +1235,13 @@ export default function OrdenVentaDetail() {
   ];
 
   // ── Render ──────────────────────────────────────────────────────────────────
-  // El total va en la cabecera, junto al cliente: es lo que se mira de un vistazo. Antes era una
-  // tarjeta suelta a la derecha con media pantalla vacía al lado, y el desglose se repetía abajo.
   const nombreCliente = cliente?.razon_social || cliente?.nombre_empresa;
+  const TONOS_AVISO = {
+    amber: "text-amber-800 bg-amber-50",
+    orange: "text-orange-800 bg-orange-50",
+    blue: "text-blue-800 bg-blue-50",
+    red: "text-red-800 bg-red-50",
+  };
 
   return (
     <div>
@@ -1262,24 +1278,35 @@ export default function OrdenVentaDetail() {
         }
       />
 
-      {avisoDeEstado && (
-        <Aviso
-          tono={avisoDeEstado.tono}
-          ayuda={avisoDeEstado.ayuda}
-          className="mb-6"
-        >
-          {avisoDeEstado.texto}
-        </Aviso>
-      )}
-
-      {/* Un pedido cancelado salió del flujo — pintar la barra de pasos ahí sugeriría que sigue
-          avanzando por alguno de ellos. El aviso de arriba ya dice todo lo que hace falta. */}
-      {orden?.estado !== "Cancelada" && <StepBar estadoActual={orden?.estado} />}
-
-      <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500 mb-6 max-w-xs ml-auto">
-        <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Total</div>
-        <div className="text-lg font-bold text-text mt-1">{formatCLP(total, 0)}</div>
-        <div className="text-xs text-gray-600 mt-2">Neto: {formatCLP(totalNeto, 0)} · IVA: {formatCLP(iva, 0)}</div>
+      {/* Estado + total en UNA tarjeta (2026-11-04). Antes eran tres bloques: un párrafo de
+          aviso que repetía el estado, la barra de pasos y una tarjeta suelta con el total. El
+          total va solo: Neto e IVA están en los totales de «Productos». */}
+      <div className="bg-white rounded-lg shadow px-4 py-3 mb-6 flex flex-col gap-3">
+        <div className="flex items-center gap-4">
+          {/* Un pedido cancelado salió del flujo — pintar la barra ahí sugeriría que sigue
+              avanzando por alguno de los pasos. */}
+          {orden?.estado !== "Cancelada" ? (
+            <StepBar estadoActual={orden?.estado} />
+          ) : (
+            <div className="flex-1" />
+          )}
+          <div className="border-l border-gray-200 pl-4 text-right shrink-0">
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Total</div>
+            <div className="text-lg font-bold text-text">{formatCLP(total, 0)}</div>
+          </div>
+        </div>
+        {avisoDeEstado?.texto && (
+          <div
+            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm ${TONOS_AVISO[avisoDeEstado.tono] ?? TONOS_AVISO.blue}`}
+          >
+            <span>{avisoDeEstado.texto}</span>
+            {avisoDeEstado.ayuda && (
+              <Ayuda titulo="Qué significa">
+                <p>{avisoDeEstado.ayuda}</p>
+              </Ayuda>
+            )}
+          </div>
+        )}
       </div>
 
       <InformacionOrdenCliente
