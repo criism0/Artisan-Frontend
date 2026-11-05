@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowDown, ArrowUp, MapPin, Route as IconoRuta, Search, Sparkles, Truck, X, AlertTriangle, Pencil } from "lucide-react";
 import PageHeader from "../../components/UI/PageHeader";
@@ -73,6 +73,8 @@ export default function PlanificarRuta() {
   const [vuelve, setVuelve] = useState(true);
   const [recomendando, setRecomendando] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  const [errorRecorrido, setErrorRecorrido] = useState(null);
+  const pedidoRecorrido = useRef(0);
 
   const [buscando, setBuscando] = useState(null); // { orden }
   const [ubicandoBodega, setUbicandoBodega] = useState(false);
@@ -181,7 +183,7 @@ export default function PlanificarRuta() {
         toast.info(`No hay pedidos comprometidos hasta el ${formatearFecha(fecha)} con dirección. Marca pedidos de la lista.`);
         return;
       }
-      setPropuesta({ ...r, editada: false, idRuta: propuesta?.idRuta ?? null });
+      setPropuesta({ ...r, editada: false, vigente: true, idRuta: propuesta?.idRuta ?? null });
       setSeleccion(new Set(r.paradas.flatMap((p) => p.ordenes.map((o) => o.id))));
     } catch (e) {
       if (!errorBodega(e)) toast.error(e.message);
@@ -198,7 +200,7 @@ export default function PlanificarRuta() {
     setVuelve(v);
     if (!propuesta) return;
     if (!propuesta.editada && !propuesta.idRuta) recomendar(v);
-    else setPropuesta((p) => ({ ...p, editada: true }));
+    else setPropuesta((p) => ({ ...p, editada: true, vigente: false }));
   };
 
   const mover = (i, delta) =>
@@ -207,7 +209,7 @@ export default function PlanificarRuta() {
       const j = i + delta;
       if (j < 0 || j >= paradas.length) return p;
       [paradas[i], paradas[j]] = [paradas[j], paradas[i]];
-      return { ...p, paradas, editada: true };
+      return { ...p, paradas, editada: true, vigente: false };
     });
 
   const quitarParada = (i) =>
@@ -218,8 +220,42 @@ export default function PlanificarRuta() {
         quitada.ordenes.forEach((o) => n.delete(o.id));
         return n;
       });
-      return { ...p, paradas: p.paradas.filter((_, k) => k !== i), editada: true };
+      return { ...p, paradas: p.paradas.filter((_, k) => k !== i), editada: true, vigente: false };
     });
+
+  /**
+   * Km, tiempo y costo en vivo (reunión con Hernán, 2026-10-26): cada vez que se mueve o quita una
+   * parada, o se cambia la vuelta, se pide el recorrido en ese orden —sin guardar ni reordenar—.
+   * Medio segundo de espera para no llamar a Google por cada clic de una seguidilla; una respuesta
+   * vieja que llega tarde se descarta.
+   */
+  const claveRecorrido = propuesta ? JSON.stringify([propuesta.paradas.map((p) => p.ordenes.map((o) => o.id)), vuelve]) : null;
+  useEffect(() => {
+    if (!propuesta || propuesta.vigente !== false) return undefined;
+    if (!propuesta.paradas.length) {
+      setPropuesta((p) => (p ? { ...p, km: 0, minutos: 0, polilinea: null, costo_estimado: 0, vigente: true } : p));
+      return undefined;
+    }
+    const n = ++pedidoRecorrido.current;
+    const t = setTimeout(async () => {
+      try {
+        const r = await rutasApi.calcularRecorrido({
+          id_bodega: Number(idBodega),
+          id_ruta: propuesta.idRuta ?? undefined,
+          vuelve_a_bodega: vuelve,
+          paradas: propuesta.paradas.map((p) => ({ ordenes: p.ordenes.map((o) => o.id) })),
+        });
+        if (n !== pedidoRecorrido.current) return;
+        setErrorRecorrido(null);
+        setPropuesta((p) => (p ? { ...p, km: r.km, minutos: r.minutos, polilinea: r.polilinea, costo_estimado: r.costo_estimado, vigente: true } : p));
+      } catch (e) {
+        if (n === pedidoRecorrido.current) setErrorRecorrido(e.message);
+      }
+    }, 500);
+    return () => clearTimeout(t);
+    // La clave resume las paradas y la vuelta; `propuesta` entera cambiaría con cada respuesta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claveRecorrido, propuesta?.vigente]);
 
   const descartar = () => {
     setPropuesta(null);
@@ -261,6 +297,7 @@ export default function PlanificarRuta() {
       costo_estimado: r.costo_estimado,
       avisos: [],
       editada: false,
+      vigente: true,
       idRuta: r.id,
     });
     setIdTransportista(r.id_transportista ? String(r.id_transportista) : "");
@@ -538,7 +575,7 @@ export default function PlanificarRuta() {
             bodega={bodega}
             paradas={propuesta?.paradas ?? []}
             sueltos={sueltos}
-            polilinea={propuesta?.editada ? null : propuesta?.polilinea}
+            polilinea={propuesta?.vigente === false ? null : propuesta?.polilinea}
             vuelve={vuelve}
           />
 
@@ -557,7 +594,11 @@ export default function PlanificarRuta() {
                   Descartar
                 </button>
               </div>
-              <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+              <div
+                className={`grid grid-cols-3 gap-2 mb-3 text-center transition-opacity ${propuesta.vigente === false ? "opacity-50" : ""}`}
+                aria-busy={propuesta.vigente === false}
+                title={propuesta.vigente === false ? "Recalculando con el nuevo orden…" : undefined}
+              >
                 <Dato titulo="Recorrido" valor={formatearKm(propuesta.km)} />
                 <Dato titulo="Tiempo manejando" valor={formatearMinutos(propuesta.minutos)} />
                 <Dato titulo="Costo" valor={CLP(propuesta.costo_estimado)} />
@@ -573,9 +614,9 @@ export default function PlanificarRuta() {
                 </Aviso>
               )}
               <AvisosRuta avisos={propuesta.avisos} />
-              {propuesta.editada && (
+              {propuesta.vigente === false && errorRecorrido && (
                 <Aviso tamano="xs" className="mb-2">
-                  Cambiaste la ruta: el recorrido y el costo se recalculan al guardar.
+                  No se pudo recalcular el recorrido: {errorRecorrido}. Se recalcula al guardar.
                 </Aviso>
               )}
               <ol className="flex flex-col gap-1 mb-3">
