@@ -5,6 +5,17 @@ export const listarPendientes = () => api("/rutas/pendientes");
 /** Todas las rutas, o las de un día. */
 export const listarRutas = (fecha) => api(fecha ? `/rutas?fecha=${encodeURIComponent(fecha)}` : "/rutas");
 export const obtenerRuta = (id) => api(`/rutas/${id}`);
+/** Las rutas entre dos fechas (la semana). */
+export const listarRutasRango = (desde, hasta) => api(`/rutas?desde=${desde}&hasta=${hasta}`);
+
+// ── La semana (Fase B del planificador semanal, 2026-10-30) ──
+/** { corte, sectores, ordenes: [{ id, cliente, comuna, id_sector, fecha_entrega, fecha_original, dia, ruta, … }] } */
+export const leerSemana = (idBodega) => api(`/rutas/semana${idBodega ? `?bodega=${idBodega}` : ""}`);
+/** Mueve la fecha de entrega (null = sin fecha). Queda registrado; 409 si la OV va en una ruta. */
+export const moverFechaEntrega = (idOrden, fecha) => api(`/rutas/ordenes/${idOrden}/fecha-entrega`, { method: "PUT", body: { fecha } });
+export const crearSector = (datos) => api("/rutas/sectores", { method: "POST", body: datos });
+export const actualizarSector = (id, datos) => api(`/rutas/sectores/${id}`, { method: "PUT", body: datos });
+export const eliminarSector = (id) => api(`/rutas/sectores/${id}`, { method: "DELETE" });
 /** Quiénes pueden hacerse cargo de una ruta: { id, nombre, email, rol }, los transportistas primero. */
 export const listarTransportistas = () => api("/rutas/transportistas");
 /** Las bodegas de origen, ya ubicadas: las que no tenían punto se ubican con su dirección. */
