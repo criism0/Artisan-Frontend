@@ -91,8 +91,9 @@ describe("ModelType y ScopeType", () => {
   // Canario contra adiciones accidentales: si sube, es porque alguien agregó un ModelType y
   // tiene que confirmar que el scope existe de verdad del lado del backend.
   // 50 → 51 el 2026-08-07 con DOCUMENTO_TRIBUTARIO (scopes 191/192/193, verificados en producción).
-  it("ModelType tiene exactamente 51 modelos", () => {
-    expect(Object.keys(ModelType)).toHaveLength(51);
+  // 51 → 53 el 2026-09-30 con RUTA y ENTREGA (los crea la migración 20260930130000-rutas-planificacion).
+  it("ModelType tiene exactamente 53 modelos", () => {
+    expect(Object.keys(ModelType)).toHaveLength(53);
   });
 
   it("ScopeType tiene exactamente 3 acciones", () => {

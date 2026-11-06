@@ -6,6 +6,8 @@ import Selector from "../../components/Forms/Selector";
 import ConfirmActionModal from "../../components/Modals/ConfirmActionModal";
 import Pagination from "../../components/UI/Pagination";
 import Tabs from "../../components/UI/Tabs";
+import PageHeader from "../../components/UI/PageHeader";
+import { Inbox } from "lucide-react";
 import PanelApartados from "../../components/DTE/PanelApartados";
 import PanelReglasColaIA from "../../components/Ventas/PanelReglasColaIA";
 import { compararFormato } from "../../utils/formatoProducto";
@@ -1241,19 +1243,23 @@ function OVIACard({
         </div>
       </div>
 
-      {/* Qué falta para validar, de un vistazo. Reemplaza tener que recorrer la tarjeta. */}
+      {/* Qué falta para validar, de un vistazo. Reemplaza tener que recorrer la tarjeta.
+          Sólo lo que falta: los requisitos cumplidos eran otros cuatro o cinco chips verdes por
+          tarjeta que no pedían nada. Si no falta nada, uno solo lo dice. */}
       <div className="flex flex-wrap gap-1.5 -mt-1">
-        {requisitos.map((r, i) => (
-          <span
-            key={i}
-            className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-              r.ok ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800"
-            }`}
-          >
-            {r.ok ? "✓ " : "• "}
-            {r.ok ? r.okTxt : r.faltaTxt}
+        {requisitos.some((r) => !r.ok) ? (
+          requisitos
+            .filter((r) => !r.ok)
+            .map((r, i) => (
+              <span key={i} className="text-xs px-2 py-0.5 rounded-full font-medium bg-amber-50 text-amber-800">
+                {r.faltaTxt}
+              </span>
+            ))
+        ) : (
+          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-50 text-green-700">
+            ✓ Lista para validar
           </span>
-        ))}
+        )}
       </div>
 
       {/* Metadata: remitente + asunto + OC/fecha */}
@@ -1822,28 +1828,28 @@ export default function ColaIAPage() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            Cola IA
-            {!loading && ordenes.length > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#7A5AF8] text-white text-xs font-bold">
-                {ordenes.length}
-              </span>
-            )}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Órdenes detectadas automáticamente vía correo. Revisa los productos, asocia los que
-            aparecen sin match, asigna bodega y valida cada orden.
-          </p>
-        </div>
-        <Link
-          to="/ConsumoGemini"
-          className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-[#7A5AF8] hover:text-[#6648e0] border border-[#7A5AF8]/30 hover:bg-[#7A5AF8]/5 rounded-xl px-3 py-2 transition"
-        >
-          Consumo API Gemini
-        </Link>
-      </div>
+      <PageHeader
+        titulo="Cola IA"
+        tituloAyuda="Cómo funciona la Cola IA"
+        ayuda={
+          <>
+            <p>
+              Las órdenes que llegan por correo se leen solas y quedan acá. Revisa cada una: cliente,
+              productos sin asociar, precios y bodega; después valídala o recházala.
+            </p>
+            <p>«Apartados» son los correos que no se pudieron leer y esperan que alguien los cargue a mano.</p>
+            <p>«Reglas» deja ignorar remitentes o asuntos que no son pedidos.</p>
+          </>
+        }
+        acciones={
+          <Link
+            to="/ConsumoGemini"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50"
+          >
+            Consumo API Gemini
+          </Link>
+        }
+      />
 
       <Tabs
         pestanas={[
@@ -1876,12 +1882,9 @@ export default function ColaIAPage() {
       {loading ? (
         <div className="text-center py-20 text-gray-400">Cargando…</div>
       ) : ordenes.length === 0 ? (
-        <div className="text-center py-20">
-          <p className="text-4xl mb-3">🎉</p>
-          <p className="text-gray-500 font-medium">No hay órdenes pendientes de validación</p>
-          <p className="text-xs text-gray-400 mt-1">
-            Cuando llegue un correo con una OC, aparecerá aquí automáticamente
-          </p>
+        <div className="text-center py-20 text-gray-400">
+          <Inbox className="w-8 h-8 mx-auto mb-2" aria-hidden />
+          <p className="text-gray-500">No hay órdenes por validar.</p>
         </div>
       ) : ordenesFiltradas.length === 0 ? (
         <div className="text-center py-20">

@@ -35,6 +35,7 @@ import SeccionAdjuntos from './SeccionAdjuntos.jsx';
 import BuscadorDteExterno from './BuscadorDteExterno.jsx';
 import VisorArchivo from './VisorArchivo.jsx';
 import Modal from '../UI/Modal.jsx';
+import Aviso from '../UI/Aviso.jsx';
 import Ayuda from '../UI/Ayuda.jsx';
 import SelectorTransporte from '../Logistica/SelectorTransporte.jsx';
 import { useDTE } from '../../hooks/useDTE.js';
@@ -59,7 +60,6 @@ function Chip({ tone = 'off', children }) {
   const tones = {
     ok:   'bg-green-100 text-green-700',
     warn: 'bg-yellow-100 text-yellow-700',
-    info: 'bg-blue-100 text-blue-700',
     off:  'bg-gray-100 text-gray-500',
   };
   return (
@@ -68,6 +68,8 @@ function Chip({ tone = 'off', children }) {
     </span>
   );
 }
+
+const BOTON = 'flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50';
 
 export default function CentroDocumentos({ orden, accionPrincipal = null, onCambio }) {
   const {
@@ -272,75 +274,33 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   return (
     <div className="bg-white rounded-lg shadow p-5">
 
-      {/* ── Cabecera ─────────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 mb-4 flex-wrap">
+      {/* ── Cabecera: el título y las acciones sobre documentos, en una sola fila ──────────
+          Antes llevaba además dos chips («OV: Facturada parcial», «Factura folio N») que
+          repetían el estado de la cabecera de la página y la fila de la tabla de abajo. */}
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         <FileText size={18} className="text-primary" />
         <h2 className="text-base font-semibold text-gray-900">Documentos</h2>
-        <div className="ml-auto flex items-center gap-2 flex-wrap">
-          {/* El estado de la OV no se repite acá: ya lo dicen el badge y la barra de pasos. */}
-          <Chip tone={chipDocumental.tone}>{chipDocumental.texto}</Chip>
-          {/* Con etiqueta: como ícono suelto de 14px en gris claro, nadie sabía que existía — y
-              era justamente lo que hacía falta apretar para ver el estado real del SII. */}
-          <button
-            type="button"
-            onClick={actualizarYRecargar}
-            disabled={loading}
-            title="Vuelve a preguntarle al SII en qué quedó cada documento"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded border border-gray-200
-                       text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-800
-                       disabled:opacity-40"
-          >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            Actualizar estado SII
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-sm text-red-700 mb-3">
-          {error}
-        </div>
-      )}
-
-      {/* Facturada fuera del ERP: se explica, y se ofrece VINCULAR —que no gasta folio— en vez de
-          un botón de emitir que crearía un segundo documento para una venta ya facturada. */}
-      {facturadaSinDocumento && (
-        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 mb-3">
-          Facturada fuera del ERP: sin documento acá.
-          <Ayuda titulo="Facturada fuera del ERP">
-            <p>
-              No se emite uno nuevo desde acá: sería un segundo documento para una venta ya
-              facturada. Si el documento existe en LibreDTE, lo que corresponde es vincularlo.
-            </p>
-          </Ayuda>
-        </div>
-      )}
-
-      {!tieneRUT && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-800 mb-3">
-          ⚠ <strong>{cliente.nombre_empresa ?? 'El cliente'}</strong> sin RUT: no se puede emitir factura.
-        </div>
-      )}
-
-      {/* Acción principal según estado (la entrega el padre: Facturar / Entregar) */}
-      {accionPrincipal && <div className="mb-4">{accionPrincipal}</div>}
-
-      {/* ── Documentos tributarios ───────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-          Documentos tributarios
-        </h3>
-        <div className="flex flex-wrap gap-2">
+        <Ayuda titulo="Documentos de la orden">
+          <p>
+            Factura, guías y notas de esta orden con su estado en el SII. El estado se consulta solo
+            al abrir la orden; «Actualizar SII» lo vuelve a preguntar.
+          </p>
+          <p>
+            Tras una factura sólo se emite una Nota de Crédito; tras esa nota, una de Débito, y así
+            alternando.
+          </p>
+          <p>
+            «Vincular documento externo» asocia un documento emitido fuera del ERP (panel de
+            LibreDTE o portal del SII). No gasta folio ni mueve inventario.
+          </p>
+        </Ayuda>
+        <Chip tone={chipDocumental.tone}>{chipDocumental.texto}</Chip>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {puedeEmitirGD && (
             <>
               {/* La guía consume folio y no se edita después, igual que la factura: mirarla antes
                   tiene que costar lo mismo que emitirla. */}
-              <button
-                type="button"
-                onClick={verBorradorGuia}
-                disabled={viendoBorradorGuia}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-              >
+              <button type="button" onClick={verBorradorGuia} disabled={viendoBorradorGuia} className={BOTON}>
                 <FileSearch size={14} />
                 {viendoBorradorGuia ? 'Generando…' : 'Ver cómo saldrá la guía'}
               </button>
@@ -348,7 +308,7 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
                 type="button"
                 onClick={() => emitirGuiaDespacho({ idTransporte: idTransporteGuia })}
                 disabled={loading || (transporteExigido && !idTransporteGuia)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                className={BOTON}
               >
                 <Truck size={14} />
                 {loading ? 'Generando…' : 'Emitir Guía de Despacho'}
@@ -383,6 +343,7 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
           <button
             type="button"
             onClick={() => setVinculando((v) => !v)}
+            aria-pressed={vinculando}
             className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border ${
               vinculando
                 ? 'bg-primary/10 border-primary text-primary'
@@ -391,8 +352,45 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
           >
             <Link2 size={14} /> Vincular documento externo
           </button>
+
+          {/* Con etiqueta: como ícono suelto de 14px en gris claro, nadie sabía que existía — y
+              era justamente lo que hacía falta apretar para ver el estado real del SII. */}
+          <button
+            type="button"
+            onClick={actualizarYRecargar}
+            disabled={loading}
+            title="Vuelve a preguntarle al SII en qué quedó cada documento"
+            className="inline-flex items-center gap-1.5 px-2 py-1.5 text-sm text-gray-500 hover:text-gray-800 disabled:opacity-40"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            Actualizar SII
+          </button>
         </div>
       </div>
+
+      {error && <Aviso tono="error" className="mb-3">{error}</Aviso>}
+
+      {/* Facturada fuera del ERP: se ofrece VINCULAR —que no gasta folio— en vez de un botón de
+          emitir que crearía un segundo documento para una venta ya facturada. */}
+      {facturadaSinDocumento && (
+        <Aviso
+          tono="neutro"
+          className="mb-3"
+          ayuda="Emitir uno nuevo desde acá sería un segundo documento para una venta ya facturada. Si el documento existe en LibreDTE, lo que corresponde es vincularlo."
+        >
+          Se facturó fuera del ERP: si el documento está en LibreDTE, vincúlalo.
+        </Aviso>
+      )}
+
+      {!tieneRUT && (
+        <Aviso className="mb-3">
+          <strong>{cliente.nombre_empresa ?? 'El cliente'}</strong> no tiene RUT: no se puede emitir la
+          factura hasta registrarlo en su ficha.
+        </Aviso>
+      )}
+
+      {/* Acción principal según estado (la entrega el padre: Facturar / Entregar) */}
+      {accionPrincipal && <div className="mb-4">{accionPrincipal}</div>}
 
       {puedeEmitirGD && (
         <div className="mb-3 max-w-md">
@@ -519,11 +517,10 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
 
         {/* El aviso cambia según el origen, porque el riesgo es distinto. */}
         {aDesvincular && !esExternoADesvincular && (
-          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            ⚠ Este documento <strong>lo emitió el ERP para esta orden</strong>: el vínculo no lo
-            creó nadie a mano. Al soltarlo, la orden deja de mostrarlo y para volver a encontrarlo
-            hay que buscarlo por folio en «Vincular documento externo».
-          </div>
+          <Aviso className="mt-3">
+            <strong>Lo emitió el ERP para esta orden.</strong> Al soltarlo deja de verse acá; para
+            recuperarlo hay que buscarlo por folio en «Vincular documento externo».
+          </Aviso>
         )}
 
         <label className="block text-xs text-gray-600 mt-4 mb-1">

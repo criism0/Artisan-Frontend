@@ -229,13 +229,10 @@ export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, compacto = 
         {cargando ? (
           <p className="text-sm text-gray-500 py-3">Cargando archivos…</p>
         ) : adjuntos.length === 0 ? (
-          <div className="border border-dashed border-gray-300 rounded-lg py-6 text-center">
-            <p className="text-sm text-gray-500">No hay archivos adjuntos.</p>
-            <p className="text-xs text-gray-400 mt-1">
-              Arrastrá un archivo acá, o usá «Adjuntar archivo». Se aceptan fotos, PDF, planillas
-              y documentos.
-            </p>
-          </div>
+          // La zona sigue recibiendo archivos arrastrados: no hace falta un recuadro que lo anuncie.
+          <p className="text-sm text-gray-400 py-2">
+            Sin archivos. Arrastra uno aquí o usa «Adjuntar archivo» (fotos, PDF, planillas, documentos).
+          </p>
         ) : (
           <ul className="divide-y divide-gray-100">
             {adjuntos.map((a) => {

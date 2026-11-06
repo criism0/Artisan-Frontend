@@ -43,6 +43,8 @@ export const ModelType = {
   PAUTA_ELABORACION: "PautaElaboracion",
   VALIDAR_ORDEN_VENTA: "ValidarOrdenVenta",
   SESION_INVENTARIADO: "SesionInventariado",
+  RUTA: "Ruta", // Logística → Entregas (rutas de entrega)
+  ENTREGA: "Entrega",
   PASO_PAUTA_ELABORACION: "PasoPautaElaboracion",
   MATERIA_PRIMA: "MateriaPrima",
   PROVEEDOR_MATERIA_PRIMA: "ProveedorMateriaPrima",

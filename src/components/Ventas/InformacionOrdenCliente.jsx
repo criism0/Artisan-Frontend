@@ -1,94 +1,41 @@
 import { useState } from "react";
-import { MapPin, MessageSquare, Pencil } from "lucide-react";
+import { MapPin, MessageSquare, Pencil, Home } from "lucide-react";
 import Selector from "../Forms/Selector";
+import UbicacionBadge from "../Mapas/UbicacionBadge";
+import ModalUbicar from "../Mapas/ModalUbicar";
+import ModalDireccionEntrega from "../Mapas/ModalDireccionEntrega";
+import {
+  accionesUbicarDireccion,
+  accionesUbicarEntrega,
+  ubicacionDeDireccion,
+  ubicacionDeEntrega,
+} from "../../services/ubicacionService";
 
 /**
- * "Información de la orden" + "Cliente", como dos tarjetas separadas.
+ * Una dirección de la orden (despacho o facturación), con su edición en línea.
  *
- * Antes esto estaba repartido en tres lugares: la fila de 4 stat-cards arriba (Cliente / Orden
- * de compra / Total / Bodega) Y la cabecera de `DetalleTipoFactura` (Cliente otra vez,
- * direcciones, fechas, OC otra vez). El número de OC salía dos veces en la misma pantalla.
- * Reporte de Cristóbal, 2026-08-20.
- *
- * Ahora: una tarjeta por tema, cada dato UNA sola vez. `DetalleTipoFactura` queda sólo con las
- * líneas y los totales — ya no repite nada de esto.
+ * 🔴 Vivía DENTRO de `InformacionOrdenCliente` (`const DireccionBloque = (...) => …`): React veía
+ * un componente nuevo en cada render y desmontaba el bloque entero, así que elegir una opción en
+ * el selector (que cambia el estado del padre) lo volvía a montar desde cero mientras se editaba.
  */
-export default function InformacionOrdenCliente({
-  orden,
-  cliente,
-  bodega,
-  formatDate,
-  // Dirección de despacho — editable en cualquier estado anterior a Entregada.
-  direccion,
-  direccionesDespacho = [],
-  editandoDireccion = false,
-  loadingDirecciones = false,
-  guardandoDireccion = false,
-  puedeEditarDireccion = true,
-  onEmpezarEdicionDireccion,
-  onCancelarEdicionDireccion,
-  onGuardarDireccion,
-  // Dirección de facturación — separada de la de despacho. Si no se elige, la factura sale
-  // igual a la dirección de despacho (fallback del backend).
-  direccionFacturacion = null,
-  direccionesFacturacion = [],
-  editandoDireccionFacturacion = false,
-  guardandoDireccionFacturacion = false,
-  puedeEditarDireccionFacturacion = true,
-  onEmpezarEdicionDireccionFacturacion,
-  onCancelarEdicionDireccionFacturacion,
-  onGuardarDireccionFacturacion,
-  comentarioCliente = null,
-  // Fecha de entrega comprometida — editable en cualquier estado anterior a Entregada, igual
-  // que las direcciones: se renegocia por teléfono más seguido de lo que se lee de un archivo.
-  editandoFechaEntrega = false,
-  guardandoFechaEntrega = false,
-  puedeEditarFechaEntrega = true,
-  onEmpezarEdicionFechaEntrega,
-  onCancelarEdicionFechaEntrega,
-  onGuardarFechaEntrega,
+function DireccionBloque({
+  titulo,
+  valor,
+  editando,
+  opciones,
+  seleccionActual,
+  setSeleccionActual,
+  guardando,
+  puedeEditar,
+  onEmpezar,
+  onCancelar,
+  onGuardar,
+  placeholderVacio,
+  exigeSeleccion,
+  onUbicar,
+  loadingDirecciones,
 }) {
-  const [seleccion, setSeleccion] = useState("");
-  const [fechaEntregaBorrador, setFechaEntregaBorrador] = useState("");
-  const [seleccionFacturacion, setSeleccionFacturacion] = useState("");
-
-  const opcionesDireccion = (() => {
-    const despacho = direccionesDespacho.filter((d) => d.tipo_direccion === "Despacho");
-    const base = despacho.length > 0 ? despacho : direccionesDespacho;
-    return base.map((d) => ({
-      value: String(d.id),
-      label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna]
-        .filter(Boolean)
-        .join(" — "),
-    }));
-  })();
-
-  const opcionesDireccionFacturacion = (() => {
-    const facturacion = direccionesFacturacion.filter((d) => d.tipo_direccion === "Facturación");
-    const base = facturacion.length > 0 ? facturacion : direccionesFacturacion;
-    return base.map((d) => ({
-      value: String(d.id),
-      label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna]
-        .filter(Boolean)
-        .join(" — "),
-    }));
-  })();
-
-  const DireccionBloque = ({
-    titulo,
-    valor,
-    editando,
-    opciones,
-    seleccionActual,
-    setSeleccionActual,
-    guardando,
-    puedeEditar,
-    onEmpezar,
-    onCancelar,
-    onGuardar,
-    placeholderVacio,
-    exigeSeleccion,
-  }) => (
+  return (
     <div>
       <div className="text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1">
         <MapPin className="w-3 h-3" />
@@ -139,7 +86,7 @@ export default function InformacionOrdenCliente({
           ) : exigeSeleccion ? (
             <span
               className="inline-block text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5"
-              title="Si no se elige antes, se confirma al facturar"
+              title="Si no se elige antes, se elige al facturar"
             >
               Sin asignar
             </span>
@@ -160,8 +107,96 @@ export default function InformacionOrdenCliente({
       {!editando && valor?.comentarios && (
         <div className="text-xs text-gray-500 mt-0.5 italic">{valor.comentarios}</div>
       )}
+      {!editando && valor && onUbicar && (
+        <div className="mt-1">
+          <UbicacionBadge lat={valor.lat} lng={valor.lng} precision={valor.geo_precision} onClick={onUbicar} />
+        </div>
+      )}
     </div>
   );
+}
+
+/**
+ * "Información de la orden" + "Cliente", como dos tarjetas separadas.
+ *
+ * Antes esto estaba repartido en tres lugares: la fila de 4 stat-cards arriba (Cliente / Orden
+ * de compra / Total / Bodega) Y la cabecera de `DetalleTipoFactura` (Cliente otra vez,
+ * direcciones, fechas, OC otra vez). El número de OC salía dos veces en la misma pantalla.
+ * Reporte de Cristóbal, 2026-08-20.
+ *
+ * Ahora: una tarjeta por tema, cada dato UNA sola vez. `DetalleTipoFactura` queda sólo con las
+ * líneas y los totales — ya no repite nada de esto.
+ */
+export default function InformacionOrdenCliente({
+  orden,
+  cliente,
+  bodega,
+  formatDate,
+  // Dirección de despacho — editable en cualquier estado anterior a Entregada.
+  direccion,
+  direccionesDespacho = [],
+  editandoDireccion = false,
+  loadingDirecciones = false,
+  guardandoDireccion = false,
+  puedeEditarDireccion = true,
+  onEmpezarEdicionDireccion,
+  onCancelarEdicionDireccion,
+  onGuardarDireccion,
+  // Dirección de facturación — separada de la de despacho. Si no se elige, la factura sale
+  // igual a la dirección de despacho (fallback del backend).
+  direccionFacturacion = null,
+  direccionesFacturacion = [],
+  editandoDireccionFacturacion = false,
+  guardandoDireccionFacturacion = false,
+  puedeEditarDireccionFacturacion = true,
+  onEmpezarEdicionDireccionFacturacion,
+  onCancelarEdicionDireccionFacturacion,
+  onGuardarDireccionFacturacion,
+  comentarioCliente = null,
+  // Fecha de entrega comprometida — editable en cualquier estado anterior a Entregada, igual
+  // que las direcciones: se renegocia por teléfono más seguido de lo que se lee de un archivo.
+  editandoFechaEntrega = false,
+  guardandoFechaEntrega = false,
+  puedeEditarFechaEntrega = true,
+  onEmpezarEdicionFechaEntrega,
+  onCancelarEdicionFechaEntrega,
+  onGuardarFechaEntrega,
+  // Rutas de entrega (2026-09-30): otra dirección para ESTE pedido (no una de las guardadas del
+  // cliente) y ubicación en el mapa. `onOrdenActualizada` recarga la orden después de guardar.
+  puedeEditarEntrega = false,
+  puedeUbicarDireccion = false,
+  onOrdenActualizada,
+}) {
+  const [seleccion, setSeleccion] = useState("");
+  const [editandoEntrega, setEditandoEntrega] = useState(false);
+  const [ubicando, setUbicando] = useState(null); // "entrega" | "despacho"
+  // Decisión de Cristóbal (2026-09-30): cualquier pedido puede ir a otra dirección, sin marcar al
+  // cliente de ninguna forma. La sección aparece cuando el pedido la tiene.
+  const muestraEntregaPropia = Boolean(orden?.entrega_direccion);
+  const [fechaEntregaBorrador, setFechaEntregaBorrador] = useState("");
+  const [seleccionFacturacion, setSeleccionFacturacion] = useState("");
+
+  const opcionesDireccion = (() => {
+    const despacho = direccionesDespacho.filter((d) => d.tipo_direccion === "Despacho");
+    const base = despacho.length > 0 ? despacho : direccionesDespacho;
+    return base.map((d) => ({
+      value: String(d.id),
+      label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna]
+        .filter(Boolean)
+        .join(" — "),
+    }));
+  })();
+
+  const opcionesDireccionFacturacion = (() => {
+    const facturacion = direccionesFacturacion.filter((d) => d.tipo_direccion === "Facturación");
+    const base = facturacion.length > 0 ? facturacion : direccionesFacturacion;
+    return base.map((d) => ({
+      value: String(d.id),
+      label: [d.nombre_sucursal || d.tipo_direccion, [d.calle, d.numero, d.info_adicional].filter(Boolean).join(" "), d.comuna]
+        .filter(Boolean)
+        .join(" — "),
+    }));
+  })();
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
@@ -285,6 +320,8 @@ export default function InformacionOrdenCliente({
             onGuardar={onGuardarDireccion}
             placeholderVacio="Se confirma al facturar si no se elige antes"
             exigeSeleccion
+            onUbicar={puedeUbicarDireccion ? () => setUbicando("despacho") : undefined}
+            loadingDirecciones={loadingDirecciones}
           />
           <DireccionBloque
             titulo="Dirección de facturación"
@@ -300,8 +337,61 @@ export default function InformacionOrdenCliente({
             onGuardar={onGuardarDireccionFacturacion}
             placeholderVacio="Usa la dirección de despacho"
             exigeSeleccion={false}
+            loadingDirecciones={loadingDirecciones}
           />
         </div>
+
+        {!muestraEntregaPropia && puedeEditarEntrega && (
+          <button
+            type="button"
+            onClick={() => setEditandoEntrega(true)}
+            className="mt-2 inline-flex items-center gap-1 text-xs text-gray-500 hover:text-primary"
+            title="Una dirección que no está entre las guardadas del cliente: sólo para este pedido, o nueva para el cliente"
+          >
+            <Home className="w-3 h-3" /> Entregar en otra dirección
+          </button>
+        )}
+
+        {muestraEntregaPropia && (
+          <div className="mt-3 pt-3 border-t border-border">
+            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide flex items-center gap-1">
+              <Home className="w-3 h-3" />
+              Entrega en otra dirección (sólo este pedido)
+              {puedeEditarEntrega && (
+                <button
+                  type="button"
+                  onClick={() => setEditandoEntrega(true)}
+                  className="text-gray-400 hover:text-primary ml-1"
+                  title={orden?.entrega_direccion ? "Cambiar la dirección de entrega" : "Escribir la dirección de entrega"}
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            {orden?.entrega_direccion ? (
+              <>
+                <div className="text-xs text-gray-600 mt-0.5">
+                  {[orden.entrega_direccion, orden.entrega_referencia, orden.entrega_comuna, orden.entrega_region]
+                    .filter(Boolean)
+                    .join(", ")}
+                </div>
+                {(orden.entrega_destinatario || orden.entrega_telefono) && (
+                  <div className="text-xs text-gray-500">
+                    {[orden.entrega_destinatario, orden.entrega_telefono].filter(Boolean).join(" · ")}
+                  </div>
+                )}
+                <div className="mt-1">
+                  <UbicacionBadge
+                    lat={orden.entrega_lat}
+                    lng={orden.entrega_lng}
+                    precision={orden.entrega_geo_precision}
+                    onClick={puedeEditarEntrega ? () => setUbicando("entrega") : undefined}
+                  />
+                </div>
+              </>
+            ) : null}
+          </div>
+        )}
 
         {comentarioCliente && (
           <div className="mt-3 pt-3 border-t border-border">
@@ -313,6 +403,35 @@ export default function InformacionOrdenCliente({
           </div>
         )}
       </div>
+
+      <ModalDireccionEntrega
+        abierto={editandoEntrega}
+        onCerrar={() => setEditandoEntrega(false)}
+        orden={orden}
+        onGuardada={() => onOrdenActualizada?.()}
+      />
+      {ubicando === "entrega" && (
+        <ModalUbicar
+          abierto
+          onCerrar={() => setUbicando(null)}
+          titulo={`Entrega de la OV #${orden?.id}`}
+          texto={[orden?.entrega_direccion, orden?.entrega_comuna, orden?.entrega_region].filter(Boolean).join(", ")}
+          actual={ubicacionDeEntrega(orden)}
+          {...accionesUbicarEntrega(orden?.id)}
+          onCambio={() => onOrdenActualizada?.()}
+        />
+      )}
+      {ubicando === "despacho" && direccion && (
+        <ModalUbicar
+          abierto
+          onCerrar={() => setUbicando(null)}
+          titulo={direccion.nombre_sucursal || "Dirección de despacho"}
+          texto={[[direccion.calle, direccion.numero].filter(Boolean).join(" "), direccion.comuna, direccion.region].filter(Boolean).join(", ")}
+          actual={ubicacionDeDireccion(direccion)}
+          {...accionesUbicarDireccion(direccion.id)}
+          onCambio={() => onOrdenActualizada?.()}
+        />
+      )}
     </div>
   );
 }

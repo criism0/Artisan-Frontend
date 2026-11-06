@@ -51,15 +51,11 @@ export default function CentroDocumentosSolicitud({
   solicitud,
   gds = [],
   cargando = false,
-  emitiendo = false,
-  viendoBorrador = false,
-  onEmitirGD,
-  onVerBorradorGD,
   onConfirmarLlegada,
   onCambio,
-  // Res. Ex. SII 154: el selector de transporte, y si emitir queda bloqueado mientras no se elija.
-  selectorTransporte = null,
-  emisionBloqueada = false,
+  // La guía se emite al enviar (es el mismo paso): si la solicitud se puede enviar, acá se ofrece
+  // abrir ese formulario en vez de un «emitir» aparte.
+  onEnviar = null,
 }) {
   const [vinculando, setVinculando] = useState(false);
   const [visorEn, setVisorEn] = useState(null);
@@ -147,7 +143,7 @@ export default function CentroDocumentosSolicitud({
           Guías de despacho
           <Ayuda titulo="Guía de despacho">
             La guía declara sólo lo que se despachó, con el valor de los bultos cargados en los
-            pallets. Se emite antes de marcar la solicitud como enviada y su folio queda como el
+            pallets. Se emite al enviar la solicitud, en el mismo paso, y su folio queda como el
             número de la guía.
           </Ayuda>
         </h3>
@@ -156,24 +152,16 @@ export default function CentroDocumentosSolicitud({
             puerta a gastar un segundo folio para el mismo traslado. */}
         {gds.length === 0 && (
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={onVerBorradorGD}
-              disabled={viendoBorrador || cargando}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-            >
-              <FileSearch className="w-4 h-4" />
-              {viendoBorrador ? 'Generando…' : 'Ver cómo saldrá'}
-            </button>
-            <button
-              type="button"
-              onClick={onEmitirGD}
-              disabled={emitiendo || cargando || emisionBloqueada}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
-            >
-              <Truck className="w-4 h-4" />
-              {emitiendo ? 'Emitiendo…' : 'Emitir guía de despacho'}
-            </button>
+            {onEnviar && (
+              <button
+                type="button"
+                onClick={onEnviar}
+                disabled={cargando}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+              >
+                <Truck className="w-4 h-4" /> Emitir guía y enviar
+              </button>
+            )}
             {/* Tarea #108: las guías de traslado se emiten a mano en LibreDTE muy seguido —eran
                 ~17 al mes cuando el ERP no tenía botón— y quedaban sin forma de asociarse a su
                 solicitud. Va junto a «emitir» porque es la otra respuesta a la misma pregunta:
@@ -194,8 +182,6 @@ export default function CentroDocumentosSolicitud({
           </div>
         )}
       </div>
-
-      {gds.length === 0 && selectorTransporte && <div className="mb-3 max-w-md">{selectorTransporte}</div>}
 
       {/* El buscador se abre acá adentro, no en un modal: buscar la guía que falta es parte de
           armar el expediente de la solicitud, y en un modal se pierde de vista la lista con la

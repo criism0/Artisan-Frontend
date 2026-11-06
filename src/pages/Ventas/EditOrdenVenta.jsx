@@ -4,6 +4,7 @@ import { useApi } from "../../lib/api";
 import { esGranel } from "../../utils/formatoCantidad";
 import { toast } from "../../lib/toast";
 import { ArrowLeft, Trash2, Pencil, Check, X } from "lucide-react";
+import Ayuda from "../../components/UI/Ayuda.jsx";
 import Selector from "../../components/Forms/Selector";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
@@ -423,11 +424,13 @@ export default function EditOrdenVenta() {
             {/* Cliente (solo lectura) */}
             <div className="flex flex-col gap-1 col-span-2">
               <span className="text-sm font-medium text-gray-700">Cliente</span>
-              <div className="border border-gray-200 bg-gray-50 px-3 py-2 rounded-md text-sm text-gray-800 font-medium">
+              <div
+                className="border border-gray-200 bg-gray-50 px-3 py-2 rounded-md text-sm text-gray-800 font-medium"
+                title="El cliente no se puede cambiar en edición"
+              >
                 {cliente.nombre_empresa || "—"}
                 {cliente.rut && <span className="ml-2 text-xs text-gray-400 font-normal">RUT {cliente.rut}</span>}
               </div>
-              <span className="text-xs text-gray-400 italic">El cliente no se puede cambiar en edición</span>
             </div>
 
             {/* Dirección de despacho — sí es editable, a diferencia del cliente */}
@@ -471,7 +474,6 @@ export default function EditOrdenVenta() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 />
               )}
-              <span className="text-xs text-gray-400 italic">Si no se elige, la factura usa la dirección de despacho</span>
             </label>
 
             {/* Número OC */}
@@ -506,28 +508,25 @@ export default function EditOrdenVenta() {
                 onChange={(e) => setForm((f) => ({ ...f, fecha_entrega: e.target.value }))}
                 className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
-              <span className="text-xs text-gray-500">
-                Vacía significa que no hay entrega comprometida.
-              </span>
             </label>
 
             {/* 🔴 Fecha de pago: es un término de la VENTA, no de la facturación. Sale impresa
                 en la factura como vencimiento y como pago programado, y quien factura sólo la
                 confirma. Los pedidos EDI del retail la traen declarada. */}
             <label className="flex flex-col gap-1">
-              <span className="text-sm font-medium text-gray-700">Fecha de pago</span>
+              <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                Fecha de pago
+                <Ayuda titulo="Fecha de pago">
+                  Sale en la factura como vencimiento y pago programado. Sin fecha, la factura sale al
+                  contado y sin vencimiento.
+                </Ayuda>
+              </span>
               <input
                 type="date"
                 value={form.fecha_vencimiento_pago}
                 onChange={(e) => setForm((f) => ({ ...f, fecha_vencimiento_pago: e.target.value }))}
                 className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
-              <span className="text-xs text-gray-400 italic">
-                {form.fecha_vencimiento_pago
-                  ? "Sale en la factura como vencimiento y como pago programado."
-                  : "Sin fecha, la factura sale al contado y sin vencimiento."}
-                {condicionPago ? ` Condición: ${condicionPago}.` : ""}
-              </span>
             </label>
 
             {/* Bodega */}
@@ -549,10 +548,12 @@ export default function EditOrdenVenta() {
             {/* Condición de pago (solo lectura) */}
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium text-gray-700">Condición de pago</span>
-              <div className="border border-gray-200 bg-gray-50 px-3 py-2 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center">
+              <div
+                className="border border-gray-200 bg-gray-50 px-3 py-2 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center"
+                title="Sale del cliente al crear la orden"
+              >
                 {condicionPago || <span className="text-gray-400">—</span>}
               </div>
-              <span className="text-xs text-gray-400 italic">Obtenida del cliente al crear la orden</span>
             </div>
 
             {/* Comentario del cliente — reporte de Hernán, 2026-08-17: un pedido web declaraba a
@@ -575,9 +576,9 @@ export default function EditOrdenVenta() {
             <div className="relative shrink-0">
               <input
                 type="checkbox"
-                className="sr-only"
                 checked={form.es_referencial}
                 onChange={(e) => setForm((f) => ({ ...f, es_referencial: e.target.checked }))}
+                className="sr-only"
               />
               <div className={`w-10 h-6 rounded-full transition-colors ${form.es_referencial ? "bg-primary" : "bg-gray-200"}`} />
               <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.es_referencial ? "translate-x-4" : ""}`} />

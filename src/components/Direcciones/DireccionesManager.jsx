@@ -6,6 +6,9 @@ import { api } from "../../lib/api";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { useConfirm } from "../Modals/ConfirmProvider.jsx";
+import UbicacionBadge from "../Mapas/UbicacionBadge";
+import ModalUbicar from "../Mapas/ModalUbicar";
+import { accionesUbicarDireccion, ubicacionDeDireccion } from "../../services/ubicacionService";
 
 export default function DireccionesManager({ 
   clienteId, 
@@ -17,6 +20,8 @@ export default function DireccionesManager({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDireccion, setEditingDireccion] = useState(null);
   const [loading, setLoading] = useState(false);
+  // Dirección cuya ubicación en el mapa se está viendo o corrigiendo (rutas de entrega).
+  const [ubicando, setUbicando] = useState(null);
   const confirm = useConfirm();
 
   const canWriteAddress = checkScope(ModelType.DIRECCION, ScopeType.WRITE);
@@ -232,6 +237,18 @@ export default function DireccionesManager({
                   {direccion.comentarios && (
                     <div className="text-xs text-gray-500 mt-1 italic">{direccion.comentarios}</div>
                   )}
+                  {/* Dónde queda en el mapa. Sólo las de despacho se rutean; y sólo una
+                      dirección ya guardada (con id real) se puede ubicar. */}
+                  {direccion.tipo_direccion === "Despacho" && clienteId && Number.isInteger(direccion.id) && (
+                    <div className="mt-2">
+                      <UbicacionBadge
+                        lat={direccion.lat}
+                        lng={direccion.lng}
+                        precision={direccion.geo_precision}
+                        onClick={canWriteAddress ? () => setUbicando(direccion) : undefined}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {isEditing && (
@@ -250,6 +267,25 @@ export default function DireccionesManager({
             </div>
           ))}
         </div>
+      )}
+
+      {ubicando && (
+        <ModalUbicar
+          abierto
+          onCerrar={() => setUbicando(null)}
+          titulo={ubicando.nombre_sucursal || "Dirección de despacho"}
+          texto={[[ubicando.calle, ubicando.numero].filter(Boolean).join(" "), ubicando.comuna, ubicando.region].filter(Boolean).join(", ")}
+          actual={ubicacionDeDireccion(ubicando)}
+          {...accionesUbicarDireccion(ubicando.id)}
+          onCambio={(u) => {
+            const actualizar = (d) =>
+              d.id === ubicando.id
+                ? { ...d, lat: u.lat, lng: u.lng, geo_precision: u.precision, geo_direccion_formateada: u.formateada }
+                : d;
+            setDireccionesList((prev) => prev.map(actualizar));
+            onDireccionesChange?.(direccionesList.map(actualizar));
+          }}
+        />
       )}
 
       <DireccionModal

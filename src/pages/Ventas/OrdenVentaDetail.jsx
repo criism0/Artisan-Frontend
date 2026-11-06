@@ -9,15 +9,15 @@ import {
   Receipt,
   RotateCcw,
   Trash2,
-  Truck,
   Undo2,
 } from "lucide-react";
-import Table from "../../components/Tables/Table";
 import PageHeader from "../../components/UI/PageHeader.jsx";
 import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
 import Tabs from "../../components/UI/Tabs.jsx";
 import Modal from "../../components/UI/Modal.jsx";
+import Aviso from "../../components/UI/Aviso.jsx";
 import Ayuda from "../../components/UI/Ayuda.jsx";
+import EstadoOVBadge from "../../components/Ventas/EstadoOVBadge.jsx";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { formatCLP } from "../../services/formatHelpers";
@@ -26,6 +26,8 @@ import { generarNotaVentaPDF } from "../../services/notaVentaPdf.js";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import CentroDocumentos from "../../components/DTE/CentroDocumentos.jsx";
+import EntregasDeOrden from "../../components/Entregas/EntregasDeOrden";
+import DespachoOrden from "../../components/Entregas/DespachoOrden";
 import DTEPreview from "../../components/DTE/DTEPreview.jsx";
 import SelectorTransporte from "../../components/Logistica/SelectorTransporte.jsx";
 import EstadoPosteriorBadge from "../../components/Ventas/EstadoPosteriorBadge.jsx";
@@ -40,6 +42,7 @@ import { resumenFacturable } from "../../utils/cantidadFacturable.js";
 import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
 import { puedeCancelarOV, puedeReabrirCancelacion } from "../../utils/ordenVentaCancelable.js";
 import { resumenSaldo, puedeCerrarSaldo, ESTADO_FACTURADA_PARCIAL } from "../../utils/saldoFacturacion.js";
+import { copiarComoDespacho } from "../../services/ubicacionService";
 import { formatFecha, getTodayDate } from "../../lib/dateUtils";
 
 // ── Clases de botones reutilizables ──────────────────────────────────────────
@@ -75,6 +78,25 @@ const PASOS_OV = [
   "Entregada",
 ];
 
+// Cómo avanza una orden. Antes cada estado lo explicaba en un recuadro azul bajo el título;
+// ahora vive en el «(?)» y en pantalla quedan sólo los avisos que piden hacer algo.
+const AYUDA_FLUJO_OV = (
+  <ul className="list-disc ml-4 space-y-1">
+    <li><strong>Creada → Validada</strong> con «Validar orden».</li>
+    <li>
+      <strong>Validada → En picking</strong> al registrar el primer bulto. Si la orden es
+      referencial, cuando bodega empieza a declarar cantidades en la app (sin escanear bultos).
+    </li>
+    <li><strong>En picking → Lista para facturación</strong> con «Completar picking».</li>
+    <li><strong>Lista para facturación → Facturada</strong> con «Facturar orden», que emite la factura electrónica.</li>
+    <li>
+      <strong>Facturada → Entregada</strong> cuando el chofer registra la entrega en su ruta
+      (Logística → Entregas).
+    </li>
+    <li>Si se factura menos que lo pedido queda <strong>Facturada parcial</strong> hasta despachar o cerrar el saldo.</li>
+  </ul>
+);
+
 /**
  * Barra de progreso de la orden.
  *
@@ -89,6 +111,7 @@ function StepBar({ estadoActual }) {
   const paso = parcial ? "Facturada" : estadoActual;
   const actual = PASOS_OV.indexOf(paso ?? "");
 
+  // Sin tarjeta propia: es parte de la cabecera (dónde va la orden), no una sección más.
   return (
     <div className="flex items-center justify-between flex-1 min-w-0">
       {PASOS_OV.map((paso, idx) => {
@@ -146,11 +169,23 @@ function FacturarForm({
   setDejarSaldoPendiente = () => {},
   motivoCierreSaldo = "",
   setMotivoCierreSaldo = () => {},
+  tieneDireccionFacturacion = false,
+  onCopiarComoDespacho = null,
+  copiandoDespacho = false,
   idBodegaOrigen = null,
   idTransporte = null,
   setIdTransporte = () => {},
   setTransporteExigido = () => {},
 }) {
+  // 🔴 Este selector escribe `id_local`, que es la dirección de DESPACHO (a dónde va el
+  // camión). Se llamaba «Dirección de facturación» y ofrecía todas las direcciones del cliente,
+  // así que se elegía —con razón— la de facturación: medido el 2026-09-30, 148 de 240 OV de 30
+  // días quedaron despachadas «a» una dirección de Facturación, y en 104 el cliente sí tenía
+  // una de Despacho. El receptor de la factura sale de `id_local_facturacion` (que la orden ya
+  // trae desde que se crea) y sólo si falta, de ésta. Rutas de entrega, Fase 0.
+  const direccionesDespacho = direccionesCliente.filter((d) => d.tipo_direccion === "Despacho");
+  const direccionesACopiar = direccionesCliente.filter((d) => d.tipo_direccion === "Facturación");
+
   // Lo que va a salir impreso como referencia. Se muestra, no se edita: es el `numero_oc` de la
   // orden, y si está mal se corrige en la orden — no al emitir el documento tributario.
   const { folio: folioOC, recortado, motivo: motivoOC } = derivarFolioOC(numeroOc);
@@ -298,17 +333,21 @@ function FacturarForm({
           se confirmaba a ciegas un documento que después sólo se corrige con nota de crédito. */}
       {/* La dirección y las fechas elegidas acá todavía no están en la orden: se guardan recién
           al emitir. Hay que pasárselas al preview o arma el documento sin ellas. */}
+      {/* El receptor del preview tiene que ser el mismo que el de la emisión: la dirección de
+          facturación de la orden si la tiene, y sólo si no, la de despacho elegida acá. Antes se
+          pasaba siempre la elegida, así que el preview podía mostrar un receptor distinto del
+          que salía emitido. */}
       <DTEPreview
         ordenId={ordenId}
         tipo="factura"
-        idLocal={idLocalDespacho || null}
+        idLocal={tieneDireccionFacturacion ? null : idLocalDespacho || null}
         fecha={fechaFacturacion || null}
         vencimiento={fechaVencimiento || null}
         idTransporte={idTransporte}
       />
 
-      {/* Los datos del documento en dos columnas: menos scroll. Lo que antes se explicaba en
-          una nota bajo cada campo va al «(?)»; en pantalla sólo queda lo que falta o sorprende. */}
+      {/* Los datos del documento en dos columnas: menos scroll. Lo que antes se explicaba en una
+          nota bajo cada campo va al «(?)»; en pantalla sólo queda lo que falta o sorprende. */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* 🔴 La orden de compra. Sin ella el retail rechaza la factura porque no puede casarla
             con su pedido. Va de sólo lectura: sale del `numero_oc` de la orden. */}
@@ -346,14 +385,38 @@ function FacturarForm({
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-sm font-medium text-gray-700">
-            Dirección de facturación {requiereDir && <span className="text-red-500">*</span>}
+          <span className="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+            Dirección de despacho {requiereDir && <span className="text-red-500">*</span>}
+            <Ayuda titulo="Dirección de despacho">
+              A dónde llega el pedido: es la que usa la ruta de entrega. La factura sale a nombre de
+              la dirección de facturación de la orden, y sólo si la orden no tiene una, de ésta.
+            </Ayuda>
           </span>
           {loadingDirecciones ? (
             <span className="text-sm text-gray-400 py-2">Cargando direcciones...</span>
+          ) : direccionesDespacho.length === 0 ? (
+            <Aviso tamano="xs">
+              <div className="flex flex-col gap-1.5">
+                <span>
+                  El cliente no tiene dirección de <strong>despacho</strong>: sin ella la entrega no se
+                  puede rutear. Si recibe en otro lugar, agrégalo en la ficha del cliente.
+                </span>
+                {onCopiarComoDespacho && direccionesACopiar.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => onCopiarComoDespacho(d.id)}
+                    disabled={copiandoDespacho}
+                    className="self-start px-2 py-1 rounded-md border border-amber-400 bg-white hover:bg-amber-100 disabled:opacity-50"
+                  >
+                    Recibe en su dirección de facturación ({[d.calle, d.numero, d.comuna].filter(Boolean).join(" ")}): usarla como despacho
+                  </button>
+                ))}
+              </div>
+            </Aviso>
           ) : (
             <Selector
-              options={direccionesCliente.map((d) => ({
+              options={direccionesDespacho.map((d) => ({
                 value: String(d.id),
                 label: [d.tipo_direccion, d.nombre_sucursal, [d.calle, d.numero].filter(Boolean).join(" "), d.comuna]
                   .filter(Boolean)
@@ -432,35 +495,6 @@ function FacturarForm({
         onCambiar={setIdTransporte}
         onExigida={setTransporteExigido}
       />
-      {/* «Al confirmar se emite la Factura Electrónica» se fue: lo dice el botón. El RUT que
-          falta ya lo avisan Documentos y el servidor. */}
-    </div>
-  );
-}
-
-// ── Subformulario: Entregar ───────────────────────────────────────────────────
-function EntregarForm({ costoEnvio, setCostoEnvio, fechaEnvio, setFechaEnvio }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">Costo de envío * <span className="text-xs text-gray-400 font-normal">(puede ser 0)</span></span>
-        <input
-          type="number"
-          value={costoEnvio}
-          onChange={(e) => setCostoEnvio(e.target.value)}
-          placeholder="Ej: 5000"
-          className={inputCls}
-        />
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-sm font-medium text-gray-700">Fecha de entrega *</span>
-        <input
-          type="date"
-          value={fechaEnvio}
-          onChange={(e) => setFechaEnvio(e.target.value)}
-          className={inputCls}
-        />
-      </div>
     </div>
   );
 }
@@ -476,7 +510,6 @@ export default function OrdenVentaDetail() {
   const [loading, setLoading] = useState(false);
   const [progresoData, setProgresoData] = useState(null);
   const [loadingProgreso, setLoadingProgreso] = useState(false);
-  const [delivering, setDelivering] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [showFacturarForm, setShowFacturarForm] = useState(false);
   // Facturación parcial: qué hacer con lo que la factura no cubre, y el cierre posterior.
@@ -487,13 +520,10 @@ export default function OrdenVentaDetail() {
   const [transporteExigido, setTransporteExigido] = useState(false);
   const [showCerrarSaldo, setShowCerrarSaldo] = useState(false);
   const [motivoCerrarSaldo, setMotivoCerrarSaldo] = useState("");
-  const [showEntregarForm, setShowEntregarForm] = useState(false);
   const [tab, setTab] = useState("detalle");
   const [fechaFacturacion, setFechaFacturacion] = useState("");
   const [fechaVencimiento, setFechaVencimiento] = useState("");
   const [origenFecha, setOrigenFecha] = useState("contado");
-  const [costoEnvio, setCostoEnvio] = useState("");
-  const [fechaEnvio, setFechaEnvio] = useState("");
   const [direccionesCliente, setDireccionesCliente] = useState([]);
   const [idLocalDespacho, setIdLocalDespacho] = useState("");
   const [loadingDirecciones, setLoadingDirecciones] = useState(false);
@@ -754,9 +784,12 @@ export default function OrdenVentaDetail() {
       // Sin esto el formulario abría en blanco y la previsualización no tenía con qué armar el
       // documento: mirar antes de emitir exigía elegir a mano dos datos que casi siempre son
       // los mismos.
+      // Sólo direcciones de DESPACHO: una de facturación precargada acá es justo el error que
+      // dejó 148 de 240 OV despachadas a la dirección equivocada.
       setIdLocalDespacho((actual) => {
-        if (actual) return actual;
-        const principal = direcciones.find((d) => d.es_principal) ?? direcciones[0];
+        const despacho = direcciones.filter((d) => d.tipo_direccion === "Despacho");
+        if (actual && despacho.some((d) => String(d.id) === String(actual))) return actual;
+        const principal = despacho.find((d) => d.es_principal) ?? despacho[0];
         return principal ? String(principal.id) : "";
       });
       setFechaFacturacion((actual) => actual || new Date().toLocaleDateString("en-CA"));
@@ -783,6 +816,22 @@ export default function OrdenVentaDetail() {
       toast.error("No se pudieron cargar las direcciones del cliente");
     } finally {
       setLoadingDirecciones(false);
+    }
+  };
+
+  // El cliente recibe donde factura: se copia esa dirección como de Despacho y queda elegida.
+  const [copiandoDespacho, setCopiandoDespacho] = useState(false);
+  const copiarDireccionComoDespacho = async (idDireccion) => {
+    setCopiandoDespacho(true);
+    try {
+      const nueva = await copiarComoDespacho(idDireccion);
+      setDireccionesCliente((prev) => (prev.some((d) => d.id === nueva.id) ? prev : [...prev, nueva]));
+      setIdLocalDespacho(String(nueva.id));
+      toast.success("Dirección copiada como de despacho");
+    } catch (err) {
+      toast.error(apiErrorMsg(err));
+    } finally {
+      setCopiandoDespacho(false);
     }
   };
 
@@ -898,35 +947,6 @@ export default function OrdenVentaDetail() {
     }
   };
 
-  const handleEntregar = async () => {
-    if (costoEnvio === "" || costoEnvio === null) {
-      toast.error("Ingresa el costo de envío (puede ser 0)");
-      return;
-    }
-    if (!fechaEnvio) {
-      toast.error("Ingresa la fecha de entrega");
-      return;
-    }
-    try {
-      setDelivering(true);
-      const res = await api(`/ordenes-venta/${id}/entregar`, {
-        method: "PUT",
-        body: JSON.stringify({ costo_envio: Number(costoEnvio), fecha_envio: fechaEnvio }),
-      });
-      const updated = res?.data?.orden || res?.orden;
-      if (updated) setOrden((prev) => ({ ...(prev || {}), ...updated }));
-      else setOrden((prev) => (prev ? { ...prev, estado: "Entregada" } : prev));
-      toast.success(res?.data?.message || "Orden entregada correctamente");
-      setShowEntregarForm(false);
-      setCostoEnvio("");
-      setFechaEnvio("");
-    } catch (err) {
-      toast.error(apiErrorMsg(err, "entregar esta orden"));
-    } finally {
-      setDelivering(false);
-    }
-  };
-
   // 🔴 REHECHO COMPLETO (Cristóbal, 2026-08-17): antes era un resumen genérico de "Orden de
   // Venta"; ahora reproduce, con los datos que YA vive en el sistema, el layout de la Nota de
   // Venta que Artisan usaba antes de este ERP (imagen de referencia adjunta al pedido) —
@@ -957,22 +977,6 @@ export default function OrdenVentaDetail() {
     return new Intl.NumberFormat("es-CL").format(Math.trunc(n));
   };
 
-  const getEstadoBadge = (estado) => {
-    if (!estado) return <span className="px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-600">—</span>;
-    const base = "px-3 py-1 rounded-full text-sm font-medium";
-    const map = {
-      "Creada":             `${base} bg-gray-200 text-gray-700`,
-      "Validada":           `${base} bg-blue-100 text-blue-700`,
-      "En picking":         `${base} bg-indigo-100 text-indigo-700`,
-      "Lista para facturación":`${base} bg-cyan-100 text-cyan-700`,
-      "Facturada parcial":  `${base} bg-orange-100 text-orange-700`,
-      "Facturada":          `${base} bg-yellow-100 text-yellow-700`,
-      "Entregada":          `${base} bg-green-100 text-green-700`,
-      "Cancelada":          `${base} bg-red-100 text-red-700`,
-    };
-    return <span className={map[estado] || `${base} bg-gray-100 text-gray-600`}>{estado}</span>;
-  };
-
   // Facturación parcial: qué cubren las facturas vigentes y qué va en la próxima.
   const saldo = useMemo(() => resumenSaldo(orderItems), [orderItems]);
 
@@ -981,9 +985,11 @@ export default function OrdenVentaDetail() {
   // pantalla mostraba el total del pedido y el documento salía con otro número.
   const resumen = useMemo(() => resumenFacturable(orderItems), [orderItems]);
 
+  // `costo_envio` es un costo INTERNO (lo que costó llevarla, repartido de sus rutas cerradas):
+  // no se le cobra al cliente, así que no suma al neto (plan de rutas §7.5).
   const costoEnvioActual = Number(orden?.costo_envio || 0);
-  const totalNeto = resumen.facturable + costoEnvioActual;
-  const netoPedidoConEnvio = resumen.pedido + costoEnvioActual;
+  const totalNeto = resumen.facturable;
+  const netoPedidoConEnvio = resumen.pedido;
   const iva = Math.round(totalNeto * 0.19);
   const total = totalNeto + iva;
 
@@ -1046,14 +1052,6 @@ export default function OrdenVentaDetail() {
         disabled: transitioning,
       };
 
-    if (estado === "Facturada")
-      return {
-        label: "Registrar entrega",
-        icon: <Truck className="w-4 h-4" />,
-        onClick: () => setShowEntregarForm(true),
-        disabled: delivering,
-      };
-
     return null;
   })();
 
@@ -1071,13 +1069,7 @@ export default function OrdenVentaDetail() {
         ayuda: "Pide a un administrador que valide esta orden o que te dé el permiso.",
       };
 
-    if (estado === "Validada")
-      return {
-        texto: null,
-        ayuda: orden?.es_referencial
-          ? "La orden referencial pasa a En picking cuando el operario empieza a declarar cantidades en la app."
-          : "La orden pasa a En picking sola, al registrar el primer bulto en la asignación.",
-      };
+    // Cómo avanza una orden Validada lo explica el «(?)» del título (`AYUDA_FLUJO_OV`).
 
     if (estado === ESTADO_FACTURADA_PARCIAL) {
       const lineas = saldo?.lineasConSaldo ?? [];
@@ -1098,7 +1090,7 @@ export default function OrdenVentaDetail() {
 
     if (estado === "Facturada" && orden?.saldo_cerrado_en) {
       return {
-        tono: "blue",
+        tono: "info",
         texto:
           `Saldo cerrado el ${formatDate(orden.saldo_cerrado_en)}${orden?.saldoCerradoPor?.nombre ? ` por ${orden.saldoCerradoPor.nombre}` : ""}` +
           (orden?.motivo_cierre_saldo ? ` · ${orden.motivo_cierre_saldo}` : ""),
@@ -1109,7 +1101,7 @@ export default function OrdenVentaDetail() {
       const cuando = orden?.cancelado_en ? formatDate(orden.cancelado_en) : null;
       const quien = orden?.canceladoPor?.nombre;
       return {
-        tono: "red",
+        tono: "error",
         texto:
           `Cancelado${cuando ? ` el ${cuando}` : ""}${quien ? ` por ${quien}` : ""}` +
           (orden?.motivo_cancelacion ? ` · ${orden.motivo_cancelacion}` : ""),
@@ -1243,6 +1235,7 @@ export default function OrdenVentaDetail() {
   ];
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  const nombreCliente = cliente?.razon_social || cliente?.nombre_empresa;
   const TONOS_AVISO = {
     amber: "text-amber-800 bg-amber-50",
     orange: "text-orange-800 bg-orange-50",
@@ -1255,11 +1248,21 @@ export default function OrdenVentaDetail() {
       <PageHeader
         volverA="/ventas/ordenes"
         titulo={`Orden de Venta #${orden.id}`}
+        ayuda={AYUDA_FLUJO_OV}
+        tituloAyuda="Cómo avanza una orden"
+        subtitulo={
+          <>
+            {nombreCliente && <span className="text-gray-700">{nombreCliente}</span>}
+          </>
+        }
         estado={
           <>
-            {getEstadoBadge(orden?.estado)}
+            <EstadoOVBadge estado={orden?.estado} size="md" />
             {orden?.es_referencial && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+              <span
+                className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700"
+                title="Se pickea declarando cantidades en la app, sin escanear bultos"
+              >
                 Referencial
               </span>
             )}
@@ -1286,11 +1289,6 @@ export default function OrdenVentaDetail() {
             <StepBar estadoActual={orden?.estado} />
           ) : (
             <div className="flex-1" />
-          )}
-          {avisoDeEstado?.ayuda && !avisoDeEstado?.texto && (
-            <Ayuda titulo="Cómo avanza la orden">
-              <p>{avisoDeEstado.ayuda}</p>
-            </Ayuda>
           )}
           <div className="border-l border-gray-200 pl-4 text-right shrink-0">
             <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Total</div>
@@ -1340,6 +1338,9 @@ export default function OrdenVentaDetail() {
         onEmpezarEdicionFechaEntrega={() => setEditandoFechaEntrega(true)}
         onCancelarEdicionFechaEntrega={() => setEditandoFechaEntrega(false)}
         onGuardarFechaEntrega={guardarFechaEntrega}
+        puedeEditarEntrega={canWriteSaleOrder && !["Entregada", "Cancelada"].includes(orden?.estado)}
+        puedeUbicarDireccion={checkScope(ModelType.DIRECCION, ScopeType.WRITE)}
+        onOrdenActualizada={async () => setOrden(await fetchOrden())}
       />
 
       {/* 🔴 TODO LO DOCUMENTAL, FUERA DE LAS PESTAÑAS Y EN UN SOLO LUGAR.
@@ -1350,6 +1351,10 @@ export default function OrdenVentaDetail() {
       <div className="mb-6">
         <CentroDocumentos orden={orden} onCambio={fetchOrden} />
       </div>
+
+      {/* Cómo se entregó (rutas de entrega, Fase 2): las visitas con sus respuestas y fotos. */}
+      <DespachoOrden idOrden={orden.id} />
+      <EntregasDeOrden idOrden={orden.id} costoEnvio={orden.costo_envio} />
 
       {/* Las pestañas quedan para lo que se pidió y lo que se pickeó — decisión de Cristóbal,
           2026-08-25. Todo lo documental vive arriba, siempre visible. */}
@@ -1404,25 +1409,25 @@ export default function OrdenVentaDetail() {
               {filasExtraccion.length === 0 ? (
                 <div className="text-sm text-gray-500">No hay bultos asignados.</div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse border border-gray-300">
+                <div className="overflow-x-auto rounded-lg border border-gray-200">
+                  <table className="min-w-full text-sm">
                     <thead>
-                      <tr className="bg-gray-50">
-                        <th className="border border-gray-300 px-4 py-2 text-left">Producto</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Producto físico</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Bulto</th>
-                        <th className="border border-gray-300 px-4 py-2 text-left">Pallet</th>
-                        <th className="border border-gray-300 px-4 py-2 text-right">Unidades pickeadas</th>
+                      <tr className="bg-gray-50 text-xs uppercase tracking-wider text-gray-500">
+                        <th className="px-4 py-2 text-left font-medium">Producto</th>
+                        <th className="px-4 py-2 text-left font-medium">Producto físico</th>
+                        <th className="px-4 py-2 text-left font-medium">Bulto</th>
+                        <th className="px-4 py-2 text-left font-medium">Pallet</th>
+                        <th className="px-4 py-2 text-right font-medium">Unidades pickeadas</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-gray-100">
                       {filasExtraccion.map((row) => (
                         <tr key={row.key} className="hover:bg-gray-50">
-                          <td className="border border-gray-300 px-4 py-2 whitespace-normal break-words">{row.producto}</td>
-                          <td className="border border-gray-300 px-4 py-2 whitespace-normal break-words text-gray-600">{row.producto_fisico}</td>
-                          <td className="border border-gray-300 px-4 py-2">{row.bulto}</td>
-                          <td className="border border-gray-300 px-4 py-2">{row.pallet}</td>
-                          <td className="border border-gray-300 px-4 py-2 text-right">{fmtInt(row.unidades_pickeadas)}</td>
+                          <td className="px-4 py-2 whitespace-normal break-words">{row.producto}</td>
+                          <td className="px-4 py-2 whitespace-normal break-words text-gray-600">{row.producto_fisico}</td>
+                          <td className="px-4 py-2 font-mono text-xs">{row.bulto}</td>
+                          <td className="px-4 py-2 font-mono text-xs">{row.pallet}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{fmtInt(row.unidades_pickeadas)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1493,6 +1498,9 @@ export default function OrdenVentaDetail() {
           setDejarSaldoPendiente={setDejarSaldoPendiente}
           motivoCierreSaldo={motivoCierreSaldo}
           setMotivoCierreSaldo={setMotivoCierreSaldo}
+          tieneDireccionFacturacion={Boolean(orden?.id_local_facturacion)}
+          onCopiarComoDespacho={copiarDireccionComoDespacho}
+          copiandoDespacho={copiandoDespacho}
           idBodegaOrigen={orden?.bodega_id}
           idTransporte={idTransporte}
           setIdTransporte={setIdTransporte}
@@ -1542,29 +1550,6 @@ export default function OrdenVentaDetail() {
         </div>
       </Modal>
 
-      <Modal
-        abierto={showEntregarForm}
-        onCerrar={() => setShowEntregarForm(false)}
-        titulo="Registrar entrega"
-        descripcion="Con esto la orden queda cerrada."
-        pie={
-          <>
-            <button onClick={() => setShowEntregarForm(false)} className={btnCls("ghost")}>
-              Cancelar
-            </button>
-            <button onClick={handleEntregar} disabled={delivering} className={btnCls("primary")}>
-              {delivering ? "Registrando…" : "Confirmar entrega"}
-            </button>
-          </>
-        }
-      >
-        <EntregarForm
-          costoEnvio={costoEnvio}
-          setCostoEnvio={setCostoEnvio}
-          fechaEnvio={fechaEnvio}
-          setFechaEnvio={setFechaEnvio}
-        />
-      </Modal>
     </div>
   );
 }

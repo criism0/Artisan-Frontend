@@ -40,7 +40,7 @@ colores: **está bien que haya variedad de colores, idealmente los que ya tenía
 
 - `components/UI/Ayuda.jsx` — el «(?)». Clic para abrir (sirve en pantallas táctiles), Esc o clic
   fuera para cerrar; se dibuja en `body`, así que ninguna tarjeta lo recorta.
-- `components/UI/Aviso.jsx` — un aviso de una línea, con `ayuda` opcional pegada al texto y
+- `components/UI/Aviso.jsx` — un aviso corto (atención, error, info, éxito o gris), con `ayuda` opcional y
   `accion` opcional a la derecha.
 - `components/UI/PageHeader.jsx` — título, estado, acciones y `ayuda`.
 - `lib/dateUtils.js` → `formatFecha` — el único formateador de fechas (un día de calendario no se
