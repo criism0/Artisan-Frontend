@@ -5,6 +5,7 @@ import PageHeader from "../../components/UI/PageHeader";
 import CargandoVista from "../../components/UI/CargandoVista";
 import Selector from "../../components/Forms/Selector";
 import ModalSectores from "../../components/Entregas/ModalSectores";
+import ModalOrdenSemana from "../../components/Entregas/ModalOrdenSemana";
 import InventarioSemana from "../../components/Entregas/InventarioSemana";
 import Ayuda from "../../components/UI/Ayuda";
 import { diasSinStock, inicioDeLoPendiente, pedidoSinAlcance, planificacionRapida, tablaInventario } from "../../utils/planificacionSemana.js";
@@ -50,7 +51,7 @@ export default function SemanaEntregas() {
   const [datos, setDatos] = useState(null);
   const [rutas, setRutas] = useState([]);
   const [filtro, setFiltro] = useState("todos");
-  const [elegido, setElegido] = useState(null);
+  const [abierta, setAbierta] = useState(null);
   const [sobre, setSobre] = useState(null);
   const [editandoSectores, setEditandoSectores] = useState(false);
   const [verPool, setVerPool] = useState(PASO_POOL);
@@ -105,7 +106,6 @@ export default function SemanaEntregas() {
   const planificarRapido = () => {
     const { propuestas, fuera } = planificacionRapida({ ordenes: ordenesBase, dias: isoDias, inventario: datos?.inventario ?? [], idBodega, hoy });
     setPropuesta({ dias: new Map(propuestas.map((p) => [p.id, p.dia])), fuera: new Set(fuera) });
-    setElegido(null);
   };
   const confirmarPropuesta = async () => {
     if (!propuesta) return;
@@ -127,7 +127,6 @@ export default function SemanaEntregas() {
 
   const mover = async (orden, destino) => {
     setPropuesta(null);
-    setElegido(null);
     const fecha = destino === "pool" ? null : destino;
     if (orden.ruta) {
       toast.error(`La OV #${orden.id} va en la ruta #${orden.ruta.id}: sale ese día.`);
@@ -172,11 +171,10 @@ export default function SemanaEntregas() {
         key={o.id}
         draggable={puedeEscribir && !o.ruta}
         onDragStart={(e) => e.dataTransfer.setData("text/plain", String(o.id))}
-        onClick={() => puedeEscribir && !o.ruta && setElegido((x) => (x === o.id ? null : o.id))}
+        onClick={() => setAbierta(o.id)}
         role="button"
         tabIndex={0}
-        aria-pressed={elegido === o.id}
-        className={`rounded-lg border bg-white px-2 py-1.5 text-xs flex flex-col gap-0.5 select-none ${o.ruta ? "cursor-default opacity-80" : "cursor-grab"} ${elegido === o.id ? "ring-2 ring-primary" : "border-gray-200"}`}
+        className={`rounded-lg border bg-white px-2 py-1.5 text-xs flex flex-col gap-0.5 select-none ${o.ruta ? "cursor-default opacity-80" : "cursor-grab"} border-gray-200`}
         style={{ borderLeft: `4px solid ${colorDe(o)}` }}
         title={o.ruta ? `Ruta #${o.ruta.id}${o.ruta.transportista ? ` · ${o.ruta.transportista}` : ""}` : undefined}
       >
@@ -196,7 +194,7 @@ export default function SemanaEntregas() {
     );
   };
 
-  const elegidaOrden = ordenes.find((o) => o.id === elegido);
+  const ordenAbierta = ordenes.find((o) => o.id === abierta);
 
   return (
     <div className="p-4 sm:p-6 bg-background min-h-screen flex flex-col gap-4">
@@ -298,9 +296,6 @@ export default function SemanaEntregas() {
               </button>
             )}
           </div>
-          {elegidaOrden && !elegidaOrden.ruta && elegidaOrden.dia && (
-            <button type="button" onClick={() => mover(elegidaOrden, "pool")} className="text-xs rounded-lg border border-gray-300 py-1 hover:bg-gray-50">Quitar fecha</button>
-          )}
         </div>
 
         <div className="grid grid-cols-6 gap-2 overflow-x-auto min-w-0" style={{ gridTemplateColumns: "repeat(6, minmax(130px, 1fr))" }}>
@@ -331,18 +326,14 @@ export default function SemanaEntregas() {
                 ))}
                 {delDia.filter(visible).map(tarjeta)}
                 <div className="mt-auto pt-1">
-                  {elegidaOrden && !elegidaOrden.ruta ? (
-                    <button type="button" onClick={() => mover(elegidaOrden, d.iso)} className="w-full text-xs rounded-lg bg-primary text-white py-1 hover:bg-primary-dark">Mover aquí</button>
-                  ) : (
-                    puedeEscribir && sinRuta.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/Logistica/entregas/planificar?fecha=${d.iso}&ordenes=${sinRuta.map((o) => o.id).join(",")}`)}
-                        className="w-full text-xs rounded-lg border border-gray-300 py-1 hover:bg-gray-50"
-                      >
-                        Armar ruta
-                      </button>
-                    )
+                  {puedeEscribir && sinRuta.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/Logistica/entregas/planificar?fecha=${d.iso}&ordenes=${sinRuta.map((o) => o.id).join(",")}`)}
+                      className="w-full text-xs rounded-lg border border-gray-300 py-1 hover:bg-gray-50"
+                    >
+                      Armar ruta
+                    </button>
                   )}
                 </div>
               </div>
@@ -352,6 +343,17 @@ export default function SemanaEntregas() {
       </div>
 
       <InventarioSemana filas={filasInventario} dias={dias} />
+
+      {ordenAbierta && (
+        <ModalOrdenSemana
+          orden={ordenAbierta}
+          dias={dias}
+          puedeEscribir={puedeEscribir}
+          onCerrar={() => setAbierta(null)}
+          onMover={mover}
+          onCambio={cargar}
+        />
+      )}
 
       {editandoSectores && (
         <ModalSectores
