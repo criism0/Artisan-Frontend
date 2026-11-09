@@ -8,8 +8,8 @@ const ACCIONES = [
   { accion: "Merma", texto: "Dar de merma", tono: "bg-red-600 hover:bg-red-700", detalle: "Vuelve marcado merma: no se ofrece como stock bueno." },
   { accion: "Re-despachar", texto: "Vuelve a salir", tono: "bg-primary hover:bg-primary-dark", detalle: "Queda listo para otra ruta, sin tocar el inventario." },
 ];
-// Lo que no existía en el inventario tampoco entra como merma: queda registrado como pérdida.
-const DETALLE_MERMA_SIN_TRAZABILIDAD = "Queda registrado como merma; no entra al inventario.";
+// Lo que no existía en el inventario (pedido pickeado por cantidad) también se puede reintegrar o
+// dar de merma: nace un bulto nuevo con etiqueta, sin lote de origen.
 
 /**
  * Qué se hace con un bulto que volvió de una ruta (o que no volvió): reintegrarlo, darlo de merma o
@@ -41,9 +41,9 @@ export default function DecidirDevolucion({ bulto, onResuelto, compacto = false 
   };
 
   const acciones = ACCIONES.filter(
-    (a) => !(a.accion === "Re-despachar" && bulto.tipo === "Suelto") && !(a.accion === "Reintegrar" && bulto.sin_trazabilidad),
+    (a) => !(a.accion === "Re-despachar" && bulto.tipo === "Suelto"),
   );
-  const detalle = (a) => (a.accion === "Merma" && bulto.sin_trazabilidad ? DETALLE_MERMA_SIN_TRAZABILIDAD : a.detalle);
+  const detalle = (a) => a.detalle;
 
   if (compacto) {
     return (
@@ -69,10 +69,10 @@ export default function DecidirDevolucion({ bulto, onResuelto, compacto = false 
       {bulto.sin_trazabilidad && (
         <Aviso
           tamano="xs"
-          ayuda="El pedido se pickeó por cantidad, sin QR: estas unidades no existían en el inventario antes de preparar el despacho, así que no tienen lote ni costo de origen."
+          ayuda="El pedido se pickeó por cantidad, sin QR: estas unidades no existían como bulto antes de preparar el despacho. Al reintegrar o dar de merma nace un bulto nuevo con el lote y el costo del último de su nombre."
           tituloAyuda="Sin trazabilidad"
         >
-          <strong>Sin trazabilidad:</strong> no se puede reintegrar al inventario. Resuélvelo como merma o vuelve a despacharlo.
+          <strong>Sin trazabilidad:</strong> se crea un bulto nuevo al reintegrar o dar de merma.
         </Aviso>
       )}
       <input value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Nota (opcional): en qué estado volvió" className="h-9 px-3 border border-gray-300 rounded-lg" />
