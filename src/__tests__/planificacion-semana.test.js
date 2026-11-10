@@ -118,6 +118,46 @@ describe("planificacionRapida", () => {
     expect(r.fuera).toEqual([1]);
   });
 
+  it("cada sector va junto el mismo día y los sectores en días distintos", () => {
+    const ordenes = [
+      ov(1, null, [lin(7, 1)], { id_sector: 1, fecha_entrega: VI }),
+      ov(2, null, [lin(7, 1)], { id_sector: 2, fecha_entrega: VI }),
+      ov(3, null, [lin(7, 1)], { id_sector: 1, fecha_entrega: VI }),
+      ov(4, null, [lin(7, 1)], { id_sector: 2, fecha_entrega: VI }),
+    ];
+    const r = planificacionRapida({ ...base, inventario: [inv(7, 100)], ordenes });
+    const dia = (id) => r.propuestas.find((p) => p.id === id).dia;
+    expect(dia(1)).toBe(dia(3));
+    expect(dia(2)).toBe(dia(4));
+    expect(dia(1)).not.toBe(dia(2));
+  });
+
+  it("el sector pesa más que el compromiso: no se parte un sector para cumplir una fecha", () => {
+    const ordenes = [
+      ov(1, null, [lin(7, 1)], { id_sector: 1, fecha_entrega: MA }),
+      ov(2, null, [lin(7, 1)], { id_sector: 1, fecha_entrega: VI }),
+    ];
+    const r = planificacionRapida({ ...base, inventario: [inv(7, 100)], ordenes });
+    expect(r.propuestas[0].dia).toBe(r.propuestas[1].dia);
+    expect(r.propuestas[0].dia).toBe(MA); // el día más tarde que no pasa el compromiso más temprano
+  });
+
+  it("evita un día que ya trae otro sector", () => {
+    const ordenes = [ov(1, MA, [lin(7, 1)], { id_sector: 2 }), ov(2, null, [lin(7, 1)], { id_sector: 1, fecha_entrega: MA })];
+    const r = planificacionRapida({ ...base, inventario: [inv(7, 100)], ordenes });
+    expect(r.propuestas).toEqual([{ id: 2, dia: LU }]);
+  });
+
+  it("el stock decide al final: lo que no alcanza el día del sector pasa a otro día", () => {
+    const ordenes = [
+      ov(1, null, [lin(7, 8)], { id_sector: 1, fecha_entrega: MA }),
+      ov(2, null, [lin(7, 8)], { id_sector: 1, fecha_entrega: MA }),
+    ];
+    const r = planificacionRapida({ ...base, inventario: [inv(7, 10)], ordenes });
+    expect(r.propuestas).toHaveLength(1);
+    expect(r.fuera).toHaveLength(1);
+  });
+
   it("no toca lo que ya va en una ruta ni lo ya puesto", () => {
     const r = planificacionRapida({
       ...base,
