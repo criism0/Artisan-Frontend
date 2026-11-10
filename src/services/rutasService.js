@@ -14,7 +14,9 @@ export const leerSemana = (idBodega) => api(`/rutas/semana${idBodega ? `?bodega=
 /** Mueve la fecha de entrega (null = sin fecha). Queda registrado; 409 si la OV va en una ruta. */
 export const moverFechaEntrega = (idOrden, fecha) => api(`/rutas/ordenes/${idOrden}/fecha-entrega`, { method: "PUT", body: { fecha } });
 /** Ya se entregó por otro lado: entrega completa sin fotos; la OV sale del planificador. */
-export const marcarEntregadaFueraDeFlujo = (idOrden, nota) => api(`/rutas/ordenes/${idOrden}/entregada-fuera-de-flujo`, { method: "PUT", body: { nota } });
+export const marcarEntregadaFueraDeFlujo = (idOrden, datos) => api(`/rutas/ordenes/${idOrden}/entregada-fuera-de-flujo`, { method: "PUT", body: datos });
+/** Las OV quitadas del planificador: [{ id, numero_oc, estado, fecha_entrega, cliente }]. */
+export const listarQuitadasDelPlanificador = () => api("/rutas/planificador/ocultas");
 /** Saca (o devuelve, con `oculta: false`) una OV del planificador sin tocar su estado. */
 export const quitarDelPlanificador = (idOrden, oculta = true) => api(`/rutas/ordenes/${idOrden}/planificador`, { method: "PUT", body: { oculta } });
 export const crearSector = (datos) => api("/rutas/sectores", { method: "POST", body: datos });
