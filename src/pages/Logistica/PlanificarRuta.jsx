@@ -77,6 +77,7 @@ export default function PlanificarRuta() {
   const [recomendando, setRecomendando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [errorRecorrido, setErrorRecorrido] = useState(null);
+  const ultimaGuardada = useRef(null);
   const pedidoRecorrido = useRef(0);
 
   const [buscando, setBuscando] = useState(null); // { orden }
@@ -268,31 +269,48 @@ export default function PlanificarRuta() {
     setPropuesta(null);
     setSeleccion(new Set());
     setIdTransportista("");
+    ultimaGuardada.current = null;
   };
 
-  const guardar = async () => {
-    if (!idTransportista) {
-      toast.error("Elige quién va a hacer la ruta.");
-      return;
+  /**
+   * Autoguardado (2026-11-10, pedido de Cristóbal): la ruta se guarda sola cada vez que cambia
+   * —no hay «Guardar» ni «Cancelar» que apretar—. Con encargado y al menos una parada se crea (la
+   * primera vez) o se actualiza (las siguientes) y queda ahí; el servidor recalcula el recorrido.
+   * Al abrir una ruta ya guardada, lo que se ve es lo guardado: no se vuelve a escribir.
+   */
+  const claveGuardado = propuesta
+    ? JSON.stringify([propuesta.paradas.map((p) => p.ordenes.map((o) => o.id)), vuelve, idTransportista, propuesta.idRuta ?? null])
+    : null;
+  useEffect(() => {
+    if (!propuesta || !puedeEscribir || !idTransportista || !propuesta.paradas.length) return undefined;
+    if (propuesta.idRuta && ultimaGuardada.current == null) {
+      ultimaGuardada.current = claveGuardado; // recién abierta: ya está guardada tal cual
+      return undefined;
     }
-    setGuardando(true);
-    try {
-      const paradas = propuesta.paradas.map((p) => ({ ordenes: p.ordenes.map((o) => o.id) }));
-      let r;
-      if (propuesta.idRuta) {
-        r = await rutasApi.actualizarRuta(propuesta.idRuta, { paradas, id_transportista: Number(idTransportista), vuelve_a_bodega: vuelve });
-        toast.success("Ruta actualizada");
-      } else {
-        r = await rutasApi.crearRuta({ fecha, id_bodega: Number(idBodega), id_transportista: Number(idTransportista), paradas, vuelve_a_bodega: vuelve });
-        toast.success("Ruta guardada");
+    if (claveGuardado === ultimaGuardada.current) return undefined;
+    const t = setTimeout(async () => {
+      setGuardando(true);
+      try {
+        const paradas = propuesta.paradas.map((p) => ({ ordenes: p.ordenes.map((o) => o.id) }));
+        if (propuesta.idRuta) {
+          await rutasApi.actualizarRuta(propuesta.idRuta, { paradas, id_transportista: Number(idTransportista), vuelve_a_bodega: vuelve });
+          ultimaGuardada.current = claveGuardado;
+        } else {
+          const r = await rutasApi.crearRuta({ fecha, id_bodega: Number(idBodega), id_transportista: Number(idTransportista), paradas, vuelve_a_bodega: vuelve });
+          ultimaGuardada.current = JSON.stringify([propuesta.paradas.map((p) => p.ordenes.map((o) => o.id)), vuelve, idTransportista, r.id]);
+          setPropuesta((p) => (p ? { ...p, idRuta: r.id } : p));
+          toast.success(`Ruta #${r.id} guardada: los cambios se guardan solos`);
+        }
+      } catch (e) {
+        if (!errorBodega(e)) toast.error(e.message);
+      } finally {
+        setGuardando(false);
       }
-      navigate(`/Logistica/entregas/${r.id}`);
-    } catch (e) {
-      if (!errorBodega(e)) toast.error(e.message);
-    } finally {
-      setGuardando(false);
-    }
-  };
+    }, 900);
+    return () => clearTimeout(t);
+    // La clave resume lo que se guarda; `propuesta` entera cambia con cada respuesta del recorrido.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claveGuardado, puedeEscribir]);
 
   const editarRuta = (r) => {
     const paradas = paradasDeRutaGuardada(r);
@@ -307,6 +325,7 @@ export default function PlanificarRuta() {
       vigente: true,
       idRuta: r.id,
     });
+    ultimaGuardada.current = null;
     setIdTransportista(r.id_transportista ? String(r.id_transportista) : "");
     setVuelve(r.vuelve_a_bodega !== false);
     setSeleccion(new Set(paradas.flatMap((p) => p.ordenes.map((o) => o.id))));
@@ -666,14 +685,19 @@ export default function PlanificarRuta() {
                   </Aviso>
                 )}
               </label>
-              <button
-                type="button"
-                onClick={guardar}
-                disabled={guardando || !propuesta.paradas.length || !idTransportista}
-                className="w-full py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark disabled:opacity-50"
-              >
-                {guardando ? "Guardando…" : propuesta.idRuta ? "Guardar cambios" : "Guardar ruta"}
-              </button>
+              {propuesta.idRuta ? (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/Logistica/entregas/${propuesta.idRuta}`)}
+                  className="w-full py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark"
+                >
+                  Ver la ruta #{propuesta.idRuta} · {guardando ? "guardando…" : "guardada"}
+                </button>
+              ) : (
+                <p className="text-xs text-gray-500 text-center py-1">
+                  {!idTransportista ? "Elige el encargado: la ruta se guarda sola." : guardando ? "Guardando…" : "Agrega paradas: la ruta se guarda sola."}
+                </p>
+              )}
             </div>
           ) : (
             <p className="text-sm text-gray-500 px-1">

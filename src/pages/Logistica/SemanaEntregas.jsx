@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Settings2, Zap, Route as IconoRuta } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Settings2, Zap, Route as IconoRuta } from "lucide-react";
 import PageHeader from "../../components/UI/PageHeader";
 import CargandoVista from "../../components/UI/CargandoVista";
 import Selector from "../../components/Forms/Selector";
@@ -62,6 +62,7 @@ export default function SemanaEntregas() {
   const [verPool, setVerPool] = useState(PASO_POOL);
   const [propuesta, setPropuesta] = useState(null); // { dias: Map(id → día), fuera: Set(id) }
   const [confirmando, setConfirmando] = useState(false);
+  const [deshacer, setDeshacer] = useState(null); // Map(id → fecha previa) de la última planificación rápida
   const puedeEscribir = checkScope(ModelType.RUTA, ScopeType.WRITE);
 
   const dias = useMemo(() => DIAS.map((nombre, i) => ({ nombre, iso: sumarDias(lunes, i) })), [lunes]);
@@ -108,26 +109,41 @@ export default function SemanaEntregas() {
   const poolVisible = porPlanificar.filter(visible);
   const masAdelante = ordenes.filter((o) => o.dia && o.dia > sabado).length;
 
-  const planificarRapido = () => {
+  // Se guarda al tiro (2026-11-10): ya no hay propuesta que confirmar. «Deshacer» devuelve las fechas.
+  const planificarRapido = async () => {
     const { propuestas, fuera } = planificacionRapida({ ordenes: ordenesBase, dias: isoDias, inventario: datos?.inventario ?? [], idBodega, hoy });
-    setPropuesta({ dias: new Map(propuestas.map((p) => [p.id, p.dia])), fuera: new Set(fuera) });
-  };
-  const confirmarPropuesta = async () => {
-    if (!propuesta) return;
+    const previas = new Map(propuestas.map((p) => [p.id, ordenesBase.find((o) => o.id === p.id)?.fecha_entrega ?? null]));
     setConfirmando(true);
     let fallidas = 0;
-    for (const [id, dia] of propuesta.dias) {
+    for (const p of propuestas) {
       try {
-        await rutasApi.moverFechaEntrega(id, dia);
+        await rutasApi.moverFechaEntrega(p.id, p.dia);
       } catch (e) {
         fallidas++;
+        previas.delete(p.id);
+        toast.error(`OV #${p.id}: ${e.message}`);
+      }
+    }
+    setConfirmando(false);
+    await cargar();
+    setPropuesta({ dias: new Map(), fuera: new Set(fuera) });
+    setDeshacer(previas.size ? previas : null);
+    if (!fallidas) toast.success(`Planificación guardada · ${propuestas.length} pedidos`);
+  };
+  const deshacerPlanificacion = async () => {
+    if (!deshacer) return;
+    setConfirmando(true);
+    for (const [id, fecha] of deshacer) {
+      try {
+        await rutasApi.moverFechaEntrega(id, fecha);
+      } catch (e) {
         toast.error(`OV #${id}: ${e.message}`);
       }
     }
+    setDeshacer(null);
     setPropuesta(null);
     setConfirmando(false);
     await cargar();
-    if (!fallidas) toast.success("Planificación guardada");
   };
 
   const mover = async (orden, destino) => {
@@ -180,7 +196,7 @@ export default function SemanaEntregas() {
         onContextMenu={(e) => { if (!puedeEscribir) return; e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, orden: o }); }}
         role="button"
         tabIndex={0}
-        className={`rounded-lg border bg-white px-2 py-1.5 text-xs flex flex-col gap-0.5 select-none ${o.ruta ? "cursor-default opacity-80" : "cursor-grab"} border-gray-200`}
+        className={`rounded-lg border px-2 py-1.5 text-xs flex flex-col gap-0.5 select-none ${o.ruta ? "cursor-default bg-sky-50 border-sky-300" : "cursor-grab bg-white border-gray-200"}`}
         style={{ borderLeft: `4px solid ${colorDe(o)}` }}
         title={o.ruta ? `Ruta #${o.ruta.id}${o.ruta.transportista ? ` · ${o.ruta.transportista}` : ""}` : undefined}
       >
@@ -190,7 +206,11 @@ export default function SemanaEntregas() {
           <span className="flex flex-wrap gap-1 mt-0.5">
             {o.propuesto && <span className="px-1 rounded bg-primary/10 text-primary font-semibold" title="Propuesta de la planificación rápida">⚡</span>}
             {sinStock && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">sin stock</span>}
-            {o.ruta && <span className="px-1 rounded bg-sky-50 text-sky-700 font-semibold inline-flex items-center gap-0.5"><IconoRuta className="w-3 h-3" />#{o.ruta.id}</span>}
+            {o.ruta && (
+              <span className="px-1.5 py-0.5 rounded bg-sky-600 text-white font-semibold inline-flex items-center gap-1" title={`Bloqueada: va en la ruta #${o.ruta.id}${o.ruta.transportista ? ` · ${o.ruta.transportista}` : ""}`}>
+                <Lock className="w-3 h-3" />Ruta #{o.ruta.id}{o.ruta.transportista ? ` · ${String(o.ruta.transportista).split(" ")[0]}` : ""}
+              </span>
+            )}
             {movida && <span className="px-1 rounded bg-amber-50 text-amber-700 font-semibold" title={`Comprometida para el ${corto(o.fecha_original)}`}>↺ {corto(o.fecha_original)}</span>}
             {atrasada && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">atrasada</span>}
             {o.estado_direccion === "falta" && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">sin dirección</span>}
@@ -266,17 +286,19 @@ export default function SemanaEntregas() {
           {masAdelante > 0 && !propuesta && <span className="text-xs text-gray-500">{masAdelante} más adelante</span>}
           {propuesta && (
             <>
-              <span className="text-xs font-semibold rounded-full bg-green-50 text-green-700 px-2 py-0.5">✓ {propuesta.dias.size}</span>
+              {deshacer && <span className="text-xs font-semibold rounded-full bg-green-50 text-green-700 px-2 py-0.5">✓ {deshacer.size} guardados</span>}
               {propuesta.fuera.size > 0 && <span className="text-xs font-semibold rounded-full bg-red-50 text-red-700 px-2 py-0.5">⚠ {propuesta.fuera.size} sin stock</span>}
-              <button type="button" onClick={confirmarPropuesta} disabled={confirmando || propuesta.dias.size === 0} className="px-3 py-1 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark disabled:opacity-50">
-                {confirmando ? "Guardando…" : "Confirmar"}
-              </button>
-              <button type="button" onClick={() => setPropuesta(null)} disabled={confirmando} className="text-sm text-gray-500 underline">Descartar</button>
+              {deshacer && (
+                <button type="button" onClick={deshacerPlanificacion} disabled={confirmando} className="text-sm text-gray-600 underline disabled:opacity-50">
+                  {confirmando ? "Deshaciendo…" : "Deshacer"}
+                </button>
+              )}
+              <button type="button" onClick={() => { setPropuesta(null); setDeshacer(null); }} disabled={confirmando} className="text-sm text-gray-400 hover:text-gray-600" aria-label="Cerrar">✕</button>
             </>
           )}
-          {puedeEscribir && !propuesta && (
+          {puedeEscribir && (
             <>
-              <button type="button" onClick={planificarRapido} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark">
+              <button type="button" onClick={planificarRapido} disabled={confirmando} className="inline-flex disabled:opacity-50 items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark">
                 <Zap className="w-4 h-4" /> Planificación rápida
               </button>
               <Ayuda titulo="Planificación rápida">
@@ -286,7 +308,7 @@ export default function SemanaEntregas() {
                   <li>Junta cada sector el mismo día, sin pasar su compromiso.</li>
                   <li>Si no alcanza el stock en la semana, queda fuera y marcado.</li>
                 </ul>
-                <p className="mt-1">Es una propuesta: nada se guarda hasta confirmar.</p>
+                <p className="mt-1">Se guarda al tiro; «Deshacer» devuelve las fechas.</p>
               </Ayuda>
             </>
           )}
