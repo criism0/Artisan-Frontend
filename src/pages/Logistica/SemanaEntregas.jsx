@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Lock, Settings2, Zap, Route as IconoRuta } from "lucide-react";
 import PageHeader from "../../components/UI/PageHeader";
@@ -8,6 +8,7 @@ import ModalSectores from "../../components/Entregas/ModalSectores";
 import ModalOrdenSemana from "../../components/Entregas/ModalOrdenSemana";
 import ModalQuitadas from "../../components/Entregas/ModalQuitadas";
 import MenuContextualOrden from "../../components/Entregas/MenuContextualOrden";
+import HoverProductosOrden from "../../components/Entregas/HoverProductosOrden";
 import InventarioSemana from "../../components/Entregas/InventarioSemana";
 import Ayuda from "../../components/UI/Ayuda";
 import { diasSinStock, inicioDeLoPendiente, pedidoSinAlcance, planificacionRapida, tablaInventario } from "../../utils/planificacionSemana.js";
@@ -57,6 +58,8 @@ export default function SemanaEntregas() {
   const [iniciarEntrega, setIniciarEntrega] = useState(false);
   const [menu, setMenu] = useState(null); // { x, y, orden }
   const [verQuitadas, setVerQuitadas] = useState(false);
+  const [hover, setHover] = useState(null); // { orden, rect }: la OV bajo el mouse
+  const temporizadorHover = useRef(null);
   const [sobre, setSobre] = useState(null);
   const [editandoSectores, setEditandoSectores] = useState(false);
   const [verPool, setVerPool] = useState(PASO_POOL);
@@ -191,9 +194,15 @@ export default function SemanaEntregas() {
       <div
         key={o.id}
         draggable={puedeEscribir && !o.ruta}
-        onDragStart={(e) => e.dataTransfer.setData("text/plain", String(o.id))}
+        onDragStart={(e) => { clearTimeout(temporizadorHover.current); setHover(null); e.dataTransfer.setData("text/plain", String(o.id)); }}
+        onMouseEnter={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          clearTimeout(temporizadorHover.current);
+          temporizadorHover.current = setTimeout(() => setHover({ orden: o, rect }), 250);
+        }}
+        onMouseLeave={() => { clearTimeout(temporizadorHover.current); setHover(null); }}
         onClick={() => { setIniciarEntrega(false); setAbierta(o.id); }}
-        onContextMenu={(e) => { if (!puedeEscribir) return; e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, orden: o }); }}
+        onContextMenu={(e) => { if (!puedeEscribir) return; e.preventDefault(); clearTimeout(temporizadorHover.current); setHover(null); setMenu({ x: e.clientX, y: e.clientY, orden: o }); }}
         role="button"
         tabIndex={0}
         className={`rounded-lg border px-2 py-1.5 text-xs flex flex-col gap-0.5 select-none ${o.ruta ? "cursor-default bg-sky-50 border-sky-300" : "cursor-grab bg-white border-gray-200"}`}
@@ -388,6 +397,8 @@ export default function SemanaEntregas() {
           onCambio={cargar}
         />
       )}
+
+      {hover && !menu && !abierta && <HoverProductosOrden orden={hover.orden} rect={hover.rect} />}
 
       {menu && (
         <MenuContextualOrden
