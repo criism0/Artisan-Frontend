@@ -313,9 +313,9 @@ export default function SemanaEntregas() {
               <Ayuda titulo="Planificación rápida">
                 <ul className="list-disc pl-4 space-y-1">
                   <li>De lunes a viernes, desde hoy; el sábado sólo a mano.</li>
-                  <li>Primero lo atrasado y lo de compromiso más temprano.</li>
-                  <li>Junta cada sector el mismo día, sin pasar su compromiso.</li>
-                  <li>Si no alcanza el stock en la semana, queda fuera y marcado.</li>
+                  <li>1.º Sector: un sector por día, todo el sector junto.</li>
+                  <li>2.º Compromiso: el día más tarde que no lo pase.</li>
+                  <li>3.º Stock: si no alcanza, prueba otro día; si no alcanza en la semana, queda fuera y marcado.</li>
                 </ul>
                 <p className="mt-1">Se guarda al tiro; «Deshacer» devuelve las fechas.</p>
               </Ayuda>
