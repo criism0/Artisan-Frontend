@@ -6,6 +6,8 @@ import CargandoVista from "../../components/UI/CargandoVista";
 import Selector from "../../components/Forms/Selector";
 import ModalSectores from "../../components/Entregas/ModalSectores";
 import ModalOrdenSemana from "../../components/Entregas/ModalOrdenSemana";
+import ModalQuitadas from "../../components/Entregas/ModalQuitadas";
+import MenuContextualOrden from "../../components/Entregas/MenuContextualOrden";
 import InventarioSemana from "../../components/Entregas/InventarioSemana";
 import Ayuda from "../../components/UI/Ayuda";
 import { diasSinStock, inicioDeLoPendiente, pedidoSinAlcance, planificacionRapida, tablaInventario } from "../../utils/planificacionSemana.js";
@@ -52,6 +54,9 @@ export default function SemanaEntregas() {
   const [rutas, setRutas] = useState([]);
   const [filtro, setFiltro] = useState("todos");
   const [abierta, setAbierta] = useState(null);
+  const [iniciarEntrega, setIniciarEntrega] = useState(false);
+  const [menu, setMenu] = useState(null); // { x, y, orden }
+  const [verQuitadas, setVerQuitadas] = useState(false);
   const [sobre, setSobre] = useState(null);
   const [editandoSectores, setEditandoSectores] = useState(false);
   const [verPool, setVerPool] = useState(PASO_POOL);
@@ -171,7 +176,8 @@ export default function SemanaEntregas() {
         key={o.id}
         draggable={puedeEscribir && !o.ruta}
         onDragStart={(e) => e.dataTransfer.setData("text/plain", String(o.id))}
-        onClick={() => setAbierta(o.id)}
+        onClick={() => { setIniciarEntrega(false); setAbierta(o.id); }}
+        onContextMenu={(e) => { if (!puedeEscribir) return; e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, orden: o }); }}
         role="button"
         tabIndex={0}
         className={`rounded-lg border bg-white px-2 py-1.5 text-xs flex flex-col gap-0.5 select-none ${o.ruta ? "cursor-default opacity-80" : "cursor-grab"} border-gray-200`}
@@ -245,6 +251,11 @@ export default function SemanaEntregas() {
               {s.nombre}
             </button>
           ))}
+          {puedeEscribir && (
+            <button type="button" onClick={() => setVerQuitadas(true)} className="px-2 py-1 rounded-lg text-xs text-gray-600 hover:bg-gray-100" title="OV quitadas del planificador">
+              Quitadas
+            </button>
+          )}
           {puedeEscribir && (
             <button type="button" onClick={() => setEditandoSectores(true)} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100" title="Editar sectores">
               <Settings2 className="w-4 h-4" />
@@ -349,11 +360,43 @@ export default function SemanaEntregas() {
           orden={ordenAbierta}
           dias={dias}
           puedeEscribir={puedeEscribir}
-          onCerrar={() => setAbierta(null)}
+          iniciarEntrega={iniciarEntrega}
+          onCerrar={() => { setAbierta(null); setIniciarEntrega(false); }}
           onMover={mover}
           onCambio={cargar}
         />
       )}
+
+      {menu && (
+        <MenuContextualOrden
+          x={menu.x}
+          y={menu.y}
+          onCerrar={() => setMenu(null)}
+          opciones={[
+            { texto: "Ver detalle", onClick: () => { setIniciarEntrega(false); setAbierta(menu.orden.id); } },
+            ...(menu.orden.ruta
+              ? []
+              : [
+                  { texto: "Marcar como entregada", onClick: () => { setIniciarEntrega(true); setAbierta(menu.orden.id); } },
+                  {
+                    texto: "Quitar del planificador",
+                    tono: "text-gray-600",
+                    onClick: async () => {
+                      try {
+                        await rutasApi.quitarDelPlanificador(menu.orden.id);
+                        toast.success("Quitada del planificador");
+                        await cargar();
+                      } catch (e) {
+                        toast.error(e.message);
+                      }
+                    },
+                  },
+                ]),
+          ]}
+        />
+      )}
+
+      {verQuitadas && <ModalQuitadas onCerrar={() => setVerQuitadas(false)} onCambio={cargar} />}
 
       {editandoSectores && (
         <ModalSectores

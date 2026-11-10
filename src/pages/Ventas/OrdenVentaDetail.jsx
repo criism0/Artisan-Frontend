@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import PageHeader from "../../components/UI/PageHeader.jsx";
 import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
+import * as rutasApi from "../../services/rutasService";
 import Tabs from "../../components/UI/Tabs.jsx";
 import Modal from "../../components/UI/Modal.jsx";
 import Aviso from "../../components/UI/Aviso.jsx";
@@ -1132,6 +1133,22 @@ export default function OrdenVentaDetail() {
       // edición para que el guardado fallara con un 403 después de rellenar el formulario.
       disabled: !canWriteSaleOrder,
       title: canWriteSaleOrder ? undefined : "Sin permiso para editar órdenes de venta",
+    },
+    // Las pendientes de entrega aparecen en el planificador de Logística; esto las saca (o las
+    // devuelve) sin tocar su estado ni sus documentos.
+    ["Validada", "En picking", "Lista para facturación", "Facturada parcial", "Facturada"].includes(orden?.estado) && {
+      label: orden?.oculta_planificador ? "Devolver al planificador" : "Quitar del planificador",
+      icon: <Undo2 className="w-4 h-4" />,
+      onClick: async () => {
+        try {
+          const oculta = !orden?.oculta_planificador;
+          await rutasApi.quitarDelPlanificador(orden.id, oculta);
+          setOrden((prev) => (prev ? { ...prev, oculta_planificador: oculta } : prev));
+          toast.success(oculta ? "Quitada del planificador" : "Devuelta al planificador");
+        } catch (err) {
+          toast.error(err.message);
+        }
+      },
     },
     orden?.estado === "Lista para facturación" && {
       label: "Reabrir picking",
