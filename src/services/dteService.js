@@ -238,10 +238,10 @@ export const dteService = {
   },
 
   /** La factura la rechazó el cliente (sin NC): queda sin valor y la OV se factura de nuevo. */
-  rechazoCliente: async (dteId, { motivo, mercaderia }) => {
+  rechazoCliente: async (dteId, { motivo, mercaderia, lineas }) => {
     const res = await api(`/facturacion/documentos/${dteId}/rechazo-cliente`, {
       method: 'POST',
-      body: { motivo, mercaderia },
+      body: { motivo, mercaderia, ...(lineas ? { lineas } : {}) },
     });
     return res?.data ?? res;
   },

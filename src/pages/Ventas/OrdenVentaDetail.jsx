@@ -1368,7 +1368,11 @@ export default function OrdenVentaDetail() {
       <div className="mb-6">
         {/* `fetchOrden` sólo trae la orden: hay que guardarla, o un cambio en los documentos
             (vincular, desvincular, factura rechazada) deja la pantalla con el estado viejo. */}
-        <CentroDocumentos orden={orden} onCambio={async () => setOrden(await fetchOrden())} />
+        <CentroDocumentos
+          orden={orden}
+          onCambio={async () => setOrden(await fetchOrden())}
+          onFacturar={accionPrincipal?.label === "Facturar orden" ? accionPrincipal.onClick : undefined}
+        />
       </div>
 
       {/* Cómo se entregó (rutas de entrega, Fase 2): las visitas con sus respuestas y fotos. */}

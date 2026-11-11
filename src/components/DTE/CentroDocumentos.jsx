@@ -71,7 +71,7 @@ function Chip({ tone = 'off', children }) {
 
 const BOTON = 'flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50';
 
-export default function CentroDocumentos({ orden, accionPrincipal = null, onCambio }) {
+export default function CentroDocumentos({ orden, accionPrincipal = null, onCambio, onFacturar }) {
   const {
     documentos, loading, error,
     cargarDocumentos, emitirGuiaDespacho,
@@ -99,6 +99,7 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   const [mercaderia, setMercaderia] = useState('cliente');
   const [motivoRechazo, setMotivoRechazo] = useState('');
   const [rechazando, setRechazando] = useState(false);
+  const [vuelve, setVuelve] = useState({}); // id de línea → lo que volvió (texto)
 
   /**
    * 🔴 Al abrir la orden se le pregunta al SII en qué quedó cada documento.
@@ -234,7 +235,10 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
     if (!aRechazar || motivoRechazo.trim().length < 5) return;
     setRechazando(true);
     try {
-      const r = await dteService.rechazoCliente(aRechazar.id, { motivo: motivoRechazo.trim(), mercaderia });
+      const lineas = mercaderia === 'parcial'
+        ? Object.entries(vuelve).map(([id, v]) => ({ id: Number(id), cantidad: Number(String(v).replace(',', '.')) })).filter((l) => l.cantidad > 0)
+        : undefined;
+      const r = await dteService.rechazoCliente(aRechazar.id, { motivo: motivoRechazo.trim(), mercaderia, lineas });
       toast.success(r?.mensaje ?? 'Factura marcada como rechazada.');
       setARechazar(null);
       await cargarDocumentos();
@@ -450,8 +454,18 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
         onVerDetalles={setModalDetalles}
         onVerRechazo={setModalRechazo}
         onDesvincular={(d) => { setADesvincular(d); setNotaDesvincular(''); }}
-        onRechazoCliente={(d) => { setARechazar(d); setMercaderia('cliente'); setMotivoRechazo(''); }}
+        onRechazoCliente={(d) => { setARechazar(d); setMercaderia('cliente'); setMotivoRechazo(''); setVuelve({}); }}
       />
+
+      {/* Refacturar al tiro (2026-11-11): tras marcar una factura rechazada, el siguiente paso está acá. */}
+      {onFacturar && !facturaEmitida && documentos.some((d) => d.metadata?.rechazo_cliente) && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+          <span className="text-amber-900">La factura fue rechazada por el cliente: emite la nueva.</span>
+          <button type="button" onClick={onFacturar} className="px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark">
+            Facturar de nuevo
+          </button>
+        </div>
+      )}
 
       {/* Lo que va a decir la factura, si todavía no se emite. Es EL MISMO componente que ve el
           operario al apretar "Facturar orden": el centro de documentos y el modal de emisión
@@ -520,7 +534,7 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
             <button
               type="button"
               onClick={confirmarRechazo}
-              disabled={rechazando || motivoRechazo.trim().length < 5}
+              disabled={rechazando || motivoRechazo.trim().length < 5 || (mercaderia === 'parcial' && !Object.values(vuelve).some((v) => Number(String(v).replace(',', '.')) > 0))}
               className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
             >
               {rechazando ? 'Marcando…' : 'Marcar rechazada'}
@@ -531,7 +545,8 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
         <div className="flex flex-col gap-2">
           {[
             { v: 'cliente', t: 'La mercadería sigue con el cliente', d: 'Se conserva el pickeo y la entrega: la nueva factura hereda que ya se entregó.' },
-            { v: 'volvio', t: 'La mercadería volvió', d: 'Se deshace el pickeo: los bultos vuelven a estar disponibles y la orden queda Validada.' },
+            { v: 'parcial', t: 'Volvió una parte', d: 'Indica cuánto volvió de cada producto: vuelve al stock y la nueva factura va por lo que se quedó el cliente.' },
+            { v: 'volvio', t: 'Volvió todo', d: 'Se deshace el pickeo: los bultos vuelven a estar disponibles y la orden queda Validada.' },
           ].map((o) => (
             <label
               key={o.v}
@@ -544,6 +559,30 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
               </span>
             </label>
           ))}
+          {mercaderia === 'parcial' && (
+            <div className="rounded-lg border border-gray-200 divide-y divide-gray-100 max-h-56 overflow-y-auto">
+              {(orden?.productos ?? []).map((p) => {
+                const salio = Number(p.cantidad_pickeada ?? p.cantidad ?? 0);
+                return (
+                  <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                    <span className="flex-1 min-w-0">
+                      <span className="block truncate">{p.NombreFacturacion?.nombre || p.ProductoBase?.nombre || 'Producto'}</span>
+                      <span className="block text-xs text-gray-500">Salieron {salio}</span>
+                    </span>
+                    <span className="text-xs text-gray-500">Volvió</span>
+                    <input
+                      value={vuelve[p.id] ?? ''}
+                      onChange={(e) => setVuelve({ ...vuelve, [p.id]: e.target.value })}
+                      placeholder="0"
+                      inputMode="decimal"
+                      aria-label={`Cuánto volvió de ${p.NombreFacturacion?.nombre || 'producto'}`}
+                      className="w-20 h-8 px-2 border border-gray-300 rounded-md text-right text-sm"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <label className="text-sm text-gray-700 mt-1">
             Motivo
             <input

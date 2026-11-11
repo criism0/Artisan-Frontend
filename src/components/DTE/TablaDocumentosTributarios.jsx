@@ -13,7 +13,8 @@
  * esperado, no un error.
  */
 
-import { AlertCircle, Ban, Eye, FileDown, Info, Link2, Unlink } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertCircle, Ban, Eye, FileDown, Info, Link2, MoreHorizontal, Unlink } from 'lucide-react';
 import { DTEStatusBadge } from './DTEStatusBadge.jsx';
 import { formatCLP } from '../../services/formatHelpers.js';
 import { formatFecha } from '../../lib/dateUtils';
@@ -40,6 +41,21 @@ export default function TablaDocumentosTributarios({
   onDesvincular,
   onRechazoCliente,
 }) {
+  // «⋯ Más opciones» (2026-11-11): lo que deshace o corrige un documento va en un menú, no a la vista.
+  const [menu, setMenu] = useState(null); // { dte, x, y }
+  useEffect(() => {
+    if (!menu) return undefined;
+    const cerrar = () => setMenu(null);
+    const alEscape = (e) => { if (e.key === 'Escape') cerrar(); };
+    window.addEventListener('scroll', cerrar, true);
+    window.addEventListener('resize', cerrar);
+    document.addEventListener('keydown', alEscape);
+    return () => {
+      window.removeEventListener('scroll', cerrar, true);
+      window.removeEventListener('resize', cerrar);
+      document.removeEventListener('keydown', alEscape);
+    };
+  }, [menu]);
   if (cargando && documentos.length === 0) {
     return <p className="text-sm text-gray-400 italic py-3">Cargando documentos…</p>;
   }
@@ -150,23 +166,17 @@ export default function TablaDocumentosTributarios({
                         desvincular y volver a vincular al proceso correcto es la salida. Lo que
                         cambia según el origen es el aviso: soltar un documento que el ERP emitió
                         para esta orden borra un vínculo que nadie creó a mano. */}
-                    {onRechazoCliente && dte.tipoDte === 33 && dte.estadoSii !== 'anulado' && dte.folio != null && (
-                      <button
-                        type="button"
-                        onClick={() => onRechazoCliente(dte)}
-                        title="El cliente rechazó esta factura (sin nota de crédito): se vuelve a facturar"
-                        className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
-                      >
-                        <Ban className="w-4 h-4" />
-                      </button>
-                    )}
                     <button
                       type="button"
-                      onClick={() => onDesvincular(dte)}
-                      title="Desvincular de este proceso (no borra el documento ni libera el folio)"
-                      className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                      onClick={(e) => {
+                        const r = e.currentTarget.getBoundingClientRect();
+                        setMenu((m) => (m?.dte.id === dte.id ? null : { dte, x: r.right, y: r.bottom }));
+                      }}
+                      title="Más opciones"
+                      aria-label="Más opciones"
+                      className="p-1.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100"
                     >
-                      <Unlink className="w-4 h-4" />
+                      <MoreHorizontal className="w-4 h-4" />
                     </button>
                   </div>
                 </td>
@@ -175,6 +185,36 @@ export default function TablaDocumentosTributarios({
           })}
         </tbody>
       </table>
+      {menu && (
+        <div className="fixed inset-0 z-40" onMouseDown={() => setMenu(null)}>
+          <div
+            role="menu"
+            className="absolute w-60 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-sm"
+            style={{ left: Math.max(8, Math.min(menu.x - 240, window.innerWidth - 248)), top: Math.min(menu.y + 4, window.innerHeight - 100) }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {onRechazoCliente && menu.dte.tipoDte === 33 && menu.dte.estadoSii !== 'anulado' && menu.dte.folio != null && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { const d = menu.dte; setMenu(null); onRechazoCliente(d); }}
+                className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-red-700 hover:bg-red-50"
+              >
+                <Ban className="w-4 h-4" /> Rechazada por el cliente…
+              </button>
+            )}
+            {/* Para CUALQUIER documento (ver OV 824): lo que cambia según el origen es el aviso del modal. */}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { const d = menu.dte; setMenu(null); onDesvincular(d); }}
+              className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-gray-700 hover:bg-gray-50"
+            >
+              <Unlink className="w-4 h-4" /> Desvincular de este proceso…
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
