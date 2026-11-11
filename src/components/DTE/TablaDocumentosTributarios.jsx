@@ -13,7 +13,7 @@
  * esperado, no un error.
  */
 
-import { AlertCircle, Eye, FileDown, Info, Link2, Unlink } from 'lucide-react';
+import { AlertCircle, Ban, Eye, FileDown, Info, Link2, Unlink } from 'lucide-react';
 import { DTEStatusBadge } from './DTEStatusBadge.jsx';
 import { formatCLP } from '../../services/formatHelpers.js';
 import { formatFecha } from '../../lib/dateUtils';
@@ -38,6 +38,7 @@ export default function TablaDocumentosTributarios({
   onVerDetalles,
   onVerRechazo,
   onDesvincular,
+  onRechazoCliente,
 }) {
   if (cargando && documentos.length === 0) {
     return <p className="text-sm text-gray-400 italic py-3">Cargando documentos…</p>;
@@ -72,6 +73,14 @@ export default function TablaDocumentosTributarios({
                 <td className="px-3 py-2">
                   <DTEStatusBadge tipoDte={dte.tipoDte} folio={dte.folio} estadoSii={dte.estadoSii} />
                   {refLabel && <div className="text-xs text-gray-400 italic mt-0.5">{refLabel}</div>}
+                  {dte.metadata?.rechazo_cliente && (
+                    <span
+                      className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-50 text-red-700"
+                      title={`Motivo: ${dte.metadata.rechazo_cliente.motivo}`}
+                    >
+                      Rechazada por el cliente
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{formatFecha(dte.fechaEmision)}</td>
                 <td className="px-3 py-2 text-right text-gray-700 whitespace-nowrap">
@@ -141,6 +150,16 @@ export default function TablaDocumentosTributarios({
                         desvincular y volver a vincular al proceso correcto es la salida. Lo que
                         cambia según el origen es el aviso: soltar un documento que el ERP emitió
                         para esta orden borra un vínculo que nadie creó a mano. */}
+                    {onRechazoCliente && dte.tipoDte === 33 && dte.estadoSii !== 'anulado' && dte.folio != null && (
+                      <button
+                        type="button"
+                        onClick={() => onRechazoCliente(dte)}
+                        title="El cliente rechazó esta factura (sin nota de crédito): se vuelve a facturar"
+                        className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                      >
+                        <Ban className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => onDesvincular(dte)}
