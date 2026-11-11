@@ -94,6 +94,11 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   const [aDesvincular, setADesvincular] = useState(null);
   const [notaDesvincular, setNotaDesvincular] = useState('');
   const [desvinculando, setDesvinculando] = useState(false);
+  // «Rechazada por el cliente» (2026-11-11): factura sin valor, sin NC, y la OV se factura de nuevo.
+  const [aRechazar, setARechazar] = useState(null);
+  const [mercaderia, setMercaderia] = useState('cliente');
+  const [motivoRechazo, setMotivoRechazo] = useState('');
+  const [rechazando, setRechazando] = useState(false);
 
   /**
    * 🔴 Al abrir la orden se le pregunta al SII en qué quedó cada documento.
@@ -223,6 +228,22 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
     );
     await Promise.allSettled(pendientes.map((d) => dteService.actualizarEstadoSii(d.id)));
     await cargarDocumentos();
+  }
+
+  async function confirmarRechazo() {
+    if (!aRechazar || motivoRechazo.trim().length < 5) return;
+    setRechazando(true);
+    try {
+      const r = await dteService.rechazoCliente(aRechazar.id, { motivo: motivoRechazo.trim(), mercaderia });
+      toast.success(r?.mensaje ?? 'Factura marcada como rechazada.');
+      setARechazar(null);
+      await cargarDocumentos();
+      onCambio?.();
+    } catch (err) {
+      toast.error(err?.message ?? 'No se pudo marcar la factura');
+    } finally {
+      setRechazando(false);
+    }
   }
 
   async function confirmarDesvincular() {
@@ -429,6 +450,7 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
         onVerDetalles={setModalDetalles}
         onVerRechazo={setModalRechazo}
         onDesvincular={(d) => { setADesvincular(d); setNotaDesvincular(''); }}
+        onRechazoCliente={(d) => { setARechazar(d); setMercaderia('cliente'); setMotivoRechazo(''); }}
       />
 
       {/* Lo que va a decir la factura, si todavía no se emite. Es EL MISMO componente que ve el
@@ -480,6 +502,59 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
       {modalDetalles && (
         <DTEDetallesModal dte={modalDetalles} onClose={() => setModalDetalles(null)} />
       )}
+
+      <Modal
+        abierto={!!aRechazar}
+        onCerrar={() => setARechazar(null)}
+        titulo={aRechazar ? `Factura ${aRechazar.folio} rechazada por el cliente` : ''}
+        descripcion="Queda sin valor y la orden se puede facturar de nuevo. No se emite nota de crédito."
+        pie={
+          <>
+            <button
+              type="button"
+              onClick={() => setARechazar(null)}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={confirmarRechazo}
+              disabled={rechazando || motivoRechazo.trim().length < 5}
+              className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            >
+              {rechazando ? 'Marcando…' : 'Marcar rechazada'}
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-2">
+          {[
+            { v: 'cliente', t: 'La mercadería sigue con el cliente', d: 'Se conserva el pickeo y la entrega: la nueva factura hereda que ya se entregó.' },
+            { v: 'volvio', t: 'La mercadería volvió', d: 'Se deshace el pickeo: los bultos vuelven a estar disponibles y la orden queda Validada.' },
+          ].map((o) => (
+            <label
+              key={o.v}
+              className={`flex gap-2 rounded-lg border p-3 text-sm cursor-pointer ${mercaderia === o.v ? 'border-primary bg-primary/5' : 'border-gray-200'}`}
+            >
+              <input type="radio" name="mercaderia" checked={mercaderia === o.v} onChange={() => setMercaderia(o.v)} className="mt-0.5" />
+              <span>
+                <span className="block font-medium text-gray-800">{o.t}</span>
+                <span className="block text-xs text-gray-500">{o.d}</span>
+              </span>
+            </label>
+          ))}
+          <label className="text-sm text-gray-700 mt-1">
+            Motivo
+            <input
+              value={motivoRechazo}
+              onChange={(e) => setMotivoRechazo(e.target.value)}
+              placeholder="Ej.: reclamo SII, precio distinto a la OC"
+              className="mt-1 w-full h-9 px-3 border border-gray-300 rounded-lg text-sm"
+            />
+          </label>
+        </div>
+      </Modal>
 
       <Modal
         abierto={!!aDesvincular}

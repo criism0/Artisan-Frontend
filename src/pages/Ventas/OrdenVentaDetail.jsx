@@ -1366,7 +1366,9 @@ export default function OrdenVentaDetail() {
           las dos mostrando la MISMA lista de documentos con la mitad de las acciones cada una.
           `CentroDocumentos` las reemplaza, y por eso la pestaña ya no existe. */}
       <div className="mb-6">
-        <CentroDocumentos orden={orden} onCambio={fetchOrden} />
+        {/* `fetchOrden` sólo trae la orden: hay que guardarla, o un cambio en los documentos
+            (vincular, desvincular, factura rechazada) deja la pantalla con el estado viejo. */}
+        <CentroDocumentos orden={orden} onCambio={async () => setOrden(await fetchOrden())} />
       </div>
 
       {/* Cómo se entregó (rutas de entrega, Fase 2): las visitas con sus respuestas y fotos. */}
