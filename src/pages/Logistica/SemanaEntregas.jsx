@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Lock, Settings2, Zap, Route as IconoRuta } from "lucide-react";
+import { ChevronLeft, ChevronRight, Lock, Search, Settings2, X, Zap, Route as IconoRuta } from "lucide-react";
 import PageHeader from "../../components/UI/PageHeader";
 import CargandoVista from "../../components/UI/CargandoVista";
 import Selector from "../../components/Forms/Selector";
@@ -11,7 +11,7 @@ import MenuContextualOrden from "../../components/Entregas/MenuContextualOrden";
 import HoverProductosOrden from "../../components/Entregas/HoverProductosOrden";
 import InventarioSemana from "../../components/Entregas/InventarioSemana";
 import Ayuda from "../../components/UI/Ayuda";
-import { diasSinStock, inicioDeLoPendiente, pedidoSinAlcance, planificacionRapida, tablaInventario } from "../../utils/planificacionSemana.js";
+import { coincideBusqueda, diasSinStock, inicioDeLoPendiente, pedidoSinAlcance, planificacionRapida, tablaInventario } from "../../utils/planificacionSemana.js";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import * as rutasApi from "../../services/rutasService";
@@ -54,6 +54,7 @@ export default function SemanaEntregas() {
   const [datos, setDatos] = useState(null);
   const [rutas, setRutas] = useState([]);
   const [filtro, setFiltro] = useState("todos");
+  const [consulta, setConsulta] = useState("");
   const [abierta, setAbierta] = useState(null);
   const [iniciarEntrega, setIniciarEntrega] = useState(false);
   const [menu, setMenu] = useState(null); // { x, y, orden }
@@ -93,7 +94,8 @@ export default function SemanaEntregas() {
 
   const sectores = datos?.sectores ?? [];
   const colorDe = (o) => sectores.find((s) => s.id === o.id_sector)?.color ?? SIN_SECTOR;
-  const visible = (o) => filtro === "todos" || (filtro === "sin" ? o.id_sector == null : o.id_sector === filtro);
+  const visible = (o) =>
+    (filtro === "todos" || (filtro === "sin" ? o.id_sector == null : o.id_sector === filtro)) && coincideBusqueda(o, consulta);
   const ordenesBase = useMemo(() => datos?.ordenes ?? [], [datos]);
   const hoy = hoyIso();
   // Con la propuesta de la planificación rápida puesta (sin guardar), la semana se ve como quedaría.
@@ -111,6 +113,10 @@ export default function SemanaEntregas() {
     .sort((a, b) => (a.fecha_entrega ?? "9999").localeCompare(b.fecha_entrega ?? "9999") || b.id - a.id);
   const poolVisible = porPlanificar.filter(visible);
   const masAdelante = ordenes.filter((o) => o.dia && o.dia > sabado).length;
+  // Con una búsqueda puesta, lo que coincide pero sale en otra semana se ofrece para saltar a ella.
+  const enOtrasSemanas = consulta.trim()
+    ? ordenes.filter((o) => o.dia && (o.dia >= desde || o.ruta) && (o.dia < lunes || o.dia > sabado) && coincideBusqueda(o, consulta)).sort((a, b) => a.dia.localeCompare(b.dia))
+    : [];
 
   // Se guarda al tiro (2026-11-10): ya no hay propuesta que confirmar. «Deshacer» devuelve las fechas.
   const planificarRapido = async () => {
@@ -264,6 +270,32 @@ export default function SemanaEntregas() {
             </button>
           ))}
         </div>
+        <div className="relative w-64">
+          <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={consulta}
+            onChange={(e) => setConsulta(e.target.value)}
+            placeholder="Buscar OV, OC, cliente, RUT, factura…"
+            aria-label="Buscar pedidos en el planificador"
+            className="w-full pl-8 pr-7 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          {consulta && (
+            <button type="button" onClick={() => setConsulta("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-400 hover:text-gray-600" aria-label="Limpiar búsqueda">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {enOtrasSemanas.length > 0 && (
+          <button
+            type="button"
+            onClick={() => { setPropuesta(null); setLunes(lunesActual(enOtrasSemanas[0].dia)); }}
+            className="text-xs font-semibold rounded-full bg-amber-50 text-amber-800 px-2 py-0.5 hover:bg-amber-100"
+            title="Ir a la semana del primero"
+          >
+            {enOtrasSemanas.length} en otras semanas →
+          </button>
+        )}
         <div className="w-40">
           <Selector options={bodegas.map((b) => ({ value: String(b.id), label: b.nombre }))} selectedValue={idBodega} onSelect={setIdBodega} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm" />
         </div>
