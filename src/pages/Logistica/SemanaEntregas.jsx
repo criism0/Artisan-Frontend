@@ -46,6 +46,16 @@ const corto = (iso) => `${diaDelMes(iso)} ${MESES[Number(iso.slice(5, 7)) - 1]}`
  * Fase C (2026-11-05): debajo, el inventario de la semana contra lo que pide cada día, y el botón
  * «Planificación rápida», que propone el día de lo que espera; nada se guarda hasta confirmar.
  */
+/**
+ * Con qué documento sale el pedido (2026-11-18). Con factura no se marca nada; sin ninguno la ruta
+ * no puede salir, salvo que la OV lleve un documento externo (boleta de la tienda web).
+ */
+const DOC_AVISO = {
+  guia: { texto: "sin factura", clase: "bg-amber-50 text-amber-800", ayuda: "Sale con guía de despacho: falta la factura" },
+  externo: { texto: "doc. externo", clase: "bg-gray-100 text-gray-700", ayuda: "Sale con un documento emitido fuera del ERP (boleta)" },
+  ninguno: { texto: "sin documento", clase: "bg-red-50 text-red-700", ayuda: "Sin factura ni guía: la ruta no puede salir hasta emitir uno (o marcarla con documento externo)" },
+};
+
 export default function SemanaEntregas() {
   const navigate = useNavigate();
   const [lunes, setLunes] = useState(() => lunesActual(hoyIso()));
@@ -217,7 +227,7 @@ export default function SemanaEntregas() {
       >
         <span className="font-semibold text-gray-800 text-[13px] leading-tight truncate">{o.cliente.nombre}</span>
         <span className="text-gray-500 truncate">#{o.id}{o.comuna ? ` · ${o.comuna}` : ""}</span>
-        {(movida || atrasada || o.ruta || o.propuesto || sinStock || o.estado_direccion === "falta") && (
+        {(movida || atrasada || o.ruta || o.propuesto || sinStock || o.estado_direccion === "falta" || DOC_AVISO[o.documento]) && (
           <span className="flex flex-wrap gap-1 mt-0.5">
             {o.propuesto && <span className="px-1 rounded bg-primary/10 text-primary font-semibold" title="Propuesta de la planificación rápida">⚡</span>}
             {sinStock && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">sin stock</span>}
@@ -229,6 +239,11 @@ export default function SemanaEntregas() {
             {movida && <span className="px-1 rounded bg-amber-50 text-amber-700 font-semibold" title={`Comprometida para el ${corto(o.fecha_original)}`}>↺ {corto(o.fecha_original)}</span>}
             {atrasada && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">atrasada</span>}
             {o.estado_direccion === "falta" && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">sin dirección</span>}
+            {DOC_AVISO[o.documento] && (
+              <span className={`px-1 rounded font-semibold ${DOC_AVISO[o.documento].clase}`} title={DOC_AVISO[o.documento].ayuda}>
+                {DOC_AVISO[o.documento].texto}
+              </span>
+            )}
           </span>
         )}
       </div>
