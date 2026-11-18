@@ -199,3 +199,24 @@ export function planificacionRapida({ ordenes, dias, inventario, idBodega, hoy }
 function compromiso(o) {
   return o.fecha_original ?? o.fecha_entrega ?? "9999-12-31";
 }
+
+/** Minúsculas y sin tildes: «Ñuñoa» y «nunoa» son lo mismo. */
+const normalizarTexto = (t) =>
+  String(t ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+
+/**
+ * Buscador del planificador (pedido de Logística, 2026-11-18): como el buscador general de las
+ * tablas, por substring exacto (con números correlativos un parecido trae OV vecinas), pero cada
+ * palabra por separado: «jumbo 24510» encuentra la OV de Jumbo con esa factura. Sirven N° de OV y
+ * de OC, cliente, razón social, RUT con o sin puntos, comuna y folios (campo `busqueda` del backend).
+ */
+export function coincideBusqueda(orden, consulta) {
+  const palabras = normalizarTexto(consulta).split(/\s+/).filter(Boolean);
+  if (!palabras.length) return true;
+  const texto = normalizarTexto(orden.busqueda ?? [orden.id, orden.numero_oc, orden.cliente?.nombre, orden.comuna].join(" "));
+  const textoSinPuntos = texto.replace(/\./g, "");
+  return palabras.every((p) => texto.includes(p) || textoSinPuntos.includes(p.replace(/\./g, "")));
+}

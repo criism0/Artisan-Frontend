@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diasSinStock, pedidoSinAlcance, planificacionRapida, tablaInventario } from "../utils/planificacionSemana.js";
+import { diasSinStock, pedidoSinAlcance, planificacionRapida, tablaInventario, coincideBusqueda } from "../utils/planificacionSemana.js";
 
 const DIAS = ["2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07"];
 const [LU, MA, MI, JU, VI, SA] = DIAS;
@@ -165,5 +165,33 @@ describe("planificacionRapida", () => {
       ordenes: [ov(1, MA, [lin(7, 5)]), ov(2, MI, [lin(7, 5)], { ruta: { id: 9 } })],
     });
     expect(r.propuestas).toEqual([]);
+  });
+});
+
+describe("coincideBusqueda", () => {
+  const ov = {
+    id: 1735,
+    numero_oc: "4500218837",
+    cliente: { nombre: "Sofía Jottar" },
+    comuna: "Ñuñoa",
+    busqueda: "1735 4500218837 Sofía Jottar Ñuñoa 76.123.456-7 761234567 Comercial Jottar SpA 25009",
+  };
+  it("sin consulta muestra todo", () => expect(coincideBusqueda(ov, "  ")).toBe(true));
+  it("por cliente sin tildes ni mayúsculas", () => expect(coincideBusqueda(ov, "sofia")).toBe(true));
+  it("por RUT con puntos, sin puntos o sin guion", () => {
+    expect(coincideBusqueda(ov, "76.123.456-7")).toBe(true);
+    expect(coincideBusqueda(ov, "76123456-7")).toBe(true);
+    expect(coincideBusqueda(ov, "761234567")).toBe(true);
+  });
+  it("por folio y por N° de OV, exacto", () => {
+    expect(coincideBusqueda(ov, "25009")).toBe(true);
+    expect(coincideBusqueda(ov, "1734")).toBe(false);
+  });
+  it("todas las palabras tienen que estar", () => {
+    expect(coincideBusqueda(ov, "jottar nunoa")).toBe(true);
+    expect(coincideBusqueda(ov, "jottar providencia")).toBe(false);
+  });
+  it("sin campo busqueda usa OV, OC, cliente y comuna", () => {
+    expect(coincideBusqueda({ id: 9, numero_oc: "X1", cliente: { nombre: "Tottus" }, comuna: "Maipú" }, "maipu")).toBe(true);
   });
 });
