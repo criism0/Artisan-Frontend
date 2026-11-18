@@ -145,6 +145,9 @@ export default function Navbar() {
               <MenuLink to="/calidad/no-conformidades" icon={<AlertTriangle />} label="No Conformidades" isAllowed={checkScope(ModelType.FORMULARIO_CALIDAD, ScopeType.READ)}/>
               <MenuLink to="/calidad/formularios" icon={<Clipboard />} label="Formularios" isAllowed={checkScope(ModelType.FORMULARIO_CALIDAD, ScopeType.READ)}/>
               <MenuLink to="/calidad/poes" icon={<FileText />} label="POES" isAllowed={checkScope(ModelType.POES, ScopeType.READ)}/>
+              <MenuLink to="/calidad/poe" icon={<FileText />} label="POE" isAllowed={checkScope(ModelType.POES, ScopeType.READ)}/>
+              <MenuLink to="/calidad/instructivos" icon={<FileText />} label="Instructivos" isAllowed={checkScope(ModelType.POES, ScopeType.READ)}/>
+              <MenuLink to="/calidad/programas" icon={<FileText />} label="Programas" isAllowed={checkScope(ModelType.POES, ScopeType.READ)}/>
             </MenuGroup>
           </Dropdown>
 
