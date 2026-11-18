@@ -112,6 +112,7 @@ export default function EditClientes() {
   const [selectedCanal, setSelectedCanal] = useState("");
   const [selectedListaPrecio, setSelectedListaPrecio] = useState("");
   const [selectedTipoPrecio, setSelectedTipoPrecio] = useState("");
+  const [documentoExterno, setDocumentoExterno] = useState(false);
   const [direcciones, setDirecciones] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(true);
@@ -266,6 +267,7 @@ export default function EditClientes() {
         // «Unidades» siempre, aunque el cliente fuera de cajas, y guardar lo dejaba igual. Es la
         // misma familia que el formulario que pisa un campo que nunca leyó.
         setSelectedTipoPrecio(clienteData.formato_compra_predeterminado || "UNIDADES");
+        setDocumentoExterno(Boolean(clienteData.documento_externo));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -379,6 +381,7 @@ export default function EditClientes() {
       id_lista_precio: listaPrecioSeleccionada?.id || null,
       // El nombre que lee el backend. `tipo_precio` no existe en ninguna parte de la API.
       formato_compra_predeterminado: selectedTipoPrecio,
+      documento_externo: documentoExterno,
       cuenta_corriente: " ",
       banco: " ",
     };
@@ -452,6 +455,14 @@ export default function EditClientes() {
               </p>
               {errors.formato_compra && <p className="text-red-500 text-sm mt-1">{errors.formato_compra}</p>}
             </div>
+
+            <label className="flex items-start gap-2 md:col-span-2 text-sm text-text">
+              <input type="checkbox" className="mt-1 accent-primary" checked={documentoExterno} onChange={(e) => setDocumentoExterno(e.target.checked)} />
+              <span>
+                Sus pedidos salen con documento externo
+                <span className="block text-xs text-gray-500">Boleta u otro documento emitido fuera del ERP: se entregan sin factura ni guía. Afecta sólo a las órdenes nuevas.</span>
+              </span>
+            </label>
           </div>
         </div>
 

@@ -109,7 +109,8 @@ function StepBar({ estadoActual }) {
   // Una orden facturada a medias ya pasó por la facturación: en la barra se ve en ese paso, en
   // naranja —el color de su badge— y con su nombre. Lo que falta lo dice la línea de aviso.
   const parcial = estadoActual === ESTADO_FACTURADA_PARCIAL;
-  const paso = parcial ? "Facturada" : estadoActual;
+  // «Guía emitida» se ve en el paso de facturación: el documento ya salió, falta la factura.
+  const paso = parcial || estadoActual === "Guía emitida" ? "Facturada" : estadoActual;
   const actual = PASOS_OV.indexOf(paso ?? "");
 
   // Sin tarjeta propia: es parte de la cabecera (dónde va la orden), no una sección más.
@@ -1026,7 +1027,7 @@ export default function OrdenVentaDetail() {
         disabled: transitioning,
       };
 
-    if (estado === "Lista para facturación")
+    if (estado === "Lista para facturación" || estado === "Guía emitida")
       return {
         label: "Facturar orden",
         icon: <Receipt className="w-4 h-4" />,
@@ -1071,6 +1072,14 @@ export default function OrdenVentaDetail() {
       };
 
     // Cómo avanza una orden Validada lo explica el «(?)» del título (`AYUDA_FLUJO_OV`).
+
+    // Salió (o va a salir) con guía: la factura sigue faltando (2026-11-18).
+    if (estado === "Guía emitida")
+      return {
+        tono: "amber",
+        texto: orden?.documento_externo ? "Con guía y documento externo · sin factura del ERP" : "Con guía de despacho · falta la factura",
+        ayuda: "Se despacha y se rutea como facturada. «Facturar orden» emite la factura y la orden pasa a Facturada.",
+      };
 
     if (estado === ESTADO_FACTURADA_PARCIAL) {
       const lineas = saldo?.lineasConSaldo ?? [];
@@ -1122,6 +1131,24 @@ export default function OrdenVentaDetail() {
       icon: <Download className="w-4 h-4" />,
       onClick: handleDescargarPDF,
     },
+    // Documento externo (2026-11-18): sale con una boleta emitida fuera del ERP, así que se rutea y
+    // se entrega sin factura ni guía.
+    !["Entregada", "Cancelada", "PendienteIA"].includes(orden?.estado) && {
+      label: orden?.documento_externo ? "Quitar «documento externo»" : "Marcar con documento externo",
+      icon: <Receipt className="w-4 h-4" />,
+      disabled: !canWriteSaleOrder,
+      title: "Sale con una boleta u otro documento emitido fuera del ERP: se puede entregar sin factura ni guía",
+      onClick: async () => {
+        try {
+          const valor = !orden?.documento_externo;
+          await api(`/ordenes-venta/${orden.id}`, { method: "PUT", body: JSON.stringify({ documento_externo: valor }) });
+          setOrden((prev) => (prev ? { ...prev, documento_externo: valor } : prev));
+          toast.success(valor ? "Marcada con documento externo" : "Ya no lleva documento externo");
+        } catch (err) {
+          toast.error(err.message);
+        }
+      },
+    },
     // Sólo mientras el contenido de la orden todavía se puede tocar (hasta que empieza el
     // picking, pedido de Hernán 2026-09-07) — ofrecerlo después llevaría a un formulario que el
     // backend rechaza con 409 al guardar. Ver utils/ordenVentaEditable.js.
@@ -1136,7 +1163,7 @@ export default function OrdenVentaDetail() {
     },
     // Las pendientes de entrega aparecen en el planificador de Logística; esto las saca (o las
     // devuelve) sin tocar su estado ni sus documentos.
-    ["Validada", "En picking", "Lista para facturación", "Facturada parcial", "Facturada"].includes(orden?.estado) && {
+    ["Validada", "En picking", "Lista para facturación", "Guía emitida", "Facturada parcial", "Facturada"].includes(orden?.estado) && {
       label: orden?.oculta_planificador ? "Devolver al planificador" : "Quitar del planificador",
       icon: <Undo2 className="w-4 h-4" />,
       onClick: async () => {

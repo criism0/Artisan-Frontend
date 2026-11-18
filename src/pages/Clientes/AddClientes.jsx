@@ -24,6 +24,7 @@ export default function AddClientes() {
   const [selectedCanal, setSelectedCanal] = useState("");
   const [selectedListaPrecio, setSelectedListaPrecio] = useState("");
   const [selectedTipoPrecio, setSelectedTipoPrecio] = useState("");
+  const [documentoExterno, setDocumentoExterno] = useState(false);
   const [direcciones, setDirecciones] = useState([]);
   const [clienteId, setClienteId] = useState(null);
 
@@ -269,6 +270,7 @@ export default function AddClientes() {
       // silencio y el cliente quedaba siempre en UNIDADES por el default del modelo. Medido en
       // producción: los ÚNICOS 2 clientes en CAJAS (Jumbo y WalMart) se marcaron por SQL.
       formato_compra_predeterminado: selectedTipoPrecio,
+      documento_externo: documentoExterno,
       cuenta_corriente: " ",
       banco: " "
     };
@@ -450,6 +452,14 @@ export default function AddClientes() {
               </p>
               {errors.formato_compra && <p className="text-red-500 text-sm mt-1">{errors.formato_compra}</p>}
             </div>
+
+            <label className="flex items-start gap-2 md:col-span-2 text-sm text-text">
+              <input type="checkbox" className="mt-1 accent-primary" checked={documentoExterno} onChange={(e) => setDocumentoExterno(e.target.checked)} />
+              <span>
+                Sus pedidos salen con documento externo
+                <span className="block text-xs text-gray-500">Boleta u otro documento emitido fuera del ERP: se entregan sin factura ni guía.</span>
+              </span>
+            </label>
           </div>
         </div>
 

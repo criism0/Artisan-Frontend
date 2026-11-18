@@ -539,6 +539,15 @@ export default function PlanificarRuta() {
                       <span className={`px-2 py-0.5 rounded-full border text-xs ${TONOS_FECHA[f.tono]}`}>{f.texto}</span>
                       <span className="text-xs text-gray-400">· {o.estado}</span>
                       <EtiquetaDespacho despacho={o.despacho} />
+                      {o.documento === "guia" && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-amber-50 text-amber-800 border border-amber-200" title="Sale con guía de despacho: falta la factura">sin factura</span>
+                      )}
+                      {o.documento === "externo" && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-700 border border-gray-200" title="Sale con un documento emitido fuera del ERP (boleta)">doc. externo</span>
+                      )}
+                      {o.documento === "ninguno" && (
+                        <span className="px-2 py-0.5 rounded-full text-xs bg-red-50 text-red-700 border border-red-200" title="Sin factura ni guía: la ruta no puede salir hasta emitir uno o marcarla con documento externo">sin documento</span>
+                      )}
                       {o.ruta && (
                         <Link
                           to={`/Logistica/entregas/${o.ruta.id}`}

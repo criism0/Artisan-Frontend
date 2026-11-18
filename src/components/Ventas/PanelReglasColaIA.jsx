@@ -5,12 +5,20 @@ import { toast } from "../../lib/toast";
 import Modal from "../UI/Modal";
 import { EditButton, TrashButton } from "../Buttons/ActionButtons";
 
-const VACIA = { nombre: "", remitente: "", asunto_contiene: "", adjunto_extension: "" };
+const VACIA = { nombre: "", accion: "ignorar", remitente: "", asunto_contiene: "", adjunto_extension: "" };
+
+/** Qué hace la regla con el correo que cumple sus condiciones (2026-11-18). */
+const ACCIONES = [
+  { valor: "ignorar", etiqueta: "Ignorar el correo" },
+  { valor: "documento_externo", etiqueta: "Marcar la OV con documento externo (boleta fuera del ERP)" },
+];
 
 /**
  * Correos que la Cola IA no procesa (pedido de Hernán, 2026-10-21): los pedidos que llegan dos
  * veces —el original y el que arma su script— se duplicaban. Antes de guardar, la regla se prueba
  * contra los últimos 60 días: si toca correos que crearon una orden, dejaría fuera ventas reales.
+ * Desde 2026-11-18 una regla también puede marcar la OV que crea el correo con documento externo
+ * (los pedidos de la tienda web, con boleta): ahí tocar correos que crearon orden es lo esperado.
  */
 export default function PanelReglasColaIA() {
   const api = useApi();
@@ -46,7 +54,7 @@ export default function PanelReglasColaIA() {
       if (!prueba) {
         const p = await api("/ordenes-venta/cola-ia/reglas/probar", { method: "POST", body: form });
         setPrueba(p);
-        if (p.crearon_orden > 0) return;
+        if (form.accion === "ignorar" && p.crearon_orden > 0) return;
       }
       if (editando?.id) await api(`/ordenes-venta/cola-ia/reglas/${editando.id}`, { method: "PUT", body: form });
       else await api("/ordenes-venta/cola-ia/reglas", { method: "POST", body: form });
@@ -93,14 +101,19 @@ export default function PanelReglasColaIA() {
           <div key={r.id} className={`flex items-center gap-3 px-4 py-3 ${r.activa ? "" : "opacity-50"}`}>
             <input type="checkbox" checked={r.activa} onChange={() => alternar(r)} title={r.activa ? "Desactivar" : "Activar"} className="w-4 h-4 accent-[#7A5AF8]" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">{r.nombre}</p>
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {r.nombre}
+                {r.accion === "documento_externo" && (
+                  <span className="ml-2 text-xs font-semibold rounded bg-teal-50 text-teal-800 px-1.5 py-0.5">documento externo</span>
+                )}
+              </p>
               <div className="flex flex-wrap gap-1.5 mt-1">
                 {r.remitente && <Condicion etiqueta="De" valor={r.remitente} />}
                 {r.asunto_contiene && <Condicion etiqueta="Asunto" valor={r.asunto_contiene} />}
                 {r.adjunto_extension && <Condicion etiqueta="Adjunto" valor={`.${r.adjunto_extension}`} />}
               </div>
             </div>
-            <span className="text-xs text-gray-500 shrink-0 tabular-nums">{r.ignorados} ignorados</span>
+            <span className="text-xs text-gray-500 shrink-0 tabular-nums">{r.ignorados} {r.accion === "documento_externo" ? "marcados" : "ignorados"}</span>
             <EditButton onClick={() => abrir(r)} tooltipText="Editar" />
             <TrashButton onConfirmDelete={() => eliminar(r)} tooltipText="Eliminar" entityName="regla" />
           </div>
@@ -115,17 +128,27 @@ export default function PanelReglasColaIA() {
           <>
             <button type="button" onClick={() => setEditando(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
             <button type="button" onClick={guardar} disabled={guardando} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50">
-              {prueba?.crearon_orden > 0 ? "Guardar igual" : "Guardar"}
+              {form.accion === "ignorar" && prueba?.crearon_orden > 0 ? "Guardar igual" : "Guardar"}
             </button>
           </>
         }
       >
         <div className="space-y-3">
           <Entrada etiqueta="Nombre" valor={form.nombre} onCambiar={(v) => campo("nombre", v)} ejemplo="Lokal: aviso de pedido nuevo" />
+          <label className="block">
+            <span className="block text-sm font-medium text-gray-700 mb-1">Qué hace</span>
+            <select
+              value={form.accion}
+              onChange={(e) => campo("accion", e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
+            >
+              {ACCIONES.map((a) => <option key={a.valor} value={a.valor}>{a.etiqueta}</option>)}
+            </select>
+          </label>
           <Entrada etiqueta="Remitente (dirección o @dominio)" valor={form.remitente} onCambiar={(v) => campo("remitente", v)} ejemplo="@somoslokal.cl" />
           <Entrada etiqueta="El asunto contiene" valor={form.asunto_contiene} onCambiar={(v) => campo("asunto_contiene", v)} ejemplo="tienes un nuevo pedido" />
           <Entrada etiqueta="Adjunto (extensión)" valor={form.adjunto_extension} onCambiar={(v) => campo("adjunto_extension", v)} ejemplo="rtf" />
-          {prueba && <ResultadoPrueba prueba={prueba} />}
+          {prueba && <ResultadoPrueba prueba={prueba} marca={form.accion === "documento_externo"} />}
         </div>
       </Modal>
     </div>
@@ -155,14 +178,16 @@ function Entrada({ etiqueta, valor, onCambiar, ejemplo }) {
   );
 }
 
-function ResultadoPrueba({ prueba }) {
-  const peligro = prueba.crearon_orden > 0;
+function ResultadoPrueba({ prueba, marca }) {
+  const peligro = !marca && prueba.crearon_orden > 0;
   return (
     <div className={`rounded-lg border p-3 text-sm ${peligro ? "border-red-200 bg-red-50 text-red-800" : "border-gray-200 bg-gray-50 text-gray-700"}`}>
       <p className="font-medium">
         {peligro
           ? `${prueba.crearon_orden} de los correos que toca crearon una orden: dejaría fuera pedidos reales.`
-          : `En los últimos ${prueba.dias} días habría ignorado ${prueba.total} correo${prueba.total === 1 ? "" : "s"}.`}
+          : marca
+            ? `En los últimos ${prueba.dias} días habría marcado ${prueba.crearon_orden} pedido${prueba.crearon_orden === 1 ? "" : "s"} (de ${prueba.total} correo${prueba.total === 1 ? "" : "s"}).`
+            : `En los últimos ${prueba.dias} días habría ignorado ${prueba.total} correo${prueba.total === 1 ? "" : "s"}.`}
       </p>
       {prueba.ejemplos.length > 0 && (
         <ul className="mt-1.5 space-y-0.5 text-xs">
