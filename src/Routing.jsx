@@ -1366,13 +1366,37 @@ function Routing() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/calidad/poes" 
+          <Route
+            path="/calidad/poes"
             element={
               <ProtectedRoute permissions={[[ModelType.POES, ScopeType.READ]]}>
-                <POEsList />
+                <POEsList key="POES" tipo="POES" />
               </ProtectedRoute>
-            } 
+            }
+          />
+          <Route
+            path="/calidad/poe"
+            element={
+              <ProtectedRoute permissions={[[ModelType.POES, ScopeType.READ]]}>
+                <POEsList key="POE" tipo="POE" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calidad/instructivos"
+            element={
+              <ProtectedRoute permissions={[[ModelType.POES, ScopeType.READ]]}>
+                <POEsList key="INSTRUCTIVO" tipo="INSTRUCTIVO" />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/calidad/programas"
+            element={
+              <ProtectedRoute permissions={[[ModelType.POES, ScopeType.READ]]}>
+                <POEsList key="PROGRAMA" tipo="PROGRAMA" />
+              </ProtectedRoute>
+            }
           />
 
         </Route>
