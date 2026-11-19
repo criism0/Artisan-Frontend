@@ -185,6 +185,7 @@ const POEsList = lazy(() => import("./pages/calidad/POEsList.jsx"));
 
 // ===== Olvidar Contraseña =====
 const ForgotPassword = lazy(() => import("./pages/OlvidarContrasena/ForgotPassword.jsx"));
+const Privacidad = lazy(() => import("./pages/Privacidad.jsx"));
 const VerifyResetCode = lazy(() => import("./pages/OlvidarContrasena/VerifyCode.jsx"));
 const ResetPassword = lazy(() => import("./pages/OlvidarContrasena/ResetPassword.jsx"));
 
@@ -204,6 +205,7 @@ function Routing() {
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<LandingPage />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/privacidad" element={<Privacidad />} />
         <Route path="/reset-code" element={<VerifyResetCode />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 

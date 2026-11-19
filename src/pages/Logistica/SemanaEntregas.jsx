@@ -457,7 +457,9 @@ export default function SemanaEntregas() {
             ...(menu.orden.ruta
               ? []
               : [
-                  { texto: "Marcar como entregada", onClick: () => { setIniciarEntrega(true); setAbierta(menu.orden.id); } },
+                  ...(menu.orden.documento === "ninguno"
+                    ? []
+                    : [{ texto: "Marcar como entregada", onClick: () => { setIniciarEntrega(true); setAbierta(menu.orden.id); } }]),
                   {
                     texto: "Quitar del planificador",
                     tono: "text-gray-600",

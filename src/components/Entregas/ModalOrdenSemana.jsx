@@ -22,7 +22,7 @@ const numero = (t) => Number(String(t).replace(",", "."));
 export default function ModalOrdenSemana({ orden, dias, puedeEscribir, iniciarEntrega = false, onCerrar, onMover, onCambio }) {
   const navigate = useNavigate();
   const [productos, setProductos] = useState(null);
-  const [confirmando, setConfirmando] = useState(iniciarEntrega);
+  const [confirmando, setConfirmando] = useState(iniciarEntrega && orden.documento !== "ninguno");
   const [tipo, setTipo] = useState("Completa");
   const [motivo, setMotivo] = useState("");
   const [recibido, setRecibido] = useState({});
@@ -122,9 +122,13 @@ export default function ModalOrdenSemana({ orden, dias, puedeEscribir, iniciarEn
               >
                 Quitar del planificador
               </button>
-              <button type="button" onClick={() => setConfirmando(true)} className="px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700">
-                Marcar como entregada
-              </button>
+              {orden.documento === "ninguno" ? (
+                <span className="px-3 py-1.5 text-xs text-red-700" title="Sin factura ni guía: emite una o márcala con documento externo">Sin documento para entregar</span>
+              ) : (
+                <button type="button" onClick={() => setConfirmando(true)} className="px-3 py-1.5 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700">
+                  Marcar como entregada
+                </button>
+              )}
             </div>
           )}
         </div>
