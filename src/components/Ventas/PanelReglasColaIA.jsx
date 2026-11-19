@@ -5,13 +5,22 @@ import { toast } from "../../lib/toast";
 import Modal from "../UI/Modal";
 import { EditButton, TrashButton } from "../Buttons/ActionButtons";
 
-const VACIA = { nombre: "", accion: "ignorar", remitente: "", asunto_contiene: "", adjunto_extension: "" };
+const VACIA = { nombre: "", accion: "ignorar", remitente: "", asunto_contiene: "", adjunto_extension: "", instruccion: "" };
 
 /** Qué hace la regla con el correo que cumple sus condiciones (2026-11-18). */
 const ACCIONES = [
   { valor: "ignorar", etiqueta: "Ignorar el correo" },
   { valor: "documento_externo", etiqueta: "Marcar la OV con documento externo (boleta fuera del ERP)" },
+  { valor: "instruccion", etiqueta: "Darle una instrucción a la IA para este cliente" },
+  { valor: "precio_lista", etiqueta: "Usar el precio de la lista del cliente (el del correo es referencia)" },
 ];
+
+/** Chip y verbo del contador según lo que hace la regla. Las de ignorar no llevan chip. */
+const MARCA_ACCION = {
+  documento_externo: { chip: "documento externo", clase: "bg-teal-50 text-teal-800", verbo: "marcados" },
+  instruccion: { chip: "instrucción IA", clase: "bg-violet-50 text-violet-800", verbo: "usos" },
+  precio_lista: { chip: "precio de lista", clase: "bg-amber-50 text-amber-800", verbo: "usos" },
+};
 
 /**
  * Correos que la Cola IA no procesa (pedido de Hernán, 2026-10-21): los pedidos que llegan dos
@@ -55,6 +64,7 @@ export default function PanelReglasColaIA() {
         const p = await api("/ordenes-venta/cola-ia/reglas/probar", { method: "POST", body: form });
         setPrueba(p);
         if (form.accion === "ignorar" && p.crearon_orden > 0) return;
+        // Las demás acciones no dejan pedidos fuera: no hace falta mirar la prueba para guardar.
       }
       if (editando?.id) await api(`/ordenes-venta/cola-ia/reglas/${editando.id}`, { method: "PUT", body: form });
       else await api("/ordenes-venta/cola-ia/reglas", { method: "POST", body: form });
@@ -103,8 +113,8 @@ export default function PanelReglasColaIA() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">
                 {r.nombre}
-                {r.accion === "documento_externo" && (
-                  <span className="ml-2 text-xs font-semibold rounded bg-teal-50 text-teal-800 px-1.5 py-0.5">documento externo</span>
+                {MARCA_ACCION[r.accion] && (
+                  <span className={`ml-2 text-xs font-semibold rounded px-1.5 py-0.5 ${MARCA_ACCION[r.accion].clase}`}>{MARCA_ACCION[r.accion].chip}</span>
                 )}
               </p>
               <div className="flex flex-wrap gap-1.5 mt-1">
@@ -112,8 +122,11 @@ export default function PanelReglasColaIA() {
                 {r.asunto_contiene && <Condicion etiqueta="Asunto" valor={r.asunto_contiene} />}
                 {r.adjunto_extension && <Condicion etiqueta="Adjunto" valor={`.${r.adjunto_extension}`} />}
               </div>
+              {r.accion === "instruccion" && r.instruccion && (
+                <p className="text-xs text-gray-500 mt-1 truncate" title={r.instruccion}>{r.instruccion}</p>
+              )}
             </div>
-            <span className="text-xs text-gray-500 shrink-0 tabular-nums">{r.ignorados} {r.accion === "documento_externo" ? "marcados" : "ignorados"}</span>
+            <span className="text-xs text-gray-500 shrink-0 tabular-nums">{r.ignorados} {MARCA_ACCION[r.accion]?.verbo ?? "ignorados"}</span>
             <EditButton onClick={() => abrir(r)} tooltipText="Editar" />
             <TrashButton onConfirmDelete={() => eliminar(r)} tooltipText="Eliminar" entityName="regla" />
           </div>
@@ -148,7 +161,20 @@ export default function PanelReglasColaIA() {
           <Entrada etiqueta="Remitente (dirección o @dominio)" valor={form.remitente} onCambiar={(v) => campo("remitente", v)} ejemplo="@somoslokal.cl" />
           <Entrada etiqueta="El asunto contiene" valor={form.asunto_contiene} onCambiar={(v) => campo("asunto_contiene", v)} ejemplo="tienes un nuevo pedido" />
           <Entrada etiqueta="Adjunto (extensión)" valor={form.adjunto_extension} onCambiar={(v) => campo("adjunto_extension", v)} ejemplo="rtf" />
-          {prueba && <ResultadoPrueba prueba={prueba} marca={form.accion === "documento_externo"} />}
+          {form.accion === "instruccion" && (
+            <label className="block">
+              <span className="block text-sm font-medium text-gray-700 mb-1">Instrucción para la IA</span>
+              <textarea
+                value={form.instruccion}
+                onChange={(e) => campo("instruccion", e.target.value)}
+                rows={4}
+                maxLength={2000}
+                placeholder="Toma las líneas tal como vienen, sin dividirlas."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/30 focus:border-transparent"
+              />
+            </label>
+          )}
+          {prueba && <ResultadoPrueba prueba={prueba} marca={form.accion !== "ignorar"} />}
         </div>
       </Modal>
     </div>
@@ -186,7 +212,7 @@ function ResultadoPrueba({ prueba, marca }) {
         {peligro
           ? `${prueba.crearon_orden} de los correos que toca crearon una orden: dejaría fuera pedidos reales.`
           : marca
-            ? `En los últimos ${prueba.dias} días habría marcado ${prueba.crearon_orden} pedido${prueba.crearon_orden === 1 ? "" : "s"} (de ${prueba.total} correo${prueba.total === 1 ? "" : "s"}).`
+            ? `En los últimos ${prueba.dias} días habría aplicado a ${prueba.crearon_orden} pedido${prueba.crearon_orden === 1 ? "" : "s"} (de ${prueba.total} correo${prueba.total === 1 ? "" : "s"}).`
             : `En los últimos ${prueba.dias} días habría ignorado ${prueba.total} correo${prueba.total === 1 ? "" : "s"}.`}
       </p>
       {prueba.ejemplos.length > 0 && (
