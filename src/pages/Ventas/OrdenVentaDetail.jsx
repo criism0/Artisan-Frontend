@@ -1073,6 +1073,14 @@ export default function OrdenVentaDetail() {
 
     // Cómo avanza una orden Validada lo explica el «(?)» del título (`AYUDA_FLUJO_OV`).
 
+    // Sale con boleta emitida fuera del ERP: se rutea y entrega sin factura ni guía (2026-11-18).
+    if (orden?.documento_externo && ["Validada", "En picking", "Lista para facturación"].includes(estado))
+      return {
+        tono: "info",
+        texto: "Sale con documento externo · sin factura del ERP",
+        ayuda: "Se entrega contra lo pickeado y, entregada, la orden queda Entregada. Si después se factura, la factura nace entregada.",
+      };
+
     // Salió (o va a salir) con guía: la factura sigue faltando (2026-11-18).
     if (estado === "Guía emitida")
       return {
@@ -1141,8 +1149,10 @@ export default function OrdenVentaDetail() {
       onClick: async () => {
         try {
           const valor = !orden?.documento_externo;
-          await api(`/ordenes-venta/${orden.id}`, { method: "PUT", body: JSON.stringify({ documento_externo: valor }) });
-          setOrden((prev) => (prev ? { ...prev, documento_externo: valor } : prev));
+          const res = await api(`/ordenes-venta/${orden.id}`, { method: "PUT", body: JSON.stringify({ documento_externo: valor }) });
+          // Cambiar la marca puede cambiar el estado (una OV ya entregada con su boleta queda Entregada).
+          const actualizada = res?.orden ?? res?.data?.orden;
+          setOrden((prev) => (prev ? { ...prev, documento_externo: valor, ...(actualizada?.estado ? { estado: actualizada.estado } : {}) } : prev));
           toast.success(valor ? "Marcada con documento externo" : "Ya no lleva documento externo");
         } catch (err) {
           toast.error(err.message);
