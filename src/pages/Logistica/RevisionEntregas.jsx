@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { ClipboardCheck } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
 import { BackButton } from "../../components/Buttons/ActionButtons";
@@ -13,6 +14,9 @@ const FILTROS = [
   { valor: "Resuelta", texto: "Resueltas" },
   { valor: "todas", texto: "Todas" },
 ];
+
+/** Las OV de una entrega (una visita puede cubrir varias del mismo cliente), sin repetir y en orden. */
+const ovsDe = (e) => [...new Set((e.documentos ?? []).map((d) => d.id_orden_venta).filter(Boolean))].sort((a, b) => a - b);
 
 const fechaHora = (v) => (v ? new Date(v).toLocaleString("es-CL", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—");
 
@@ -62,6 +66,23 @@ export default function RevisionEntregas() {
   const columns = [
     { header: "Fecha", accessor: "fecha_hora", sortable: true, sortValue: (e) => e.fecha_hora ?? "", Cell: ({ value }) => fechaHora(value) },
     { header: "Cliente", accessor: "cliente", sortable: true },
+    {
+      header: "N° OV",
+      accessor: "ovs",
+      sortable: true,
+      sortValue: (e) => ovsDe(e)[0] ?? 0,
+      filtro: "texto",
+      filtroValor: (e) => ovsDe(e).join(" "),
+      Cell: ({ row }) => {
+        const ovs = ovsDe(row);
+        if (!ovs.length) return "—";
+        return ovs.map((id) => (
+          <Link key={id} to={`/ventas/ordenes/${id}`} className="block font-medium text-primary hover:underline">
+            OV #{id}
+          </Link>
+        ));
+      },
+    },
     {
       header: "Resultado",
       accessor: "estado",
@@ -144,7 +165,7 @@ export default function RevisionEntregas() {
         actions={actions}
         stickyActions
         filters={filtros}
-        getSearchText={(e) => [e.cliente, e.estado, e.motivo, e.motivo_no_entrega, e.acuerdo, e.comentario, e.ruta?.id].join(" ")}
+        getSearchText={(e) => [e.cliente, ...ovsDe(e), e.estado, e.motivo, e.motivo_no_entrega, e.acuerdo, e.comentario, e.ruta?.id].join(" ")}
         initialSort={{ key: "fecha_hora", direction: "desc" }}
         loading={cargando}
         loadingMessage="Cargando revisiones"
