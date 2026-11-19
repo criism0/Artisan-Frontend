@@ -69,7 +69,13 @@ export default function EntregaParada({ entrega, anuladas = [], onAnular }) {
         )}
       </div>
       <div className="mt-1 text-xs text-gray-500">
-        {entrega.documentos.map((d) => `${d.tipo_dte === 52 ? "Guía" : "Factura"} ${d.folio ?? `#${d.id}`} (OV #${d.id_orden_venta})`).join(" · ")}
+        {entrega.documentos
+          .map((d) =>
+            d.tipo_dte === 0
+              ? `Documento externo (OV #${d.id_orden_venta})`
+              : `${d.tipo_dte === 52 ? "Guía" : "Factura"} ${d.folio ?? `#${d.id}`} (OV #${d.id_orden_venta})`,
+          )
+          .join(" · ")}
       </div>
 
       <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">

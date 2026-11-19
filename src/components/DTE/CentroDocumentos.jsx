@@ -188,8 +188,10 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   // La vía de emisión es una sola: "Facturar orden" desde `Lista para facturación`. Lo que sí
   // corresponde en ese caso es **vincular** el documento que se emitió afuera, que no gasta folio
   // y es justo el botón que ahora está al lado.
+  // Con documento externo (boleta de la tienda web) no hay factura que vincular: salió así a propósito.
+  const conDocumentoExterno = Boolean(orden?.documento_externo);
   const facturadaSinDocumento =
-    !facturaEmitida && estadoIncludes(estado, 'facturada', 'entregada');
+    !facturaEmitida && !conDocumentoExterno && estadoIncludes(estado, 'facturada', 'entregada');
 
   const puedeEmitirNC = !!facturaEmitida && (!ultimaCorreccion || ultimaCorreccion.tipoDte === 56);
   const puedeEmitirND = !!facturaEmitida && !!ultimaCorreccion && ultimaCorreccion.tipoDte === 61;
@@ -199,7 +201,9 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
     ? { tone: 'ok', texto: `Factura folio ${facturaEmitida.folio}` }
     : guiaEmitida
       ? { tone: 'warn', texto: 'Guía emitida · falta factura' }
-      : { tone: 'off', texto: 'Sin documentos emitidos' };
+      : conDocumentoExterno
+        ? { tone: 'off', texto: 'Documento externo · sin factura del ERP' }
+        : { tone: 'off', texto: 'Sin documentos emitidos' };
 
   async function handleAbrirNC(factura) {
     setPreEmitiendo(true);
