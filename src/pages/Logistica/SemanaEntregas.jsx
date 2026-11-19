@@ -67,6 +67,13 @@ const guardarRutasAbiertas = (ids) => {
   }
 };
 const COLOR_ESTADO_RUTA = { Planificada: "bg-sky-400", "En curso": "bg-green-500", Cerrada: "bg-gray-400" };
+/** Cómo terminó cada parada, para las OV de la ruta que ya no están pendientes. */
+const ESTADO_PARADA = {
+  Entregada: { texto: "entregada", clase: "bg-green-50 text-green-700" },
+  Parcial: { texto: "parcial", clase: "bg-amber-50 text-amber-800" },
+  "No entregada": { texto: "no entregada", clase: "bg-red-50 text-red-700" },
+  Pendiente: { texto: "pendiente", clase: "bg-gray-100 text-gray-700" },
+};
 
 const DOC_AVISO = {
   guia: { texto: "sin factura", clase: "bg-amber-50 text-amber-800", ayuda: "Sale con guía de despacho: falta la factura" },
@@ -447,12 +454,28 @@ export default function SemanaEntregas() {
                   {delDia.length > 0 && <span className="text-xs text-gray-500 tabular-nums">{delDia.length}</span>}
                 </div>
                 {rutasDia.map((r) => {
+                  // Las OV de la ruta: las pendientes se ven con su tarjeta del planificador; las que ya no
+                  // están pendientes (entregadas, ruta cerrada) salen de la propia ruta, con el estado de su parada.
                   const suyas = delDia.filter((o) => o.ruta?.id === r.id);
+                  const idsSuyas = new Set(suyas.map((o) => o.id));
+                  const fuera = (r.paradas ?? []).flatMap((p) =>
+                    (p.ordenes ?? [])
+                      .filter((po) => !idsSuyas.has(po.id_orden_venta))
+                      .map((po) => ({
+                        id: po.id_orden_venta,
+                        numero_oc: po.orden?.numero_oc,
+                        cliente: { nombre: p.cliente?.nombre_empresa || p.cliente?.razon_social || "Sin cliente" },
+                        estadoParada: p.estado,
+                      })),
+                  );
+                  const consultaActiva = Boolean(consulta.trim());
                   const suyasVisibles = suyas.filter(visible);
+                  const fueraVisibles = fuera.filter((o) => coincideBusqueda(o, consulta));
+                  const totalOv = suyas.length + fuera.length;
                   // Con búsqueda o filtro de sector, una ruta sin coincidencias no se muestra y las que sí, se abren.
-                  const filtrando = Boolean(consulta.trim()) || filtro !== "todos";
-                  if (filtrando && suyas.length && !suyasVisibles.length) return null;
-                  const abierta = rutasAbiertas.has(r.id) || (Boolean(consulta.trim()) && suyasVisibles.length > 0);
+                  const filtrando = consultaActiva || filtro !== "todos";
+                  if (filtrando && !suyasVisibles.length && !(consultaActiva && fueraVisibles.length)) return null;
+                  const abierta = rutasAbiertas.has(r.id) || (consultaActiva && suyasVisibles.length + fueraVisibles.length > 0);
                   const sinDocumento = suyas.filter((o) => o.documento === "ninguno").length;
                   return (
                     <div key={r.id} className="flex flex-col gap-1.5">
@@ -469,8 +492,8 @@ export default function SemanaEntregas() {
                           <span className="truncate flex-1 min-w-0">
                             Ruta #{r.id} · {r.paradas?.length ?? 0} paradas{r.transportista?.nombre ? ` · ${r.transportista.nombre}` : ""}
                           </span>
-                          {suyas.length > 0 && (
-                            <span className="shrink-0 rounded bg-white/70 px-1 tabular-nums" title={`${suyas.length} OV en esta ruta`}>{suyas.length}</span>
+                          {totalOv > 0 && (
+                            <span className="shrink-0 rounded bg-white/70 px-1 tabular-nums" title={`${totalOv} OV en esta ruta`}>{totalOv}</span>
                           )}
                         </button>
                         <button
@@ -489,6 +512,24 @@ export default function SemanaEntregas() {
                         </span>
                       )}
                       {abierta && suyasVisibles.map(tarjeta)}
+                      {abierta &&
+                        (consultaActiva ? fueraVisibles : filtro === "todos" ? fuera : []).map((o) => (
+                          <button
+                            key={`r${r.id}-${o.id}`}
+                            type="button"
+                            onClick={() => navigate(`/ventas/ordenes/${o.id}`)}
+                            className="text-left rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs flex flex-col gap-0.5 hover:bg-gray-50"
+                            style={{ borderLeft: "4px solid #9ca3af" }}
+                          >
+                            <span className="font-semibold text-gray-800 text-[13px] leading-tight truncate">{o.cliente.nombre}</span>
+                            <span className="text-gray-500 truncate">#{o.id}{o.numero_oc ? ` · ${o.numero_oc}` : ""}</span>
+                            {ESTADO_PARADA[o.estadoParada] && (
+                              <span className="flex mt-0.5">
+                                <span className={`px-1 rounded font-semibold ${ESTADO_PARADA[o.estadoParada].clase}`}>{ESTADO_PARADA[o.estadoParada].texto}</span>
+                              </span>
+                            )}
+                          </button>
+                        ))}
                     </div>
                   );
                 })}
