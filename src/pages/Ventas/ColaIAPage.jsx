@@ -75,6 +75,8 @@ const FLAG_LABELS = {
   precio_no_disponible:  null,
   // Éste SÍ aporta: dice de DÓNDE salió el precio, que no se ve en ninguna otra parte.
   precio_desde_lista:    "Precios tomados de la lista de precios del cliente",
+  // Regla «precio de la lista» (2026-11-19): el correo traía otro precio en esas líneas.
+  precio_oc_distinto:    "El correo trae otro precio en algunas líneas: se usó el de la lista del cliente",
   cliente_no_encontrado: null, // se muestra vía el selector de cliente, no aquí
   sin_precio:            null, // lo cuenta la fila de requisitos, con el número exacto
 
