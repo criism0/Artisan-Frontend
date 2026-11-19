@@ -12,6 +12,14 @@
  */
 html {
   scrollbar-gutter: stable;
+  /* La app es sólo clara (2026-11-19): con el sistema en oscuro, el lienzo y los controles nativos
+     salían oscuros alrededor de las tarjetas blancas. */
+  color-scheme: light;
+  background: theme("colors.background");
+}
+
+body {
+  background: theme("colors.background");
 }
 
 /**
