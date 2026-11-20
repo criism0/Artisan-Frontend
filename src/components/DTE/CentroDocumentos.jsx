@@ -24,7 +24,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  FileText, Truck, FileMinus, FilePlus, FileSearch, RefreshCw, AlertCircle, X, Link2,
+  FileText, Truck, FileMinus, FilePlus, FileSearch, RefreshCw, AlertCircle, X, Link2, MoreHorizontal,
 } from 'lucide-react';
 import NotaCreditoModal from './NotaCreditoModal.jsx';
 import NotaDebitoModal from './NotaDebitoModal.jsx';
@@ -85,6 +85,11 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   const [viendoBorradorGuia, setViendoBorradorGuia] = useState(false);
   // Res. Ex. SII 154: con qué transportista, chofer y patente sale la guía de la venta.
   const [idTransporteGuia, setIdTransporteGuia] = useState(null);
+  // Puerta trasera (2026-11-19): guía con la OV ya facturada, escondida en el «⋯».
+  const [menuMas, setMenuMas] = useState(false);
+  const [guiaConFactura, setGuiaConFactura] = useState(false);
+  const [motivoGuia, setMotivoGuia] = useState('');
+  const [emitiendoGuiaExtra, setEmitiendoGuiaExtra] = useState(false);
   const [transporteExigido, setTransporteExigido] = useState(false);
   const [vinculando, setVinculando] = useState(false);
   const [visorEn, setVisorEn] = useState(null);
@@ -188,8 +193,10 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   // La vía de emisión es una sola: "Facturar orden" desde `Lista para facturación`. Lo que sí
   // corresponde en ese caso es **vincular** el documento que se emitió afuera, que no gasta folio
   // y es justo el botón que ahora está al lado.
+  // Con documento externo (boleta de la tienda web) no hay factura que vincular: salió así a propósito.
+  const conDocumentoExterno = Boolean(orden?.documento_externo);
   const facturadaSinDocumento =
-    !facturaEmitida && estadoIncludes(estado, 'facturada', 'entregada');
+    !facturaEmitida && !conDocumentoExterno && estadoIncludes(estado, 'facturada', 'entregada');
 
   const puedeEmitirNC = !!facturaEmitida && (!ultimaCorreccion || ultimaCorreccion.tipoDte === 56);
   const puedeEmitirND = !!facturaEmitida && !!ultimaCorreccion && ultimaCorreccion.tipoDte === 61;
@@ -199,7 +206,9 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
     ? { tone: 'ok', texto: `Factura folio ${facturaEmitida.folio}` }
     : guiaEmitida
       ? { tone: 'warn', texto: 'Guía emitida · falta factura' }
-      : { tone: 'off', texto: 'Sin documentos emitidos' };
+      : conDocumentoExterno
+        ? { tone: 'off', texto: 'Documento externo · sin factura del ERP' }
+        : { tone: 'off', texto: 'Sin documentos emitidos' };
 
   async function handleAbrirNC(factura) {
     setPreEmitiendo(true);
@@ -390,6 +399,31 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Actualizar SII
           </button>
+
+          {facturaEmitida && !guiaEmitida && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuMas((v) => !v)}
+                aria-label="Más opciones de documentos"
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+              {menuMas && (
+                <div className="absolute right-0 mt-1 w-64 z-30 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-sm" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setMenuMas(false); setMotivoGuia(''); setGuiaConFactura(true); }}
+                    className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-gray-700 hover:bg-gray-50"
+                  >
+                    <Truck size={14} /> Emitir guía igual (ya facturada)…
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -516,6 +550,60 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
       {modalDetalles && (
         <DTEDetallesModal dte={modalDetalles} onClose={() => setModalDetalles(null)} />
       )}
+
+      <Modal
+        abierto={guiaConFactura}
+        onCerrar={() => setGuiaConFactura(false)}
+        titulo="Guía de despacho con la orden ya facturada"
+        descripcion={facturaEmitida ? `Acompaña a la factura ${facturaEmitida.folio}: se entrega la factura, la guía no queda como otro documento por entregar.` : undefined}
+        pie={
+          <>
+            <button type="button" onClick={() => setGuiaConFactura(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={emitiendoGuiaExtra || motivoGuia.trim().length < 5 || (transporteExigido && !idTransporteGuia)}
+              onClick={async () => {
+                setEmitiendoGuiaExtra(true);
+                try {
+                  await dteService.emitirGuiaDespachoVenta(orden.id, { idTransporte: idTransporteGuia, aunConFactura: { motivo: motivoGuia.trim() } });
+                  toast.success('Guía emitida');
+                  setGuiaConFactura(false);
+                  await cargarDocumentos();
+                  onCambio?.();
+                } catch (err) {
+                  toast.error(err?.message ?? 'No se pudo emitir la guía');
+                } finally {
+                  setEmitiendoGuiaExtra(false);
+                }
+              }}
+              className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+            >
+              {emitiendoGuiaExtra ? 'Emitiendo…' : 'Emitir guía'}
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <SelectorTransporte
+            permiteRetiro
+            idBodegaOrigen={orden.bodega_id}
+            valor={idTransporteGuia}
+            onCambiar={setIdTransporteGuia}
+            onExigida={setTransporteExigido}
+          />
+          <label className="text-sm text-gray-700">
+            Motivo
+            <input
+              value={motivoGuia}
+              onChange={(e) => setMotivoGuia(e.target.value)}
+              placeholder="Ej.: el cliente pide que la mercadería viaje con guía"
+              className="mt-1 w-full h-9 px-3 border border-gray-300 rounded-lg text-sm"
+            />
+          </label>
+        </div>
+      </Modal>
 
       <Modal
         abierto={!!aRechazar}
