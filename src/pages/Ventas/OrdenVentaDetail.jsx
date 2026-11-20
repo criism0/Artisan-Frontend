@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Ban,
   CheckCircle2,
@@ -505,6 +505,7 @@ function FacturarForm({
 export default function OrdenVentaDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const api = useApi();
   const confirm = useConfirm();
 
@@ -995,6 +996,46 @@ export default function OrdenVentaDetail() {
   const iva = Math.round(totalNeto * 0.19);
   const total = totalNeto + iva;
 
+  const esFacturable = orden?.estado === "Lista para facturación" || orden?.estado === "Guía emitida";
+
+  const abrirFacturar = () => {
+    setIdLocalDespacho(String(orden?.id_local || ""));
+    loadDireccionesCliente(cliente?.id);
+    // La fecha de pago se propone desde la condición del cliente, y sólo cuando se puede
+    // leer con certeza. Lo que ya tenga la orden manda: alguien la escribió a propósito.
+    // Hoy en Chile: `toISOString()` da el día UTC, que después de las 21:00 ya es mañana.
+    const hoy = getTodayDate();
+    // La precedencia es la MISMA que aplica el backend al emitir: lo guardado en la orden
+    // manda, después la condición del documento del cliente, y al final su ficha. Si la
+    // pantalla propusiera una y el documento saliera con otra, nadie se entera.
+    const { fecha, origen } = origenVencimiento({
+      guardadoEnOrden: orden?.fecha_vencimiento_pago,
+      condicionOrden: orden?.condiciones,
+      condicionCliente: cliente?.condicion_pago,
+      fechaEmision: fechaFacturacion || hoy,
+    });
+    setFechaVencimiento(fecha);
+    setOrigenFecha(origen);
+    setShowFacturarForm(true);
+  };
+
+  // Atajo «Facturar» de la lista de OV: llega con `?facturar=1` y abre el MISMO modal que la
+  // acción principal, con todas sus validaciones. No se duplica el formulario en la lista.
+  // El parámetro se consume al leerlo, para que recargar o volver atrás no lo reabra.
+  const pidioFacturar = searchParams.get("facturar") === "1";
+  useEffect(() => {
+    if (!pidioFacturar || loading || !orden) return;
+    setSearchParams(
+      (p) => {
+        p.delete("facturar");
+        return p;
+      },
+      { replace: true },
+    );
+    if (esFacturable) abrirFacturar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pidioFacturar, loading, orden]);
+
   if (loading) return <PageLoader message="Cargando orden" />;
 
   if (!orden)
@@ -1027,30 +1068,11 @@ export default function OrdenVentaDetail() {
         disabled: transitioning,
       };
 
-    if (estado === "Lista para facturación" || estado === "Guía emitida")
+    if (esFacturable)
       return {
         label: "Facturar orden",
         icon: <Receipt className="w-4 h-4" />,
-        onClick: () => {
-          setIdLocalDespacho(String(orden?.id_local || ""));
-          loadDireccionesCliente(cliente?.id);
-          // La fecha de pago se propone desde la condición del cliente, y sólo cuando se puede
-          // leer con certeza. Lo que ya tenga la orden manda: alguien la escribió a propósito.
-          // Hoy en Chile: `toISOString()` da el día UTC, que después de las 21:00 ya es mañana.
-          const hoy = getTodayDate();
-          // La precedencia es la MISMA que aplica el backend al emitir: lo guardado en la orden
-          // manda, después la condición del documento del cliente, y al final su ficha. Si la
-          // pantalla propusiera una y el documento saliera con otra, nadie se entera.
-          const { fecha, origen } = origenVencimiento({
-            guardadoEnOrden: orden?.fecha_vencimiento_pago,
-            condicionOrden: orden?.condiciones,
-            condicionCliente: cliente?.condicion_pago,
-            fechaEmision: fechaFacturacion || hoy,
-          });
-          setFechaVencimiento(fecha);
-          setOrigenFecha(origen);
-          setShowFacturarForm(true);
-        },
+        onClick: abrirFacturar,
         disabled: transitioning,
       };
 
