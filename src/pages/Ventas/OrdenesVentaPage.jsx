@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { FileDown, Receipt, Ban, RotateCcw } from "lucide-react";
+import { FileDown, FilePlus2, Receipt, Ban, RotateCcw } from "lucide-react";
 import { ViewDetailButton, EditButton, TrashButton } from "../../components/Buttons/ActionButtons";
 import DataTable from "../../components/Tables/DataTable";
 import { usePersistedState } from "../../hooks/useTablaPersistida";
@@ -370,9 +370,22 @@ export default function OrdenesVentaPage() {
     // Sólo donde puede haber factura. El estado es el único dato de la fila que lo dice sin
     // pedir los documentos de las 290 órdenes.
     const puedeTenerFactura = ["Facturada parcial", "Facturada", "Entregada"].includes(row.estado);
+    // Atajo a la acción que el estado pide: abre el detalle con el modal de facturar ya abierto
+    // (mismo formulario y validaciones; ver `?facturar=1` en OrdenVentaDetail).
+    const puedeFacturar = ["Lista para facturación", "Guía emitida"].includes(row.estado);
 
     return (
       <div className="flex gap-2 justify-center items-center">
+        {puedeFacturar && (
+          <button
+            onClick={() => navigate(`/ventas/ordenes/${row.id}?facturar=1`)}
+            className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs font-semibold text-white hover:bg-primary-dark"
+            title="Facturar orden"
+          >
+            <FilePlus2 className="w-4 h-4" />
+            Facturar
+          </button>
+        )}
         <ViewDetailButton
           onClick={() => navigate(`/ventas/ordenes/${row.id}`)}
           tooltipText="Ver detalle"
