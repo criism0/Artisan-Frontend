@@ -13,7 +13,8 @@
  * esperado, no un error.
  */
 
-import { AlertCircle, Eye, FileDown, Info, Link2, Unlink } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertCircle, Ban, Eye, FileDown, Info, Link2, MoreHorizontal, Unlink } from 'lucide-react';
 import { DTEStatusBadge } from './DTEStatusBadge.jsx';
 import { formatCLP } from '../../services/formatHelpers.js';
 import { formatFecha } from '../../lib/dateUtils';
@@ -38,7 +39,23 @@ export default function TablaDocumentosTributarios({
   onVerDetalles,
   onVerRechazo,
   onDesvincular,
+  onRechazoCliente,
 }) {
+  // «⋯ Más opciones» (2026-11-11): lo que deshace o corrige un documento va en un menú, no a la vista.
+  const [menu, setMenu] = useState(null); // { dte, x, y }
+  useEffect(() => {
+    if (!menu) return undefined;
+    const cerrar = () => setMenu(null);
+    const alEscape = (e) => { if (e.key === 'Escape') cerrar(); };
+    window.addEventListener('scroll', cerrar, true);
+    window.addEventListener('resize', cerrar);
+    document.addEventListener('keydown', alEscape);
+    return () => {
+      window.removeEventListener('scroll', cerrar, true);
+      window.removeEventListener('resize', cerrar);
+      document.removeEventListener('keydown', alEscape);
+    };
+  }, [menu]);
   if (cargando && documentos.length === 0) {
     return <p className="text-sm text-gray-400 italic py-3">Cargando documentos…</p>;
   }
@@ -72,6 +89,14 @@ export default function TablaDocumentosTributarios({
                 <td className="px-3 py-2">
                   <DTEStatusBadge tipoDte={dte.tipoDte} folio={dte.folio} estadoSii={dte.estadoSii} />
                   {refLabel && <div className="text-xs text-gray-400 italic mt-0.5">{refLabel}</div>}
+                  {dte.metadata?.rechazo_cliente && (
+                    <span
+                      className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-red-50 text-red-700"
+                      title={`Motivo: ${dte.metadata.rechazo_cliente.motivo}`}
+                    >
+                      Rechazada por el cliente
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{formatFecha(dte.fechaEmision)}</td>
                 <td className="px-3 py-2 text-right text-gray-700 whitespace-nowrap">
@@ -143,11 +168,15 @@ export default function TablaDocumentosTributarios({
                         para esta orden borra un vínculo que nadie creó a mano. */}
                     <button
                       type="button"
-                      onClick={() => onDesvincular(dte)}
-                      title="Desvincular de este proceso (no borra el documento ni libera el folio)"
-                      className="p-1.5 rounded text-gray-400 hover:text-red-600 hover:bg-red-50"
+                      onClick={(e) => {
+                        const r = e.currentTarget.getBoundingClientRect();
+                        setMenu((m) => (m?.dte.id === dte.id ? null : { dte, x: r.right, y: r.bottom }));
+                      }}
+                      title="Más opciones"
+                      aria-label="Más opciones"
+                      className="p-1.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100"
                     >
-                      <Unlink className="w-4 h-4" />
+                      <MoreHorizontal className="w-4 h-4" />
                     </button>
                   </div>
                 </td>
@@ -156,6 +185,36 @@ export default function TablaDocumentosTributarios({
           })}
         </tbody>
       </table>
+      {menu && (
+        <div className="fixed inset-0 z-40" onMouseDown={() => setMenu(null)}>
+          <div
+            role="menu"
+            className="absolute w-60 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-sm"
+            style={{ left: Math.max(8, Math.min(menu.x - 240, window.innerWidth - 248)), top: Math.min(menu.y + 4, window.innerHeight - 100) }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {onRechazoCliente && menu.dte.tipoDte === 33 && menu.dte.estadoSii !== 'anulado' && menu.dte.folio != null && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { const d = menu.dte; setMenu(null); onRechazoCliente(d); }}
+                className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-red-700 hover:bg-red-50"
+              >
+                <Ban className="w-4 h-4" /> Rechazada por el cliente…
+              </button>
+            )}
+            {/* Para CUALQUIER documento (ver OV 824): lo que cambia según el origen es el aviso del modal. */}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { const d = menu.dte; setMenu(null); onDesvincular(d); }}
+              className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-gray-700 hover:bg-gray-50"
+            >
+              <Unlink className="w-4 h-4" /> Desvincular de este proceso…
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Settings2, Zap, Route as IconoRuta } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, Search, Settings2, X, Zap, Route as IconoRuta } from "lucide-react";
 import PageHeader from "../../components/UI/PageHeader";
 import CargandoVista from "../../components/UI/CargandoVista";
 import Selector from "../../components/Forms/Selector";
 import ModalSectores from "../../components/Entregas/ModalSectores";
+import ModalOrdenSemana from "../../components/Entregas/ModalOrdenSemana";
+import ModalQuitadas from "../../components/Entregas/ModalQuitadas";
+import MenuContextualOrden from "../../components/Entregas/MenuContextualOrden";
+import HoverProductosOrden from "../../components/Entregas/HoverProductosOrden";
 import InventarioSemana from "../../components/Entregas/InventarioSemana";
 import Ayuda from "../../components/UI/Ayuda";
-import { diasSinStock, inicioDeLoPendiente, pedidoSinAlcance, planificacionRapida, tablaInventario } from "../../utils/planificacionSemana.js";
+import { coincideBusqueda, diasSinStock, inicioDeLoPendiente, pedidoSinAlcance, planificacionRapida, tablaInventario } from "../../utils/planificacionSemana.js";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import * as rutasApi from "../../services/rutasService";
@@ -42,6 +46,41 @@ const corto = (iso) => `${diaDelMes(iso)} ${MESES[Number(iso.slice(5, 7)) - 1]}`
  * Fase C (2026-11-05): debajo, el inventario de la semana contra lo que pide cada día, y el botón
  * «Planificación rápida», que propone el día de lo que espera; nada se guarda hasta confirmar.
  */
+/**
+ * Con qué documento sale el pedido (2026-11-18). Con factura no se marca nada; sin ninguno la ruta
+ * no puede salir, salvo que la OV lleve un documento externo (boleta de la tienda web).
+ */
+/** Rutas desplegadas en el planificador (2026-11-19): se recuerdan por navegador; parten contraídas. */
+const CLAVE_RUTAS_ABIERTAS = "planificador:rutas-abiertas";
+const leerRutasAbiertas = () => {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(CLAVE_RUTAS_ABIERTAS) ?? "[]"));
+  } catch {
+    return new Set();
+  }
+};
+const guardarRutasAbiertas = (ids) => {
+  try {
+    localStorage.setItem(CLAVE_RUTAS_ABIERTAS, JSON.stringify([...ids]));
+  } catch {
+    /* sin almacenamiento: queda sólo en esta visita */
+  }
+};
+const COLOR_ESTADO_RUTA = { Planificada: "bg-sky-400", "En curso": "bg-green-500", Cerrada: "bg-gray-400" };
+/** Cómo terminó cada parada, para las OV de la ruta que ya no están pendientes. */
+const ESTADO_PARADA = {
+  Entregada: { texto: "entregada", clase: "bg-green-50 text-green-700" },
+  Parcial: { texto: "parcial", clase: "bg-amber-50 text-amber-800" },
+  "No entregada": { texto: "no entregada", clase: "bg-red-50 text-red-700" },
+  Pendiente: { texto: "pendiente", clase: "bg-gray-100 text-gray-700" },
+};
+
+const DOC_AVISO = {
+  guia: { texto: "sin factura", clase: "bg-amber-50 text-amber-800", ayuda: "Sale con guía de despacho: falta la factura" },
+  externo: { texto: "doc. externo", clase: "bg-gray-100 text-gray-700", ayuda: "Sale con un documento emitido fuera del ERP (boleta)" },
+  ninguno: { texto: "sin documento", clase: "bg-red-50 text-red-700", ayuda: "Sin factura ni guía: la ruta no puede salir hasta emitir uno (o marcarla con documento externo)" },
+};
+
 export default function SemanaEntregas() {
   const navigate = useNavigate();
   const [lunes, setLunes] = useState(() => lunesActual(hoyIso()));
@@ -50,12 +89,28 @@ export default function SemanaEntregas() {
   const [datos, setDatos] = useState(null);
   const [rutas, setRutas] = useState([]);
   const [filtro, setFiltro] = useState("todos");
-  const [elegido, setElegido] = useState(null);
+  const [consulta, setConsulta] = useState("");
+  const [abierta, setAbierta] = useState(null);
+  const [iniciarEntrega, setIniciarEntrega] = useState(false);
+  const [menu, setMenu] = useState(null); // { x, y, orden }
+  const [verQuitadas, setVerQuitadas] = useState(false);
+  const [rutasAbiertas, setRutasAbiertas] = useState(leerRutasAbiertas);
+  const alternarRuta = (id) =>
+    setRutasAbiertas((prev) => {
+      const sig = new Set(prev);
+      if (sig.has(id)) sig.delete(id);
+      else sig.add(id);
+      guardarRutasAbiertas(sig);
+      return sig;
+    });
+  const [hover, setHover] = useState(null); // { orden, rect }: la OV bajo el mouse
+  const temporizadorHover = useRef(null);
   const [sobre, setSobre] = useState(null);
   const [editandoSectores, setEditandoSectores] = useState(false);
   const [verPool, setVerPool] = useState(PASO_POOL);
   const [propuesta, setPropuesta] = useState(null); // { dias: Map(id → día), fuera: Set(id) }
   const [confirmando, setConfirmando] = useState(false);
+  const [deshacer, setDeshacer] = useState(null); // Map(id → fecha previa) de la última planificación rápida
   const puedeEscribir = checkScope(ModelType.RUTA, ScopeType.WRITE);
 
   const dias = useMemo(() => DIAS.map((nombre, i) => ({ nombre, iso: sumarDias(lunes, i) })), [lunes]);
@@ -83,7 +138,8 @@ export default function SemanaEntregas() {
 
   const sectores = datos?.sectores ?? [];
   const colorDe = (o) => sectores.find((s) => s.id === o.id_sector)?.color ?? SIN_SECTOR;
-  const visible = (o) => filtro === "todos" || (filtro === "sin" ? o.id_sector == null : o.id_sector === filtro);
+  const visible = (o) =>
+    (filtro === "todos" || (filtro === "sin" ? o.id_sector == null : o.id_sector === filtro)) && coincideBusqueda(o, consulta);
   const ordenesBase = useMemo(() => datos?.ordenes ?? [], [datos]);
   const hoy = hoyIso();
   // Con la propuesta de la planificación rápida puesta (sin guardar), la semana se ve como quedaría.
@@ -101,33 +157,50 @@ export default function SemanaEntregas() {
     .sort((a, b) => (a.fecha_entrega ?? "9999").localeCompare(b.fecha_entrega ?? "9999") || b.id - a.id);
   const poolVisible = porPlanificar.filter(visible);
   const masAdelante = ordenes.filter((o) => o.dia && o.dia > sabado).length;
+  // Con una búsqueda puesta, lo que coincide pero sale en otra semana se ofrece para saltar a ella.
+  const enOtrasSemanas = consulta.trim()
+    ? ordenes.filter((o) => o.dia && (o.dia >= desde || o.ruta) && (o.dia < lunes || o.dia > sabado) && coincideBusqueda(o, consulta)).sort((a, b) => a.dia.localeCompare(b.dia))
+    : [];
 
-  const planificarRapido = () => {
+  // Se guarda al tiro (2026-11-10): ya no hay propuesta que confirmar. «Deshacer» devuelve las fechas.
+  const planificarRapido = async () => {
     const { propuestas, fuera } = planificacionRapida({ ordenes: ordenesBase, dias: isoDias, inventario: datos?.inventario ?? [], idBodega, hoy });
-    setPropuesta({ dias: new Map(propuestas.map((p) => [p.id, p.dia])), fuera: new Set(fuera) });
-    setElegido(null);
-  };
-  const confirmarPropuesta = async () => {
-    if (!propuesta) return;
+    const previas = new Map(propuestas.map((p) => [p.id, ordenesBase.find((o) => o.id === p.id)?.fecha_entrega ?? null]));
     setConfirmando(true);
     let fallidas = 0;
-    for (const [id, dia] of propuesta.dias) {
+    for (const p of propuestas) {
       try {
-        await rutasApi.moverFechaEntrega(id, dia);
+        await rutasApi.moverFechaEntrega(p.id, p.dia);
       } catch (e) {
         fallidas++;
+        previas.delete(p.id);
+        toast.error(`OV #${p.id}: ${e.message}`);
+      }
+    }
+    setConfirmando(false);
+    await cargar();
+    setPropuesta({ dias: new Map(), fuera: new Set(fuera) });
+    setDeshacer(previas.size ? previas : null);
+    if (!fallidas) toast.success(`Planificación guardada · ${propuestas.length} pedidos`);
+  };
+  const deshacerPlanificacion = async () => {
+    if (!deshacer) return;
+    setConfirmando(true);
+    for (const [id, fecha] of deshacer) {
+      try {
+        await rutasApi.moverFechaEntrega(id, fecha);
+      } catch (e) {
         toast.error(`OV #${id}: ${e.message}`);
       }
     }
+    setDeshacer(null);
     setPropuesta(null);
     setConfirmando(false);
     await cargar();
-    if (!fallidas) toast.success("Planificación guardada");
   };
 
   const mover = async (orden, destino) => {
     setPropuesta(null);
-    setElegido(null);
     const fecha = destino === "pool" ? null : destino;
     if (orden.ruta) {
       toast.error(`La OV #${orden.id} va en la ruta #${orden.ruta.id}: sale ese día.`);
@@ -171,32 +244,47 @@ export default function SemanaEntregas() {
       <div
         key={o.id}
         draggable={puedeEscribir && !o.ruta}
-        onDragStart={(e) => e.dataTransfer.setData("text/plain", String(o.id))}
-        onClick={() => puedeEscribir && !o.ruta && setElegido((x) => (x === o.id ? null : o.id))}
+        onDragStart={(e) => { clearTimeout(temporizadorHover.current); setHover(null); e.dataTransfer.setData("text/plain", String(o.id)); }}
+        onMouseEnter={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          clearTimeout(temporizadorHover.current);
+          temporizadorHover.current = setTimeout(() => setHover({ orden: o, rect }), 250);
+        }}
+        onMouseLeave={() => { clearTimeout(temporizadorHover.current); setHover(null); }}
+        onClick={() => { setIniciarEntrega(false); setAbierta(o.id); }}
+        onContextMenu={(e) => { if (!puedeEscribir) return; e.preventDefault(); clearTimeout(temporizadorHover.current); setHover(null); setMenu({ x: e.clientX, y: e.clientY, orden: o }); }}
         role="button"
         tabIndex={0}
-        aria-pressed={elegido === o.id}
-        className={`rounded-lg border bg-white px-2 py-1.5 text-xs flex flex-col gap-0.5 select-none ${o.ruta ? "cursor-default opacity-80" : "cursor-grab"} ${elegido === o.id ? "ring-2 ring-primary" : "border-gray-200"}`}
+        className={`rounded-lg border px-2 py-1.5 text-xs flex flex-col gap-0.5 select-none ${o.ruta ? "cursor-default bg-sky-50 border-sky-300" : "cursor-grab bg-white border-gray-200"}`}
         style={{ borderLeft: `4px solid ${colorDe(o)}` }}
         title={o.ruta ? `Ruta #${o.ruta.id}${o.ruta.transportista ? ` · ${o.ruta.transportista}` : ""}` : undefined}
       >
         <span className="font-semibold text-gray-800 text-[13px] leading-tight truncate">{o.cliente.nombre}</span>
         <span className="text-gray-500 truncate">#{o.id}{o.comuna ? ` · ${o.comuna}` : ""}</span>
-        {(movida || atrasada || o.ruta || o.propuesto || sinStock || o.estado_direccion === "falta") && (
+        {(movida || atrasada || o.ruta || o.propuesto || sinStock || o.estado_direccion === "falta" || DOC_AVISO[o.documento]) && (
           <span className="flex flex-wrap gap-1 mt-0.5">
             {o.propuesto && <span className="px-1 rounded bg-primary/10 text-primary font-semibold" title="Propuesta de la planificación rápida">⚡</span>}
             {sinStock && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">sin stock</span>}
-            {o.ruta && <span className="px-1 rounded bg-sky-50 text-sky-700 font-semibold inline-flex items-center gap-0.5"><IconoRuta className="w-3 h-3" />#{o.ruta.id}</span>}
+            {o.ruta && (
+              <span className="px-1.5 py-0.5 rounded bg-sky-600 text-white font-semibold inline-flex items-center gap-1" title={`Bloqueada: va en la ruta #${o.ruta.id}${o.ruta.transportista ? ` · ${o.ruta.transportista}` : ""}`}>
+                <Lock className="w-3 h-3" />Ruta #{o.ruta.id}{o.ruta.transportista ? ` · ${String(o.ruta.transportista).split(" ")[0]}` : ""}
+              </span>
+            )}
             {movida && <span className="px-1 rounded bg-amber-50 text-amber-700 font-semibold" title={`Comprometida para el ${corto(o.fecha_original)}`}>↺ {corto(o.fecha_original)}</span>}
             {atrasada && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">atrasada</span>}
             {o.estado_direccion === "falta" && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">sin dirección</span>}
+            {DOC_AVISO[o.documento] && (
+              <span className={`px-1 rounded font-semibold ${DOC_AVISO[o.documento].clase}`} title={DOC_AVISO[o.documento].ayuda}>
+                {DOC_AVISO[o.documento].texto}
+              </span>
+            )}
           </span>
         )}
       </div>
     );
   };
 
-  const elegidaOrden = ordenes.find((o) => o.id === elegido);
+  const ordenAbierta = ordenes.find((o) => o.id === abierta);
 
   return (
     <div className="p-4 sm:p-6 bg-background min-h-screen flex flex-col gap-4">
@@ -231,6 +319,32 @@ export default function SemanaEntregas() {
             </button>
           ))}
         </div>
+        <div className="relative w-64">
+          <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={consulta}
+            onChange={(e) => setConsulta(e.target.value)}
+            placeholder="Buscar OV, OC, cliente, RUT, factura…"
+            aria-label="Buscar pedidos en el planificador"
+            className="w-full pl-8 pr-7 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          {consulta && (
+            <button type="button" onClick={() => setConsulta("")} className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-gray-400 hover:text-gray-600" aria-label="Limpiar búsqueda">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        {enOtrasSemanas.length > 0 && (
+          <button
+            type="button"
+            onClick={() => { setPropuesta(null); setLunes(lunesActual(enOtrasSemanas[0].dia)); }}
+            className="text-xs font-semibold rounded-full bg-amber-50 text-amber-800 px-2 py-0.5 hover:bg-amber-100"
+            title="Ir a la semana del primero"
+          >
+            {enOtrasSemanas.length} en otras semanas →
+          </button>
+        )}
         <div className="w-40">
           <Selector options={bodegas.map((b) => ({ value: String(b.id), label: b.nombre }))} selectedValue={idBodega} onSelect={setIdBodega} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm" />
         </div>
@@ -247,6 +361,27 @@ export default function SemanaEntregas() {
               {s.nombre}
             </button>
           ))}
+          {rutas.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const todas = rutas.every((r) => rutasAbiertas.has(r.id));
+                const sig = todas ? new Set() : new Set(rutas.map((r) => r.id));
+                guardarRutasAbiertas(sig);
+                setRutasAbiertas(sig);
+              }}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-gray-600 hover:bg-gray-100"
+              title="Contraer o expandir las rutas de la semana"
+            >
+              {rutas.every((r) => rutasAbiertas.has(r.id)) ? <ChevronsDownUp className="w-3.5 h-3.5" /> : <ChevronsUpDown className="w-3.5 h-3.5" />}
+              {rutas.every((r) => rutasAbiertas.has(r.id)) ? "Contraer rutas" : "Expandir rutas"}
+            </button>
+          )}
+          {puedeEscribir && (
+            <button type="button" onClick={() => setVerQuitadas(true)} className="px-2 py-1 rounded-lg text-xs text-gray-600 hover:bg-gray-100" title="OV quitadas del planificador">
+              Quitadas
+            </button>
+          )}
           {puedeEscribir && (
             <button type="button" onClick={() => setEditandoSectores(true)} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100" title="Editar sectores">
               <Settings2 className="w-4 h-4" />
@@ -257,27 +392,29 @@ export default function SemanaEntregas() {
           {masAdelante > 0 && !propuesta && <span className="text-xs text-gray-500">{masAdelante} más adelante</span>}
           {propuesta && (
             <>
-              <span className="text-xs font-semibold rounded-full bg-green-50 text-green-700 px-2 py-0.5">✓ {propuesta.dias.size}</span>
+              {deshacer && <span className="text-xs font-semibold rounded-full bg-green-50 text-green-700 px-2 py-0.5">✓ {deshacer.size} guardados</span>}
               {propuesta.fuera.size > 0 && <span className="text-xs font-semibold rounded-full bg-red-50 text-red-700 px-2 py-0.5">⚠ {propuesta.fuera.size} sin stock</span>}
-              <button type="button" onClick={confirmarPropuesta} disabled={confirmando || propuesta.dias.size === 0} className="px-3 py-1 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark disabled:opacity-50">
-                {confirmando ? "Guardando…" : "Confirmar"}
-              </button>
-              <button type="button" onClick={() => setPropuesta(null)} disabled={confirmando} className="text-sm text-gray-500 underline">Descartar</button>
+              {deshacer && (
+                <button type="button" onClick={deshacerPlanificacion} disabled={confirmando} className="text-sm text-gray-600 underline disabled:opacity-50">
+                  {confirmando ? "Deshaciendo…" : "Deshacer"}
+                </button>
+              )}
+              <button type="button" onClick={() => { setPropuesta(null); setDeshacer(null); }} disabled={confirmando} className="text-sm text-gray-400 hover:text-gray-600" aria-label="Cerrar">✕</button>
             </>
           )}
-          {puedeEscribir && !propuesta && (
+          {puedeEscribir && (
             <>
-              <button type="button" onClick={planificarRapido} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark">
+              <button type="button" onClick={planificarRapido} disabled={confirmando} className="inline-flex disabled:opacity-50 items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark">
                 <Zap className="w-4 h-4" /> Planificación rápida
               </button>
               <Ayuda titulo="Planificación rápida">
                 <ul className="list-disc pl-4 space-y-1">
                   <li>De lunes a viernes, desde hoy; el sábado sólo a mano.</li>
-                  <li>Primero lo atrasado y lo de compromiso más temprano.</li>
-                  <li>Junta cada sector el mismo día, sin pasar su compromiso.</li>
-                  <li>Si no alcanza el stock en la semana, queda fuera y marcado.</li>
+                  <li>1.º Sector: un sector por día, todo el sector junto.</li>
+                  <li>2.º Compromiso: el día más tarde que no lo pase.</li>
+                  <li>3.º Stock: si no alcanza, prueba otro día; si no alcanza en la semana, queda fuera y marcado.</li>
                 </ul>
-                <p className="mt-1">Es una propuesta: nada se guarda hasta confirmar.</p>
+                <p className="mt-1">Se guarda al tiro; «Deshacer» devuelve las fechas.</p>
               </Ayuda>
             </>
           )}
@@ -298,9 +435,6 @@ export default function SemanaEntregas() {
               </button>
             )}
           </div>
-          {elegidaOrden && !elegidaOrden.ruta && elegidaOrden.dia && (
-            <button type="button" onClick={() => mover(elegidaOrden, "pool")} className="text-xs rounded-lg border border-gray-300 py-1 hover:bg-gray-50">Quitar fecha</button>
-          )}
         </div>
 
         <div className="grid grid-cols-6 gap-2 overflow-x-auto min-w-0" style={{ gridTemplateColumns: "repeat(6, minmax(130px, 1fr))" }}>
@@ -319,30 +453,96 @@ export default function SemanaEntregas() {
                   <span className={`text-sm font-semibold ${esHoy ? "text-primary" : "text-gray-800"}`}>{d.nombre} {diaDelMes(d.iso)}</span>
                   {delDia.length > 0 && <span className="text-xs text-gray-500 tabular-nums">{delDia.length}</span>}
                 </div>
-                {rutasDia.map((r) => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => navigate(`/Logistica/entregas/${r.id}`)}
-                    className="text-left text-[11px] rounded-md bg-sky-50 text-sky-800 px-1.5 py-1 hover:bg-sky-100 truncate"
-                  >
-                    Ruta #{r.id} · {r.paradas?.length ?? 0} paradas{r.transportista?.nombre ? ` · ${r.transportista.nombre}` : ""}
-                  </button>
-                ))}
-                {delDia.filter(visible).map(tarjeta)}
+                {rutasDia.map((r) => {
+                  // Las OV de la ruta: las pendientes se ven con su tarjeta del planificador; las que ya no
+                  // están pendientes (entregadas, ruta cerrada) salen de la propia ruta, con el estado de su parada.
+                  const suyas = delDia.filter((o) => o.ruta?.id === r.id);
+                  const idsSuyas = new Set(suyas.map((o) => o.id));
+                  const fuera = (r.paradas ?? []).flatMap((p) =>
+                    (p.ordenes ?? [])
+                      .filter((po) => !idsSuyas.has(po.id_orden_venta))
+                      .map((po) => ({
+                        id: po.id_orden_venta,
+                        numero_oc: po.orden?.numero_oc,
+                        cliente: { nombre: p.cliente?.nombre_empresa || p.cliente?.razon_social || "Sin cliente" },
+                        estadoParada: p.estado,
+                      })),
+                  );
+                  const consultaActiva = Boolean(consulta.trim());
+                  const suyasVisibles = suyas.filter(visible);
+                  const fueraVisibles = fuera.filter((o) => coincideBusqueda(o, consulta));
+                  const totalOv = suyas.length + fuera.length;
+                  // Con búsqueda o filtro de sector, una ruta sin coincidencias no se muestra y las que sí, se abren.
+                  const filtrando = consultaActiva || filtro !== "todos";
+                  if (filtrando && !suyasVisibles.length && !(consultaActiva && fueraVisibles.length)) return null;
+                  const abierta = rutasAbiertas.has(r.id) || (consultaActiva && suyasVisibles.length + fueraVisibles.length > 0);
+                  const sinDocumento = suyas.filter((o) => o.documento === "ninguno").length;
+                  return (
+                    <div key={r.id} className="flex flex-col gap-1.5">
+                      <div className="flex items-stretch rounded-md bg-sky-50 text-sky-800 text-[11px] hover:bg-sky-100">
+                        <button
+                          type="button"
+                          onClick={() => alternarRuta(r.id)}
+                          aria-expanded={abierta}
+                          className="flex-1 min-w-0 flex items-center gap-1 text-left px-1.5 py-1"
+                          title={abierta ? "Contraer la ruta" : "Ver las OV de la ruta"}
+                        >
+                          <ChevronRight className={`w-3 h-3 shrink-0 transition-transform ${abierta ? "rotate-90" : ""}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${COLOR_ESTADO_RUTA[r.estado] ?? "bg-gray-400"}`} title={r.estado} />
+                          <span className="truncate flex-1 min-w-0">
+                            Ruta #{r.id} · {r.paradas?.length ?? 0} paradas{r.transportista?.nombre ? ` · ${r.transportista.nombre}` : ""}
+                          </span>
+                          {totalOv > 0 && (
+                            <span className="shrink-0 rounded bg-white/70 px-1 tabular-nums" title={`${totalOv} OV en esta ruta`}>{totalOv}</span>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/Logistica/entregas/${r.id}`)}
+                          className="px-1.5 shrink-0 hover:text-sky-950"
+                          title="Abrir la ruta"
+                          aria-label={`Abrir la ruta #${r.id}`}
+                        >
+                          ↗
+                        </button>
+                      </div>
+                      {!abierta && sinDocumento > 0 && (
+                        <span className="-mt-1 px-0.5 text-[10.5px]">
+                          <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">⚠ {sinDocumento} sin documento</span>
+                        </span>
+                      )}
+                      {abierta && suyasVisibles.map(tarjeta)}
+                      {abierta &&
+                        (consultaActiva ? fueraVisibles : filtro === "todos" ? fuera : []).map((o) => (
+                          <button
+                            key={`r${r.id}-${o.id}`}
+                            type="button"
+                            onClick={() => navigate(`/ventas/ordenes/${o.id}`)}
+                            className="text-left rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs flex flex-col gap-0.5 hover:bg-gray-50"
+                            style={{ borderLeft: "4px solid #9ca3af" }}
+                          >
+                            <span className="font-semibold text-gray-800 text-[13px] leading-tight truncate">{o.cliente.nombre}</span>
+                            <span className="text-gray-500 truncate">#{o.id}{o.numero_oc ? ` · ${o.numero_oc}` : ""}</span>
+                            {ESTADO_PARADA[o.estadoParada] && (
+                              <span className="flex mt-0.5">
+                                <span className={`px-1 rounded font-semibold ${ESTADO_PARADA[o.estadoParada].clase}`}>{ESTADO_PARADA[o.estadoParada].texto}</span>
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                    </div>
+                  );
+                })}
+                {delDia.filter((o) => !rutasDia.some((r) => r.id === o.ruta?.id)).filter(visible).map(tarjeta)}
                 <div className="mt-auto pt-1">
-                  {elegidaOrden && !elegidaOrden.ruta ? (
-                    <button type="button" onClick={() => mover(elegidaOrden, d.iso)} className="w-full text-xs rounded-lg bg-primary text-white py-1 hover:bg-primary-dark">Mover aquí</button>
-                  ) : (
-                    puedeEscribir && sinRuta.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/Logistica/entregas/planificar?fecha=${d.iso}&ordenes=${sinRuta.map((o) => o.id).join(",")}`)}
-                        className="w-full text-xs rounded-lg border border-gray-300 py-1 hover:bg-gray-50"
-                      >
-                        Armar ruta
-                      </button>
-                    )
+                  {puedeEscribir && sinRuta.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/Logistica/entregas/planificar?fecha=${d.iso}&ordenes=${sinRuta.map((o) => o.id).join(",")}`)}
+                      className="w-full text-xs rounded-lg border border-gray-300 py-1 hover:bg-gray-50"
+                    >
+                      Armar ruta
+                    </button>
                   )}
                 </div>
               </div>
@@ -352,6 +552,53 @@ export default function SemanaEntregas() {
       </div>
 
       <InventarioSemana filas={filasInventario} dias={dias} />
+
+      {ordenAbierta && (
+        <ModalOrdenSemana
+          orden={ordenAbierta}
+          dias={dias}
+          puedeEscribir={puedeEscribir}
+          iniciarEntrega={iniciarEntrega}
+          onCerrar={() => { setAbierta(null); setIniciarEntrega(false); }}
+          onMover={mover}
+          onCambio={cargar}
+        />
+      )}
+
+      {hover && !menu && !abierta && <HoverProductosOrden orden={hover.orden} rect={hover.rect} />}
+
+      {menu && (
+        <MenuContextualOrden
+          x={menu.x}
+          y={menu.y}
+          onCerrar={() => setMenu(null)}
+          opciones={[
+            { texto: "Ver detalle", onClick: () => { setIniciarEntrega(false); setAbierta(menu.orden.id); } },
+            ...(menu.orden.ruta
+              ? []
+              : [
+                  ...(menu.orden.documento === "ninguno"
+                    ? []
+                    : [{ texto: "Marcar como entregada", onClick: () => { setIniciarEntrega(true); setAbierta(menu.orden.id); } }]),
+                  {
+                    texto: "Quitar del planificador",
+                    tono: "text-gray-600",
+                    onClick: async () => {
+                      try {
+                        await rutasApi.quitarDelPlanificador(menu.orden.id);
+                        toast.success("Quitada del planificador");
+                        await cargar();
+                      } catch (e) {
+                        toast.error(e.message);
+                      }
+                    },
+                  },
+                ]),
+          ]}
+        />
+      )}
+
+      {verQuitadas && <ModalQuitadas onCerrar={() => setVerQuitadas(false)} onCambio={cargar} />}
 
       {editandoSectores && (
         <ModalSectores

@@ -12,6 +12,8 @@ const COLOR = {
   Validada: "border-blue-300 bg-blue-100 text-blue-800",
   "En picking": "border-purple-300 bg-purple-100 text-purple-800",
   "Lista para facturación": "border-cyan-300 bg-cyan-100 text-cyan-800",
+  // Con guía y sin factura (2026-11-18): sale como facturada, pero la factura falta.
+  "Guía emitida": "border-teal-300 bg-teal-100 text-teal-800",
   "Facturada parcial": "border-orange-300 bg-orange-100 text-orange-800",
   Facturada: "border-yellow-300 bg-yellow-100 text-yellow-800",
   Entregada: "border-green-300 bg-green-100 text-green-800",

@@ -24,7 +24,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  FileText, Truck, FileMinus, FilePlus, FileSearch, RefreshCw, AlertCircle, X, Link2,
+  FileText, Truck, FileMinus, FilePlus, FileSearch, RefreshCw, AlertCircle, X, Link2, MoreHorizontal,
 } from 'lucide-react';
 import NotaCreditoModal from './NotaCreditoModal.jsx';
 import NotaDebitoModal from './NotaDebitoModal.jsx';
@@ -71,7 +71,7 @@ function Chip({ tone = 'off', children }) {
 
 const BOTON = 'flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50';
 
-export default function CentroDocumentos({ orden, accionPrincipal = null, onCambio }) {
+export default function CentroDocumentos({ orden, accionPrincipal = null, onCambio, onFacturar }) {
   const {
     documentos, loading, error,
     cargarDocumentos, emitirGuiaDespacho,
@@ -85,6 +85,11 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   const [viendoBorradorGuia, setViendoBorradorGuia] = useState(false);
   // Res. Ex. SII 154: con qué transportista, chofer y patente sale la guía de la venta.
   const [idTransporteGuia, setIdTransporteGuia] = useState(null);
+  // Puerta trasera (2026-11-19): guía con la OV ya facturada, escondida en el «⋯».
+  const [menuMas, setMenuMas] = useState(false);
+  const [guiaConFactura, setGuiaConFactura] = useState(false);
+  const [motivoGuia, setMotivoGuia] = useState('');
+  const [emitiendoGuiaExtra, setEmitiendoGuiaExtra] = useState(false);
   const [transporteExigido, setTransporteExigido] = useState(false);
   const [vinculando, setVinculando] = useState(false);
   const [visorEn, setVisorEn] = useState(null);
@@ -94,6 +99,12 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   const [aDesvincular, setADesvincular] = useState(null);
   const [notaDesvincular, setNotaDesvincular] = useState('');
   const [desvinculando, setDesvinculando] = useState(false);
+  // «Rechazada por el cliente» (2026-11-11): factura sin valor, sin NC, y la OV se factura de nuevo.
+  const [aRechazar, setARechazar] = useState(null);
+  const [mercaderia, setMercaderia] = useState('cliente');
+  const [motivoRechazo, setMotivoRechazo] = useState('');
+  const [rechazando, setRechazando] = useState(false);
+  const [vuelve, setVuelve] = useState({}); // id de línea → lo que volvió (texto)
 
   /**
    * 🔴 Al abrir la orden se le pregunta al SII en qué quedó cada documento.
@@ -182,8 +193,10 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
   // La vía de emisión es una sola: "Facturar orden" desde `Lista para facturación`. Lo que sí
   // corresponde en ese caso es **vincular** el documento que se emitió afuera, que no gasta folio
   // y es justo el botón que ahora está al lado.
+  // Con documento externo (boleta de la tienda web) no hay factura que vincular: salió así a propósito.
+  const conDocumentoExterno = Boolean(orden?.documento_externo);
   const facturadaSinDocumento =
-    !facturaEmitida && estadoIncludes(estado, 'facturada', 'entregada');
+    !facturaEmitida && !conDocumentoExterno && estadoIncludes(estado, 'facturada', 'entregada');
 
   const puedeEmitirNC = !!facturaEmitida && (!ultimaCorreccion || ultimaCorreccion.tipoDte === 56);
   const puedeEmitirND = !!facturaEmitida && !!ultimaCorreccion && ultimaCorreccion.tipoDte === 61;
@@ -193,7 +206,9 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
     ? { tone: 'ok', texto: `Factura folio ${facturaEmitida.folio}` }
     : guiaEmitida
       ? { tone: 'warn', texto: 'Guía emitida · falta factura' }
-      : { tone: 'off', texto: 'Sin documentos emitidos' };
+      : conDocumentoExterno
+        ? { tone: 'off', texto: 'Documento externo · sin factura del ERP' }
+        : { tone: 'off', texto: 'Sin documentos emitidos' };
 
   async function handleAbrirNC(factura) {
     setPreEmitiendo(true);
@@ -223,6 +238,25 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
     );
     await Promise.allSettled(pendientes.map((d) => dteService.actualizarEstadoSii(d.id)));
     await cargarDocumentos();
+  }
+
+  async function confirmarRechazo() {
+    if (!aRechazar || motivoRechazo.trim().length < 5) return;
+    setRechazando(true);
+    try {
+      const lineas = mercaderia === 'parcial'
+        ? Object.entries(vuelve).map(([id, v]) => ({ id: Number(id), cantidad: Number(String(v).replace(',', '.')) })).filter((l) => l.cantidad > 0)
+        : undefined;
+      const r = await dteService.rechazoCliente(aRechazar.id, { motivo: motivoRechazo.trim(), mercaderia, lineas });
+      toast.success(r?.mensaje ?? 'Factura marcada como rechazada.');
+      setARechazar(null);
+      await cargarDocumentos();
+      onCambio?.();
+    } catch (err) {
+      toast.error(err?.message ?? 'No se pudo marcar la factura');
+    } finally {
+      setRechazando(false);
+    }
   }
 
   async function confirmarDesvincular() {
@@ -365,6 +399,31 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Actualizar SII
           </button>
+
+          {facturaEmitida && !guiaEmitida && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuMas((v) => !v)}
+                aria-label="Más opciones de documentos"
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <MoreHorizontal size={16} />
+              </button>
+              {menuMas && (
+                <div className="absolute right-0 mt-1 w-64 z-30 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-sm" role="menu">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setMenuMas(false); setMotivoGuia(''); setGuiaConFactura(true); }}
+                    className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-gray-700 hover:bg-gray-50"
+                  >
+                    <Truck size={14} /> Emitir guía igual (ya facturada)…
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -429,7 +488,18 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
         onVerDetalles={setModalDetalles}
         onVerRechazo={setModalRechazo}
         onDesvincular={(d) => { setADesvincular(d); setNotaDesvincular(''); }}
+        onRechazoCliente={(d) => { setARechazar(d); setMercaderia('cliente'); setMotivoRechazo(''); setVuelve({}); }}
       />
+
+      {/* Refacturar al tiro (2026-11-11): tras marcar una factura rechazada, el siguiente paso está acá. */}
+      {onFacturar && !facturaEmitida && documentos.some((d) => d.metadata?.rechazo_cliente) && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+          <span className="text-amber-900">La factura fue rechazada por el cliente: emite la nueva.</span>
+          <button type="button" onClick={onFacturar} className="px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark">
+            Facturar de nuevo
+          </button>
+        </div>
+      )}
 
       {/* Lo que va a decir la factura, si todavía no se emite. Es EL MISMO componente que ve el
           operario al apretar "Facturar orden": el centro de documentos y el modal de emisión
@@ -480,6 +550,138 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
       {modalDetalles && (
         <DTEDetallesModal dte={modalDetalles} onClose={() => setModalDetalles(null)} />
       )}
+
+      <Modal
+        abierto={guiaConFactura}
+        onCerrar={() => setGuiaConFactura(false)}
+        titulo="Guía de despacho con la orden ya facturada"
+        descripcion={facturaEmitida ? `Acompaña a la factura ${facturaEmitida.folio}: se entrega la factura, la guía no queda como otro documento por entregar.` : undefined}
+        pie={
+          <>
+            <button type="button" onClick={() => setGuiaConFactura(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={emitiendoGuiaExtra || motivoGuia.trim().length < 5 || (transporteExigido && !idTransporteGuia)}
+              onClick={async () => {
+                setEmitiendoGuiaExtra(true);
+                try {
+                  await dteService.emitirGuiaDespachoVenta(orden.id, { idTransporte: idTransporteGuia, aunConFactura: { motivo: motivoGuia.trim() } });
+                  toast.success('Guía emitida');
+                  setGuiaConFactura(false);
+                  await cargarDocumentos();
+                  onCambio?.();
+                } catch (err) {
+                  toast.error(err?.message ?? 'No se pudo emitir la guía');
+                } finally {
+                  setEmitiendoGuiaExtra(false);
+                }
+              }}
+              className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+            >
+              {emitiendoGuiaExtra ? 'Emitiendo…' : 'Emitir guía'}
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <SelectorTransporte
+            permiteRetiro
+            idBodegaOrigen={orden.bodega_id}
+            valor={idTransporteGuia}
+            onCambiar={setIdTransporteGuia}
+            onExigida={setTransporteExigido}
+          />
+          <label className="text-sm text-gray-700">
+            Motivo
+            <input
+              value={motivoGuia}
+              onChange={(e) => setMotivoGuia(e.target.value)}
+              placeholder="Ej.: el cliente pide que la mercadería viaje con guía"
+              className="mt-1 w-full h-9 px-3 border border-gray-300 rounded-lg text-sm"
+            />
+          </label>
+        </div>
+      </Modal>
+
+      <Modal
+        abierto={!!aRechazar}
+        onCerrar={() => setARechazar(null)}
+        titulo={aRechazar ? `Factura ${aRechazar.folio} rechazada por el cliente` : ''}
+        descripcion="Queda sin valor y la orden se puede facturar de nuevo. No se emite nota de crédito."
+        pie={
+          <>
+            <button
+              type="button"
+              onClick={() => setARechazar(null)}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={confirmarRechazo}
+              disabled={rechazando || motivoRechazo.trim().length < 5 || (mercaderia === 'parcial' && !Object.values(vuelve).some((v) => Number(String(v).replace(',', '.')) > 0))}
+              className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+            >
+              {rechazando ? 'Marcando…' : 'Marcar rechazada'}
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-2">
+          {[
+            { v: 'cliente', t: 'La mercadería sigue con el cliente', d: 'Se conserva el pickeo y la entrega: la nueva factura hereda que ya se entregó.' },
+            { v: 'parcial', t: 'Volvió una parte', d: 'Indica cuánto volvió de cada producto: vuelve al stock y la nueva factura va por lo que se quedó el cliente.' },
+            { v: 'volvio', t: 'Volvió todo', d: 'Se deshace el pickeo: los bultos vuelven a estar disponibles y la orden queda Validada.' },
+          ].map((o) => (
+            <label
+              key={o.v}
+              className={`flex gap-2 rounded-lg border p-3 text-sm cursor-pointer ${mercaderia === o.v ? 'border-primary bg-primary/5' : 'border-gray-200'}`}
+            >
+              <input type="radio" name="mercaderia" checked={mercaderia === o.v} onChange={() => setMercaderia(o.v)} className="mt-0.5" />
+              <span>
+                <span className="block font-medium text-gray-800">{o.t}</span>
+                <span className="block text-xs text-gray-500">{o.d}</span>
+              </span>
+            </label>
+          ))}
+          {mercaderia === 'parcial' && (
+            <div className="rounded-lg border border-gray-200 divide-y divide-gray-100 max-h-56 overflow-y-auto">
+              {(orden?.productos ?? []).map((p) => {
+                const salio = Number(p.cantidad_pickeada ?? p.cantidad ?? 0);
+                return (
+                  <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 text-sm">
+                    <span className="flex-1 min-w-0">
+                      <span className="block truncate">{p.NombreFacturacion?.nombre || p.ProductoBase?.nombre || 'Producto'}</span>
+                      <span className="block text-xs text-gray-500">Salieron {salio}</span>
+                    </span>
+                    <span className="text-xs text-gray-500">Volvió</span>
+                    <input
+                      value={vuelve[p.id] ?? ''}
+                      onChange={(e) => setVuelve({ ...vuelve, [p.id]: e.target.value })}
+                      placeholder="0"
+                      inputMode="decimal"
+                      aria-label={`Cuánto volvió de ${p.NombreFacturacion?.nombre || 'producto'}`}
+                      className="w-20 h-8 px-2 border border-gray-300 rounded-md text-right text-sm"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <label className="text-sm text-gray-700 mt-1">
+            Motivo
+            <input
+              value={motivoRechazo}
+              onChange={(e) => setMotivoRechazo(e.target.value)}
+              placeholder="Ej.: reclamo SII, precio distinto a la OC"
+              className="mt-1 w-full h-9 px-3 border border-gray-300 rounded-lg text-sm"
+            />
+          </label>
+        </div>
+      </Modal>
 
       <Modal
         abierto={!!aDesvincular}

@@ -60,7 +60,7 @@ export default function Devoluciones() {
     { header: "Bulto", accessor: "tipo", sortable: true, filtro: false, Cell: ({ row }) => (
         <span className="text-sm">
           {describirBulto(row)}
-          {row.sin_trazabilidad && <span className="block text-xs text-amber-700" title="Pedido pickeado por cantidad: no se reintegra al inventario">Sin trazabilidad</span>}
+          {row.sin_trazabilidad && <span className="block text-xs text-amber-700" title="Pedido pickeado por cantidad: al reintegrar nace un bulto nuevo">Sin trazabilidad</span>}
         </span>
       ),
     },

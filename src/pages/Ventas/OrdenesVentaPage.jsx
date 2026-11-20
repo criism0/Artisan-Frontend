@@ -191,6 +191,10 @@ export default function OrdenesVentaPage() {
               )}
             </span>
           )}
+          {/* Sin factura del ERP a propósito: sale con boleta u otro documento externo (2026-11-18). */}
+          {row.factura?.folio == null && row.documento_externo && (
+            <span className="text-[11px] text-gray-500" title="Sale con un documento emitido fuera del ERP (boleta)">doc. externo</span>
+          )}
         </div>
       ),
     },

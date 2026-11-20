@@ -68,7 +68,19 @@ const poeToSearchText = (p) =>
     .join(" ")
     .toLowerCase();
 
-export default function POEsList() {
+/**
+ * Documentos de Calidad por tipo (pedido de Calidad, 2026-11-17): la misma pantalla sirve a POES,
+ * POE, instructivos y programas, cada uno con su entrada en el menú y su propia numeración.
+ */
+const TIPOS_DOCUMENTO_CALIDAD = {
+  POES: { titulo: "POES", singular: "POES", ejemploCodigo: "POES-04", descripcion: "Procedimientos Operativos Estandarizados de Sanitización." },
+  POE: { titulo: "POE", singular: "POE", ejemploCodigo: "POE-04", descripcion: "Procedimientos Operativos Estandarizados." },
+  INSTRUCTIVO: { titulo: "Instructivos", singular: "instructivo", ejemploCodigo: "INS-04", descripcion: "Instructivos de trabajo." },
+  PROGRAMA: { titulo: "Programas", singular: "programa", ejemploCodigo: "PRG-04", descripcion: "Programas de Calidad." },
+};
+
+export default function POEsList({ tipo = "POES" }) {
+  const cfg = TIPOS_DOCUMENTO_CALIDAD[tipo] ?? TIPOS_DOCUMENTO_CALIDAD.POES;
   const [poes, setPoes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,7 +96,7 @@ export default function POEsList() {
   const cargarPOEs = async () => {
     setLoading(true);
     try {
-      const res = await api("/calidad/poes?limit=100&page=1", { method: "GET" });
+      const res = await api(`/calidad/poes?limit=100&page=1&tipo=${tipo}`, { method: "GET" });
       setPoes(res?.data ?? []);
       setHistorico(null);
     } catch (error) {
@@ -95,8 +107,11 @@ export default function POEsList() {
   };
 
   useEffect(() => {
+    setPoes([]);
+    setHistorico(null);
     cargarPOEs();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipo]);
 
   const cargarHistorico = useCallback(async () => {
     if (poes.length === 0) {
@@ -159,9 +174,9 @@ export default function POEsList() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-text">Documentos POE</h1>
+            <h1 className="text-2xl font-bold text-text">{cfg.titulo}</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Procedimientos Operativos Estandarizados almacenados en S3.
+              {cfg.descripcion}
             </p>
           </div>
           <div className="flex gap-2">
@@ -220,9 +235,9 @@ export default function POEsList() {
           <div className="bg-white p-8 rounded-lg shadow text-center">
             <p className="text-gray-500 text-sm">
               {poes.length === 0
-                ? "No hay documentos POE cargados aún. Sube uno para comenzar."
+                ? `No hay ${cfg.titulo} cargados aún. Sube uno para comenzar.`
                 : filtroEstado === "inactivos"
-                  ? "No hay POEs inactivos."
+                  ? `No hay ${cfg.titulo} inactivos.`
                   : "No se encontraron documentos que coincidan con la búsqueda."}
             </p>
           </div>
@@ -280,6 +295,8 @@ export default function POEsList() {
 
       {uploadModalOpen && (
         <UploadPOEModal
+          tipo={tipo}
+          cfg={cfg}
           onClose={() => setUploadModalOpen(false)}
           onSuccess={(poe) => {
             handleNuevoPOE(poe);
@@ -290,6 +307,7 @@ export default function POEsList() {
 
       {previewDoc && (
         <PreviewPOEModal
+          cfg={cfg}
           doc={previewDoc}
           onClose={() => setPreviewDoc(null)}
           onChanged={cargarPOEs}
@@ -300,7 +318,7 @@ export default function POEsList() {
   );
 }
 
-function UploadPOEModal({ onClose, onSuccess }) {
+function UploadPOEModal({ tipo, cfg, onClose, onSuccess }) {
   const [codigo, setCodigo] = useState("");
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
@@ -332,6 +350,7 @@ function UploadPOEModal({ onClose, onSuccess }) {
       const created = await api("/calidad/poes", {
         method: "POST",
         body: {
+          tipo,
           codigo: codigo.trim(),
           nombre: nombre.trim(),
           descripcion: descripcion.trim() || undefined,
@@ -355,7 +374,7 @@ function UploadPOEModal({ onClose, onSuccess }) {
         className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md"
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-800">Subir documento POE</h2>
+          <h2 className="text-xl font-bold text-gray-800">Subir {cfg.singular}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -374,7 +393,7 @@ function UploadPOEModal({ onClose, onSuccess }) {
               type="text"
               value={codigo}
               onChange={(e) => setCodigo(e.target.value)}
-              placeholder="Ej: POE-04"
+              placeholder={`Ej: ${cfg.ejemploCodigo}`}
               className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
@@ -448,7 +467,7 @@ function UploadPOEModal({ onClose, onSuccess }) {
   );
 }
 
-function PreviewPOEModal({ doc, onClose, onChanged, onSwitchDoc }) {
+function PreviewPOEModal({ cfg = TIPOS_DOCUMENTO_CALIDAD.POES, doc, onClose, onChanged, onSwitchDoc }) {
   const [url, setUrl] = useState("");
   const [loadingUrl, setLoadingUrl] = useState(true);
   const [mutating, setMutating] = useState(false);
@@ -493,7 +512,7 @@ function PreviewPOEModal({ doc, onClose, onChanged, onSwitchDoc }) {
         method: "POST",
       });
       const updated = res?.data ?? res;
-      toast.success(updated?.activo ? "POE activado" : "POE desactivado");
+      toast.success(`${cfg.titulo} ${updated?.activo ? "activado" : "desactivado"}`);
       onSwitchDoc({ ...doc, activo: updated?.activo ?? !doc.activo });
       onChanged?.();
     } catch (error) {
@@ -506,8 +525,8 @@ function PreviewPOEModal({ doc, onClose, onChanged, onSwitchDoc }) {
   const handleDelete = async () => {
     if (mutating) return;
     if (!(await confirm({
-      title: "¿Eliminar POE?",
-      message: `El POE "${doc.codigo} v${doc.version}" se eliminará permanentemente. Esta acción no se puede deshacer.`,
+      title: `¿Eliminar ${cfg.singular}?`,
+      message: `El ${cfg.singular} "${doc.codigo} v${doc.version}" se eliminará permanentemente. Esta acción no se puede deshacer.`,
       confirmText: "Eliminar",
       danger: true,
     }))) {
@@ -516,7 +535,7 @@ function PreviewPOEModal({ doc, onClose, onChanged, onSwitchDoc }) {
     setMutating(true);
     try {
       await api(`/calidad/poes/${doc.id}`, { method: "DELETE" });
-      toast.success("POE eliminado");
+      toast.success(`${cfg.singular[0].toUpperCase()}${cfg.singular.slice(1)} eliminado`);
       onChanged?.();
       onClose();
     } catch (error) {
