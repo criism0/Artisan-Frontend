@@ -2,6 +2,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import RequireAuth from "./auth/RequireAuth";
+import RutaNoEncontrada from "./auth/RutaNoEncontrada";
 import CargandoVista from "./components/UI/CargandoVista";
 
 import Layout from "./components/Layout/Layout";
@@ -907,7 +908,11 @@ function Routing() {
           />
           <Route
             path="/Usuarios/add"
-            element={<AddUsuario />}
+            element={
+              <ProtectedRoute permissions={[[ModelType.USUARIO, ScopeType.WRITE]]}>
+                <AddUsuario />
+              </ProtectedRoute>
+            }
           />
           <Route
             path="/Usuarios/:id/asignar-bodega"
@@ -1079,10 +1084,24 @@ function Routing() {
           />
 
           {/* Bandeja SII — documentos recibidos de proveedores vía LibreDTE */}
-          <Route path="/ventas/bandeja-sii" element={<BandejaSII />} />
+          <Route
+            path="/ventas/bandeja-sii"
+            element={
+              <ProtectedRoute permissions={[[ModelType.DOCUMENTO_TRIBUTARIO, ScopeType.READ]]}>
+                <BandejaSII />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Bandeja DTE Emitidos — documentos emitidos a clientes vía LibreDTE */}
-          <Route path="/ventas/bandeja-dte-emitidos" element={<BandejaDTEEmitidos />} />
+          <Route
+            path="/ventas/bandeja-dte-emitidos"
+            element={
+              <ProtectedRoute permissions={[[ModelType.DOCUMENTO_TRIBUTARIO, ScopeType.READ]]}>
+                <BandejaDTEEmitidos />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Conciliación (B5) — cruza nuestros documentos con los de LibreDTE y sus borradores */}
           <Route
@@ -1404,7 +1423,7 @@ function Routing() {
         </Route>
 
         {/* 404 */}
-        <Route path="*" element={<div style={{ padding: 24 }}>404 — ruta no encontrada</div>} />
+        <Route path="*" element={<RutaNoEncontrada />} />
       </Routes>
       </Suspense>
     </BrowserRouter>
