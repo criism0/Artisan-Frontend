@@ -1,5 +1,19 @@
 import { describe, it, expect } from "vitest";
-import { puedeCancelarOV, puedeReabrirCancelacion } from "../ordenVentaCancelable.js";
+import { puedeCancelarOV, puedeReabrirCancelacion, puedeEliminarOV } from "../ordenVentaCancelable.js";
+
+// Espejo de ESTADOS_ELIMINABLES del backend (409 en el resto): borrar es definitivo y arrastra
+// pallets, pickeo, despacho y entregas.
+describe("puedeEliminarOV", () => {
+  it("permite eliminar mientras nada está comprometido con bodega", () => {
+    for (const e of ["PendienteIA", "Creada", "Validada", "Cancelada"]) expect(puedeEliminarOV(e)).toBe(true);
+  });
+
+  it("bloquea desde el picking en adelante", () => {
+    for (const e of ["En picking", "Lista para facturación", "Guía emitida", "Facturada parcial", "Facturada", "Entregada"])
+      expect(puedeEliminarOV(e)).toBe(false);
+    expect(puedeEliminarOV(undefined)).toBe(false);
+  });
+});
 
 describe("puedeCancelarOV", () => {
   it("permite cancelar en Creada y en Validada", () => {

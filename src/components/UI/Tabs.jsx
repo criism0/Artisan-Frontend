@@ -13,7 +13,10 @@ import TabButton from "../Wizard/TabButton";
  * Las pestañas vacías se muestran igual, deshabilitadas. Esconderlas haría que cambiaran
  * de posición entre un registro y otro, y ya no se podría aprender dónde está cada cosa.
  *
- * pestanas: [{ id, label, cantidad?, deshabilitadaSiVacia? }]
+ * `extra`: un chip corto con el estado de lo que hay adentro («NC parcial», «Parcial · en
+ * revisión»), para saber si vale la pena entrar sin entrar.
+ *
+ * pestanas: [{ id, label, cantidad?, extra?, deshabilitadaSiVacia? }]
  */
 export default function Tabs({ pestanas, activa, onCambiar }) {
   return (
@@ -31,6 +34,7 @@ export default function Tabs({ pestanas, activa, onCambiar }) {
             {p.cantidad != null && (
               <span className={activa === p.id ? "opacity-80" : "text-gray-400"}> ({p.cantidad})</span>
             )}
+            {p.extra && <span className="ml-1.5 inline-flex align-middle">{p.extra}</span>}
           </TabButton>
         );
       })}

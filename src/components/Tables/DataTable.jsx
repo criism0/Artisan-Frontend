@@ -293,8 +293,12 @@ export default function DataTable({
         {headerActions && <div className="flex flex-wrap gap-2">{headerActions}</div>}
       </div>
 
-      {/* Contenido extra bajo el header (p. ej. tabs + KPIs) */}
-      {headerExtra}
+      {/* Contenido extra bajo el header (p. ej. tabs + KPIs). Puede ser una función que recibe
+          los filtros de columna, para que un atajo (los chips de estado de Ventas) ponga el MISMO
+          filtro que el embudo en vez de llevar uno propio que pueda contradecirlo. */}
+      {typeof headerExtra === "function"
+        ? headerExtra({ filtrosColumna, cambiarFiltroColumna })
+        : headerExtra}
 
       {/* Toolbar */}
       <div className="flex flex-col gap-3 mb-6">

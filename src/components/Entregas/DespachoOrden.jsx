@@ -15,7 +15,7 @@ import Ayuda from "../UI/Ayuda.jsx";
  * armadas; y preparar desde acá si bodega no pudo hacerlo en la app. No se muestra si la OV
  * todavía no termina su picking y no tiene nada preparado.
  */
-export default function DespachoOrden({ idOrden }) {
+export default function DespachoOrden({ idOrden, onResumen }) {
   const [d, setD] = useState(null);
   const [preparando, setPreparando] = useState(false);
   const confirm = useConfirm();
@@ -26,9 +26,20 @@ export default function DespachoOrden({ idOrden }) {
   }, [idOrden]);
   useEffect(() => { cargar(); }, [cargar]);
 
-  if (!d) return null;
-  const vigentes = d.preparaciones.filter((p) => p.estado === "Vigente");
-  if (!vigentes.length && !d.preparable && !d.sueltos.length) return null;
+  const vigentes = d ? d.preparaciones.filter((p) => p.estado === "Vigente") : [];
+  const visible = Boolean(d) && (vigentes.length > 0 || d.preparable || d.sueltos.length > 0);
+  // Para el título de la pestaña «Despacho y entregas» del detalle de la OV.
+  useEffect(() => {
+    if (!onResumen) return;
+    onResumen({
+      visible,
+      sinPreparar: Boolean(d?.preparable) && vigentes.length === 0,
+      preparados: d?.resumen?.preparados ?? 0,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d, onResumen]);
+
+  if (!visible) return null;
 
   const etiquetas = async () => {
     try {

@@ -19,7 +19,11 @@
  * dos y la pestaña desaparece.
  *
  * Se compone de piezas propias en vez de ser un archivo gigante:
- *   `TablaDocumentosTributarios` · `SeccionAdjuntos` · `BuscadorDteExterno` · `VisorArchivo`.
+ *   `TablaDocumentosTributarios` · `BuscadorDteExterno` · `VisorArchivo`.
+ *
+ * Revisión de UI, Fase 5 (2026-11-25, maqueta aprobada por Cristóbal): el detalle de la OV pasa
+ * a pestañas con los productos primero, y esto queda en la pestaña «Documentos» con su estado
+ * (cantidad y NC/ND) en el título. Los archivos adjuntos tienen su propia pestaña.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -31,7 +35,6 @@ import NotaDebitoModal from './NotaDebitoModal.jsx';
 import DTEDetallesModal from './DTEDetallesModal.jsx';
 import DTEPreview from './DTEPreview.jsx';
 import TablaDocumentosTributarios from './TablaDocumentosTributarios.jsx';
-import SeccionAdjuntos from './SeccionAdjuntos.jsx';
 import BuscadorDteExterno from './BuscadorDteExterno.jsx';
 import VisorArchivo from './VisorArchivo.jsx';
 import Modal from '../UI/Modal.jsx';
@@ -71,11 +74,16 @@ function Chip({ tone = 'off', children }) {
 
 const BOTON = 'flex items-center gap-1.5 px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50';
 
-export default function CentroDocumentos({ orden, accionPrincipal = null, onCambio, onFacturar }) {
+export default function CentroDocumentos({ orden, accionPrincipal = null, onCambio, onFacturar, onCantidad }) {
   const {
     documentos, loading, error,
     cargarDocumentos, emitirGuiaDespacho,
   } = useDTE(orden?.id);
+
+  // El contador de la pestaña «Documentos» del detalle.
+  useEffect(() => {
+    if (!loading) onCantidad?.(documentos?.length ?? 0);
+  }, [documentos?.length, loading, onCantidad]);
 
   const [modalNC,       setModalNC]       = useState(null);
   const [modalND,       setModalND]       = useState(null);
@@ -512,11 +520,6 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
           <DTEPreview ordenId={orden.id} tipo="factura" />
         </div>
       )}
-
-      {/* ── Archivos adjuntos ────────────────────────────────────────────────────── */}
-      <div className="mt-6 pt-5 border-t border-gray-200">
-        <SeccionAdjuntos idOrdenVenta={orden.id} compacto />
-      </div>
 
       {/* ── Visor ────────────────────────────────────────────────────────────────── */}
       {visorEn != null && itemsVisor[visorEn] && (
