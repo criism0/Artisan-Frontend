@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, Edit, Trash, ArrowLeft, Plus, DollarSign, RotateCcw, ClipboardPen, Lock, Unlock } from "lucide-react";
+import { ArrowLeft, ClipboardPen, DollarSign, Edit, Eye, Lock, Plus, RotateCcw, Trash, Unlock, Warehouse } from "lucide-react";
 import { toast } from "../../lib/toast"
-import { FaWarehouse } from "react-icons/fa";
 
 // 🔴 TODOS los botones de este archivo llevan `type="button"` explícito. Sin él, el default de
 // un <button> es "submit" — invisible mientras se use fuera de un <form>, y una recarga
@@ -348,7 +347,7 @@ export function ToggleActiveButton({
 export function WarehouseButton({ onClick, tooltipText }) {
   return (
     <button type="button" onClick={onClick} className="text-gray-400 hover:text-blue-500" title={tooltipText}>
-      <FaWarehouse className="w-5 h-5" />
+      <Warehouse className="w-5 h-5" />
     </button>
   );
 }

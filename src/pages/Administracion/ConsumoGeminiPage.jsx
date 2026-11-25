@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useApi } from "../../lib/api";
-import { FiDollarSign, FiAlertCircle, FiRefreshCw, FiArrowLeft } from "react-icons/fi";
+import { AlertCircle, ArrowLeft, DollarSign, RefreshCw } from "lucide-react";
 
 function formatMoneda(valor, moneda) {
   if (valor == null) return "—";
@@ -46,7 +46,7 @@ export default function ConsumoGeminiPage() {
           to="/ventas/cola-ia"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-[#7A5AF8] transition"
         >
-          <FiArrowLeft size={14} /> Volver a Cola IA
+          <ArrowLeft size={14} /> Volver a Cola IA
         </Link>
       </div>
       <div className="flex items-center justify-between mb-6">
@@ -61,7 +61,7 @@ export default function ConsumoGeminiPage() {
           disabled={loading}
           className="flex items-center gap-1.5 text-sm text-[#7A5AF8] hover:text-[#6648e0] font-medium disabled:opacity-50 shrink-0"
         >
-          <FiRefreshCw className={loading ? "animate-spin" : ""} size={14} /> Actualizar
+          <RefreshCw className={loading ? "animate-spin" : ""} size={14} /> Actualizar
         </button>
       </div>
 
@@ -69,18 +69,18 @@ export default function ConsumoGeminiPage() {
         <div className="text-center py-20 text-gray-400">Cargando…</div>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700 flex items-start gap-2">
-          <FiAlertCircle className="shrink-0 mt-0.5" /> {error}
+          <AlertCircle className="shrink-0 mt-0.5" /> {error}
         </div>
       ) : !data?.disponible ? (
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-800 flex items-start gap-2">
-          <FiAlertCircle className="shrink-0 mt-0.5" />
+          <AlertCircle className="shrink-0 mt-0.5" />
           <span>{data?.motivo || "El consumo aún no está disponible."}</span>
         </div>
       ) : (
         <>
           <div className="bg-white rounded-2xl shadow border border-gray-100 p-6 mb-6">
             <p className="text-xs font-semibold text-gray-500 uppercase flex items-center gap-1.5">
-              <FiDollarSign size={13} /> Gasto acumulado este mes
+              <DollarSign size={13} /> Gasto acumulado este mes
             </p>
             <p className="text-4xl font-bold text-gray-900 mt-1">
               {formatMoneda(data.totalMesActual, data.moneda)}
