@@ -1,4 +1,4 @@
-import { FiCheckCircle, FiClock, FiCircle, FiAlertTriangle } from 'react-icons/fi';
+import { AlertTriangle, CheckCircle, Circle, Clock } from "lucide-react";
 
 /**
  * Vista estandarizada de avance de items para OC (recepción) y OV (picking).
@@ -38,22 +38,22 @@ function estadoItem(solicitado, completado) {
 const BADGES = {
   completo: {
     cls: 'bg-green-100 text-green-800 border-green-200',
-    Icon: FiCheckCircle,
+    Icon: CheckCircle,
     text: 'Completo',
   },
   parcial: {
     cls: 'bg-amber-100 text-amber-800 border-amber-200',
-    Icon: FiClock,
+    Icon: Clock,
     text: 'Parcial',
   },
   pendiente: {
     cls: 'bg-gray-100 text-gray-600 border-gray-200',
-    Icon: FiCircle,
+    Icon: Circle,
     text: 'Pendiente',
   },
   exceso: {
     cls: 'bg-violet-100 text-violet-800 border-violet-200',
-    Icon: FiAlertTriangle,
+    Icon: AlertTriangle,
     text: 'Exceso',
   },
 };

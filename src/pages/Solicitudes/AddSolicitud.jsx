@@ -5,8 +5,7 @@ import InsumosTable from '../../components/Insumos/InsumosTable';
 import ProductosTerminadosTable from '../../components/Solicitudes/ProductosTerminadosTable';
 import ImportarDesdeOCModal from '../../components/ImportarDesdeOCModal';
 import Selector from '../../components/Forms/Selector';
-import { ArrowRight } from 'lucide-react';
-import { FiDownload } from 'react-icons/fi';
+import { ArrowRight, Download } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/UI/PageHeader.jsx';
 import { useApi } from '../../lib/api';
@@ -281,7 +280,7 @@ export default function AddSolicitud() {
                   title={!selectedOrigen || !selectedDestino ? 'Selecciona ambas bodegas para importar insumos' : 'Precargar insumos y cantidades desde una orden de compra'}
                   className={`flex items-center gap-1.5 px-4 py-2 rounded-lg border transition-colors ${(!selectedOrigen || !selectedDestino) ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed' : 'border-primary text-primary bg-white hover:bg-primary hover:text-white'}`}
                 >
-                  <FiDownload className="w-4 h-4" />
+                  <Download className="w-4 h-4" />
                   Importar desde OC
                 </button>
                 <button

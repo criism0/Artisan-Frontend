@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FiX, FiSearch, FiDownload } from 'react-icons/fi';
 import { useApi } from '../lib/api';
 // Igual que en DTEPreview: la app no monta `<ToastContainer>`, así que los toast de
 // react-toastify no se muestran. El sistema vivo es `lib/toast.js`.
 import { toast } from '../lib/toast';
 import { formatFecha } from '../lib/dateUtils';
 import { claseEstadoOC } from '../utils/estadoOrdenCompra.js';
+import { Download, Search, X } from "lucide-react";
 
 /**
  * Modal para seleccionar una Orden de Compra y precargar sus insumos
@@ -129,14 +129,14 @@ export default function ImportarDesdeOCModal({ open, onClose, onImport }) {
             className="text-gray-400 hover:text-gray-600 transition-colors"
             title="Cerrar"
           >
-            <FiX className="w-6 h-6" />
+            <X className="w-6 h-6" />
           </button>
         </div>
 
         {/* Buscador */}
         <div className="px-6 py-3 border-b border-gray-100">
           <div className="relative">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
               value={query}
@@ -185,7 +185,7 @@ export default function ImportarDesdeOCModal({ open, onClose, onImport }) {
                       disabled={importingId != null}
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-sm rounded-md hover:bg-hover disabled:opacity-50 whitespace-nowrap"
                     >
-                      <FiDownload className="w-4 h-4" />
+                      <Download className="w-4 h-4" />
                       {importingId === o.id ? 'Importando...' : 'Importar'}
                     </button>
                   </li>

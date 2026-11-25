@@ -1524,7 +1524,6 @@ __metadata:
     qrcode: "npm:^1.5.4"
     react: "npm:^19.0.0"
     react-dom: "npm:^19.0.0"
-    react-icons: "npm:^5.5.0"
     react-router-dom: "npm:^7.5.0"
     react-toastify: "npm:^11.0.5"
     tailwindcss: "npm:3.4.4"
@@ -3341,15 +3340,6 @@ __metadata:
   peerDependencies:
     react: ^19.2.5
   checksum: 10c0/8067606e9f58e4c2e8cb5f09570217dbc71c4843ebcaa20ae2085912d3e3a351f17d8f7c1713313cdda7f272840c8c34ff6c860fcb840862071bceea218e0c63
-  languageName: node
-  linkType: hard
-
-"react-icons@npm:^5.5.0":
-  version: 5.6.0
-  resolution: "react-icons@npm:5.6.0"
-  peerDependencies:
-    react: "*"
-  checksum: 10c0/addba1ebfd45cdf7f69291d0c93df64fca1271cfdb66df657abd223e3451c73356b035f50e75858627dd182b02129596c79eaaaa45d32eb52658e443a992645c
   languageName: node
   linkType: hard
 

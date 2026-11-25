@@ -1,5 +1,4 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { FiPlus } from "react-icons/fi";
 import { ModifyButton, TrashButton, BackButton, EditButton, ToggleActiveButton } from "../../components/Buttons/ActionButtons";
 import { useState, useEffect } from "react";
 import { useApi } from "../../lib/api";
@@ -8,6 +7,7 @@ import Table from "../../components/Tables/Table";
 import TabButton from "../../components/Wizard/TabButton";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { Plus } from "lucide-react";
 
 const sum = (arr) => (Array.isArray(arr) ? arr.reduce((acc, v) => acc + Number(v || 0), 0) : 0);
 
@@ -660,7 +660,7 @@ export default function InsumoDetail() {
             onClick={() => navigate(`/catalogo/insumos/proveedores/${id}`)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors font-medium"
           >
-            <FiPlus className="w-4 h-4" /> Asociar proveedor o agregar formato
+            <Plus className="w-4 h-4" /> Asociar proveedor o agregar formato
           </button>
           <p className="text-xs text-gray-500 mt-2">
             Usa esta opción también para agregar un formato nuevo (ej. Caja) a un proveedor ya asociado, sin borrar

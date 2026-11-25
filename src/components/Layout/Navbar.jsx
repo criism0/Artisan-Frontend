@@ -4,12 +4,12 @@ import { useAuth } from "../../auth/AuthContext";
 import logo from "../../assets/logo.png";
 import { Dropdown, MenuGroup, MenuLink, ClockCompact } from "./NavbarFunction";
 import {
-  AlertTriangle, BookOpen, Bot, Box, Boxes, BrainCircuit, ClipboardCheck, ClipboardList, Clipboard,
-  Factory, FileCheck2, FileText, FolderTree, Handshake, Inbox, Landmark, Layers, LayoutGrid, Link2,
-  ListOrdered, MapPinned, Package, PackageMinus, PackageOpen, QrCode, Receipt, Scale, ScrollText,
-  Settings, ShieldCheck, ShieldUser, ShoppingBag, ShoppingCart, Smile, Sparkles, Stamp, Tag, Truck,
-  Users, Warehouse, Wrench, LogOut,
+  AlertTriangle, BookOpen, Bot, Box, BrainCircuit, Clipboard, ClipboardList, Factory, FileCheck2,
+  FileText, FolderTree, Landmark, Layers, LayoutGrid, Link2, ListOrdered, LogOut, Package,
+  Package2, PackageOpen, QrCode, Receipt, Scale, ScrollText, ShieldCheck, ShieldUser, Smile,
+  Sparkles, Stamp, Tag, Truck, Users, Warehouse, Wrench,
 } from "lucide-react";
+import { ICONOS } from "../../iconos";
 
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 
@@ -52,7 +52,7 @@ export default function Navbar() {
         <div className="hidden xl:block h-8 w-px bg-gray-200" />
 
         <nav className="hidden md:flex items-center gap-0.5 xl:gap-1">
-          {menu("adq", "Adquisiciones", <ShoppingBag size={16} />, (
+          {menu("adq", "Adquisiciones", <ICONOS.adquisiciones size={16} />, (
             <MenuGroup>
               <MenuLink to="/adquisiciones" icon={<LayoutGrid />} label="Dashboard" isAllowed={puede(ModelType.ORDEN_COMPRA)} />
               <MenuLink to="/adquisiciones/ordenes-compra" icon={<ClipboardList />} label="Órdenes de compra" isAllowed={puede(ModelType.ORDEN_COMPRA)} />
@@ -60,7 +60,7 @@ export default function Navbar() {
             </MenuGroup>
           ))}
 
-          {menu("prod", "Producción", <Factory size={16} />, (
+          {menu("prod", "Producción", <ICONOS.produccion size={16} />, (
             <MenuGroup>
               <MenuLink to="/produccion" icon={<LayoutGrid />} label="Dashboard" isAllowed={puede(ModelType.INVENTARIO)} />
               <MenuLink to="/produccion/elaboraciones" icon={<Factory />} label="Elaboraciones" isAllowed={puede(ModelType.ORDEN_MANUFACTURA)} />
@@ -68,34 +68,34 @@ export default function Navbar() {
             </MenuGroup>
           ))}
 
-          {menu("log", "Logística", <Truck size={16} />, (
+          {menu("log", "Logística", <ICONOS.logistica size={16} />, (
             <MenuGroup>
               <MenuLink to="/logistica" icon={<LayoutGrid />} label="Dashboard" isAllowed={puede(ModelType.INVENTARIO)} />
-              <MenuLink to="/logistica/solicitudes" icon={<Inbox />} label="Solicitudes" isAllowed={puede(ModelType.SOLICITUD_MERCADERIA)} />
-              <MenuLink to="/logistica/entregas" icon={<MapPinned />} label="Entregas" isAllowed={puede(ModelType.RUTA)} />
+              <MenuLink to="/logistica/solicitudes" icon={<ICONOS.solicitudes />} label="Solicitudes" isAllowed={puede(ModelType.SOLICITUD_MERCADERIA)} />
+              <MenuLink to="/logistica/entregas" icon={<ICONOS.entregas />} label="Entregas" isAllowed={puede(ModelType.RUTA)} />
               <MenuLink to="/logistica/transporte" icon={<Truck />} label="Transporte" isAllowed={puede(ModelType.BODEGA)} />
             </MenuGroup>
           ))}
 
-          {menu("inv", "Inventario", <Warehouse size={16} />, (
+          {menu("inv", "Inventario", <ICONOS.inventario size={16} />, (
             <MenuGroup>
               <MenuLink to="/inventario" icon={<LayoutGrid />} label="Dashboard" isAllowed={puede(ModelType.INVENTARIO)} />
-              <MenuLink to="/inventario/stock" icon={<Boxes />} label="Stock" isAllowed={puede(ModelType.INVENTARIO)} />
-              <MenuLink to="/inventario/bultos" icon={<Box />} label="Bultos" isAllowed={puede(ModelType.BULTO)} />
+              <MenuLink to="/inventario/stock" icon={<ICONOS.stock />} label="Stock" isAllowed={puede(ModelType.INVENTARIO)} />
+              <MenuLink to="/inventario/bultos" icon={<Package />} label="Bultos" isAllowed={puede(ModelType.BULTO)} />
               <MenuLink to="/inventario/sin-qr" icon={<PackageOpen />} label="Productos sin QR" isAllowed={puede(ModelType.BULTO)} />
-              <MenuLink to="/inventario/tomas" icon={<ClipboardCheck />} label="Tomas de inventario" isAllowed={puede(ModelType.SESION_INVENTARIADO)} />
-              <MenuLink to="/inventario/consumo-interno" icon={<PackageMinus />} label="Consumo interno" isAllowed={puede(ModelType.BULTO)} />
+              <MenuLink to="/inventario/tomas" icon={<ICONOS.tomas />} label="Tomas de inventario" isAllowed={puede(ModelType.SESION_INVENTARIADO)} />
+              <MenuLink to="/inventario/consumo-interno" icon={<ICONOS.consumoInterno />} label="Consumo interno" isAllowed={puede(ModelType.BULTO)} />
             </MenuGroup>
           ))}
 
-          {menu("ventas", "Ventas", <ShoppingCart size={16} />, (
+          {menu("ventas", "Ventas", <ICONOS.ventas size={16} />, (
             <>
               <MenuGroup>
                 <MenuLink to="/ventas" icon={<LayoutGrid />} label="Dashboard" isAllowed={puede(ModelType.ORDEN_VENTA)} />
               </MenuGroup>
               <MenuGroup label="Pedidos">
                 <MenuLink to="/ventas/cola-ia" icon={<Bot />} label="Cola IA" isAllowed={puede(ModelType.ORDEN_VENTA, ScopeType.WRITE)} />
-                <MenuLink to="/ventas/ordenes" icon={<ShoppingCart />} label="Órdenes de venta" isAllowed={puede(ModelType.ORDEN_VENTA)} />
+                <MenuLink to="/ventas/ordenes" icon={<ICONOS.ordenesVenta />} label="Órdenes de venta" isAllowed={puede(ModelType.ORDEN_VENTA)} />
               </MenuGroup>
               <MenuGroup label="Facturación">
                 <MenuLink to="/ventas/bandeja-sii" icon={<Landmark />} label="Bandeja SII" isAllowed={puede(ModelType.DOCUMENTO_TRIBUTARIO)} />
@@ -105,7 +105,7 @@ export default function Navbar() {
             </>
           ))}
 
-          {menu("calidad", "Calidad", <ClipboardCheck size={16} />, (
+          {menu("calidad", "Calidad", <ICONOS.calidad size={16} />, (
             <>
               <MenuGroup>
                 <MenuLink to="/calidad" icon={<LayoutGrid />} label="Dashboard" isAllowed={puede(ModelType.FORMULARIO_CALIDAD)} />
@@ -122,7 +122,7 @@ export default function Navbar() {
             </>
           ))}
 
-          {menu("com", "Comercial", <Handshake size={16} />, (
+          {menu("com", "Comercial", <ICONOS.comercial size={16} />, (
             <MenuGroup>
               <MenuLink to="/comercial/clientes" icon={<Smile />} label="Clientes" isAllowed={puede(ModelType.CLIENTE)} />
               <MenuLink to="/comercial/proveedores" icon={<Users />} label="Proveedores" isAllowed={puede(ModelType.PROVEEDOR)} />
@@ -131,11 +131,11 @@ export default function Navbar() {
             </MenuGroup>
           ), "derecha")}
 
-          {menu("cat", "Catálogo", <BookOpen size={16} />, (
+          {menu("cat", "Catálogo", <ICONOS.catalogo size={16} />, (
             <>
               <MenuGroup label="Productos">
                 <MenuLink to="/catalogo/productos" icon={<Tag />} label="Productos" isAllowed={puede(ModelType.PRODUCTO_BASE)} />
-                <MenuLink to="/catalogo/pip" icon={<Package />} label="PIP" isAllowed={puede(ModelType.MATERIA_PRIMA)} />
+                <MenuLink to="/catalogo/pip" icon={<Package2 />} label="PIP" isAllowed={puede(ModelType.MATERIA_PRIMA)} />
                 <MenuLink to="/catalogo/recetas" icon={<BookOpen />} label="Recetas" isAllowed={puede(ModelType.RECETA)} />
                 <MenuLink to="/catalogo/pautas-elaboracion" icon={<Clipboard />} label="Pautas de elaboración" isAllowed={puede(ModelType.PAUTA_ELABORACION)} />
               </MenuGroup>
@@ -153,7 +153,7 @@ export default function Navbar() {
             </>
           ), "derecha")}
 
-          {menu("admin", "Admin", <Settings size={16} />, (
+          {menu("admin", "Admin", <ICONOS.admin size={16} />, (
             <MenuGroup>
               <MenuLink to="/admin/usuarios" icon={<Users />} label="Usuarios" isAllowed={puede(ModelType.USUARIO) && puede(ModelType.ROLE)} />
               <MenuLink to="/admin/roles" icon={<ShieldCheck />} label="Roles" isAllowed={puede(ModelType.ROLE)} />
