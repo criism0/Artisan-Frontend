@@ -11,7 +11,8 @@ function hasVisibleLink(children) {
   });
 }
 
-export function Dropdown({ label, icon, children, open, onOpen, onClose }) {
+/** `alinear="derecha"`: los últimos módulos de la barra abren hacia la izquierda para no salirse de la pantalla. */
+export function Dropdown({ label, icon, children, open, onOpen, onClose, alinear = "izquierda" }) {
 
     if (!hasVisibleLink(children)) return null;
     
@@ -19,16 +20,19 @@ export function Dropdown({ label, icon, children, open, onOpen, onClose }) {
       <div className="relative" onMouseEnter={onOpen} onMouseLeave={onClose}>
         <button
           type="button"
-          className={`px-3 py-1.5 rounded-md text-sm flex items-center gap-2 ${
+          aria-expanded={open}
+          onClick={open ? onClose : onOpen}
+          className={`px-2 py-1.5 rounded-md text-sm flex items-center gap-1.5 whitespace-nowrap ${
             open ? "bg-gray-100" : "hover:bg-gray-100"
           }`}
         >
-          {icon && <span className="text-base">{icon}</span>}
+          {/* Bajo 1280 px sólo el nombre: con los 9 módulos la barra no cabe con íconos. */}
+          {icon && <span className="hidden xl:inline text-gray-600 [&>svg]:w-4 [&>svg]:h-4">{icon}</span>}
           <span>{label}</span>
         </button>
   
         {open && (
-          <div className="absolute left-0 mt-2 w-[360px] rounded-lg border bg-white shadow-lg p-2 z-50">
+          <div className={`absolute ${alinear === "derecha" ? "right-0" : "left-0"} mt-2 w-[300px] rounded-lg border bg-white shadow-lg p-2 z-50`}>
             <div className="flex flex-col gap-1">{children}</div>
           </div>
         )}
@@ -41,11 +45,13 @@ export function MenuGroup({ label, icon, children }) {
     if (!hasVisibleLink(children)) return null;
 
     return (
-      <div className="mt-2">
-        <div className="flex items-center gap-2 px-2 py-1 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-          {icon && <span className="text-sm">{icon}</span>}
-          <span>{label}</span>
-        </div>
+      <div className="mt-1 first:mt-0">
+        {label && (
+          <div className="flex items-center gap-2 px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wide text-gray-500 uppercase border-t border-gray-100">
+            {icon && <span className="text-sm">{icon}</span>}
+            <span>{label}</span>
+          </div>
+        )}
         <div className="pl-2 flex flex-col">{children}</div>
       </div>
     );
@@ -57,7 +63,7 @@ export function MenuLink({ to, icon, label, isAllowed=true }) {
     }
     const content = (
       <div className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50">
-        {icon && <span className="text-base">{icon}</span>}
+        {icon && <span className="text-gray-500 [&>svg]:w-4 [&>svg]:h-4">{icon}</span>}
         <span className="text-sm text-gray-700">{label}</span>
       </div>
     );
