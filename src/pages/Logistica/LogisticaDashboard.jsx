@@ -209,7 +209,7 @@ function DashboardContent({ data, navigate }) {
                   onClick={() =>
                     a.tipo === "solicitud"
                       ? navigate(`/Solicitudes/${a.id}`)
-                      : navigate(`/Pallets`)
+                      : navigate(a.id_solicitud ? `/Solicitudes/${a.id_solicitud}` : "/Solicitudes")
                   }
                   className="w-full text-left flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                 >

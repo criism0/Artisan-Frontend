@@ -207,6 +207,7 @@ export function alertasLogistica(solicitudes, pallets, limit = 8) {
     items.push({
       tipo: "pallet",
       id: p.id,
+      id_solicitud: p.id_solicitud_mercaderia ?? null,
       titulo: `Pallet ${p.identificador || `#${p.id}`}`,
       subtitulo: `${bultosDePallet(p)} bulto${bultosDePallet(p) === 1 ? "" : "s"} · ${p.estado || "Abierto"}`,
       estado: p.estado || "Abierto",
