@@ -10,7 +10,7 @@ import { formatearCLP, formatearFecha } from "../../utils/rutas";
  * despacho externo— con sus respuestas, las líneas de esta orden y las fotos (el documento
  * firmado, la hoja de recepción). No se muestra nada si la orden todavía no tiene entregas.
  */
-export default function EntregasDeOrden({ idOrden, costoEnvio }) {
+export default function EntregasDeOrden({ idOrden, onResumen }) {
   const [entregas, setEntregas] = useState(null);
 
   useEffect(() => {
@@ -23,21 +23,29 @@ export default function EntregasDeOrden({ idOrden, costoEnvio }) {
     };
   }, [idOrden]);
 
+  // Lo que la pestaña «Despacho y entregas» muestra en su título: el estado de la última visita
+  // y si quedó en revisión, sin tener que abrirla.
+  useEffect(() => {
+    if (!onResumen || entregas == null) return;
+    const vig = entregas.filter((e) => !e.anulada_en);
+    onResumen({
+      n: vig.length,
+      estado: vig.length ? vig[vig.length - 1].estado : null,
+      enRevision: vig.some((e) => e.estado_revision === "Pendiente"),
+    });
+  }, [entregas, onResumen]);
+
   if (!entregas?.length) return null;
   const vigentes = entregas.filter((e) => !e.anulada_en);
   const anuladas = entregas.filter((e) => e.anulada_en);
 
+  // El costo de entrega (interno) se mostraba acá y bajo los totales de Productos: queda sólo allá.
   return (
     <div className="mb-6 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold text-gray-900 flex items-center gap-2">
           <Truck className="w-4 h-4 text-primary" /> Entregas
         </h2>
-        {Number(costoEnvio) > 0 && (
-          <span className="text-xs text-gray-500" title="Lo que costó llevarla (rutas cerradas y despachos externos). Interno: no se cobra.">
-            Costo de entrega (interno): {formatearCLP(costoEnvio)}
-          </span>
-        )}
       </div>
       {vigentes.map((e) => (
         <div key={e.id} className="mt-3">

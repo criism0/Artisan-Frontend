@@ -27,6 +27,7 @@ import { generarNotaVentaPDF } from "../../services/notaVentaPdf.js";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import CentroDocumentos from "../../components/DTE/CentroDocumentos.jsx";
+import SeccionAdjuntos from "../../components/DTE/SeccionAdjuntos.jsx";
 import EntregasDeOrden from "../../components/Entregas/EntregasDeOrden";
 import DespachoOrden from "../../components/Entregas/DespachoOrden";
 import DTEPreview from "../../components/DTE/DTEPreview.jsx";
@@ -41,7 +42,12 @@ import { mensajeError } from "../../utils/mensajeError.js";
 import { derivarFolioOC, esVentaAPlazo, origenVencimiento } from "../../utils/referenciaOC.js";
 import { resumenFacturable } from "../../utils/cantidadFacturable.js";
 import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
-import { puedeCancelarOV, puedeReabrirCancelacion } from "../../utils/ordenVentaCancelable.js";
+import {
+  puedeCancelarOV,
+  puedeReabrirCancelacion,
+  puedeEliminarOV,
+  MOTIVO_NO_ELIMINABLE,
+} from "../../utils/ordenVentaCancelable.js";
 import { resumenSaldo, puedeCerrarSaldo, ESTADO_FACTURADA_PARCIAL } from "../../utils/saldoFacturacion.js";
 import { copiarComoDespacho } from "../../services/ubicacionService";
 import { formatFecha, getTodayDate } from "../../lib/dateUtils";
@@ -67,6 +73,13 @@ const inputCls = "border border-gray-300 px-3 py-2 rounded-md text-sm focus:outl
 // "Verifica tu conexión". Al facturar, eso escondía el mensaje que dice exactamente qué falta
 // ("al cliente X le falta razón social, giro"). La lógica correcta vive en utils/mensajeError.
 const apiErrorMsg = mensajeError;
+
+// Los mismos colores que la tarjeta de cada entrega (`EntregaParada`), en el chip de la pestaña.
+const TONO_CHIP_ENTREGA = {
+  Completa: "bg-green-100 text-green-800 border-green-200",
+  Parcial: "bg-amber-100 text-amber-800 border-amber-200",
+  "No entregada": "bg-red-100 text-red-800 border-red-200",
+};
 
 // Los estados por los que pasa una OV, en orden. Fuera del componente: no dependen de nada
 // suyo y así el arreglo no se reconstruye en cada render.
@@ -524,6 +537,11 @@ export default function OrdenVentaDetail() {
   const [showCerrarSaldo, setShowCerrarSaldo] = useState(false);
   const [motivoCerrarSaldo, setMotivoCerrarSaldo] = useState("");
   const [tab, setTab] = useState("detalle");
+  // Lo que cada pestaña muestra en su título; lo informan los propios componentes al cargar.
+  const [nDocumentos, setNDocumentos] = useState(null);
+  const [nAdjuntos, setNAdjuntos] = useState(null);
+  const [resumenDespacho, setResumenDespacho] = useState(null);
+  const [resumenEntregas, setResumenEntregas] = useState(null);
   const [fechaFacturacion, setFechaFacturacion] = useState("");
   const [fechaVencimiento, setFechaVencimiento] = useState("");
   const [origenFecha, setOrigenFecha] = useState("contado");
@@ -1155,15 +1173,20 @@ export default function OrdenVentaDetail() {
   // Reabrir/anular picking (tarea #121): sólo tienen sentido en Lista para facturación — antes
   // de eso no hay picking que deshacer, y después (Facturada) ya generó el documento tributario.
   // Es el fallback web del mismo par de botones del móvil, con el mismo texto de confirmación.
+  //
+  // `enMenu`: lo ocasional va al «⋯» (revisión de UI, Fase 5, 2026-11-25) para que no compita
+  // con la nota de venta y la acción del estado, que son lo que se usa todos los días.
   const accionesSecundarias = [
     {
-      label: "Descargar Nota de Venta",
+      label: "Nota de venta",
       icon: <Download className="w-4 h-4" />,
       onClick: handleDescargarPDF,
+      title: "Descargar la nota de venta (PDF)",
     },
     // Documento externo (2026-11-18): sale con una boleta emitida fuera del ERP, así que se rutea y
     // se entrega sin factura ni guía.
     !["Entregada", "Cancelada", "PendienteIA"].includes(orden?.estado) && {
+      enMenu: true,
       label: orden?.documento_externo ? "Quitar «documento externo»" : "Marcar con documento externo",
       icon: <Receipt className="w-4 h-4" />,
       disabled: !canWriteSaleOrder,
@@ -1196,6 +1219,7 @@ export default function OrdenVentaDetail() {
     // Las pendientes de entrega aparecen en el planificador de Logística; esto las saca (o las
     // devuelve) sin tocar su estado ni sus documentos.
     ["Validada", "En picking", "Lista para facturación", "Guía emitida", "Facturada parcial", "Facturada"].includes(orden?.estado) && {
+      enMenu: true,
       label: orden?.oculta_planificador ? "Devolver al planificador" : "Quitar del planificador",
       icon: <Undo2 className="w-4 h-4" />,
       onClick: async () => {
@@ -1210,6 +1234,7 @@ export default function OrdenVentaDetail() {
       },
     },
     orden?.estado === "Lista para facturación" && {
+      enMenu: true,
       label: "Reabrir picking",
       icon: <RotateCcw className="w-4 h-4" />,
       onClick: handleReabrirPicking,
@@ -1222,6 +1247,7 @@ export default function OrdenVentaDetail() {
       },
     },
     puedeCerrarSaldo(orden) && {
+      enMenu: true,
       label: "Cerrar saldo",
       icon: <Ban className="w-4 h-4" />,
       onClick: () => setShowCerrarSaldo(true),
@@ -1271,13 +1297,16 @@ export default function OrdenVentaDetail() {
         textoBoton: "Sí, cancelar",
       },
     },
-    {
+    // Sólo mientras nada está comprometido con bodega ni con el SII: el backend responde 409 en el
+    // resto (2026-11-25). Se ve deshabilitada con el motivo, no escondida.
+    canDeleteSaleOrder && {
       label: "Eliminar orden",
       icon: <Trash2 className="w-4 h-4" />,
+      disabled: !puedeEliminarOV(orden?.estado),
+      title: puedeEliminarOV(orden?.estado) ? undefined : MOTIVO_NO_ELIMINABLE,
       confirmar: {
         titulo: `¿Eliminar la orden de venta #${orden?.id}?`,
-        mensaje:
-          "Se elimina la orden y sus líneas. Si ya tiene documentos tributarios emitidos, esos no se anulan.",
+        mensaje: "Se borra la orden con sus líneas. No se puede deshacer.",
         textoBoton: "Sí, eliminar",
       },
       onClick: async () => {
@@ -1312,6 +1341,32 @@ export default function OrdenVentaDetail() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   const nombreCliente = cliente?.razon_social || cliente?.nombre_empresa;
+
+  // El chip de la pestaña «Despacho y entregas»: lo último que pasó, en dos palabras.
+  const chipDespacho = (() => {
+    if (resumenEntregas?.estado) {
+      const tono = TONO_CHIP_ENTREGA[resumenEntregas.estado] ?? "bg-gray-100 text-gray-700 border-gray-200";
+      return (
+        <span className={`px-2 py-0.5 rounded-full border text-xs font-medium ${tono}`}>
+          {resumenEntregas.estado}
+          {resumenEntregas.enRevision ? " · en revisión" : ""}
+        </span>
+      );
+    }
+    if (resumenDespacho?.sinPreparar)
+      return (
+        <span className="px-2 py-0.5 rounded-full border text-xs font-medium bg-amber-50 text-amber-800 border-amber-300">
+          Sin preparar
+        </span>
+      );
+    if (resumenDespacho?.preparados > 0)
+      return (
+        <span className="px-2 py-0.5 rounded-full border text-xs font-medium bg-blue-50 text-blue-800 border-blue-200">
+          {resumenDespacho.preparados} listo{resumenDespacho.preparados === 1 ? "" : "s"}
+        </span>
+      );
+    return null;
+  })();
   const TONOS_AVISO = {
     amber: "text-amber-800 bg-amber-50",
     orange: "text-orange-800 bg-orange-50",
@@ -1323,7 +1378,7 @@ export default function OrdenVentaDetail() {
     <div>
       <PageHeader
         volverA="/ventas/ordenes"
-        titulo={`Orden de Venta #${orden.id}`}
+        titulo={`Orden de venta #${orden.id}`}
         ayuda={AYUDA_FLUJO_OV}
         tituloAyuda="Cómo avanza una orden"
         subtitulo={
@@ -1348,7 +1403,8 @@ export default function OrdenVentaDetail() {
         acciones={
           <PanelAcciones
             principal={accionPrincipal}
-            secundarias={accionesSecundarias}
+            secundarias={accionesSecundarias.filter((a) => a && !a.enMenu)}
+            menu={accionesSecundarias.filter((a) => a && a.enMenu)}
             destructivas={accionesDestructivas}
           />
         }
@@ -1419,35 +1475,54 @@ export default function OrdenVentaDetail() {
         onOrdenActualizada={async () => setOrden(await fetchOrden())}
       />
 
-      {/* 🔴 TODO LO DOCUMENTAL, FUERA DE LAS PESTAÑAS Y EN UN SOLO LUGAR.
-          Antes esto estaba partido en dos: el panel de facturación acá (emisión y estado del
-          SII) y una pestaña «Documentos» a dos clics (origen, vincular y archivos adjuntos),
-          las dos mostrando la MISMA lista de documentos con la mitad de las acciones cada una.
-          `CentroDocumentos` las reemplaza, y por eso la pestaña ya no existe. */}
-      <div className="mb-6">
+      {/* 🔴 PRODUCTOS PRIMERO Y EL RESTO EN PESTAÑAS (revisión de UI, Fase 5, 2026-11-25, maqueta
+          aprobada por Cristóbal). Antes documentos, adjuntos, despacho y entregas iban apilados
+          arriba (decisión del 2026-08-25) y lo que pidió el cliente quedaba a 2,5 pantallas.
+          Cada pestaña dice en su título cuánto hay y en qué estado, así que no hay que entrar
+          para saber si hay algo pendiente. Las pestañas no visibles siguen montadas (`hidden`):
+          cargan una vez y no pierden lo que se estaba haciendo al cambiar de pestaña. */}
+      <Tabs
+        activa={tab}
+        onCambiar={setTab}
+        pestanas={[
+          { id: "detalle", label: "Productos", cantidad: orderItems.length },
+          {
+            id: "documentos",
+            label: "Documentos",
+            cantidad: nDocumentos,
+            extra: orden?.estado_dte_posterior ? <EstadoPosteriorBadge info={orden.estado_dte_posterior} /> : null,
+          },
+          { id: "despacho", label: "Despacho y entregas", extra: chipDespacho },
+          { id: "asignacion", label: "Asignación", cantidad: progresoRows.length },
+          { id: "adjuntos", label: "Adjuntos", cantidad: nAdjuntos },
+        ]}
+      />
+
+      <div className={tab === "documentos" ? "mb-6" : "hidden"}>
         {/* `fetchOrden` sólo trae la orden: hay que guardarla, o un cambio en los documentos
             (vincular, desvincular, factura rechazada) deja la pantalla con el estado viejo. */}
         <CentroDocumentos
           orden={orden}
           onCambio={async () => setOrden(await fetchOrden())}
           onFacturar={accionPrincipal?.label === "Facturar orden" ? accionPrincipal.onClick : undefined}
+          onCantidad={setNDocumentos}
         />
       </div>
 
-      {/* Cómo se entregó (rutas de entrega, Fase 2): las visitas con sus respuestas y fotos. */}
-      <DespachoOrden idOrden={orden.id} />
-      <EntregasDeOrden idOrden={orden.id} costoEnvio={orden.costo_envio} />
+      {/* Cómo se preparó y cómo se entregó (rutas de entrega): visitas con respuestas y fotos. */}
+      <div className={tab === "despacho" ? "" : "hidden"}>
+        <DespachoOrden idOrden={orden.id} onResumen={setResumenDespacho} />
+        <EntregasDeOrden idOrden={orden.id} onResumen={setResumenEntregas} />
+        {resumenDespacho && resumenEntregas && !resumenDespacho.visible && resumenEntregas.n === 0 && (
+          <div className="mb-6 bg-white rounded-xl border border-gray-200 shadow-sm p-4 text-sm text-gray-500">
+            Sin despacho ni entregas todavía.
+          </div>
+        )}
+      </div>
 
-      {/* Las pestañas quedan para lo que se pidió y lo que se pickeó — decisión de Cristóbal,
-          2026-08-25. Todo lo documental vive arriba, siempre visible. */}
-      <Tabs
-        activa={tab}
-        onCambiar={setTab}
-        pestanas={[
-          { id: "detalle", label: "Productos", cantidad: orderItems.length },
-          { id: "asignacion", label: "Asignación", cantidad: progresoRows.length },
-        ]}
-      />
+      <div className={tab === "adjuntos" ? "mb-6" : "hidden"}>
+        <SeccionAdjuntos idOrdenVenta={orden.id} onCantidad={setNAdjuntos} />
+      </div>
 
       {/* Líneas y totales, en forma de documento. Cliente/direcciones/fechas ya se mostraron
           arriba en `InformacionOrdenCliente` — acá no se repiten. */}

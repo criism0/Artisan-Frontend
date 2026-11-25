@@ -38,7 +38,7 @@ function IconoArchivo({ mimeType }) {
   return <File className="w-4 h-4 text-gray-400" />;
 }
 
-export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, compacto = false }) {
+export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, compacto = false, onCantidad }) {
   const [adjuntos, setAdjuntos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
@@ -62,6 +62,10 @@ export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, compacto = 
   }, [idOrdenVenta, idSolicitud]);
 
   useEffect(() => { cargar(); }, [cargar]);
+  // El contador de la pestaña «Adjuntos» del detalle de la OV.
+  useEffect(() => {
+    if (!cargando) onCantidad?.(adjuntos.length);
+  }, [adjuntos.length, cargando, onCantidad]);
 
   function elegirArchivo(archivo) {
     if (!archivo) return;

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { useState } from "react";
+import MenuAcciones from "./MenuAcciones.jsx";
 
 /**
  * Panel de acciones de una vista.
@@ -58,76 +58,15 @@ function ModalConfirmacion({ accion, onCerrar }) {
   );
 }
 
-function MenuDestructivas({ acciones, onElegir }) {
-  const [abierto, setAbierto] = useState(false);
-  const contenedor = useRef(null);
-
-  // Un menú que solo se cierra con su propio botón queda abierto tapando la vista en cuanto
-  // el usuario hace clic en otra parte, que es justo lo que espera que lo cierre.
-  useEffect(() => {
-    if (!abierto) return undefined;
-
-    const alClicFuera = (e) => {
-      if (contenedor.current && !contenedor.current.contains(e.target)) setAbierto(false);
-    };
-    const alEscape = (e) => {
-      if (e.key === "Escape") setAbierto(false);
-    };
-
-    document.addEventListener("mousedown", alClicFuera);
-    document.addEventListener("keydown", alEscape);
-    return () => {
-      document.removeEventListener("mousedown", alClicFuera);
-      document.removeEventListener("keydown", alEscape);
-    };
-  }, [abierto]);
-
-  if (!acciones.length) return null;
-
-  return (
-    <div className="relative" ref={contenedor}>
-      <button
-        onClick={() => setAbierto((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={abierto}
-        aria-label="Más acciones"
-        title="Más acciones"
-        className="p-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"
-      >
-        <MoreHorizontal className="w-5 h-5" />
-      </button>
-
-      {abierto && (
-        <div
-          role="menu"
-          className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-30"
-        >
-          {acciones.map((accion) => (
-            <button
-              key={accion.label}
-              role="menuitem"
-              disabled={accion.disabled}
-              title={accion.title}
-              onClick={() => {
-                setAbierto(false);
-                onElegir(accion);
-              }}
-              className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:hover:bg-transparent text-left"
-            >
-              {accion.icon}
-              {accion.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function PanelAcciones({ principal, secundarias = [], destructivas = [] }) {
+/**
+ * `menu`: lo ocasional, en el «⋯» y en gris (marcar documento externo, quitar del
+ * planificador…). Así no compite con lo frecuente, que queda a la vista en `secundarias`.
+ * `destructivas` van en el mismo «⋯», debajo de una línea y en rojo.
+ */
+export default function PanelAcciones({ principal, secundarias = [], menu = [], destructivas = [] }) {
   const [porConfirmar, setPorConfirmar] = useState(null);
 
-  const acciones = [principal, ...secundarias, ...destructivas].filter(Boolean);
+  const acciones = [principal, ...secundarias, ...menu, ...destructivas].filter(Boolean);
   if (!acciones.length) return null;
 
   // Una acción con `confirmar` abre el modal; el resto se ejecuta directo.
@@ -164,9 +103,15 @@ export default function PanelAcciones({ principal, secundarias = [], destructiva
           </button>
         )}
 
-        <MenuDestructivas
-          acciones={destructivas.filter(Boolean).map((a) => ({ ...a, destructiva: true }))}
-          onElegir={ejecutar}
+        <MenuAcciones
+          variante="boton"
+          items={[
+            ...menu.filter(Boolean).map((a) => ({ ...a, onClick: () => ejecutar(a) })),
+            { separador: true },
+            ...destructivas
+              .filter(Boolean)
+              .map((a) => ({ ...a, peligro: true, onClick: () => ejecutar({ ...a, destructiva: true }) })),
+          ]}
         />
       </div>
 

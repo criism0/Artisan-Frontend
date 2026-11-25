@@ -2,8 +2,10 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { FileDown, FilePlus2, Receipt, Ban, RotateCcw } from "lucide-react";
-import { ViewDetailButton, EditButton, TrashButton } from "../../components/Buttons/ActionButtons";
+import { FileDown, FilePlus2, Receipt, Ban, RotateCcw, Pencil, Trash2 } from "lucide-react";
+import { ViewDetailButton } from "../../components/Buttons/ActionButtons";
+import MenuAcciones from "../../components/UI/MenuAcciones.jsx";
+import ChipsEstadoOV from "../../components/Ventas/ChipsEstadoOV.jsx";
 import DataTable from "../../components/Tables/DataTable";
 import { usePersistedState } from "../../hooks/useTablaPersistida";
 import {
@@ -21,7 +23,12 @@ import EstadoOVBadge from "../../components/Ventas/EstadoOVBadge.jsx";
 import Ayuda from "../../components/UI/Ayuda.jsx";
 import { POSTERIOR_LABEL } from "../../utils/estadoPosteriorFactura.js";
 import { puedeEditarLineasOV } from "../../utils/ordenVentaEditable.js";
-import { puedeCancelarOV, puedeReabrirCancelacion } from "../../utils/ordenVentaCancelable.js";
+import {
+  puedeCancelarOV,
+  puedeReabrirCancelacion,
+  puedeEliminarOV,
+  MOTIVO_NO_ELIMINABLE,
+} from "../../utils/ordenVentaCancelable.js";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 import { mensajeError } from "../../utils/mensajeError.js";
 import { formatFecha } from "../../lib/dateUtils";
@@ -66,11 +73,20 @@ export default function OrdenesVentaPage() {
     })();
   }, [api, canReadClients]);
 
-  const handleDelete = async (id) => {
+  const handleDelete = async ({ id }) => {
     if (!canDeleteSaleOrder) {
       toast.permissionError([ModelType.ORDEN_VENTA, ScopeType.DELETE]);
       return;
     }
+    if (
+      !(await confirm({
+        title: `¿Eliminar la orden de venta #${id}?`,
+        message: "Se borra la orden con sus líneas. No se puede deshacer.",
+        confirmText: "Sí, eliminar",
+        danger: true,
+      }))
+    )
+      return;
     try {
       await api(`/ordenes-venta/${id}`, { method: "DELETE" });
       setOrdenes((prev) => prev.filter((x) => x.id !== id));
@@ -365,6 +381,9 @@ export default function OrdenesVentaPage() {
     }
   };
 
+  // Revisión de UI, Fase 5 (2026-11-25): eran hasta seis íconos por fila, con dos documentos
+  // iguales y la papelera junto al ojo. Ahora: la acción que pide el estado como botón, «Ver», y
+  // el resto en «⋯» con su nombre. «Eliminar» sólo donde el backend lo permite.
   const actions = (row) => {
     const puedeEditar = puedeEditarLineasOV(row.estado);
     // Sólo donde puede haber factura. El estado es el único dato de la fila que lo dice sin
@@ -373,9 +392,11 @@ export default function OrdenesVentaPage() {
     // Atajo a la acción que el estado pide: abre el detalle con el modal de facturar ya abierto
     // (mismo formulario y validaciones; ver `?facturar=1` en OrdenVentaDetail).
     const puedeFacturar = ["Lista para facturación", "Guía emitida"].includes(row.estado);
+    const ocupada = cambiandoEstado === row.id;
+    const eliminable = puedeEliminarOV(row.estado);
 
     return (
-      <div className="flex gap-2 justify-center items-center">
+      <div className="flex gap-2 justify-end items-center">
         {puedeFacturar && (
           <button
             onClick={() => navigate(`/ventas/ordenes/${row.id}?facturar=1`)}
@@ -390,54 +411,48 @@ export default function OrdenesVentaPage() {
           onClick={() => navigate(`/ventas/ordenes/${row.id}`)}
           tooltipText="Ver detalle"
         />
-        {puedeEditar && (
-          <EditButton
-            onClick={() => navigate(`/ventas/ordenes/${row.id}/editar`)}
-            tooltipText="Editar"
-          />
-        )}
-        <button
-          onClick={() => handleDescargarNV(row)}
-          disabled={descargando === `nv-${row.id}`}
-          className="text-gray-400 hover:text-primary disabled:opacity-40"
-          title="Descargar Nota de Venta"
-        >
-          <Receipt className="w-5 h-5" />
-        </button>
-        {puedeTenerFactura && (
-          <button
-            onClick={() => handleDescargarFactura(row)}
-            disabled={descargando === `factura-${row.id}`}
-            className="text-gray-400 hover:text-primary disabled:opacity-40"
-            title="Descargar factura"
-          >
-            <FileDown className="w-5 h-5" />
-          </button>
-        )}
-        {puedeCancelarOV(row.estado) && (
-          <button
-            onClick={() => handleCancelar(row)}
-            disabled={cambiandoEstado === row.id}
-            className="text-gray-400 hover:text-red-600 disabled:opacity-40"
-            title="Cancelar pedido"
-          >
-            <Ban className="w-5 h-5" />
-          </button>
-        )}
-        {puedeReabrirCancelacion(row.estado) && (
-          <button
-            onClick={() => handleReabrirCancelacion(row)}
-            disabled={cambiandoEstado === row.id}
-            className="text-gray-400 hover:text-primary disabled:opacity-40"
-            title="Reabrir pedido"
-          >
-            <RotateCcw className="w-5 h-5" />
-          </button>
-        )}
-        <TrashButton
-          onConfirmDelete={() => handleDelete(row.id)}
-          tooltipText="Eliminar"
-          entityName={`Orden de Venta #${row.id}`}
+        <MenuAcciones
+          etiqueta={`Más acciones de la orden #${row.id}`}
+          items={[
+            puedeEditar && {
+              label: "Editar",
+              icon: <Pencil className="w-4 h-4" />,
+              onClick: () => navigate(`/ventas/ordenes/${row.id}/editar`),
+            },
+            {
+              label: "Nota de venta (PDF)",
+              icon: <Receipt className="w-4 h-4" />,
+              disabled: descargando === `nv-${row.id}`,
+              onClick: () => handleDescargarNV(row),
+            },
+            puedeTenerFactura && {
+              label: "Factura (PDF)",
+              icon: <FileDown className="w-4 h-4" />,
+              disabled: descargando === `factura-${row.id}`,
+              onClick: () => handleDescargarFactura(row),
+            },
+            { separador: true },
+            puedeReabrirCancelacion(row.estado) && {
+              label: "Reabrir pedido",
+              icon: <RotateCcw className="w-4 h-4" />,
+              disabled: ocupada,
+              onClick: () => handleReabrirCancelacion(row),
+            },
+            puedeCancelarOV(row.estado) && {
+              label: "Cancelar pedido",
+              icon: <Ban className="w-4 h-4" />,
+              disabled: ocupada,
+              onClick: () => handleCancelar(row),
+            },
+            canDeleteSaleOrder && {
+              label: "Eliminar",
+              icon: <Trash2 className="w-4 h-4" />,
+              peligro: true,
+              disabled: !eliminable || ocupada,
+              title: eliminable ? undefined : MOTIVO_NO_ELIMINABLE,
+              onClick: () => handleDelete(row),
+            },
+          ]}
         />
       </div>
     );
@@ -517,8 +532,15 @@ export default function OrdenesVentaPage() {
 
   return (
     <DataTable
-      title="Órdenes de Venta"
+      title="Órdenes de venta"
       data={ordenesFiltradas}
+      headerExtra={({ filtrosColumna, cambiarFiltroColumna }) => (
+        <ChipsEstadoOV
+          ordenes={ordenesFiltradas}
+          filtro={filtrosColumna.estado}
+          onCambiar={(f) => cambiarFiltroColumna("estado", f)}
+        />
+      )}
       columns={columns}
       actions={actions}
       stickyActions
@@ -542,7 +564,7 @@ export default function OrdenesVentaPage() {
             className="btn btn-primario"
             onClick={() => navigate("/ventas/ordenes/nuevo")}
           >
-            Añadir Orden
+            Nueva orden
           </button>
         </>
       }
