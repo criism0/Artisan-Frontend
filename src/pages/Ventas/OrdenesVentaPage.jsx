@@ -392,7 +392,7 @@ export default function OrdenesVentaPage() {
         />
         {puedeEditar && (
           <EditButton
-            onClick={() => navigate(`/ventas/ordenes/${row.id}/edit`)}
+            onClick={() => navigate(`/ventas/ordenes/${row.id}/editar`)}
             tooltipText="Editar"
           />
         )}
@@ -540,13 +540,13 @@ export default function OrdenesVentaPage() {
         <>
           <button
             className="px-3 py-2 bg-green-300 text-green-900 rounded-md hover:bg-green-400"
-            onClick={() => navigate("/Excel/products")}
+            onClick={() => navigate("/ventas/ordenes/importar-excel")}
           >
             Cargar Excel
           </button>
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-            onClick={() => navigate("/ventas/ordenes/add")}
+            onClick={() => navigate("/ventas/ordenes/nuevo")}
           >
             Añadir Orden
           </button>

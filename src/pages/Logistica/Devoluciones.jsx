@@ -78,7 +78,7 @@ export default function Devoluciones() {
 
   return (
     <>
-      <div className="px-6 pt-6"><BackButton to="/Logistica/entregas" /></div>
+      <div className="px-6 pt-6"><BackButton to="/logistica/entregas" /></div>
       <div className="px-6 pt-4">
         <form onSubmit={buscar} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-wrap items-center gap-3">
           <ScanLine className="w-5 h-5 text-primary" />

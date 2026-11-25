@@ -100,19 +100,19 @@ export default function ProduccionDashboard() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => navigate("/Orden_de_Manufactura")}
+              onClick={() => navigate("/produccion/elaboraciones")}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
             >
               Ver elaboraciones
             </button>
             <button
-              onClick={() => navigate("/lotes-producto-en-proceso")}
+              onClick={() => navigate("/produccion/lotes")}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
             >
               Ver lotes
             </button>
             <button
-              onClick={() => navigate("/Orden_de_Manufactura/add")}
+              onClick={() => navigate("/produccion/elaboraciones/nuevo")}
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm"
             >
               Nueva elaboración
@@ -217,7 +217,7 @@ function DashboardContent({ data, navigate, api }) {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-text">OMs activas</h2>
             <button
-              onClick={() => navigate("/Orden_de_Manufactura")}
+              onClick={() => navigate("/produccion/elaboraciones")}
               className="text-sm text-primary hover:underline"
             >
               Ver todas →
@@ -238,7 +238,7 @@ function DashboardContent({ data, navigate, api }) {
               {alertas.map((a) => (
                 <button
                   key={a.id}
-                  onClick={() => navigate(`/Orden_de_Manufactura/${a.id}`)}
+                  onClick={() => navigate(`/produccion/elaboraciones/${a.id}`)}
                   className="w-full text-left flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                 >
                   <Factory className="text-cyan-600 mt-1" size={18} />

@@ -25,6 +25,23 @@ export default function ProcesosValorAgregado() {
   const [isLoading, setIsLoading] = useState(true);
 
   const canReadAddedValueProcess = checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ);
+  const canDeleteAddedValueProcess = checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.DELETE);
+
+  /** Borrar se confirma en el mismo botón (antes abría una página aparte que volvía a preguntar). */
+  const eliminar = async (row) => {
+    if (!canDeleteAddedValueProcess) {
+      toast.permissionError([ModelType.PROCESO_VALOR_AGREGADO, ScopeType.DELETE]);
+      return;
+    }
+    try {
+      await api(`/procesos-de-valor-agregado/${row.id}`, { method: "DELETE" });
+      setPvas((prev) => prev.filter((p) => p.id !== row.id));
+      toast.success("Proceso de valor agregado eliminado.");
+    } catch (err) {
+      console.error("Error al eliminar:", err);
+      toast.error(err?.message || "No se pudo eliminar el proceso.");
+    }
+  };
 
   useEffect(() => {
     const fetchPvas = async () => {
@@ -63,10 +80,10 @@ export default function ProcesosValorAgregado() {
 
   const actions = (row) => (
     <div className="flex gap-2">
-      <ViewDetailButton onClick={() => navigate(`/ProcesosValorAgregado/${row.id}`)} tooltipText="Ver detalle" />
-      <EditButton onClick={() => navigate(`/ProcesosValorAgregado/${row.id}/edit`)} tooltipText="Editar Proceso" />
+      <ViewDetailButton onClick={() => navigate(`/catalogo/procesos-valor-agregado/${row.id}`)} tooltipText="Ver detalle" />
+      <EditButton onClick={() => navigate(`/catalogo/procesos-valor-agregado/${row.id}/editar`)} tooltipText="Editar Proceso" />
       <TrashButton
-        onConfirmDelete={() => navigate(`/ProcesosValorAgregado/${row.id}/delete`)}
+        onConfirmDelete={() => eliminar(row)}
         tooltipText="Eliminar Proceso Valor Agregado"
         entityName="proceso valor agregado"
       />
@@ -87,7 +104,7 @@ export default function ProcesosValorAgregado() {
       headerActions={
         <button
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-          onClick={() => navigate("/ProcesosValorAgregado/add")}
+          onClick={() => navigate("/catalogo/procesos-valor-agregado/nuevo")}
         >
           Añadir Proceso
         </button>

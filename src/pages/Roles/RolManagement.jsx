@@ -250,13 +250,13 @@ export default function RolManagement() {
       setModalClosed(true);
       setShowModal(false);
       toast.success(editingRole ? '¡Cambios guardados exitosamente!' : '¡Rol creado exitosamente!');      
-      navigate('/Roles');
+      navigate('/admin/roles');
     } catch (error) {
       console.error("Error saving role:", error);
       toast.error("Error al guardar el rol");
       setModalClosed(true);
       setShowModal(false);
-      navigate('/Roles');
+      navigate('/admin/roles');
     } finally {
       setIsLoading(false);
       setScopeSearch('');
@@ -268,13 +268,13 @@ export default function RolManagement() {
     setModalClosed(true);
     setShowModal(false);
     setScopeSearch('');
-    navigate('/Roles');
+    navigate('/admin/roles');
   };
 
   const actions = (row) => (
     <div className="flex gap-2">
-      <ViewDetailButton onClick={() => navigate(`/Roles/${row.id}`)} tooltipText="Ver detalle" />
-      <EditButton onClick={() => navigate(`/Roles/${row.id}/edit`)} tooltipText="Editar Rol" />
+      <ViewDetailButton onClick={() => navigate(`/admin/roles/${row.id}`)} tooltipText="Ver detalle" />
+      <EditButton onClick={() => navigate(`/admin/roles/${row.id}/editar`)} tooltipText="Editar Rol" />
     </div>
   );
 
@@ -312,7 +312,7 @@ export default function RolManagement() {
         headerActions={
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-            onClick={() => navigate('/Roles/add')}
+            onClick={() => navigate('/admin/roles/nuevo')}
           >
             Añadir Rol
           </button>

@@ -35,7 +35,7 @@ export default function CategoriasPage() {
   const actions = (row) => (
     <div className="flex gap-2">
       <EditButton
-        onClick={() => navigate(`/Insumos/Categorias/edit/${row.id}`)}
+        onClick={() => navigate(`/catalogo/categorias-insumo/${row.id}/editar`)}
         tooltipText="Editar Categoría"
       />
     </div>
@@ -54,10 +54,10 @@ export default function CategoriasPage() {
       emptyMessage="No hay categorías registradas."
       headerActions={
         <>
-          <BackButton to="/Insumos" />
+          <BackButton to="/catalogo/insumos" />
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-            onClick={() => navigate("/Insumos/Categorias/add")}
+            onClick={() => navigate("/catalogo/categorias-insumo/nuevo")}
           >
             Añadir Categoría
           </button>

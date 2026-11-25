@@ -120,7 +120,7 @@ export default function VentasDashboard() {
               Ver órdenes
             </button>
             <button
-              onClick={() => navigate("/ventas/ordenes/add")}
+              onClick={() => navigate("/ventas/ordenes/nuevo")}
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm"
             >
               Nueva orden
@@ -272,7 +272,7 @@ function DashboardContent({ data, navigate, api, emisionesTrabadas = 0 }) {
       {/* Bandeja DTE Emitidos */}
       <div className="mb-6">
         <button
-          onClick={() => navigate("/ventas/bandeja-dte-emitidos")}
+          onClick={() => navigate("/ventas/dte-emitidos")}
           className="w-full flex items-center gap-4 p-5 bg-white rounded-lg shadow border border-gray-200 hover:border-green-400 hover:shadow-md transition-all group"
         >
           <div className="p-3 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors shrink-0">
@@ -295,7 +295,7 @@ function DashboardContent({ data, navigate, api, emisionesTrabadas = 0 }) {
       */}
       <div className="mb-6">
         <button
-          onClick={() => navigate("/ventas/conciliacion-libredte")}
+          onClick={() => navigate("/ventas/conciliacion")}
           className={`w-full flex items-center gap-4 p-5 bg-white rounded-lg shadow border transition-all group ${
             emisionesTrabadas > 0
               ? "border-red-300 hover:border-red-400"

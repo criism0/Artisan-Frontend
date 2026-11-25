@@ -61,7 +61,7 @@ export default function LoteDetail() {
       setDeleting(true);
       await api(`/lotes-producto-en-proceso/${id}`, { method: "DELETE" });
       toast.success("Lote eliminado correctamente.");
-      navigate("/lotes-producto-en-proceso");
+      navigate("/produccion/lotes");
     } catch (err) {
       console.error(err);
       toast.error("No se pudo eliminar el lote. Intenta nuevamente.");
@@ -135,7 +135,7 @@ export default function LoteDetail() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Detalle de Lote</h1>
         <button
-          onClick={() => navigate("/lotes-producto-en-proceso")}
+          onClick={() => navigate("/produccion/lotes")}
           className="btn btn-secondary px-4 py-2 rounded-lg shadow"
         >
           Volver

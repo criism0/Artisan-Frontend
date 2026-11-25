@@ -141,7 +141,7 @@ export default function Solicitudes() {
   const actions = (row) => (
     <div className="flex gap-2 justify-center">
       <ViewDetailButton
-        onClick={() => navigate(`/Solicitudes/${row.id}`)}
+        onClick={() => navigate(`/logistica/solicitudes/${row.id}`)}
         tooltipText="Ver detalle"
       />
     </div>
@@ -236,7 +236,7 @@ export default function Solicitudes() {
       headerActions={
         <button
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-          onClick={() => navigate("/Solicitudes/add")}
+          onClick={() => navigate("/logistica/solicitudes/nuevo")}
         >
           Nueva Solicitud
         </button>

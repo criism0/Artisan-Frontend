@@ -61,14 +61,14 @@ export default function DetailPVAPorProducto() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/PVAPorProducto" />
+        <BackButton to="/catalogo/pva-por-producto" />
       </div>
 
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-text">Detalle PVA por Producto</h1>
         <div className="flex gap-2">
           <EditButton
-            onClick={() => navigate(`/PVAPorProducto/editar/${id}`)}
+            onClick={() => navigate(`/catalogo/pva-por-producto/${id}/editar`)}
             tooltipText="Editar PVA por Producto"
           />
         </div>

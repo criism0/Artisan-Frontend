@@ -82,7 +82,7 @@ export default function ProveedorEdit() {
       setGuardando(true);
       await api(`/proveedores/${id}`, { method: "PUT", body: payloadProveedor(form), auth: true });
       toast.success("Proveedor actualizado correctamente");
-      navigate(`/Proveedores/${id}`);
+      navigate(`/comercial/proveedores/${id}`);
     } catch (err) {
       toast.error("Error guardando:" + err);
     } finally {
@@ -95,7 +95,7 @@ export default function ProveedorEdit() {
   return (
     <div>
       <PageHeader
-        volverA={`/Proveedores/${id}`}
+        volverA={`/comercial/proveedores/${id}`}
         titulo="Editar Proveedor"
         subtitulo={
           <>
@@ -118,7 +118,7 @@ export default function ProveedorEdit() {
         <div className="flex justify-end gap-3 mt-6">
           <button
             type="button"
-            onClick={() => navigate(`/Proveedores/${id}`)}
+            onClick={() => navigate(`/comercial/proveedores/${id}`)}
             className="px-5 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
           >
             Cancelar

@@ -648,7 +648,7 @@ export default function RecepcionarOrden() {
       } catch (emailErr) {
         toast.error(`Error enviando email tras validar orden: ${emailErr.message}`);
       }
-      navigate("/Ordenes");
+      navigate("/adquisiciones/ordenes-compra");
     } catch (error) {
       toast.error("No se pudo rechazar la orden." + error);
     }
@@ -814,7 +814,7 @@ export default function RecepcionarOrden() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/Ordenes" />
+        <BackButton to="/adquisiciones/ordenes-compra" />
       </div>
       <h1 className="text-2xl font-bold text-text mb-4">
         Recepcionar Orden de Compra
@@ -1092,7 +1092,7 @@ export default function RecepcionarOrden() {
             <div className="flex justify-end">
               <button
                 className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
-                onClick={() => navigate("/Ordenes")}
+                onClick={() => navigate("/adquisiciones/ordenes-compra")}
               >
                 Volver a Ordenes
               </button>

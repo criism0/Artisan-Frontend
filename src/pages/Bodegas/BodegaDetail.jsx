@@ -51,7 +51,7 @@ export default function BodegaDetail() {
     }
     try {
       await apiFetch(`/bodegas/${id}`, { method: "DELETE" });
-      navigate("/Bodegas");
+      navigate("/catalogo/bodegas");
     } catch (error) {
       console.error("Error eliminando bodega:", error);
       setError("Error al eliminar la bodega.");
@@ -72,14 +72,14 @@ export default function BodegaDetail() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/Bodegas" />
+        <BackButton to="/catalogo/bodegas" />
       </div>
 
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-text">Detalle de la Bodega</h1>
         <div className="flex gap-2 items-center">
           <EditButton
-            onClick={() => navigate(`/Bodegas/${id}/edit`)}
+            onClick={() => navigate(`/catalogo/bodegas/${id}/editar`)}
             tooltipText="Editar Bodega"
           />
           {canDeleteWarehouse ? (
@@ -125,7 +125,7 @@ export default function BodegaDetail() {
           <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
             <h2 className="text-lg font-semibold text-text">Encargados de la Bodega</h2>
             <button
-              onClick={() => navigate(`/Bodegas/${id}/encargados`)}
+              onClick={() => navigate(`/catalogo/bodegas/${id}/encargados`)}
               className="px-3 py-2 border rounded-lg hover:bg-gray-50 text-sm"
             >
               Modificar encargados

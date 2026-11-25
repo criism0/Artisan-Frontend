@@ -161,7 +161,7 @@ export default function AddSolicitud() {
         body: JSON.stringify(solicitudData)
       });
       toast.success('Solicitud creada exitosamente');
-      navigate('/Solicitudes');
+      navigate('/logistica/solicitudes');
     } catch (err) {
       console.error('Error al crear la solicitud:', err);
       toast.error(err.message || 'Error al crear la solicitud. Por favor intente nuevamente.');
@@ -194,7 +194,7 @@ export default function AddSolicitud() {
       {/* El overlay negro a pantalla completa desapareció: el resto de la app deshabilita
           los controles mientras guarda, y una cortina oscura sobre toda la vista para una
           espera de un segundo asusta más de lo que informa. */}
-      <PageHeader volverA="/Solicitudes" titulo="Nueva solicitud" />
+      <PageHeader volverA="/logistica/solicitudes" titulo="Nueva solicitud" />
 
       <div className="bg-white rounded-lg shadow p-6">
           {/* Origen y destino */}

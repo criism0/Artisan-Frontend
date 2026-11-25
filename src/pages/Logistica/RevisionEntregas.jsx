@@ -157,7 +157,7 @@ export default function RevisionEntregas() {
 
   return (
     <>
-      <div className="px-6 pt-6"><BackButton to="/Logistica/entregas" /></div>
+      <div className="px-6 pt-6"><BackButton to="/logistica/entregas" /></div>
       <DataTable
         title="Revisión de entregas"
         data={filas}

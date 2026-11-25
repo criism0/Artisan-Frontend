@@ -67,7 +67,7 @@ export default function ListaPrecioDetail() {
       await api(`/lista-precio/${id}`, {
         method: "DELETE",
       });
-      navigate('/lista-precio');
+      navigate('/comercial/listas-precio');
     } catch (error) {
       console.error('Error eliminando lista de precio:', error);
     }
@@ -79,7 +79,7 @@ export default function ListaPrecioDetail() {
     return (
       <div>
         <div className="mb-4">
-          <BackButton to="/lista-precio" />
+          <BackButton to="/comercial/listas-precio" />
         </div>
         <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">
           {error}
@@ -92,7 +92,7 @@ export default function ListaPrecioDetail() {
     return (
       <div>
         <div className="mb-4">
-          <BackButton to="/lista-precio" />
+          <BackButton to="/comercial/listas-precio" />
         </div>
         <div className="p-3 bg-yellow-100 text-yellow-700 rounded mb-4 text-sm">
           No se encontró la lista de precio
@@ -104,13 +104,13 @@ export default function ListaPrecioDetail() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/lista-precio" />
+        <BackButton to="/comercial/listas-precio" />
       </div>
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-text">Detalle de la Lista de Precio</h1>
         <div className="flex gap-2 items-center">
           <EditButton
-            onClick={() => navigate(`/lista-precio/${id}/edit`)}
+            onClick={() => navigate(`/comercial/listas-precio/${id}/editar`)}
             tooltipText="Editar Lista de Precio"
           />
           <TrashButton
@@ -144,7 +144,7 @@ export default function ListaPrecioDetail() {
             </span>
           </h2>
           <button
-            onClick={() => navigate(`/lista-precio/${id}/edit`)}
+            onClick={() => navigate(`/comercial/listas-precio/${id}/editar`)}
             className="px-3 py-2 border rounded-lg hover:bg-gray-50 text-sm"
           >
             Administrar productos

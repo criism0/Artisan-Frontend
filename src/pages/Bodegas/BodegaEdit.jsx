@@ -67,7 +67,7 @@ export default function BodegaEdit() {
         method: "PUT",
         body: { ...formData, confirmSimilarName },
       });
-      navigate(`/Bodegas/${id}`);
+      navigate(`/catalogo/bodegas/${id}`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409 && err.data?.code === "SIMILAR_NAME") {
         pendingSimilarActionRef.current = () => handleSubmit(e, true);
@@ -90,7 +90,7 @@ export default function BodegaEdit() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to={`/Bodegas/${id}`} />
+        <BackButton to={`/catalogo/bodegas/${id}`} />
       </div>
 
       <h1 className="text-2xl font-bold text-text mb-6">Editar Bodega</h1>

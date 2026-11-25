@@ -511,7 +511,7 @@ export default function EjecutarPasosPVA() {
 
   return (
     <div className="max-w-5xl mx-auto p-6 bg-white rounded shadow">
-      <PageHeader volverA="/Orden_de_Manufactura" titulo="Ejecución de PVA" />
+      <PageHeader volverA="/produccion/elaboraciones" titulo="Ejecución de PVA" />
 
       <div className="mb-4 text-sm text-gray-700">
         <p><strong>Proceso:</strong> {proceso?.descripcion || "Sin descripción"}</p>

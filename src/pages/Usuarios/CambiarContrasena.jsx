@@ -58,7 +58,7 @@ export default function UsuariosEdit() {
         body: JSON.stringify({ password: contrasena }),
       });
       toast.success("Contraseña actualizada correctamente.");
-      navigate(`/Usuarios/${id}`);
+      navigate(`/admin/usuarios/${id}`);
     } catch(e) {
       toast.error(e.message || "Error al actualizar la contraseña.");
     }
@@ -83,7 +83,7 @@ export default function UsuariosEdit() {
 
   return (
     <div>
-      <BackButton to={`/Usuarios/${id}`} />
+      <BackButton to={`/admin/usuarios/${id}`} />
       <div className="mt-4">
         <h1 className="text-2xl font-bold mb-6">Cambiar contraseña</h1>
       </div>

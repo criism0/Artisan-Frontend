@@ -424,7 +424,7 @@ export default function AddAsociacion() {
       }
 
       toast.success("Asociaciones creadas correctamente");
-      navigate(`/Insumos/${formData.id_materia_prima}`);
+      navigate(`/catalogo/insumos/${formData.id_materia_prima}`);
     } catch (error) {
       toast.error("Error al crear las asociaciones: " + error);
     } finally {
@@ -507,7 +507,7 @@ export default function AddAsociacion() {
       )}
 
       <PageHeader
-        volverA={id ? `/Insumos/${id}` : "/Insumos"}
+        volverA={id ? `/catalogo/insumos/${id}` : "/catalogo/insumos"}
         titulo="Asociar Insumo con Proveedor"
         subtitulo="El formato base es la unidad de costeo y de consumo; los formatos superiores (caja, bidón, pallet…) lo contienen."
       />
@@ -588,7 +588,7 @@ export default function AddAsociacion() {
                         <button
                           type="button"
                           className="text-primary hover:underline"
-                          onClick={() => navigate(`/Insumos/asociar/edit/${a.id}`)}
+                          onClick={() => navigate(`/catalogo/insumos/proveedores/${a.id}/editar`)}
                         >
                           Editar
                         </button>
@@ -677,7 +677,7 @@ export default function AddAsociacion() {
         <div className="flex justify-end gap-3">
           <button
             type="button"
-            onClick={() => navigate(id ? `/Insumos/${id}` : "/Insumos")}
+            onClick={() => navigate(id ? `/catalogo/insumos/${id}` : "/catalogo/insumos")}
             className="px-5 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
           >
             Cancelar

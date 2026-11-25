@@ -116,11 +116,11 @@ export default function InsumosPage() {
   const actions = (row) => (
     <div className="flex gap-2">
       <ViewDetailButton
-        onClick={() => navigate(`/Insumos/${row.id}`)}
+        onClick={() => navigate(`/catalogo/insumos/${row.id}`)}
         tooltipText="Ver Detalle"
       />
       <EditButton
-        onClick={() => navigate(`/Insumos/${row.id}/edit`)}
+        onClick={() => navigate(`/catalogo/insumos/${row.id}/editar`)}
         tooltipText="Editar Insumo"
       />
       <ToggleActiveButton
@@ -148,22 +148,22 @@ export default function InsumosPage() {
       emptyMessage="No hay insumos registrados."
       headerActions={
         <>
-          <BackButton to="/Home" />
+          <BackButton to="/inicio" />
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-            onClick={() => navigate("/Insumos/add")}
+            onClick={() => navigate("/catalogo/insumos/nuevo")}
           >
             Añadir Insumo
           </button>
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-            onClick={() => navigate("/Insumos/asociar")}
+            onClick={() => navigate("/catalogo/insumos/proveedores")}
           >
             Asociar Insumo
           </button>
           <button
             className="text-primary border border-primary hover:bg-gray-100 font-medium text-sm flex items-center gap-2 px-4 py-2 rounded-md transition"
-            onClick={() => navigate("/Insumos/Categorias")}
+            onClick={() => navigate("/catalogo/categorias-insumo")}
           >
             Ver Categorías
           </button>

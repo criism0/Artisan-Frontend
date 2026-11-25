@@ -106,7 +106,7 @@ export default function EditPVAPorProducto() {
       });
 
       toast.success("Relación PVA-Producto actualizada correctamente.");
-      navigate(`/PVAPorProducto/${id}`);
+      navigate(`/catalogo/pva-por-producto/${id}`);
     } catch {
       toast.error("Error al actualizar la relación PVA-Producto.");
     }
@@ -198,7 +198,7 @@ export default function EditPVAPorProducto() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to={`/PVAPorProducto/${id}`} />
+        <BackButton to={`/catalogo/pva-por-producto/${id}`} />
       </div>
 
       <h1 className="text-2xl font-bold text-text mb-6">

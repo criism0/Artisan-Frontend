@@ -289,7 +289,7 @@ export default function SemanaEntregas() {
   return (
     <div className="p-4 sm:p-6 bg-background min-h-screen flex flex-col gap-4">
       <PageHeader
-        volverA="/Logistica/entregas"
+        volverA="/logistica/entregas"
         titulo="Semana de entregas"
         tituloAyuda="Semana de entregas"
         ayuda={
@@ -498,7 +498,7 @@ export default function SemanaEntregas() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => navigate(`/Logistica/entregas/${r.id}`)}
+                          onClick={() => navigate(`/logistica/entregas/rutas/${r.id}`)}
                           className="px-1.5 shrink-0 hover:text-sky-950"
                           title="Abrir la ruta"
                           aria-label={`Abrir la ruta #${r.id}`}
@@ -538,7 +538,7 @@ export default function SemanaEntregas() {
                   {puedeEscribir && sinRuta.length > 0 && (
                     <button
                       type="button"
-                      onClick={() => navigate(`/Logistica/entregas/planificar?fecha=${d.iso}&ordenes=${sinRuta.map((o) => o.id).join(",")}`)}
+                      onClick={() => navigate(`/logistica/entregas/planificar?fecha=${d.iso}&ordenes=${sinRuta.map((o) => o.id).join(",")}`)}
                       className="w-full text-xs rounded-lg border border-gray-300 py-1 hover:bg-gray-50"
                     >
                       Armar ruta

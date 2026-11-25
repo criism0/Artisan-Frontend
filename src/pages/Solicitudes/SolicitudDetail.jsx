@@ -646,7 +646,7 @@ export default function SolicitudDetail() {
     return (
       <div className="p-6">
         <div className="mb-4">
-          <BackButton to="/Solicitudes" />
+          <BackButton to="/logistica/solicitudes" />
         </div>
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-red-600 font-medium">No se pudo cargar la solicitud.</div>
@@ -665,7 +665,7 @@ export default function SolicitudDetail() {
     return (
       <div className="p-6">
         <div className="mb-4">
-          <BackButton to="/Solicitudes" />
+          <BackButton to="/logistica/solicitudes" />
         </div>
         <div className="text-sm text-gray-500">No se encontró la solicitud.</div>
       </div>
@@ -699,7 +699,7 @@ export default function SolicitudDetail() {
     solicitud.estado === "Creada" && {
       label: "Editar",
       icon: <Pencil className="w-4 h-4" />,
-      onClick: () => navigate(`/Solicitudes/${solicitudId}/edit`),
+      onClick: () => navigate(`/logistica/solicitudes/${solicitudId}/editar`),
       disabled: loading,
     },
     {
@@ -732,7 +732,7 @@ export default function SolicitudDetail() {
     <div>
       <div className="max-w-6xl mx-auto">
         <PageHeader
-          volverA="/Solicitudes"
+          volverA="/logistica/solicitudes"
           titulo={`Solicitud #${solicitud.id}`}
           estado={<EstadoSolicitudBadge estado={solicitud.estado} />}
           tituloAyuda="Cómo avanza una solicitud"

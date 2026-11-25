@@ -57,7 +57,7 @@ export default function SelectorTransporte({
     return (
       <p className="text-sm text-red-700">
         Falta el transporte: créalo en{" "}
-        <Link to="/Logistica/transporte" className="underline font-medium">Logística → Transporte</Link>.
+        <Link to="/logistica/transporte" className="underline font-medium">Logística → Transporte</Link>.
       </p>
     );
   }

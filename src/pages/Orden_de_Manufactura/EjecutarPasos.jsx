@@ -237,7 +237,7 @@ export default function EjecutarPasos() {
 
   return (
     <div>
-      <PageHeader volverA={`/Orden_de_Manufactura/${id}`} titulo={`Ejecución de pasos · OM #${id}`} />
+      <PageHeader volverA={`/produccion/elaboraciones/${id}`} titulo={`Ejecución de pasos · OM #${id}`} />
 
       <div className="bg-gray-200 p-4 rounded-lg">
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -437,7 +437,7 @@ export default function EjecutarPasos() {
       <div className="mt-6 flex justify-between items-center">
         <button
           className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-          onClick={() => navigate(`/Orden_de_Manufactura/${id}`)}
+          onClick={() => navigate(`/produccion/elaboraciones/${id}`)}
         >
           Volver al detalle
         </button>
@@ -447,14 +447,14 @@ export default function EjecutarPasos() {
             {ordenData?.receta?.posiblesSubproductos?.length > 0 ? (
               <button
                 className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
-                onClick={() => navigate(`/Orden_de_Manufactura/${id}/subproductos-decision`)}
+                onClick={() => navigate(`/produccion/elaboraciones/${id}/subproductos-decision`)}
               >
                 Siguiente paso: Verificar Subproductos
               </button>
             ) : (
               <button
                 className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
-                onClick={() => navigate(`/Orden_de_Manufactura/${id}/produccion-final`)}
+                onClick={() => navigate(`/produccion/elaboraciones/${id}/produccion-final`)}
               >
                 Siguiente paso: Producción Final
               </button>

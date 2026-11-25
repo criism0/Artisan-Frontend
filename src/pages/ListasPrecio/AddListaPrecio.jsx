@@ -100,7 +100,7 @@ export default function AddListaPrecio() {
         await createLista();
       }
 
-      navigate("/lista-precio");
+      navigate("/comercial/listas-precio");
     } catch (error) {
       if (error instanceof ApiError && error.status === 409 && error.data?.code === "SIMILAR_NAME") {
         pendingSimilarActionRef.current = () => handleSubmit(e, true);
@@ -127,7 +127,7 @@ export default function AddListaPrecio() {
         </div>
       )}
       <div className="mb-4">
-        <BackButton to="/lista-precio" />
+        <BackButton to="/comercial/listas-precio" />
       </div>
       <h1 className="text-2xl font-bold text-text mb-6">
         Añadir Lista de Precio

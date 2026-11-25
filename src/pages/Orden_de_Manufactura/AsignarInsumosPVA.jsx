@@ -138,7 +138,7 @@ export default function AsignarInsumosPVA() {
       });
 
       toast.success("Insumos asignados correctamente");
-      navigate(`/PautasValorAgregado/ejecutar/${id}`);
+      navigate(`/produccion/pva/ejecutar/${id}`);
 
     } catch {
       toast.error("Error al asignar insumos");

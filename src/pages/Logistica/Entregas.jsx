@@ -144,8 +144,8 @@ export default function Entregas() {
     const editable = puedeEscribir && row.estado === "Planificada";
     return (
       <div className="flex gap-2 justify-center items-center">
-        <ViewDetailButton onClick={() => navigate(`/Logistica/entregas/${row.id}`)} tooltipText="Ver detalle" />
-        {editable && <EditButton onClick={() => navigate(`/Logistica/entregas/${row.id}?editar=1`)} tooltipText="Editar ruta" />}
+        <ViewDetailButton onClick={() => navigate(`/logistica/entregas/rutas/${row.id}`)} tooltipText="Ver detalle" />
+        {editable && <EditButton onClick={() => navigate(`/logistica/entregas/rutas/${row.id}?editar=1`)} tooltipText="Editar ruta" />}
         {editable && (
           <button type="button" onClick={() => setCancelando(row)} className="text-gray-400 hover:text-red-500" title="Cancelar ruta">
             <Ban className="w-5 h-5" />
@@ -212,7 +212,7 @@ export default function Entregas() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => navigate("/Logistica/entregas/sin-ruta")}
+              onClick={() => navigate("/logistica/entregas/sin-ruta")}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
               title="Retiros en bodega y despachos por courier"
             >
@@ -220,7 +220,7 @@ export default function Entregas() {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/Logistica/entregas/revision")}
+              onClick={() => navigate("/logistica/entregas/revision")}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border ${porRevisar ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100" : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}
               title="Entregas parciales o rechazadas que alguien tiene que resolver"
             >
@@ -228,7 +228,7 @@ export default function Entregas() {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/Logistica/entregas/devoluciones")}
+              onClick={() => navigate("/logistica/entregas/devoluciones")}
               className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border ${devueltos ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100" : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}
               title="Lo que volvió de las rutas: reintegrar, merma o volver a despachar"
             >
@@ -236,7 +236,7 @@ export default function Entregas() {
             </button>
             <button
               type="button"
-              onClick={() => navigate("/Logistica/entregas/semana")}
+              onClick={() => navigate("/logistica/entregas/semana")}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
             >
               <CalendarDays className="w-4 h-4" /> Semana
@@ -244,7 +244,7 @@ export default function Entregas() {
             {puedeEscribir && (
               <button
                 type="button"
-                onClick={() => navigate("/Logistica/entregas/planificar")}
+                onClick={() => navigate("/logistica/entregas/planificar")}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark"
               >
                 <IconoRuta className="w-4 h-4" /> Planificar ruta

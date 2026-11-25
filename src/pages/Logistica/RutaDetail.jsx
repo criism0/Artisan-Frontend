@@ -146,7 +146,7 @@ export default function RutaDetail() {
   if (!ruta) {
     return (
       <div className="p-6">
-        <PageHeader volverA="/Logistica/entregas" titulo="Ruta no encontrada" />
+        <PageHeader volverA="/logistica/entregas" titulo="Ruta no encontrada" />
       </div>
     );
   }
@@ -207,7 +207,7 @@ export default function RutaDetail() {
           label: "Agregar o quitar pedidos",
           icon: <ListPlus className="w-4 h-4" />,
           title: "Abre el planificador con esta ruta y la lista de pedidos pendientes",
-          onClick: () => navigate(`/Logistica/entregas/planificar?ruta=${ruta.id}`),
+          onClick: () => navigate(`/logistica/entregas/planificar?ruta=${ruta.id}`),
         },
       ]}
       destructivas={[{ label: "Cancelar ruta", icon: <Ban className="w-4 h-4" />, onClick: () => setCancelando(true) }]}
@@ -217,7 +217,7 @@ export default function RutaDetail() {
   return (
     <div className="p-6 bg-background min-h-screen">
       <PageHeader
-        volverA="/Logistica/entregas"
+        volverA="/logistica/entregas"
         titulo={`Ruta #${ruta.id}`}
         estado={<EstadoRuta estado={ruta.estado} />}
         subtitulo={`${formatearFecha(ruta.fecha)} · sale de ${ruta.bodega?.nombre ?? "—"}`}

@@ -84,7 +84,7 @@ export default function ProductoEdit() {
     const productoBaseId = Number(id);
     if (!Number.isFinite(productoBaseId) || productoBaseId <= 0) {
       toast.error("ID de producto inválido");
-      navigate("/Productos");
+      navigate("/catalogo/productos");
       return;
     }
 
@@ -617,7 +617,7 @@ export default function ProductoEdit() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/Productos" />
+        <BackButton to="/catalogo/productos" />
       </div>
 
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
@@ -631,7 +631,7 @@ export default function ProductoEdit() {
             <button
               type="button"
               className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-              onClick={() => navigate(`/Recetas/${recetaId}`)}
+              onClick={() => navigate(`/catalogo/recetas/${recetaId}`)}
             >
               Abrir receta
             </button>
@@ -738,7 +738,7 @@ export default function ProductoEdit() {
         <button
           type="button"
           className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-          onClick={() => navigate("/Productos")}
+          onClick={() => navigate("/catalogo/productos")}
         >
           Volver a Productos
         </button>

@@ -40,7 +40,7 @@ export default function AddCategoria() {
     try {
       setIsSubmitting(true);
       await api(`/categorias-materia-prima`, { method: "POST", body: formData });
-      navigate("/Insumos/Categorias");
+      navigate("/catalogo/categorias-insumo");
       toast.success("Categoría creada correctamente");
     } catch (error) {
       toast.error(`Error al crear categoría: ${error.message}`);
@@ -57,7 +57,7 @@ export default function AddCategoria() {
           <Spinner size="lg" />
         </div>
       )}
-      <BackButton to="/Insumos/Categorias" />
+      <BackButton to="/catalogo/categorias-insumo" />
       <h1 className="text-2xl font-bold text-text mb-6">Añadir Categoría</h1>
 
       {error && <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">{error}</div>}

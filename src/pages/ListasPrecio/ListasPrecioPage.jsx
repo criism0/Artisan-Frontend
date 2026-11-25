@@ -75,11 +75,11 @@ export default function ListasPrecio() {
   const actions = (row) => (
     <div className="flex gap-2">
       <ViewDetailButton
-        onClick={() => navigate(`/lista-precio/${row.id}`)}
+        onClick={() => navigate(`/comercial/listas-precio/${row.id}`)}
         tooltipText="Ver Detalle"
       />
       <EditButton
-        onClick={() => navigate(`/lista-precio/${row.id}/edit`)}
+        onClick={() => navigate(`/comercial/listas-precio/${row.id}/editar`)}
         tooltipText="Editar Lista de Precio"
       />
       <TrashButton
@@ -105,7 +105,7 @@ export default function ListasPrecio() {
       headerActions={
         <button
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-          onClick={() => navigate("/lista-precio/add")}
+          onClick={() => navigate("/comercial/listas-precio/nuevo")}
         >
           Añadir Lista de Precio
         </button>

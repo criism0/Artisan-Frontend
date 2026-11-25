@@ -428,7 +428,7 @@ export default function NoConformidades() {
       }
       headerActions={
         <button
-          onClick={() => navigate("/calidad/dashboard")}
+          onClick={() => navigate("/calidad")}
           className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
         >
           ← Volver al Dashboard

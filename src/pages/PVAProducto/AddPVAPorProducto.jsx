@@ -127,7 +127,7 @@ export default function AddPVAPorProducto() {
         toast.success("PVA por producto creado correctamente. Agrega los insumos.");
       } else {
         toast.success("PVA por producto creado correctamente.");
-        navigate("/PVAPorProducto");
+        navigate("/catalogo/pva-por-producto");
       }
     } catch {
       toast.error("Error al crear PVA por producto.");
@@ -163,7 +163,7 @@ export default function AddPVAPorProducto() {
       }
 
       toast.success("Insumos agregados correctamente.");
-      navigate("/PVAPorProducto");
+      navigate("/catalogo/pva-por-producto");
     } catch {
       toast.error("Error al agregar insumos.");
     } finally {
@@ -180,7 +180,7 @@ export default function AddPVAPorProducto() {
           <Spinner size="lg" />
         </div>
       )}
-      <BackButton to="/PVAPorProducto" />
+      <BackButton to="/catalogo/pva-por-producto" />
       <h1 className="text-2xl font-bold mb-6">Asociar PVA con Producto</h1>
 
       {!nuevoPvaId && (

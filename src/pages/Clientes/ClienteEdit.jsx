@@ -388,7 +388,7 @@ export default function EditClientes() {
 
     try {
       await api(`/clientes/${clienteId}`, { method: "PUT", body: payload });
-      navigate(`/clientes/${clienteId}`);
+      navigate(`/comercial/clientes/${clienteId}`);
     } catch (err) {
       if (marcarRutDuplicado(err, setErrors)) return;
       toast.error("Error al editar cliente: " + err.message);
@@ -399,7 +399,7 @@ export default function EditClientes() {
 
   return (
     <div>
-      <BackButton to="/clientes" />
+      <BackButton to="/comercial/clientes" />
       <h1 className="text-2xl font-bold text-text mb-6">Editar Cliente</h1>
 
       <form onSubmit={handleSubmit} className="space-y-8">

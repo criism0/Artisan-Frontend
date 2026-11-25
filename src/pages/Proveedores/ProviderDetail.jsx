@@ -401,7 +401,7 @@ function ProveedorInsumos({ proveedorId }) {
             className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-60"
             onClick={() =>
               navigate(
-                `/Insumos/asociar?proveedor=${encodeURIComponent(String(proveedorId ?? ""))}`
+                `/catalogo/insumos/proveedores?proveedor=${encodeURIComponent(String(proveedorId ?? ""))}`
               )
             }
             disabled={loading || !proveedorId}
@@ -452,7 +452,7 @@ function ProveedorInsumos({ proveedorId }) {
                     className="px-2 py-1 text-xs border rounded-lg bg-white hover:bg-gray-50"
                     onClick={() =>
                       navigate(
-                        `/Insumos/asociar/${encodeURIComponent(String(g.key))}?proveedor=${encodeURIComponent(
+                        `/catalogo/insumos/proveedores/${encodeURIComponent(String(g.key))}?proveedor=${encodeURIComponent(
                           String(proveedorId ?? "")
                         )}`
                       )
@@ -655,14 +655,14 @@ export default function ProveedorDetail() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/Proveedores" />
+        <BackButton to="/comercial/proveedores" />
       </div>
 
       <div className="flex items-center justify-between mb-4 w-full">
         <h1 className="text-2xl font-bold text-text">Detalle de Proveedor</h1>
         <div className="flex gap-2 items-center">
           <EditButton
-            onClick={() => navigate(`/Proveedores/${id}/edit`)}
+            onClick={() => navigate(`/comercial/proveedores/${id}/editar`)}
             tooltipText="Editar Proveedor"
           />
           <ToggleActiveButton

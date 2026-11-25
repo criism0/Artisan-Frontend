@@ -146,7 +146,7 @@ export default function EditProcesoValorAgregado() {
       }
 
       toast.success("Proceso actualizado correctamente.");
-      navigate(`/ProcesosValorAgregado/${id}`);
+      navigate(`/catalogo/procesos-valor-agregado/${id}`);
     } catch (error) {
         console.error("Error al enviar el formulario:", error);
       toast.error("Error al actualizar el proceso.");
@@ -158,7 +158,7 @@ export default function EditProcesoValorAgregado() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to={`/ProcesosValorAgregado/${id}`} />
+        <BackButton to={`/catalogo/procesos-valor-agregado/${id}`} />
       </div>
 
       <h1 className="text-2xl font-bold text-text mb-6">Editar Proceso de Valor Agregado</h1>

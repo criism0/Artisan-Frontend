@@ -1,8 +1,10 @@
 // src/Routing.jsx
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import RequireAuth from "./auth/RequireAuth";
 import RutaNoEncontrada from "./auth/RutaNoEncontrada";
+import RedireccionRutaAntigua from "./auth/RedireccionRutaAntigua";
+import { REDIRECCIONES } from "./rutas";
 import CargandoVista from "./components/UI/CargandoVista";
 
 import Layout from "./components/Layout/Layout";
@@ -157,7 +159,6 @@ const AddProcesoValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado
 const ProcesosValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado/ProcesosValorAgregado.jsx"));
 const DetailProcesoValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado/DetailProcesoValorAgregado.jsx"));
 const EditProcesoValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado/EditProcesoValorAgregado.jsx"));
-const DeleteProcesoValorAgregado = lazy(() => import("./pages/ProcesosValorAgregado/DeleteProcesoValorAgregado.jsx"));
 const PVAPorProducto = lazy(() => import("./pages/PVAProducto/PVAPorProducto.jsx"));
 const AddPVAPorProducto = lazy(() => import("./pages/PVAProducto/AddPVAPorProducto.jsx"));
 const EditPVAPorProducto = lazy(() => import("./pages/PVAProducto/EditPVAPorProducto.jsx"));
@@ -205,10 +206,10 @@ function Routing() {
         {/* PÚBLICAS */}
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<LandingPage />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/recuperar-contrasena" element={<ForgotPassword />} />
         <Route path="/privacidad" element={<Privacidad />} />
-        <Route path="/reset-code" element={<VerifyResetCode />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/recuperar-contrasena/codigo" element={<VerifyResetCode />} />
+        <Route path="/recuperar-contrasena/nueva" element={<ResetPassword />} />
 
 
         {/* PRIVADAS: dentro de Layout y RequireAuth */}
@@ -220,11 +221,11 @@ function Routing() {
           }
         >
           {/* Home */}
-          <Route path="/Home" element={<HomePage />} />
+          <Route path="/inicio" element={<HomePage />} />
 
           {/* Inventarios */}
           <Route 
-            path="/Inventario/dashboard" 
+            path="/inventario" 
             element={
               <ProtectedRoute permissions={[[ModelType.INVENTARIO, ScopeType.READ]]}>
                 <InventarioDashboard />
@@ -233,7 +234,7 @@ function Routing() {
           />
 
           <Route 
-            path="/Inventario" 
+            path="/inventario/stock" 
             element={
               <ProtectedRoute permissions={[[ModelType.INVENTARIO, ScopeType.READ]]}>
                 <Inventario />
@@ -242,7 +243,7 @@ function Routing() {
           />
 
           <Route 
-            path="/Inventario/bultos" 
+            path="/inventario/bultos" 
             element={
               <ProtectedRoute permissions={[
                 [ModelType.INVENTARIO, ScopeType.READ], 
@@ -253,7 +254,7 @@ function Routing() {
             } 
           />
           <Route
-            path="/Inventario/tomas"
+            path="/inventario/tomas"
             element={
               <ProtectedRoute permissions={[[ModelType.SESION_INVENTARIADO, ScopeType.READ]]}>
                 <SesionesInventariado />
@@ -261,7 +262,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Inventario/sin-qr"
+            path="/inventario/sin-qr"
             element={
               <ProtectedRoute permissions={[[ModelType.BULTO, ScopeType.READ]]}>
                 <StockSinQr />
@@ -269,7 +270,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Inventario/consumo-interno"
+            path="/inventario/consumo-interno"
             element={
               <ProtectedRoute permissions={[[ModelType.BULTO, ScopeType.READ]]}>
                 <ConsumoInternoPage />
@@ -277,7 +278,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Inventario/consumo-interno/:id"
+            path="/inventario/consumo-interno/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.BULTO, ScopeType.READ]]}>
                 <ConsumoInternoDetail />
@@ -285,7 +286,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Inventario/tomas/:id"
+            path="/inventario/tomas/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.SESION_INVENTARIADO, ScopeType.READ]]}>
                 <SesionInventariadoDetail />
@@ -293,7 +294,7 @@ function Routing() {
             }
           />
           <Route 
-            path="/Inventario/bultos/editar/:id" 
+            path="/inventario/bultos/:id/editar" 
             element={
               <ProtectedRoute permissions={[
                 [ModelType.INVENTARIO, ScopeType.READ],
@@ -306,7 +307,7 @@ function Routing() {
 
           {/* Compras / Órdenes */}
           <Route 
-            path="/Ordenes/dashboard" 
+            path="/adquisiciones" 
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.READ]]}>
                 <AdquisicionesDashboard />
@@ -314,7 +315,7 @@ function Routing() {
             } 
           />
           <Route
-            path="/Ordenes"
+            path="/adquisiciones/ordenes-compra"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.READ]]}>
                 <Ordenes />
@@ -322,7 +323,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Ordenes/documentos-recibidos"
+            path="/adquisiciones/facturas-por-vincular"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.READ]]}>
                 <DocumentosRecibidosLibreDte />
@@ -330,7 +331,7 @@ function Routing() {
             }
           />
           <Route 
-            path="/Ordenes/add" 
+            path="/adquisiciones/ordenes-compra/nuevo" 
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.WRITE]]}>
                 <CrearOrden />
@@ -338,7 +339,7 @@ function Routing() {
             } 
           />
           <Route
-            path="/Ordenes/edit/:ordenId"
+            path="/adquisiciones/ordenes-compra/:ordenId/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.WRITE]]}>
                 <EditOrden />
@@ -346,7 +347,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Ordenes/recepcionar/:ordenId"
+            path="/adquisiciones/ordenes-compra/:ordenId/recepcionar"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.WRITE]]}>
                 <RecepcionarOrden />
@@ -354,7 +355,7 @@ function Routing() {
             }
           />
           <Route 
-            path="/Ordenes/:ordenId" 
+            path="/adquisiciones/ordenes-compra/:ordenId" 
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.READ]]}>
                 <OrdenDetail />
@@ -364,7 +365,7 @@ function Routing() {
 
           {/* Solicitudes */}
           <Route 
-            path="/Solicitudes" 
+            path="/logistica/solicitudes" 
             element={
               <ProtectedRoute permissions={[[ModelType.SOLICITUD_MERCADERIA, ScopeType.READ]]}>
                 <Solicitudes />
@@ -372,7 +373,7 @@ function Routing() {
             } 
           />
           <Route 
-            path="/Solicitudes/add" 
+            path="/logistica/solicitudes/nuevo" 
             element={
               <ProtectedRoute permissions={[[ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE]]}>
                 <AddSolicitud />
@@ -380,7 +381,7 @@ function Routing() {
             } 
           />
           <Route 
-            path="/Solicitudes/:solicitudId/edit" 
+            path="/logistica/solicitudes/:solicitudId/editar" 
             element={
               <ProtectedRoute permissions={[[ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE]]}>
                 <EditSolicitud />
@@ -388,7 +389,7 @@ function Routing() {
             }
           />
           <Route 
-            path="/Solicitudes/:solicitudId" 
+            path="/logistica/solicitudes/:solicitudId" 
             element={
               <ProtectedRoute permissions={[[ModelType.SOLICITUD_MERCADERIA, ScopeType.READ]]}>
                 <SolicitudDetail />
@@ -401,7 +402,7 @@ function Routing() {
 
           {/* Excel */}
           <Route 
-            path="/Excel/products" 
+            path="/ventas/ordenes/importar-excel" 
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.READ]]}>
                 <OrdenVentaExcel />
@@ -411,7 +412,7 @@ function Routing() {
 
           {/* Bodegas */}
           <Route
-            path="/Bodegas"
+            path="/catalogo/bodegas"
             element={
               <ProtectedRoute permissions={[[ModelType.BODEGA, ScopeType.READ]]}>
                 <Bodegas />
@@ -419,7 +420,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Bodegas/add"
+            path="/catalogo/bodegas/nuevo"
             element={
               <ProtectedRoute permissions={[[ModelType.BODEGA, ScopeType.WRITE]]}>
                 <AddBodega />
@@ -427,7 +428,7 @@ function Routing() {
             }
           />
           <Route 
-            path="/Bodegas/:id/encargados" 
+            path="/catalogo/bodegas/:id/encargados" 
             element={
               <ProtectedRoute permissions={[[ModelType.BODEGA, ScopeType.READ]]}>
                 <BodegaAsignarEncargados />
@@ -435,7 +436,7 @@ function Routing() {
             } 
           />
           <Route
-            path="/Bodegas/:id"
+            path="/catalogo/bodegas/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.BODEGA, ScopeType.READ]]}>
                 <BodegaDetail />
@@ -443,7 +444,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Bodegas/:id/edit"
+            path="/catalogo/bodegas/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.BODEGA, ScopeType.WRITE]]}>
                 <BodegaEdit />
@@ -456,7 +457,7 @@ function Routing() {
               se ven, se descargan sus etiquetas y se sabe qué llevan. */}
 
           <Route
-            path="/Logistica/dashboard" 
+            path="/logistica" 
             element={
               <ProtectedRoute permissions={[
                 [ModelType.SOLICITUD_MERCADERIA, ScopeType.READ],
@@ -467,7 +468,7 @@ function Routing() {
             } 
           />
           <Route
-            path="/Logistica/entregas"
+            path="/logistica/entregas"
             element={
               <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
                 <Entregas />
@@ -475,7 +476,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Logistica/entregas/semana"
+            path="/logistica/entregas/semana"
             element={
               <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
                 <SemanaEntregas />
@@ -483,7 +484,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Logistica/entregas/planificar"
+            path="/logistica/entregas/planificar"
             element={
               <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.WRITE]]}>
                 <PlanificarRuta />
@@ -491,7 +492,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Logistica/entregas/sin-ruta"
+            path="/logistica/entregas/sin-ruta"
             element={
               <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
                 <EntregasSinRuta />
@@ -499,7 +500,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Logistica/entregas/revision"
+            path="/logistica/entregas/revision"
             element={
               <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
                 <RevisionEntregas />
@@ -507,7 +508,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Logistica/entregas/devoluciones"
+            path="/logistica/entregas/devoluciones"
             element={
               <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
                 <Devoluciones />
@@ -515,7 +516,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Logistica/entregas/:id"
+            path="/logistica/entregas/rutas/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.RUTA, ScopeType.READ]]}>
                 <RutaDetail />
@@ -523,18 +524,10 @@ function Routing() {
             }
           />
           <Route
-            path="/Logistica/transporte"
+            path="/logistica/transporte"
             element={
               <ProtectedRoute permissions={[[ModelType.BODEGA, ScopeType.READ]]}>
                 <TransportePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/Logistica"
-            element={
-              <ProtectedRoute permissions={[[ModelType.INVENTARIO, ScopeType.READ]]}>
-                <Navigate to="/Logistica/dashboard" replace />
               </ProtectedRoute>
             }
           />
@@ -545,7 +538,7 @@ function Routing() {
 
 
           <Route
-            path="/GenerarQR"
+            path="/admin/generar-qr"
             element={
               <ProtectedRoute permissions={[[ModelType.USUARIO, ScopeType.READ]]}>
                 <GenerarQR />
@@ -554,7 +547,7 @@ function Routing() {
           />
           {/* Proveedores (admin) */}
           <Route
-            path="/Proveedores"
+            path="/comercial/proveedores"
             element={
               <ProtectedRoute permissions={[[ModelType.PROVEEDOR, ScopeType.READ]]}>
                 <Proveedores />
@@ -562,7 +555,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Proveedores/add"
+            path="/comercial/proveedores/nuevo"
             element={
               <ProtectedRoute permissions={[[ModelType.PROVEEDOR, ScopeType.WRITE]]}>
                 <AddProvider />
@@ -570,7 +563,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Proveedores/:id"
+            path="/comercial/proveedores/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.PROVEEDOR, ScopeType.READ]]}>
                 <ProviderDetail />
@@ -578,7 +571,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Proveedores/:id/edit"
+            path="/comercial/proveedores/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.PROVEEDOR, ScopeType.WRITE]]}>
                 <ProviderEdit />
@@ -588,7 +581,7 @@ function Routing() {
 
           {/* Recetas (admin) */}
           <Route
-            path="/Recetas"
+            path="/catalogo/recetas"
             element={
               <ProtectedRoute permissions={[[ModelType.RECETA, ScopeType.READ]]}>
                 <Recetas />
@@ -596,7 +589,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Recetas/add"
+            path="/catalogo/recetas/nuevo"
             element={
               <ProtectedRoute permissions={[[ModelType.RECETA, ScopeType.WRITE]]}>
                 <AddReceta />
@@ -604,7 +597,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Recetas/:id"
+            path="/catalogo/recetas/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.RECETA, ScopeType.READ]]}>
                 <RecetaDetail />
@@ -612,7 +605,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Recetas/:id/edit"
+            path="/catalogo/recetas/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.RECETA, ScopeType.WRITE]]}>
                 <RecetaEdit />
@@ -622,7 +615,7 @@ function Routing() {
 
           {/* Pautas de Elaboración (admin) */}
           <Route
-            path="/PautasElaboracion"
+            path="/catalogo/pautas-elaboracion"
             element={
               <ProtectedRoute permissions={[[ModelType.PAUTA_ELABORACION, ScopeType.READ]]}>
                 <PautasElaboracion />
@@ -630,7 +623,7 @@ function Routing() {
             }
           />
           <Route
-            path="/PautasElaboracion/add"
+            path="/catalogo/pautas-elaboracion/nuevo"
             element={
               <ProtectedRoute permissions={[[ModelType.PAUTA_ELABORACION, ScopeType.WRITE]]}>
                 <AddPautaElaboracion />
@@ -638,7 +631,7 @@ function Routing() {
             }
           />
           <Route
-            path="/PautasElaboracion/:id"
+            path="/catalogo/pautas-elaboracion/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.PAUTA_ELABORACION, ScopeType.READ]]}>
                 <PautaElaboracionDetail />
@@ -646,7 +639,7 @@ function Routing() {
             }
           />
           <Route
-            path="/PautasElaboracion/:id/edit"
+            path="/catalogo/pautas-elaboracion/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.PAUTA_ELABORACION, ScopeType.WRITE]]}>
                 <PautaElaboracionEdit />
@@ -656,7 +649,7 @@ function Routing() {
 
           {/* Costos Indirectos (admin) */}
           <Route
-            path="/CostosIndirectos"
+            path="/catalogo/costos-indirectos"
             element={
               <ProtectedRoute permissions={[[ModelType.COSTO_INDIRECTO, ScopeType.READ]]}>
                 <CostosIndirectos />
@@ -666,7 +659,7 @@ function Routing() {
 
           {/* Consumo API Gemini (admin) */}
           <Route
-            path="/ConsumoGemini"
+            path="/admin/consumo-ia"
             element={
               <ProtectedRoute permissions={[[ModelType.COSTO_MARGINAL, ScopeType.READ]]}>
                 <ConsumoGeminiPage />
@@ -676,7 +669,7 @@ function Routing() {
 
           {/* Nombres de Facturación (admin) */}
           <Route
-            path="/NombresFacturacion"
+            path="/comercial/nombres-facturacion"
             element={
               <ProtectedRoute permissions={[[ModelType.NOMBRE_FACTURACION, ScopeType.READ]]}>
                 <NombresFacturacion />
@@ -686,7 +679,7 @@ function Routing() {
 
           {/* Productos (admin) */}
           <Route
-            path="/Productos"
+            path="/catalogo/productos"
             element={
               <ProtectedRoute permissions={[[ModelType.PRODUCTO_BASE, ScopeType.READ]]}>
                 <Productos />
@@ -694,7 +687,7 @@ function Routing() {
             }
           />
           <Route 
-            path="/Productos/crear" 
+            path="/catalogo/productos/nuevo" 
             element={
               <ProtectedRoute permissions={[[ModelType.PRODUCTO_BASE, ScopeType.WRITE]]}>
                 <CreateProductoWizard />
@@ -703,7 +696,7 @@ function Routing() {
           />
 
           <Route
-            path="/Productos/:id"
+            path="/catalogo/productos/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.PRODUCTO_BASE, ScopeType.READ]]}>
                 <ProductDetail />
@@ -711,7 +704,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Productos/:id/edit"
+            path="/catalogo/productos/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.PRODUCTO_BASE, ScopeType.WRITE]]}>
                 <ProductoEdit />
@@ -721,7 +714,7 @@ function Routing() {
 
           {/* PIP (admin) */}
           <Route 
-            path="/PIP" 
+            path="/catalogo/pip" 
             element={
               <ProtectedRoute permissions={[[ModelType.MATERIA_PRIMA, ScopeType.READ]]}>
                 <PIPList />
@@ -729,7 +722,7 @@ function Routing() {
             } 
           />
           <Route 
-            path="/PIP/crear" 
+            path="/catalogo/pip/nuevo" 
             element={
               <ProtectedRoute permissions={[[ModelType.MATERIA_PRIMA, ScopeType.WRITE]]}>
                 <CreatePipWizard />
@@ -739,7 +732,7 @@ function Routing() {
 
           {/* Insumos (admin) */}
           <Route
-            path="/Insumos"
+            path="/catalogo/insumos"
             element={
               <ProtectedRoute permissions={[[ModelType.MATERIA_PRIMA, ScopeType.READ]]}>
                 <Insumos />
@@ -747,7 +740,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Insumos/add"
+            path="/catalogo/insumos/nuevo"
             element={
               <ProtectedRoute permissions={[[ModelType.MATERIA_PRIMA, ScopeType.WRITE]]}>
                 <AddInsumo />
@@ -755,7 +748,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Insumos/:id"
+            path="/catalogo/insumos/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.MATERIA_PRIMA, ScopeType.READ]]}>
                 <InsumoDetail />
@@ -763,7 +756,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Insumos/:id/edit"
+            path="/catalogo/insumos/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.MATERIA_PRIMA, ScopeType.WRITE]]}>
                 <InsumoEdit />
@@ -771,7 +764,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Insumos/Categorias"
+            path="/catalogo/categorias-insumo"
             element={
               <ProtectedRoute permissions={[[ModelType.CATEGORIA_MATERIA_PRIMA, ScopeType.READ]]}>
                 <Categorias />
@@ -779,7 +772,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Insumos/Categorias/add"
+            path="/catalogo/categorias-insumo/nuevo"
             element={
               <ProtectedRoute permissions={[[ModelType.CATEGORIA_MATERIA_PRIMA, ScopeType.WRITE]]}>
                 <AddCategoria />
@@ -787,7 +780,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Insumos/Categorias/edit/:id"
+            path="/catalogo/categorias-insumo/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.CATEGORIA_MATERIA_PRIMA, ScopeType.WRITE]]}>
                 <EditCategoria />
@@ -795,7 +788,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Insumos/asociar"
+            path="/catalogo/insumos/proveedores"
             element={
               <ProtectedRoute permissions={[[ModelType.PROVEEDOR_MATERIA_PRIMA, ScopeType.WRITE]]}>
                 <AddAsociacion />
@@ -803,7 +796,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Insumos/asociar/:id"
+            path="/catalogo/insumos/proveedores/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.PROVEEDOR_MATERIA_PRIMA, ScopeType.WRITE]]}>
                 <AddAsociacion />
@@ -811,7 +804,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Insumos/asociar/edit/:id"
+            path="/catalogo/insumos/proveedores/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.PROVEEDOR_MATERIA_PRIMA, ScopeType.WRITE]]}>
                 <EditAsociacion />
@@ -819,7 +812,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Orden_de_Manufactura/:id/subproductos-decision"
+            path="/produccion/elaboraciones/:id/subproductos-decision"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_MANUFACTURA, ScopeType.READ]]}>
                 <SubproductosDecision />
@@ -827,7 +820,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Orden_de_Manufactura/:id/registrar-subproductos"
+            path="/produccion/elaboraciones/:id/registrar-subproductos"
             element={
               <ProtectedRoute permissions={[
                 [ModelType.ORDEN_MANUFACTURA, ScopeType.READ],
@@ -838,7 +831,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Orden_de_Manufactura/:id/produccion-final"
+            path="/produccion/elaboraciones/:id/produccion-final"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE]]}>
                 <ProduccionFinal />
@@ -847,7 +840,7 @@ function Routing() {
           />
 
           <Route 
-            path="/lotes-producto-en-proceso" 
+            path="/produccion/lotes" 
             element={
               <ProtectedRoute permissions={[[ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ]]}>
                 <LotesList />
@@ -855,7 +848,7 @@ function Routing() {
             } 
           />
           <Route
-            path="/lotes-producto-en-proceso/:id"
+            path="/produccion/lotes/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ]]}>
                 <LoteDetail />
@@ -863,7 +856,7 @@ function Routing() {
             }
           />
           <Route
-            path="/lotes-producto-final/:id"
+            path="/produccion/lotes-finales/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.LOTE_PRODUCTO_FINAL, ScopeType.READ]]}>
                 <LoteProductoFinalDetail />
@@ -872,7 +865,7 @@ function Routing() {
           />
           {/* Usuarios / Roles (admin) */}
           <Route
-            path="/Usuarios"
+            path="/admin/usuarios"
             element={
               <ProtectedRoute permissions={[
                 [ModelType.USUARIO, ScopeType.READ],
@@ -883,7 +876,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Usuarios/:id"
+            path="/admin/usuarios/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.USUARIO, ScopeType.READ]]}>
                 <UsuarioById />
@@ -891,7 +884,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Usuarios/:id/edit"
+            path="/admin/usuarios/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.USUARIO, ScopeType.WRITE]]}>
                 <UsuariosEdit />
@@ -899,7 +892,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Usuarios/:id/Contrasena"
+            path="/admin/usuarios/:id/contrasena"
             element={
               <ProtectedRoute permissions={[[ModelType.USUARIO, ScopeType.WRITE]]}>
                 <CambiarContrasena />
@@ -907,7 +900,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Usuarios/add"
+            path="/admin/usuarios/nuevo"
             element={
               <ProtectedRoute permissions={[[ModelType.USUARIO, ScopeType.WRITE]]}>
                 <AddUsuario />
@@ -915,7 +908,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Usuarios/:id/asignar-bodega"
+            path="/admin/usuarios/:id/asignar-bodega"
             element={
               <ProtectedRoute permissions={[
                 [ModelType.USUARIO, ScopeType.WRITE],
@@ -926,7 +919,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Roles"
+            path="/admin/roles"
             element={
               <ProtectedRoute permissions={[[ModelType.ROLE, ScopeType.READ]]}>
                 <RolManagement />
@@ -934,7 +927,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Roles/add"
+            path="/admin/roles/nuevo"
             element={
               <ProtectedRoute permissions={[[ModelType.ROLE, ScopeType.WRITE]]}>
                 <RolManagement />
@@ -942,7 +935,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Roles/:id"
+            path="/admin/roles/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.ROLE, ScopeType.READ]]}>
                 <RolDetail />
@@ -950,7 +943,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Roles/:id/edit"
+            path="/admin/roles/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.ROLE, ScopeType.WRITE]]}>
                 <RolManagement />
@@ -958,7 +951,7 @@ function Routing() {
             }
           />
           <Route
-            path="/AsignarRoles"
+            path="/admin/asignar-roles"
             element={
               <ProtectedRoute permissions={[
                 [ModelType.ROLE, ScopeType.READ],
@@ -971,7 +964,7 @@ function Routing() {
 
           {/* OM (admin) */}
           <Route 
-            path="/Produccion/dashboard" 
+            path="/produccion" 
             element={
               <ProtectedRoute permissions={[
                 [ModelType.ORDEN_MANUFACTURA, ScopeType.READ],
@@ -982,7 +975,7 @@ function Routing() {
             } 
           />
           <Route
-            path="/Orden_de_Manufactura"
+            path="/produccion/elaboraciones"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_MANUFACTURA, ScopeType.READ]]}>
                 <OMList />
@@ -990,7 +983,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Orden_de_Manufactura/add"
+            path="/produccion/elaboraciones/nuevo"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE]]}>
                 <AddOM />
@@ -998,7 +991,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Orden_de_Manufactura/:id"
+            path="/produccion/elaboraciones/:id"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_MANUFACTURA, ScopeType.READ]]}>
                 <OMDetail />
@@ -1006,7 +999,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Orden_de_Manufactura/:id/pasos"
+            path="/produccion/elaboraciones/:id/pasos"
             element={
               <ProtectedRoute permissions={[
                 [ModelType.ORDEN_MANUFACTURA, ScopeType.READ],
@@ -1017,7 +1010,7 @@ function Routing() {
             }
           />
           <Route
-            path="/Orden_de_Manufactura/:id/insumos"
+            path="/produccion/elaboraciones/:id/insumos"
             element={
               <ProtectedRoute permissions={[
                 [ModelType.ORDEN_MANUFACTURA, ScopeType.READ],
@@ -1029,7 +1022,7 @@ function Routing() {
           />
 
           <Route
-            path="/PautasValorAgregado/asignar-insumos/:idPauta"
+            path="/produccion/pva/asignar-insumos/:idPauta"
             element={
               <ProtectedRoute permissions={[[ModelType.PAUTA_VALOR_AGREGADO, ScopeType.READ]]}>
                 <AsignarInsumosPVA />
@@ -1040,7 +1033,7 @@ function Routing() {
 
           {/* Clientes (admin) */}
           <Route
-            path="/clientes"
+            path="/comercial/clientes"
             element={
               <ProtectedRoute permissions={[[ModelType.CLIENTE, ScopeType.READ]]}>
                 <ClientesPage />
@@ -1048,7 +1041,7 @@ function Routing() {
             }
           />
           <Route
-            path="/clientes/add"
+            path="/comercial/clientes/nuevo"
             element={
               <ProtectedRoute permissions={[[ModelType.CLIENTE, ScopeType.WRITE]]}>
                 <AddClientes />
@@ -1056,7 +1049,7 @@ function Routing() {
             }
           />
           <Route
-            path="/clientes/:clienteId"
+            path="/comercial/clientes/:clienteId"
             element={
               <ProtectedRoute permissions={[[ModelType.CLIENTE, ScopeType.READ]]}>
                 <ClienteDetail />
@@ -1064,7 +1057,7 @@ function Routing() {
             }
           />
           <Route
-            path="/clientes/:clienteId/edit"
+            path="/comercial/clientes/:clienteId/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.CLIENTE, ScopeType.WRITE]]}>
                 <EditClientes />
@@ -1095,7 +1088,7 @@ function Routing() {
 
           {/* Bandeja DTE Emitidos — documentos emitidos a clientes vía LibreDTE */}
           <Route
-            path="/ventas/bandeja-dte-emitidos"
+            path="/ventas/dte-emitidos"
             element={
               <ProtectedRoute permissions={[[ModelType.DOCUMENTO_TRIBUTARIO, ScopeType.READ]]}>
                 <BandejaDTEEmitidos />
@@ -1105,7 +1098,7 @@ function Routing() {
 
           {/* Conciliación (B5) — cruza nuestros documentos con los de LibreDTE y sus borradores */}
           <Route
-            path="/ventas/conciliacion-libredte"
+            path="/ventas/conciliacion"
             element={
               <ProtectedRoute permissions={[[ModelType.DOCUMENTO_TRIBUTARIO, ScopeType.READ]]}>
                 <ConciliacionLibreDTE />
@@ -1115,7 +1108,7 @@ function Routing() {
 
           {/* Ventas */}
           <Route
-            path="/ventas/dashboard"
+            path="/ventas"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.READ]]}>
                 <VentasDashboard />
@@ -1155,7 +1148,7 @@ function Routing() {
             }
           />
           <Route
-            path="/ventas/ordenes/add"
+            path="/ventas/ordenes/nuevo"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.WRITE]]}>
                 <AddOrdenVenta />
@@ -1171,7 +1164,7 @@ function Routing() {
             }
           />
           <Route 
-            path="/ventas/ordenes/:id/edit" 
+            path="/ventas/ordenes/:id/editar" 
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.WRITE]]}>
                 <EditOrdenVenta />
@@ -1179,7 +1172,7 @@ function Routing() {
             } 
           />
           <Route
-            path="/lista-precio"
+            path="/comercial/listas-precio"
             element={
               <ProtectedRoute permissions={[[ModelType.LISTA_PRECIO, ScopeType.READ]]}>
                 <ListasPrecioPage />
@@ -1187,7 +1180,7 @@ function Routing() {
             }
           />
           <Route
-            path="/lista-precio/add"
+            path="/comercial/listas-precio/nuevo"
             element={ 
               <ProtectedRoute permissions={[[ModelType.LISTA_PRECIO, ScopeType.WRITE]]}>
                 <AddListaPrecio /> 
@@ -1195,7 +1188,7 @@ function Routing() {
             }
           />
           <Route
-            path="/lista-precio/:id"
+            path="/comercial/listas-precio/:id"
             element={ 
               <ProtectedRoute permissions={[[ModelType.LISTA_PRECIO, ScopeType.READ]]}>
                 <ListaPrecioDetail />
@@ -1203,7 +1196,7 @@ function Routing() {
             }
           />
           <Route
-            path="/lista-precio/:id/edit"
+            path="/comercial/listas-precio/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.LISTA_PRECIO, ScopeType.WRITE]]}>
                 <ListaPrecioEdit />
@@ -1213,7 +1206,7 @@ function Routing() {
 
           {/* PVA (admin) */}
           <Route 
-            path="/ProcesosValorAgregado/add" 
+            path="/catalogo/procesos-valor-agregado/nuevo" 
             element={
               <ProtectedRoute permissions={[[ModelType.PROCESO_VALOR_AGREGADO, ScopeType.WRITE]]}>
                 <AddProcesoValorAgregado />
@@ -1221,7 +1214,7 @@ function Routing() {
             } 
           />
           <Route 
-            path="/ProcesosValorAgregado" 
+            path="/catalogo/procesos-valor-agregado" 
             element={
               <ProtectedRoute permissions={[[ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ]]}>
                 <ProcesosValorAgregado />
@@ -1229,7 +1222,7 @@ function Routing() {
             } 
           />
           <Route 
-            path="/ProcesosValorAgregado/:id" 
+            path="/catalogo/procesos-valor-agregado/:id" 
             element={
               <ProtectedRoute permissions={[[ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ]]}>
                 <DetailProcesoValorAgregado />
@@ -1237,26 +1230,18 @@ function Routing() {
             } 
           />
           <Route 
-            path="/ProcesosValorAgregado/:id/edit" 
+            path="/catalogo/procesos-valor-agregado/:id/editar" 
             element={
               <ProtectedRoute permissions={[[ModelType.PROCESO_VALOR_AGREGADO, ScopeType.WRITE]]}>
                 <EditProcesoValorAgregado />
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/ProcesosValorAgregado/:id/delete" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.PROCESO_VALOR_AGREGADO, ScopeType.DELETE]]}>
-                <DeleteProcesoValorAgregado />
-              </ProtectedRoute>
-            }
-          />
 
 
           {/* Pauta PVA a productos */}
           <Route 
-            path="/PVAPorProducto/agregar" 
+            path="/catalogo/pva-por-producto/nuevo" 
             element={
               <ProtectedRoute permissions={[[ModelType.PVA_PRODUCTO, ScopeType.WRITE]]}>
                 <AddPVAPorProducto />
@@ -1264,7 +1249,7 @@ function Routing() {
             } 
           />
           <Route 
-            path="/PVAPorProducto" 
+            path="/catalogo/pva-por-producto" 
             element={
               <ProtectedRoute permissions={[[ModelType.PVA_PRODUCTO, ScopeType.READ]]}>
                 <PVAPorProducto />
@@ -1272,7 +1257,7 @@ function Routing() {
             } 
           />
           <Route
-            path="/PVAPorProducto/editar/:id"
+            path="/catalogo/pva-por-producto/:id/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.PVA_PRODUCTO, ScopeType.WRITE]]}>
                 <EditPVAPorProducto />
@@ -1281,7 +1266,7 @@ function Routing() {
           />
 
           <Route
-            path="/PautasValorAgregado/ejecutar/:id"
+            path="/produccion/pva/ejecutar/:id"
             element={
               <ProtectedRoute permissions={[
                 [ModelType.PAUTA_VALOR_AGREGADO, ScopeType.READ],
@@ -1292,7 +1277,7 @@ function Routing() {
             }
           />
           <Route
-            path="/PVAPorProducto/:id" 
+            path="/catalogo/pva-por-producto/:id" 
             element={
               <ProtectedRoute permissions={[[ModelType.PVA_PRODUCTO, ScopeType.READ]]}>
                 <DetailPVAPorProducto />
@@ -1302,7 +1287,7 @@ function Routing() {
 
           {/* Calidad */}
           <Route 
-            path="/calidad/dashboard" 
+            path="/calidad" 
             element={
               <ProtectedRoute permissions={[[ModelType.FORMULARIO_CALIDAD, ScopeType.READ]]}>
                 <CalidadDashboard />
@@ -1334,7 +1319,7 @@ function Routing() {
             } 
           />
           <Route 
-            path="/calidad/formularios/:id/edit" 
+            path="/calidad/formularios/:id/editar" 
             element={
               <ProtectedRoute permissions={[[ModelType.FORMULARIO_CALIDAD, ScopeType.WRITE]]}>
                 <FormularioEdit />
@@ -1421,6 +1406,11 @@ function Routing() {
           />
 
         </Route>
+
+        {/* Rutas antiguas (antes de la Fase 1 de UI): llevan a la nueva, con sus parámetros. */}
+        {REDIRECCIONES.map(([antigua, nueva]) => (
+          <Route key={antigua} path={antigua} element={<RedireccionRutaAntigua a={nueva} />} />
+        ))}
 
         {/* 404 */}
         <Route path="*" element={<RutaNoEncontrada />} />

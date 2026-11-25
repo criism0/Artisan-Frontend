@@ -86,12 +86,12 @@ export default function RegistrarSubproductos() {
           "Subproducto registrado exitosamente. Recargando página para registrar otro subproducto..."
         );
         setTimeout(() => {
-          navigate(`/Orden_de_Manufactura/${id}/registrar-subproductos`);
+          navigate(`/produccion/elaboraciones/${id}/registrar-subproductos`);
           window.location.reload();
         }, 3000);
       } else {
         toast.success("Subproducto registrado exitosamente.");
-        navigate(`/Orden_de_Manufactura/${id}/produccion-final`);
+        navigate(`/produccion/elaboraciones/${id}/produccion-final`);
       }
     } catch (err) {
       toast.error(err.message || "Error al registrar el subproducto.");
@@ -168,7 +168,7 @@ export default function RegistrarSubproductos() {
             <button
               type="button"
               className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
-              onClick={() => navigate(`/Orden_de_Manufactura/${id}`)}
+              onClick={() => navigate(`/produccion/elaboraciones/${id}`)}
             >
               Cancelar
             </button>
@@ -176,7 +176,7 @@ export default function RegistrarSubproductos() {
               type="button"
               className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               onClick={() =>
-                navigate(`/Orden_de_Manufactura/${id}/produccion-final`)
+                navigate(`/produccion/elaboraciones/${id}/produccion-final`)
               }
             >
               Continuar a Producción Final
