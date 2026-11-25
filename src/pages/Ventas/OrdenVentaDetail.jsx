@@ -1187,7 +1187,7 @@ export default function OrdenVentaDetail() {
     puedeEditarLineasOV(orden?.estado) && {
       label: "Editar",
       icon: <Pencil className="w-4 h-4" />,
-      onClick: () => navigate(`/ventas/ordenes/${id}/edit`),
+      onClick: () => navigate(`/ventas/ordenes/${id}/editar`),
       // El botón anterior (ModifyButton) no miraba el permiso: dejaba entrar a la vista de
       // edición para que el guardado fallara con un 403 después de rellenar el formulario.
       disabled: !canWriteSaleOrder,

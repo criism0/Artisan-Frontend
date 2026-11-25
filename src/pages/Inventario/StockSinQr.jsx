@@ -287,8 +287,8 @@ function ModalHistorial({ fila, bodega, onCerrar }) {
 
   const referencia = (m) =>
     m.id_orden_venta ? <Link className="text-primary hover:underline" to={`/ventas/ordenes/${m.id_orden_venta}`}>OV #{m.id_orden_venta}</Link>
-      : m.id_solicitud_mercaderia ? <Link className="text-primary hover:underline" to={`/Solicitudes/${m.id_solicitud_mercaderia}`}>Solicitud #{m.id_solicitud_mercaderia}</Link>
-      : m.id_sesion_inventariado ? <Link className="text-primary hover:underline" to={`/Inventario/tomas/${m.id_sesion_inventariado}`}>Toma #{m.id_sesion_inventariado}</Link>
+      : m.id_solicitud_mercaderia ? <Link className="text-primary hover:underline" to={`/logistica/solicitudes/${m.id_solicitud_mercaderia}`}>Solicitud #{m.id_solicitud_mercaderia}</Link>
+      : m.id_sesion_inventariado ? <Link className="text-primary hover:underline" to={`/inventario/tomas/${m.id_sesion_inventariado}`}>Toma #{m.id_sesion_inventariado}</Link>
       : null;
 
   return (

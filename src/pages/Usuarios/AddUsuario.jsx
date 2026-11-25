@@ -51,7 +51,7 @@ export default function AddUsuario() {
         }),
       });
       toast.success("Usuario creado con éxito.");
-      navigate("/Usuarios");
+      navigate("/admin/usuarios");
     } catch (error) {
       toast.error(error?.message || "No se pudo crear el usuario.");
     } finally {
@@ -72,7 +72,7 @@ export default function AddUsuario() {
         </div>
       )}
       <div className="mb-4">
-        <BackButton to="/Usuarios" />
+        <BackButton to="/admin/usuarios" />
       </div>
 
       <h1 className="text-2xl font-bold text-text mb-6">Registrar Usuario</h1>

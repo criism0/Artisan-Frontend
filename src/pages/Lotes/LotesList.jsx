@@ -140,8 +140,8 @@ export default function LotesList() {
           className="font-medium text-primary hover:underline"
           to={
             row.__tipoLote === "FINAL"
-              ? `/lotes-producto-final/${row.id}`
-              : `/lotes-producto-en-proceso/${row.id}`
+              ? `/produccion/lotes-finales/${row.id}`
+              : `/produccion/lotes/${row.id}`
           }
         >
           {row.numeroLote}
@@ -206,8 +206,8 @@ export default function LotesList() {
             <Link
               to={
                 row.__tipoLote === "FINAL"
-                  ? `/lotes-producto-final/${row.id}`
-                  : `/lotes-producto-en-proceso/${row.id}`
+                  ? `/produccion/lotes-finales/${row.id}`
+                  : `/produccion/lotes/${row.id}`
               }
               className="inline-flex items-center px-4 py-2 rounded-lg bg-primary text-white hover:opacity-90 shadow"
             >

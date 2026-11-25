@@ -90,7 +90,7 @@ export default function AddInsumo() {
         body: requestBody,
       });
       toast.success("Insumo creado correctamente.");
-      navigate("/Insumos");
+      navigate("/catalogo/insumos");
     } catch (error) {
       if (error instanceof ApiError && error.status === 409 && error.data?.code === "SIMILAR_NAME") {
         const requestBody = buildRequestBody();
@@ -123,7 +123,7 @@ export default function AddInsumo() {
       setSimilarModal({ open: false, inputName: "", matches: [] });
       setPendingPayload(null);
       toast.success("Insumo creado correctamente.");
-      navigate("/Insumos");
+      navigate("/catalogo/insumos");
     } catch (error) {
       setSimilarModal({ open: false, inputName: "", matches: [] });
       setPendingPayload(null);
@@ -136,7 +136,7 @@ export default function AddInsumo() {
 
   return (
     <div>
-      <BackButton to="/Insumos" />
+      <BackButton to="/catalogo/insumos" />
       <h1 className="text-2xl font-bold text-text mb-6">Añadir Insumo</h1>
 
       {error && <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">{error}</div>}

@@ -131,7 +131,7 @@ export default function ProductDetail() {
     try {
       await api(`/productos-base/${id}`, { method: "DELETE" });
       toast.success("Producto eliminado");
-      navigate('/Productos');
+      navigate('/catalogo/productos');
     } catch (error) {
       console.error('Error eliminando producto:', error);
       toast.error("Error eliminando producto");
@@ -150,7 +150,7 @@ export default function ProductDetail() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/Productos" />
+        <BackButton to="/catalogo/productos" />
       </div>
 
       <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
@@ -165,12 +165,12 @@ export default function ProductDetail() {
             <button
               type="button"
               className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-              onClick={() => navigate(`/Recetas/${receta.id}`)}
+              onClick={() => navigate(`/catalogo/recetas/${receta.id}`)}
             >
               Abrir receta
             </button>
           ) : null}
-          <ModifyButton onClick={() => navigate(`/Productos/${id}/edit`)} />
+          <ModifyButton onClick={() => navigate(`/catalogo/productos/${id}/editar`)} />
           <DeleteButton
             entityId={id}
             onConfirmDelete={handleDeleteProduct}
@@ -343,7 +343,7 @@ export default function ProductDetail() {
               <button
                 type="button"
                 className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-                onClick={() => navigate(`/Recetas/${receta.id}`)}
+                onClick={() => navigate(`/catalogo/recetas/${receta.id}`)}
               >
                 Administrar en receta
               </button>
@@ -404,7 +404,7 @@ export default function ProductDetail() {
               <button
                 type="button"
                 className="px-3 py-2 border rounded-lg hover:bg-gray-50 text-sm"
-                onClick={() => navigate(`/PautasElaboracion/${recetaPautaId}/edit`)}
+                onClick={() => navigate(`/catalogo/pautas-elaboracion/${recetaPautaId}/editar`)}
               >
                 Editar pauta
               </button>

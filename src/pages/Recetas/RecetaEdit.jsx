@@ -368,7 +368,7 @@ export default function RecetaEdit() {
       await api(`/recetas/${id}`, {method: 'PUT', body: JSON.stringify(body)});
 
       toast.success("Receta actualizada correctamente.");
-      navigate(`/Recetas/${id}`);
+      navigate(`/catalogo/recetas/${id}`);
     } catch (err) {
       console.error("Error al guardar cambios:", err);
       toast.error(err.message || "Error al guardar la receta. Verifica los datos.");
@@ -393,7 +393,7 @@ export default function RecetaEdit() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to={`/Recetas/${id}`} />
+        <BackButton to={`/catalogo/recetas/${id}`} />
       </div>
 
       <h1 className="text-2xl font-bold text-text mb-6">Editar Receta</h1>

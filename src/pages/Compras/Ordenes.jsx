@@ -195,7 +195,7 @@ export default function Ordenes() {
     return (
       <>
         <ViewDetailButton
-          onClick={() => navigate(`/Ordenes/${row.id}`)}
+          onClick={() => navigate(`/adquisiciones/ordenes-compra/${row.id}`)}
           tooltipText="Detalle"
         />
 
@@ -208,14 +208,14 @@ export default function Ordenes() {
 
         {estado === "validada" && (
           <ValidarButton
-            onClick={() => navigate(`/Ordenes/recepcionar/${row.id}`)}
+            onClick={() => navigate(`/adquisiciones/ordenes-compra/${row.id}/recepcionar`)}
             tooltipText="Recepcionar"
           />
         )}
 
         {estado === "parcialmente recepcionada" && (
           <AddButton
-            onClick={() => navigate(`/Ordenes/recepcionar/${row.id}`)}
+            onClick={() => navigate(`/adquisiciones/ordenes-compra/${row.id}/recepcionar`)}
             tooltipText="Completar recepción"
           />
         )}
@@ -487,7 +487,7 @@ export default function Ordenes() {
         headerActions={
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-            onClick={() => navigate("/Ordenes/add")}
+            onClick={() => navigate("/adquisiciones/ordenes-compra/nuevo")}
           >
             Añadir Orden
           </button>

@@ -76,11 +76,11 @@ export default function Productos() {
   const actions = (row) => (
     <div className="flex gap-2">
       <ViewDetailButton
-        onClick={() => navigate(`/Productos/${row.id}`)}
+        onClick={() => navigate(`/catalogo/productos/${row.id}`)}
         tooltipText="Ver Detalle"
       />
       <EditButton
-        onClick={() => navigate(`/Productos/${row.id}/edit`)}
+        onClick={() => navigate(`/catalogo/productos/${row.id}/editar`)}
         tooltipText="Editar Producto"
       />
       <TrashButton
@@ -110,10 +110,10 @@ export default function Productos() {
       emptyMessage="No hay productos registrados."
       headerActions={
         <>
-          <BackButton to="/Home" />
+          <BackButton to="/inicio" />
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-            onClick={() => navigate("/Productos/crear")}
+            onClick={() => navigate("/catalogo/productos/nuevo")}
           >
             Añadir Producto Terminado
           </button>

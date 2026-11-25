@@ -606,7 +606,7 @@ export default function CreatePipWizard() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/PIP" />
+        <BackButton to="/catalogo/pip" />
       </div>
 
       <SimilarNameConfirmModal
@@ -755,7 +755,7 @@ export default function CreatePipWizard() {
         <button
           type="button"
           className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-          onClick={() => navigate("/PIP")}
+          onClick={() => navigate("/catalogo/pip")}
         >
           Volver a PIP
         </button>

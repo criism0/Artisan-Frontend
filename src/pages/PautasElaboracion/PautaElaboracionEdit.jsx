@@ -203,7 +203,7 @@ export default function PautaElaboracionEdit() {
       }
 
       toast.success("Pauta de elaboración actualizada correctamente.");
-      navigate(`/PautasElaboracion/${id}`);
+      navigate(`/catalogo/pautas-elaboracion/${id}`);
     } catch (err) {
       console.error("Error al actualizar pauta:", err);
       toast.error(err.message || "Error al actualizar la pauta de elaboración. Verifica los campos e intenta nuevamente.");
@@ -216,7 +216,7 @@ export default function PautaElaboracionEdit() {
     <div>
       <div className="max-w-6xl mx-auto">
         <div className="mb-4">
-          <BackButton to={`/PautasElaboracion/${id}`} />
+          <BackButton to={`/catalogo/pautas-elaboracion/${id}`} />
         </div>
 
         <h1 className="text-2xl font-bold text-text mb-6">Editar Pauta de Elaboración</h1>

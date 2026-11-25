@@ -331,7 +331,7 @@ export default function AddReceta() {
         toast.success("Receta creada correctamente (sin pauta de elaboración).");
       }
       
-      navigate(`/Recetas/${idReceta}`);
+      navigate(`/catalogo/recetas/${idReceta}`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409 && err.data?.code === "SIMILAR_NAME") {
         pendingSimilarActionRef.current = () => handleSubmit(true);
@@ -370,7 +370,7 @@ export default function AddReceta() {
         confirmText="Crear receta igualmente"
       />
       <div className="mb-4">
-        <BackButton to="/Recetas" />
+        <BackButton to="/catalogo/recetas" />
       </div>
 
       <h1 className="text-2xl font-bold text-text mb-6">Añadir Receta</h1>

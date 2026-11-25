@@ -104,7 +104,7 @@ export default function ListaPrecioEdit() {
         method: 'PUT', 
         body: JSON.stringify(formattedData) 
       });
-      navigate(`/lista-precio/${id}`);
+      navigate(`/comercial/listas-precio/${id}`);
     } catch (error) {
       const errorMessage = mensajeDelBackend(error) || 
                           "Error al actualizar la lista de precio. Por favor, verifica los datos e intenta nuevamente.";
@@ -127,7 +127,7 @@ export default function ListaPrecioEdit() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to={`/lista-precio/${id}`} />
+        <BackButton to={`/comercial/listas-precio/${id}`} />
       </div>
       <h1 className="text-2xl font-bold text-text mb-4">Editar Lista de Precio</h1>
       {error && (

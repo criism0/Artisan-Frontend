@@ -262,7 +262,7 @@ export default function OMList() {
       if (estadoLower.includes("pend")) {
         await api(`/pautas-valor-agregado/${siguiente.id}/comenzar`, { method: "PUT" });
       }
-      navigate(`/PautasValorAgregado/ejecutar/${siguiente.id}`);
+      navigate(`/produccion/pva/ejecutar/${siguiente.id}`);
     } catch (err) {
       const msg = err?.error || err?.message;
       toast.error(msg || "No se pudo comenzar la pauta");
@@ -276,7 +276,7 @@ export default function OMList() {
     return (
       <div className="flex gap-2">
         <ViewDetailButton
-          onClick={() => navigate(`/Orden_de_Manufactura/${row.id}`)}
+          onClick={() => navigate(`/produccion/elaboraciones/${row.id}`)}
           tooltipText="Ver Detalle"
         />
 
@@ -284,7 +284,7 @@ export default function OMList() {
           <button
             className="text-gray-400 hover:text-blue-500"
             title="Asignar insumos"
-            onClick={() => navigate(`/Orden_de_Manufactura/${row.id}/insumos`)}
+            onClick={() => navigate(`/produccion/elaboraciones/${row.id}/insumos`)}
           >
             <Clipboard className="w-5 h-5" />
           </button>
@@ -295,7 +295,7 @@ export default function OMList() {
             <button
               className="text-gray-400 hover:text-blue-500"
               title="Ejecutar pasos"
-              onClick={() => navigate(`/Orden_de_Manufactura/${row.id}/pasos`)}
+              onClick={() => navigate(`/produccion/elaboraciones/${row.id}/pasos`)}
             >
               <Play className="w-5 h-5" />
             </button>
@@ -303,7 +303,7 @@ export default function OMList() {
             <button
               className="text-gray-400 hover:text-green-600"
               title="Producción final"
-              onClick={() => navigate(`/Orden_de_Manufactura/${row.id}/produccion-final`)}
+              onClick={() => navigate(`/produccion/elaboraciones/${row.id}/produccion-final`)}
             >
               <Package className="w-5 h-5" />
             </button>
@@ -314,7 +314,7 @@ export default function OMList() {
           <button
             className="text-gray-400 hover:text-green-600"
             title="Producción final"
-            onClick={() => navigate(`/Orden_de_Manufactura/${row.id}/produccion-final`)}
+            onClick={() => navigate(`/produccion/elaboraciones/${row.id}/produccion-final`)}
           >
             <Package className="w-5 h-5" />
           </button>
@@ -407,7 +407,7 @@ export default function OMList() {
         headerActions={
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-            onClick={() => navigate("/Orden_de_Manufactura/add")}
+            onClick={() => navigate("/produccion/elaboraciones/nuevo")}
           >
             Añadir OM
           </button>

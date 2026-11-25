@@ -134,7 +134,7 @@ export default function UsuariosEdit() {
         body: JSON.stringify(cambios)
       });
       toast.success("Usuario actualizado correctamente.");
-      navigate(`/Usuarios/${id}`);
+      navigate(`/admin/usuarios/${id}`);
     } catch (error) {
       const mensaje = error?.message || "Error al actualizar el usuario";
       toast.error(mensaje);
@@ -150,7 +150,7 @@ export default function UsuariosEdit() {
 
   return (
     <div>
-      <BackButton to={`/Usuarios/${id}`} />
+      <BackButton to={`/admin/usuarios/${id}`} />
       <div className="mt-4">
         <h1 className="text-2xl font-bold mb-6">Editar Usuario</h1>
       </div>

@@ -216,7 +216,7 @@ export default function SesionInventariadoDetail() {
     <div>
       <div className="max-w-6xl mx-auto">
       <PageHeader
-        volverA="/Inventario/tomas"
+        volverA="/inventario/tomas"
         titulo={`Toma de inventario #${sesion.id}`}
         estado={
           <span className={`px-3 py-1 rounded-full text-xs border ${getEstadoBadgeClasses(sesion.estado)}`}>

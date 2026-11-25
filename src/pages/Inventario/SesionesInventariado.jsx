@@ -128,7 +128,7 @@ export default function SesionesInventariado() {
   const actions = (row) => (
     <div className="flex gap-2">
       <ViewDetailButton
-        onClick={() => navigate(`/Inventario/tomas/${row.id}`)}
+        onClick={() => navigate(`/inventario/tomas/${row.id}`)}
         tooltipText="Ver detalle"
       />
     </div>

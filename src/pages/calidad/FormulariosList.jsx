@@ -160,7 +160,7 @@ export default function FormulariosList() {
         </button>
       )}
       <EditButton
-        onClick={() => navigate(`/calidad/formularios/${row.id}/edit`)}
+        onClick={() => navigate(`/calidad/formularios/${row.id}/editar`)}
         tooltipText="Editar formulario"
       />
       <ToggleActiveButton

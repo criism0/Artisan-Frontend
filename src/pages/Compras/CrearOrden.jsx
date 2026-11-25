@@ -368,7 +368,7 @@ export default function CrearOrden() {
       } catch (emailErr) {
         toast.error(`Error enviando email tras crear orden: ${emailErr.message}`);
       }
-      navigate("/Ordenes");
+      navigate("/adquisiciones/ordenes-compra");
     } catch (error) {
       toast.error(`Error al crear orden: ${error.message}`);
     } finally {
@@ -453,7 +453,7 @@ export default function CrearOrden() {
         </div>
       )}
       <div className="mb-4">
-        <BackButton to="/Ordenes" />
+        <BackButton to="/adquisiciones/ordenes-compra" />
       </div>
 
       <h1 className="text-2xl font-bold text-text mb-4">Crear Orden de Compra</h1>

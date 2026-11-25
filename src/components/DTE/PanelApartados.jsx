@@ -225,7 +225,7 @@ function TarjetaApartado({ a }) {
           */}
           {a.borrador && (
             <button
-              onClick={() => navigate("/ventas/ordenes/add", { state: { borrador: a.borrador } })}
+              onClick={() => navigate("/ventas/ordenes/nuevo", { state: { borrador: a.borrador } })}
               className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary hover:bg-primary-dark text-white"
             >
               Crear orden con estos datos

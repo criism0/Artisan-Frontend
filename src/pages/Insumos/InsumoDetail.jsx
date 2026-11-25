@@ -197,7 +197,7 @@ export default function InsumoDetail() {
     <div className="flex gap-2">
       <EditButton
         tooltipText="Editar Asociación"
-        onClick={() => navigate(`/Insumos/asociar/edit/${row.id}`)}
+        onClick={() => navigate(`/catalogo/insumos/proveedores/${row.id}/editar`)}
       />
       <TrashButton
         tooltipText="Eliminar Asociación"
@@ -246,7 +246,7 @@ export default function InsumoDetail() {
     return (
       <div>
         <div className="mb-4">
-          <BackButton to="/Insumos" />
+          <BackButton to="/catalogo/insumos" />
         </div>
 
         <div className="flex justify-between items-center mb-4">
@@ -257,7 +257,7 @@ export default function InsumoDetail() {
             </p>
           </div>
           <div className="flex gap-4">
-            <ModifyButton onClick={() => navigate(`/Insumos/${id}/edit`)} />
+            <ModifyButton onClick={() => navigate(`/catalogo/insumos/${id}/editar`)} />
             <ToggleActiveButton
               isActive={insumo.activo === true}
               entityName={insumo.nombre || "PIP"}
@@ -303,7 +303,7 @@ export default function InsumoDetail() {
                 <button
                   type="button"
                   className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-                  onClick={() => navigate(`/Recetas/${recetaId}`)}
+                  onClick={() => navigate(`/catalogo/recetas/${recetaId}`)}
                 >
                   Abrir receta
                 </button>
@@ -386,7 +386,7 @@ export default function InsumoDetail() {
                 <button
                   type="button"
                   className="px-3 py-2 border rounded-lg hover:bg-gray-50 text-sm"
-                  onClick={() => navigate(`/PautasElaboracion/${receta.id_pauta_elaboracion}/edit`)}
+                  onClick={() => navigate(`/catalogo/pautas-elaboracion/${receta.id_pauta_elaboracion}/editar`)}
                 >
                   Editar pauta
                 </button>
@@ -489,7 +489,7 @@ export default function InsumoDetail() {
                 <button
                   type="button"
                   className="px-3 py-2 border rounded-lg hover:bg-gray-50"
-                  onClick={() => navigate(`/Recetas/${recetaId}`)}
+                  onClick={() => navigate(`/catalogo/recetas/${recetaId}`)}
                 >
                   Administrar en receta
                 </button>
@@ -609,7 +609,7 @@ export default function InsumoDetail() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/Insumos"/>
+        <BackButton to="/catalogo/insumos"/>
       </div>
 
       <div className="flex justify-between items-start gap-4 mb-6">
@@ -620,7 +620,7 @@ export default function InsumoDetail() {
           </p>
         </div>
         <div className="flex gap-3 shrink-0">
-          <ModifyButton onClick={() => navigate(`/Insumos/${id}/edit`)} />
+          <ModifyButton onClick={() => navigate(`/catalogo/insumos/${id}/editar`)} />
           <ToggleActiveButton
             isActive={insumo.activo === true}
             entityName={insumo.nombre || "Insumo"}
@@ -657,7 +657,7 @@ export default function InsumoDetail() {
 
         <div className="mt-4">
           <button
-            onClick={() => navigate(`/Insumos/asociar/${id}`)}
+            onClick={() => navigate(`/catalogo/insumos/proveedores/${id}`)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors font-medium"
           >
             <FiPlus className="w-4 h-4" /> Asociar proveedor o agregar formato

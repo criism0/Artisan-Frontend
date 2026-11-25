@@ -20,7 +20,7 @@ export default function VerifyResetCode() {
   const email = location.state?.email ?? "";
 
   useEffect(() => {
-    if (!email) navigate("/forgot-password", { replace: true });
+    if (!email) navigate("/recuperar-contrasena", { replace: true });
   }, [email, navigate]);
 
   const [digits, setDigits] = useState(Array(CODE_LENGTH).fill(""));
@@ -86,7 +86,7 @@ export default function VerifyResetCode() {
         body: { email, code },
       });
 
-      navigate("/reset-password", { state: { email, code } });
+      navigate("/recuperar-contrasena/nueva", { state: { email, code } });
     } catch (error) {
       toast.error(error?.message ?? "Error enviando código. Intenta nuevamente.");
     } finally {
@@ -123,7 +123,7 @@ export default function VerifyResetCode() {
           <div className="mb-6">
             <button
               type="button"
-              onClick={() => navigate("/forgot-password")}
+              onClick={() => navigate("/recuperar-contrasena")}
               className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4 transition"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

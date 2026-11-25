@@ -612,7 +612,7 @@ export default function ProduccionFinal() {
         }
       }
 
-      navigate(`/Orden_de_Manufactura/${id}`);
+      navigate(`/produccion/elaboraciones/${id}`);
     } catch (err) {
       toast.error(err.message || "Error al registrar la producción.");
     } finally {
@@ -623,7 +623,7 @@ export default function ProduccionFinal() {
   return (
     <div>
       <PageHeader
-        volverA={`/Orden_de_Manufactura/${id}`}
+        volverA={`/produccion/elaboraciones/${id}`}
         titulo={`Producción Final · OM #${id}`}
         tituloAyuda="Producción final"
         ayuda={
@@ -1437,7 +1437,7 @@ export default function ProduccionFinal() {
           <button
             type="button"
             className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
-            onClick={() => navigate(`/Orden_de_Manufactura/${id}`)}
+            onClick={() => navigate(`/produccion/elaboraciones/${id}`)}
           >
             Cancelar
           </button>

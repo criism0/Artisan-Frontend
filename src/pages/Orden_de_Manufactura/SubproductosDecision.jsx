@@ -32,7 +32,7 @@ export default function SubproductosDecision() {
         
         // If no possible subproducts, automatically redirect to production final
         if (!hasPosiblesSubproductos) {
-          navigate(`/Orden_de_Manufactura/${id}/produccion-final`);
+          navigate(`/produccion/elaboraciones/${id}/produccion-final`);
         }
       } catch (err) {
         console.error('Error loading data:', err);
@@ -46,11 +46,11 @@ export default function SubproductosDecision() {
   }, [id, navigate, canReadManufacture]);
 
   const handleSubproductosYes = () => {
-    navigate(`/Orden_de_Manufactura/${id}/registrar-subproductos`);
+    navigate(`/produccion/elaboraciones/${id}/registrar-subproductos`);
   };
 
   const handleSubproductosNo = () => {
-    navigate(`/Orden_de_Manufactura/${id}/produccion-final`);
+    navigate(`/produccion/elaboraciones/${id}/produccion-final`);
   };
 
 
@@ -104,7 +104,7 @@ export default function SubproductosDecision() {
 
       <div className="mt-6 pt-4 border-t">
         <button
-          onClick={() => navigate(`/Orden_de_Manufactura/${id}`)}
+          onClick={() => navigate(`/produccion/elaboraciones/${id}`)}
           className="px-4 py-2 text-gray-600 hover:text-gray-800"
         >
           ← Volver a la orden

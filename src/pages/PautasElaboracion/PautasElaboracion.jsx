@@ -136,8 +136,8 @@ export default function PautasElaboracionPage() {
 
   const actions = (row) => (
     <div className="flex gap-2 items-center">
-      <ViewDetailButton onClick={() => navigate(`/PautasElaboracion/${row.id}`)} tooltipText="Ver detalle" />
-      <EditButton onClick={() => navigate(`/PautasElaboracion/${row.id}/edit`)} tooltipText="Editar Pauta" />
+      <ViewDetailButton onClick={() => navigate(`/catalogo/pautas-elaboracion/${row.id}`)} tooltipText="Ver detalle" />
+      <EditButton onClick={() => navigate(`/catalogo/pautas-elaboracion/${row.id}/editar`)} tooltipText="Editar Pauta" />
       <button
         type="button"
         onClick={() => void handleToggleActive(row)}
@@ -168,7 +168,7 @@ export default function PautasElaboracionPage() {
       headerActions={
         <button
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-          onClick={() => navigate("/PautasElaboracion/add")}
+          onClick={() => navigate("/catalogo/pautas-elaboracion/nuevo")}
         >
           Añadir Pauta
         </button>

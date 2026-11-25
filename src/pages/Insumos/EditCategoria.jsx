@@ -71,7 +71,7 @@ export default function EditCategoria() {
       setIsSubmitting(true);
       await api(`/categorias-materia-prima/${id}`, { method: "PUT", body: formData });
       toast.success("Categoría actualizada correctamente");
-      navigate("/Insumos/Categorias");
+      navigate("/catalogo/categorias-insumo");
     } catch (error) {
       console.error("Error al actualizar categoría:", error);
       toast.error("Error al actualizar categoría");
@@ -85,13 +85,13 @@ export default function EditCategoria() {
     if (hasChanges) {
       setShowCancelModal(true);
     } else {
-      navigate("/Insumos/Categorias");
+      navigate("/catalogo/categorias-insumo");
     }
   };
 
   const handleConfirmCancel = () => {
     setShowCancelModal(false);
-    navigate("/Insumos/Categorias");
+    navigate("/catalogo/categorias-insumo");
   };
 
   if (isLoading) return <PageLoader message="Cargando categoría" />;
@@ -103,7 +103,7 @@ export default function EditCategoria() {
           <Spinner size="lg" />
         </div>
       )}
-      <BackButton to="/Insumos/Categorias" />
+      <BackButton to="/catalogo/categorias-insumo" />
       <h1 className="text-2xl font-bold text-text mb-6">Editar Categoría</h1>
 
       {error && (

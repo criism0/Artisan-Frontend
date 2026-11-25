@@ -92,7 +92,7 @@ export default function UsuarioAsignarBodega(params) {
         body: { bodegas: selectedIds},
       });
       toast.success("Bodegas asignadas correctamente.");
-      navigate(`/Usuarios`);
+      navigate(`/admin/usuarios`);
     } catch (err) {
       toast.error(err.message || "Error al guardar bodegas.");
     } finally {
@@ -116,7 +116,7 @@ export default function UsuarioAsignarBodega(params) {
 
   return (
     <div>
-      <BackButton to={"/Usuarios"} />
+      <BackButton to={"/admin/usuarios"} />
       <div className="mt-4 mb-6">
         <h1 className="text-2xl font-bold">Asignar Bodega</h1>
         <p className="text-sm text-gray-500 mt-1">

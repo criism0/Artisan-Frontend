@@ -130,7 +130,7 @@ export default function AddProcesoValorAgregado() {
       }
 
       toast.success("Proceso de valor agregado creado correctamente.");
-      navigate(`/ProcesosValorAgregado/${idPva}`);
+      navigate(`/catalogo/procesos-valor-agregado/${idPva}`);
     } catch (err) {
       console.error("Error al crear el proceso de valor agregado:", err);
       toast.error("Error al crear el proceso. Verifica los campos e intenta nuevamente.");
@@ -147,7 +147,7 @@ export default function AddProcesoValorAgregado() {
         </div>
       )}
       <div className="mb-4">
-        <BackButton to="/ProcesosValorAgregado" />
+        <BackButton to="/catalogo/procesos-valor-agregado" />
       </div>
 
       <h1 className="text-2xl font-bold text-text mb-6">Añadir Proceso de Valor Agregado</h1>

@@ -220,7 +220,7 @@ export default function EditSolicitud() {
       });
 
       toast.success("Solicitud actualizada exitosamente");
-      navigate(`/Solicitudes/${solicitudId}`);
+      navigate(`/logistica/solicitudes/${solicitudId}`);
     } catch (err) {
       console.error("Error al actualizar la solicitud:", err);
       toast.error(err?.message || "Error al actualizar la solicitud. Por favor intente nuevamente.");
@@ -232,7 +232,7 @@ export default function EditSolicitud() {
   if (!solicitudId) {
     return (
       <div className="max-w-5xl mx-auto">
-        <PageHeader volverA="/Solicitudes" titulo="Solicitud inválida" />
+        <PageHeader volverA="/logistica/solicitudes" titulo="Solicitud inválida" />
         <p className="text-sm text-gray-500">No se recibió el número de la solicitud.</p>
       </div>
     );
@@ -243,7 +243,7 @@ export default function EditSolicitud() {
       {/* Sin overlay negro a pantalla completa mientras guarda: los controles ya se
           deshabilitan solos, y una cortina sobre toda la vista asusta más de lo que informa. */}
       <PageHeader
-        volverA={`/Solicitudes/${solicitudId}`}
+        volverA={`/logistica/solicitudes/${solicitudId}`}
         titulo={`Editar solicitud #${solicitudId}`}
         estado={
           !solicitudEditable && solicitud?.estado ? (

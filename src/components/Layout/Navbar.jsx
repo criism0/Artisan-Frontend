@@ -63,9 +63,9 @@ export default function Navbar() {
             onClose={handleClose}
           >
             <MenuGroup label="Adquisiciones" icon={<Box />}>
-              <MenuLink to="/Ordenes/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.ORDEN_COMPRA, ScopeType.READ)} />
-              <MenuLink to="/Ordenes" icon={<ClipboardList />} label=" Órdenes de Compra" isAllowed={checkScope(ModelType.ORDEN_COMPRA, ScopeType.READ)} />
-              <MenuLink to="/Ordenes/documentos-recibidos" icon={<Link2 />} label="Facturas por vincular" isAllowed={checkScope(ModelType.ORDEN_COMPRA, ScopeType.READ)} />
+              <MenuLink to="/adquisiciones" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.ORDEN_COMPRA, ScopeType.READ)} />
+              <MenuLink to="/adquisiciones/ordenes-compra" icon={<ClipboardList />} label=" Órdenes de Compra" isAllowed={checkScope(ModelType.ORDEN_COMPRA, ScopeType.READ)} />
+              <MenuLink to="/adquisiciones/facturas-por-vincular" icon={<Link2 />} label="Facturas por vincular" isAllowed={checkScope(ModelType.ORDEN_COMPRA, ScopeType.READ)} />
             </MenuGroup>
           </Dropdown>
 
@@ -77,9 +77,9 @@ export default function Navbar() {
             onClose={handleClose}
           >
             <MenuGroup label="Producción" icon={<Box />}>
-              <MenuLink to="/Produccion/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
-              <MenuLink to="/Orden_de_Manufactura" icon={<Factory />} label="Elaboraciones" isAllowed={checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ)} />
-              <MenuLink to="/lotes-producto-en-proceso" icon={<Layers />} label="Lotes" isAllowed={checkScope(ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ)} />
+              <MenuLink to="/produccion" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
+              <MenuLink to="/produccion/elaboraciones" icon={<Factory />} label="Elaboraciones" isAllowed={checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ)} />
+              <MenuLink to="/produccion/lotes" icon={<Layers />} label="Lotes" isAllowed={checkScope(ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ)} />
               {/* TODO: ruta /Estimaciones no existe en Routing.jsx — ocultar hasta implementar la página */}
               {/* <MenuLink to="/Estimaciones" label="Estimaciones de demanda" /> */}
             </MenuGroup>
@@ -93,10 +93,10 @@ export default function Navbar() {
             onClose={handleClose}
           >
             <MenuGroup label="Logística" icon={<Box />}>
-              <MenuLink to="/Logistica/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
-              <MenuLink to="/Solicitudes" icon={<Inbox />} label="Solicitudes" isAllowed={checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.READ)} />
-              <MenuLink to="/Logistica/entregas" icon={<MapPinned />} label="Entregas" isAllowed={checkScope(ModelType.RUTA, ScopeType.READ)} />
-              <MenuLink to="/Logistica/transporte" icon={<FaTruck />} label="Transporte" isAllowed={checkScope(ModelType.BODEGA, ScopeType.READ)} />
+              <MenuLink to="/logistica" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
+              <MenuLink to="/logistica/solicitudes" icon={<Inbox />} label="Solicitudes" isAllowed={checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.READ)} />
+              <MenuLink to="/logistica/entregas" icon={<MapPinned />} label="Entregas" isAllowed={checkScope(ModelType.RUTA, ScopeType.READ)} />
+              <MenuLink to="/logistica/transporte" icon={<FaTruck />} label="Transporte" isAllowed={checkScope(ModelType.BODEGA, ScopeType.READ)} />
             </MenuGroup>
           </Dropdown>
 
@@ -108,12 +108,12 @@ export default function Navbar() {
             onClose={handleClose}
           >
             <MenuGroup label="Inventario" icon={<Box />}>
-              <MenuLink to="/Inventario/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
-              <MenuLink to="/Inventario" icon={<Boxes />} label="Inventario" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
-              <MenuLink to="/Inventario/bultos" icon={<Box />} label="Bultos" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
-              <MenuLink to="/Inventario/sin-qr" icon={<PackageOpen />} label="Productos sin QR" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
-              <MenuLink to="/Inventario/tomas" icon={<FaClipboardCheck />} label="Tomas de Inventario" isAllowed={checkScope(ModelType.SESION_INVENTARIADO, ScopeType.READ)} />
-              <MenuLink to="/Inventario/consumo-interno" icon={<PackageMinus />} label="Consumo interno" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
+              <MenuLink to="/inventario" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
+              <MenuLink to="/inventario/stock" icon={<Boxes />} label="Inventario" isAllowed={checkScope(ModelType.INVENTARIO, ScopeType.READ)} />
+              <MenuLink to="/inventario/bultos" icon={<Box />} label="Bultos" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
+              <MenuLink to="/inventario/sin-qr" icon={<PackageOpen />} label="Productos sin QR" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
+              <MenuLink to="/inventario/tomas" icon={<FaClipboardCheck />} label="Tomas de Inventario" isAllowed={checkScope(ModelType.SESION_INVENTARIADO, ScopeType.READ)} />
+              <MenuLink to="/inventario/consumo-interno" icon={<PackageMinus />} label="Consumo interno" isAllowed={checkScope(ModelType.BULTO, ScopeType.READ)} />
             </MenuGroup>
           </Dropdown>
 
@@ -125,7 +125,7 @@ export default function Navbar() {
             onClose={handleClose}
           >
             <MenuGroup label="Ventas" icon={<Box />}>
-              <MenuLink to="/ventas/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.ORDEN_VENTA, ScopeType.READ)} />
+              <MenuLink to="/ventas" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.ORDEN_VENTA, ScopeType.READ)} />
               <MenuLink to="/ventas/cola-ia" icon={<Bot />} label="Cola IA" isAllowed={checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE)} />
               <MenuLink to="/ventas/ordenes" icon={<ShoppingCart />} label="Órdenes de Venta" isAllowed={checkScope(ModelType.ORDEN_VENTA, ScopeType.READ)} />
               <MenuLink to="/ventas/facturas" icon={<Receipt />} label="Facturas" isAllowed={checkScope(ModelType.OCR_FACTURA, ScopeType.READ)} />
@@ -141,7 +141,7 @@ export default function Navbar() {
             onClose={handleClose}
           >
             <MenuGroup label="Control de Calidad" icon={<CheckCircle />}>
-              <MenuLink to="/calidad/dashboard" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.FORMULARIO_CALIDAD, ScopeType.READ)} />
+              <MenuLink to="/calidad" icon={<LayoutGrid />} label="Dashboard" isAllowed={checkScope(ModelType.FORMULARIO_CALIDAD, ScopeType.READ)} />
               <MenuLink to="/calidad/no-conformidades" icon={<AlertTriangle />} label="No Conformidades" isAllowed={checkScope(ModelType.FORMULARIO_CALIDAD, ScopeType.READ)}/>
               <MenuLink to="/calidad/formularios" icon={<Clipboard />} label="Formularios" isAllowed={checkScope(ModelType.FORMULARIO_CALIDAD, ScopeType.READ)}/>
               <MenuLink to="/calidad/poes" icon={<FileText />} label="POES" isAllowed={checkScope(ModelType.POES, ScopeType.READ)}/>
@@ -159,32 +159,32 @@ export default function Navbar() {
             onClose={handleClose}
           >
             <MenuGroup label="Gestión Comercial">
-              <MenuLink to="/Proveedores" icon={<Users />} label="Proveedores" isAllowed={checkScope(ModelType.PROVEEDOR, ScopeType.READ)} />
-              <MenuLink to="/clientes" icon={<FaRegSmile />} label="Clientes" isAllowed={checkScope(ModelType.CLIENTE, ScopeType.READ)} />
-              <MenuLink to="/lista-precio" icon={<FaList />} label="Listas de Precio" isAllowed={checkScope(ModelType.LISTA_PRECIO, ScopeType.READ)} />
-              <MenuLink to="/NombresFacturacion" icon={<Receipt />} label="Nombres de Facturación" isAllowed={checkScope(ModelType.NOMBRE_FACTURACION, ScopeType.READ)} />
+              <MenuLink to="/comercial/proveedores" icon={<Users />} label="Proveedores" isAllowed={checkScope(ModelType.PROVEEDOR, ScopeType.READ)} />
+              <MenuLink to="/comercial/clientes" icon={<FaRegSmile />} label="Clientes" isAllowed={checkScope(ModelType.CLIENTE, ScopeType.READ)} />
+              <MenuLink to="/comercial/listas-precio" icon={<FaList />} label="Listas de Precio" isAllowed={checkScope(ModelType.LISTA_PRECIO, ScopeType.READ)} />
+              <MenuLink to="/comercial/nombres-facturacion" icon={<Receipt />} label="Nombres de Facturación" isAllowed={checkScope(ModelType.NOMBRE_FACTURACION, ScopeType.READ)} />
             </MenuGroup>
 
             <div role="separator" className="my-2 border-t border-gray-200" />
 
             <MenuGroup label="Catálogos y Productos">
-              <MenuLink to="/Insumos" icon={<Box />} label="Insumos" isAllowed={checkScope(ModelType.MATERIA_PRIMA, ScopeType.READ)} />
-              <MenuLink to="/PIP" icon={<Package />} label="PIP" isAllowed={checkScope(ModelType.MATERIA_PRIMA, ScopeType.READ)} />
-              <MenuLink to="/Productos" icon={<Tag />} label="Productos" isAllowed={checkScope(ModelType.PRODUCTO_BASE, ScopeType.READ)} />
-              <MenuLink to="/CostosIndirectos" icon={<MdEqualizer />} label="Costos Indirectos" isAllowed={checkScope(ModelType.COSTO_INDIRECTO, ScopeType.READ)} />
-              <MenuLink to="/PautasElaboracion" icon={<Clipboard />} label="Pautas de Elaboración" isAllowed={checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ)} />
-              <MenuLink to="/Bodegas" icon={<FaWarehouse />} label="Bodegas" isAllowed={checkScope(ModelType.BODEGA, ScopeType.READ)} />
-              <MenuLink to="/ProcesosValorAgregado" icon={<FaBroom />} label="Procesos Valor Agregado" isAllowed={checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ)} />
-              <MenuLink to="/PVAPorProducto" icon={<FaBroom />} label="Relaciones PVA por Producto" isAllowed={checkScope(ModelType.PVA_PRODUCTO, ScopeType.READ)} />
+              <MenuLink to="/catalogo/insumos" icon={<Box />} label="Insumos" isAllowed={checkScope(ModelType.MATERIA_PRIMA, ScopeType.READ)} />
+              <MenuLink to="/catalogo/pip" icon={<Package />} label="PIP" isAllowed={checkScope(ModelType.MATERIA_PRIMA, ScopeType.READ)} />
+              <MenuLink to="/catalogo/productos" icon={<Tag />} label="Productos" isAllowed={checkScope(ModelType.PRODUCTO_BASE, ScopeType.READ)} />
+              <MenuLink to="/catalogo/costos-indirectos" icon={<MdEqualizer />} label="Costos Indirectos" isAllowed={checkScope(ModelType.COSTO_INDIRECTO, ScopeType.READ)} />
+              <MenuLink to="/catalogo/pautas-elaboracion" icon={<Clipboard />} label="Pautas de Elaboración" isAllowed={checkScope(ModelType.PAUTA_ELABORACION, ScopeType.READ)} />
+              <MenuLink to="/catalogo/bodegas" icon={<FaWarehouse />} label="Bodegas" isAllowed={checkScope(ModelType.BODEGA, ScopeType.READ)} />
+              <MenuLink to="/catalogo/procesos-valor-agregado" icon={<FaBroom />} label="Procesos Valor Agregado" isAllowed={checkScope(ModelType.PROCESO_VALOR_AGREGADO, ScopeType.READ)} />
+              <MenuLink to="/catalogo/pva-por-producto" icon={<FaBroom />} label="Relaciones PVA por Producto" isAllowed={checkScope(ModelType.PVA_PRODUCTO, ScopeType.READ)} />
             </MenuGroup>
 
             <div role="separator" className="my-2 border-t border-gray-200" />
 
             <MenuGroup label="Seguridad y Acceso">
-              <MenuLink to="/Usuarios" icon={<Users />} label="Usuarios" isAllowed={checkScope(ModelType.USUARIO, ScopeType.READ) && checkScope(ModelType.ROLE, ScopeType.READ)} />
-              <MenuLink to="/Roles" icon={<ShieldCheck />} label="Roles" isAllowed={checkScope(ModelType.ROLE, ScopeType.READ)} />
-              <MenuLink to="/AsignarRoles" icon={<ShieldUser />} label="Asignar Roles" isAllowed={checkScope(ModelType.ROLE, ScopeType.WRITE)} />
-              <MenuLink to="/GenerarQR" icon={<FaQrcode />} label="Generar QR" isAllowed={checkScope(ModelType.USUARIO, ScopeType.WRITE)} />
+              <MenuLink to="/admin/usuarios" icon={<Users />} label="Usuarios" isAllowed={checkScope(ModelType.USUARIO, ScopeType.READ) && checkScope(ModelType.ROLE, ScopeType.READ)} />
+              <MenuLink to="/admin/roles" icon={<ShieldCheck />} label="Roles" isAllowed={checkScope(ModelType.ROLE, ScopeType.READ)} />
+              <MenuLink to="/admin/asignar-roles" icon={<ShieldUser />} label="Asignar Roles" isAllowed={checkScope(ModelType.ROLE, ScopeType.WRITE)} />
+              <MenuLink to="/admin/generar-qr" icon={<FaQrcode />} label="Generar QR" isAllowed={checkScope(ModelType.USUARIO, ScopeType.WRITE)} />
             </MenuGroup>
 
             <div role="separator" className="my-2 border-t border-gray-200" />

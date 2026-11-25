@@ -48,7 +48,7 @@ export default function RolDetail() {
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 text-lg">{error || "Rol no encontrado"}</p>
-          <BackButton to="/Roles" label="Volver a Roles" />
+          <BackButton to="/admin/roles" label="Volver a Roles" />
         </div>
       </div>
     );
@@ -57,7 +57,7 @@ export default function RolDetail() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/Roles" />
+        <BackButton to="/admin/roles" />
       </div>
 
       <div className="flex justify-between items-center mb-4">
@@ -67,7 +67,7 @@ export default function RolDetail() {
         </div>
         <div className="flex gap-2">
           <EditButton
-            onClick={() => navigate(`/Roles/${id}/edit`)}
+            onClick={() => navigate(`/admin/roles/${id}/editar`)}
             tooltipText="Editar Rol"
           />
         </div>

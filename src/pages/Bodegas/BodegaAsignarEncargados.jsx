@@ -76,7 +76,7 @@ export default function BodegaAsignarEncargados() {
   return (
     <div>
       <div className="mb-4 flex items-center gap-2">
-        <BackButton to={`/Bodegas/${id}`} />
+        <BackButton to={`/catalogo/bodegas/${id}`} />
         <h1 className="text-2xl font-bold">Asignar Encargados — Bodega #{id}</h1>
       </div>
 

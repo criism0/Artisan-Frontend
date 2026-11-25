@@ -89,7 +89,7 @@ export default function AddBodega() {
 
       if (!bodegaId) throw new Error("No se recibió el ID de la bodega creada.");
 
-      navigate(`/Bodegas/${bodegaId}/encargados`);
+      navigate(`/catalogo/bodegas/${bodegaId}/encargados`);
     } catch (err) {
       if (err instanceof ApiError && err.status === 409 && err.data?.code === "SIMILAR_NAME") {
         pendingSimilarActionRef.current = () => handleSubmit(e, true);
@@ -115,7 +115,7 @@ export default function AddBodega() {
         </div>
       )}
       <div className="mb-4">
-        <BackButton to="/Bodegas" />
+        <BackButton to="/catalogo/bodegas" />
       </div>
 
       <h1 className="text-2xl font-bold text-text mb-6">Añadir Bodega</h1>

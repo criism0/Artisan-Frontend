@@ -98,8 +98,8 @@ export default function ClientesPage() {
 
   const actions = (row) => (
     <div className="flex gap-2 justify-center">
-      <ViewDetailButton onClick={() => navigate(`/clientes/${row.id}`)} tooltipText="Ver Detalle" />
-      <EditButton onClick={() => navigate(`/clientes/${row.id}/edit`)} tooltipText="Editar Cliente" />
+      <ViewDetailButton onClick={() => navigate(`/comercial/clientes/${row.id}`)} tooltipText="Ver Detalle" />
+      <EditButton onClick={() => navigate(`/comercial/clientes/${row.id}/editar`)} tooltipText="Editar Cliente" />
     </div>
   );
 
@@ -195,7 +195,7 @@ export default function ClientesPage() {
           <>
             <button
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover transition-colors text-sm font-medium"
-              onClick={() => navigate("/clientes/add")}
+              onClick={() => navigate("/comercial/clientes/nuevo")}
             >
               Añadir Cliente
             </button>

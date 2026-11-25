@@ -44,7 +44,7 @@ export default function EntregasDeOrden({ idOrden, costoEnvio }) {
           <div className="text-xs text-gray-500">
             {e.ruta ? (
               <>
-                <Link to={`/Logistica/entregas/${e.ruta.id}`} className="text-primary hover:underline">Ruta #{e.ruta.id}</Link>
+                <Link to={`/logistica/entregas/rutas/${e.ruta.id}`} className="text-primary hover:underline">Ruta #{e.ruta.id}</Link>
                 {` · ${formatearFecha(e.ruta.fecha)} · parada ${e.ruta.parada}`}
               </>
             ) : (
