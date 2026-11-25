@@ -17,6 +17,7 @@ import { uploadToS3 } from "../../lib/uploadToS3";
 import { api, buildApiUrl } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
+import PageHeader from "../../components/UI/PageHeader";
 
 const formatoFecha = (iso) => {
   if (!iso) return "—";
@@ -172,14 +173,10 @@ export default function POEsList({ tipo = "POES" }) {
   return (
     <div>
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-text">{cfg.titulo}</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              {cfg.descripcion}
-            </p>
-          </div>
-          <div className="flex gap-2">
+        <PageHeader
+          titulo={cfg.titulo}
+          subtitulo={cfg.descripcion}
+          acciones={<div className="flex gap-2">
             <button
               onClick={cargarPOEs}
               disabled={loading}
@@ -195,8 +192,8 @@ export default function POEsList({ tipo = "POES" }) {
               <Upload size={16} />
               Subir documento
             </button>
-          </div>
-        </div>
+          </div>}
+        />
 
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="inline-flex rounded-lg border border-gray-300 bg-white overflow-hidden text-sm">
@@ -457,7 +454,7 @@ function UploadPOEModal({ tipo, cfg, onClose, onSuccess }) {
           <button
             type="submit"
             disabled={!canSubmit}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn btn-primario"
           >
             {submitting ? "Subiendo..." : "Subir"}
           </button>
@@ -931,7 +928,7 @@ function NuevaVersionModal({ poe, onClose, onSuccess }) {
           <button
             type="submit"
             disabled={!canSubmit}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn btn-primario"
           >
             {submitting ? "Subiendo..." : "Crear versión"}
           </button>

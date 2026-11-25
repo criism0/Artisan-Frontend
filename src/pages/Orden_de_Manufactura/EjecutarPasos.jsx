@@ -446,14 +446,14 @@ export default function EjecutarPasos() {
           <>
             {ordenData?.receta?.posiblesSubproductos?.length > 0 ? (
               <button
-                className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
+                className="btn btn-primario"
                 onClick={() => navigate(`/produccion/elaboraciones/${id}/subproductos-decision`)}
               >
                 Siguiente paso: Verificar Subproductos
               </button>
             ) : (
               <button
-                className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
+                className="btn btn-primario"
                 onClick={() => navigate(`/produccion/elaboraciones/${id}/produccion-final`)}
               >
                 Siguiente paso: Producción Final

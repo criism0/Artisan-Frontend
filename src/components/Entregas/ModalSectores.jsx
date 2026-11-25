@@ -3,6 +3,7 @@ import { Plus, Trash2, X } from "lucide-react";
 import Modal from "../UI/Modal";
 import { toast } from "../../lib/toast.js";
 import * as rutasApi from "../../services/rutasService";
+import { MORADO } from "../../marca";
 
 /**
  * Los sectores de entrega (grupos de comunas) que define Logística (2026-10-30). Cada sector se
@@ -95,7 +96,7 @@ export default function ModalSectores({ sectores, comunasConocidas, onCerrar, on
         ))}
         <button
           type="button"
-          onClick={() => setFilas((fs) => [...fs, { nombre: "", color: "#7A5AF8", comunas: [], nuevo: "", sucio: true }])}
+          onClick={() => setFilas((fs) => [...fs, { nombre: "", color: MORADO, comunas: [], nuevo: "", sucio: true }])}
           className="self-start inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-300 text-sm hover:bg-gray-50"
         >
           <Plus className="w-4 h-4" /> Sector

@@ -349,7 +349,7 @@ export default function PautaSelectorConCreacion({
 
             <button
               type="button"
-              className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+              className="btn btn-primario"
               onClick={handleCrearPautaInline}
             >
               Crear y Seleccionar
@@ -416,7 +416,7 @@ export default function PautaSelectorConCreacion({
                   <button
                     type="button"
                     onClick={handleGuardarEdicionPauta}
-                    className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+                    className="btn btn-primario"
                   >
                     Guardar
                   </button>

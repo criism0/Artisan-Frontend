@@ -173,7 +173,7 @@ export function ModalDeshacer({ consumo, guardando, onCancelar, onConfirmar }) {
       pie={
         <>
           <button type="button" onClick={onCancelar} className="px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100">Cancelar</button>
-          <button type="button" onClick={onConfirmar} disabled={guardando} className="px-4 py-2 rounded-md bg-primary text-white hover:bg-primary-dark disabled:opacity-50">
+          <button type="button" onClick={onConfirmar} disabled={guardando} className="btn btn-primario">
             {guardando ? "Deshaciendo…" : "Deshacer"}
           </button>
         </>

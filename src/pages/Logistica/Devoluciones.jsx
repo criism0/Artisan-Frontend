@@ -90,7 +90,7 @@ export default function Devoluciones() {
             placeholder="Escanea la etiqueta (DESP-…) o el QR de la caja (BULTO-…)"
             className="flex-1 min-w-[260px] h-10 px-3 border border-gray-300 rounded-lg text-sm font-mono"
           />
-          <button type="submit" className="h-10 px-4 rounded-lg bg-primary text-white text-sm hover:bg-primary-dark">Buscar</button>
+          <button type="submit" className="btn btn-primario h-10">Buscar</button>
         </form>
       </div>
       <DataTable

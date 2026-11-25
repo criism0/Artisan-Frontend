@@ -5,6 +5,7 @@ import { toast } from "../../lib/toast";
 import { formatNumberCL } from "../../services/formatHelpers";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function AsignarInsumosPVA() {
   const { idPauta } = useParams();
@@ -149,7 +150,9 @@ export default function AsignarInsumosPVA() {
 
   return (
     <div className="p-6 max-w-3xl mx-auto bg-white rounded shadow">
-      <h1 className="text-2xl font-bold mb-4">Asignar Insumos</h1>
+      <PageHeader
+        titulo="Asignar Insumos"
+      />
 
       {Array.isArray(pva) && pva.length === 0 ? (
         <div className="text-sm text-gray-600">

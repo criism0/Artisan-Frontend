@@ -18,6 +18,7 @@ import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import DataTable from "../../components/Tables/DataTable";
 import AvanceItems from "../../components/AvanceItems";
 import { formatFecha } from "../../lib/dateUtils";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function OrdenDetail() {
   const { ordenId } = useParams();
@@ -472,18 +473,18 @@ export default function OrdenDetail() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/adquisiciones/ordenes-compra" />
-      </div>
-
-      <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
-        <h1 className="text-2xl font-bold text-text">Detalle de compra: {orden.id}</h1>
-        <PanelAcciones
+      <PageHeader
+        volverA="/adquisiciones/ordenes-compra"
+        titulo={`Detalle de compra: ${orden.id}`}
+        acciones={
+<>
+<PanelAcciones
           principal={accionPrincipal}
           secundarias={accionesSecundarias}
           destructivas={accionesDestructivas}
         />
-      </div>
+</>}
+      />
 
 
       {/* La vista era una sola columna: información, insumos anidados dentro de una fila
@@ -985,7 +986,7 @@ export default function OrdenDetail() {
             </p>
             <div className="flex justify-end">
               <button
-                className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
+                className="btn btn-primario"
                 onClick={() => setShowConfirmation(false)}
               >
                 Cerrar

@@ -495,7 +495,7 @@ export default function CentroDocumentos({ orden, accionPrincipal = null, onCamb
       {onFacturar && !facturaEmitida && documentos.some((d) => d.metadata?.rechazo_cliente) && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
           <span className="text-amber-900">La factura fue rechazada por el cliente: emite la nueva.</span>
-          <button type="button" onClick={onFacturar} className="px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark">
+          <button type="button" onClick={onFacturar} className="btn btn-primario">
             Facturar de nuevo
           </button>
         </div>

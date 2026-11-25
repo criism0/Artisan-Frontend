@@ -145,13 +145,13 @@ export default function PIPList() {
         <>
           <BackButton to="/inicio" />
           <button
-            className="text-primary border border-primary hover:bg-gray-100 font-medium text-sm flex items-center gap-2 px-4 py-2 rounded-md transition"
+            className="btn btn-secundario gap-2"
             onClick={() => navigate("/catalogo/insumos")}
           >
             Ver Insumos
           </button>
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="btn btn-primario"
             onClick={() => navigate("/catalogo/pip/nuevo")}
           >
             Crear PIP

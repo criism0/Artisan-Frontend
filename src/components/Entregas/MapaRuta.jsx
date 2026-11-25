@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { cargarGoogleMaps, hayMapaInteractivo } from "../../utils/googleMaps";
 import { CENTRO_SANTIAGO } from "../../utils/ubicacion";
 import { caminoDeRuta, decodificarPolilinea } from "../../utils/rutas";
+import { MORADO } from "../../marca";
 
-const COLOR_RUTA = "#7A5AF8";
+const COLOR_RUTA = MORADO;
 const COLOR_SUELTO = "#9CA3AF";
 
 /**

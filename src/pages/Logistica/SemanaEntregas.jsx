@@ -404,7 +404,7 @@ export default function SemanaEntregas() {
           )}
           {puedeEscribir && (
             <>
-              <button type="button" onClick={planificarRapido} disabled={confirmando} className="inline-flex disabled:opacity-50 items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-dark">
+              <button type="button" onClick={planificarRapido} disabled={confirmando} className="btn btn-primario gap-1">
                 <Zap className="w-4 h-4" /> Planificación rápida
               </button>
               <Ayuda titulo="Planificación rápida">

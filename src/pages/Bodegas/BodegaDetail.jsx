@@ -5,6 +5,7 @@ import { useApi } from "../../lib/api";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { toast } from "../../lib/toast.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function BodegaDetail() {
   const { id } = useParams();
@@ -71,13 +72,10 @@ export default function BodegaDetail() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/catalogo/bodegas" />
-      </div>
-
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-text">Detalle de la Bodega</h1>
-        <div className="flex gap-2 items-center">
+      <PageHeader
+        volverA="/catalogo/bodegas"
+        titulo="Detalle de la Bodega"
+        acciones={<div className="flex gap-2 items-center">
           <EditButton
             onClick={() => navigate(`/catalogo/bodegas/${id}/editar`)}
             tooltipText="Editar Bodega"
@@ -89,8 +87,8 @@ export default function BodegaDetail() {
               entityName={`bodega ${bodega.nombre || ""}`}
             />
           ) : null}
-        </div>
-      </div>
+        </div>}
+      />
 
       {error && (
         <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">{error}</div>

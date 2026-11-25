@@ -432,7 +432,7 @@ export default function PlanificarRuta() {
                 onChange={(e) => setCostoBorrador(e.target.value)}
                 className="h-10 w-24 px-2 border border-gray-300 rounded-lg text-sm"
               />
-              <button type="button" onClick={guardarCosto} className="h-10 px-3 text-sm rounded-lg bg-primary text-white">Guardar</button>
+              <button type="button" onClick={guardarCosto} className="btn btn-primario h-10">Guardar</button>
               <button type="button" onClick={() => setEditandoCosto(false)} className="h-10 px-2 text-sm text-gray-500">Cancelar</button>
             </div>
           ) : (

@@ -12,6 +12,7 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { esEmailValido, formatPhoneInput, validarTelefonoCL } from "../../services/formatHelpers";
 import RutLookupField from "../../components/RUT/RutLookupField.jsx";
 import Selector from "../../components/Forms/Selector";
+import PageHeader from "../../components/UI/PageHeader";
 
 function DynamicCombobox({ value, onChange, options, onSelect, placeholder }) {
   const inputRef = useRef(null);
@@ -400,7 +401,9 @@ export default function EditClientes() {
   return (
     <div>
       <BackButton to="/comercial/clientes" />
-      <h1 className="text-2xl font-bold text-text mb-6">Editar Cliente</h1>
+      <PageHeader
+        titulo="Editar Cliente"
+      />
 
       <form onSubmit={handleSubmit} className="space-y-8">
         <div className="bg-white p-6 rounded-xl shadow border border-border">
@@ -743,7 +746,7 @@ export default function EditClientes() {
         </div>
 
         <div className="flex justify-end">
-          <button type="submit" className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-hover font-medium text-lg">
+          <button type="submit" className="btn btn-primario text-lg">
             Guardar Cambios
           </button>
         </div>

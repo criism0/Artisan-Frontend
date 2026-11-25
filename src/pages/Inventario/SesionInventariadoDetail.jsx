@@ -536,7 +536,7 @@ export default function SesionInventariadoDetail() {
               <button
                 onClick={validar}
                 disabled={validando}
-                className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-violet-700 disabled:opacity-50"
+                className="btn btn-primario"
               >
                 {validando ? "Validando…" : "Validar y aplicar"}
               </button>

@@ -8,9 +8,13 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT:"#7A5AF8",
+          DEFAULT: "#7A5AF8",
           dark: "#5A3EBF",
-        },  
+          light: "#F3F0FF",
+        },
+        // `hover:bg-hover` se usaba en 100 botones sin estar definido: no cambiaban al pasar el
+        // mouse (Fase 4 de UI, 2026-11-25). Es el mismo tono que primary.dark.
+        hover: "#5A3EBF",
         secondary: "#B3A0D3",
         background: "#ffffff", 
         text: "#4A4A4A", 

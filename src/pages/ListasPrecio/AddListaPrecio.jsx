@@ -7,6 +7,7 @@ import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmM
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function AddListaPrecio() {
   const navigate = useNavigate();
@@ -126,12 +127,10 @@ export default function AddListaPrecio() {
           <Spinner size="lg" />
         </div>
       )}
-      <div className="mb-4">
-        <BackButton to="/comercial/listas-precio" />
-      </div>
-      <h1 className="text-2xl font-bold text-text mb-6">
-        Añadir Lista de Precio
-      </h1>
+      <PageHeader
+        volverA="/comercial/listas-precio"
+        titulo="Añadir Lista de Precio"
+      />
 
       {error && (
         <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">
@@ -197,7 +196,7 @@ export default function AddListaPrecio() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+            className="btn btn-primario"
           >
             {isSubmitting ? "Creando..." : "Crear Lista de Precio"}
           </button>

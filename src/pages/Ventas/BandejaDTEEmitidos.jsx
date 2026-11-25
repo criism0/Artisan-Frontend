@@ -4,6 +4,7 @@ import { dteService } from '../../services/dteService.js';
 import { formatCLP } from '../../services/formatHelpers.js';
 import { toast } from '../../lib/toast.js';
 import { formatFecha } from '../../lib/dateUtils';
+import PageHeader from "../../components/UI/PageHeader";
 
 const TIPO_LABEL = {
   33: 'Factura',
@@ -76,10 +77,10 @@ export default function BandejaDTEEmitidos() {
           <Send size={22} className="text-green-600" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-text">Bandeja DTE Emitidos</h1>
-          <p className="text-sm text-gray-500">
-            Documentos tributarios emitidos a clientes vía LibreDTE
-          </p>
+          <PageHeader
+            titulo="Bandeja DTE Emitidos"
+            subtitulo="Documentos tributarios emitidos a clientes vía LibreDTE"
+          />
         </div>
       </div>
 

@@ -15,6 +15,7 @@ import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader";
 import { Spinner } from "../../components/UI/Spinner";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import PageHeader from "../../components/UI/PageHeader";
 
 const formatoFecha = (iso) => {
   if (!iso) return "—";
@@ -267,7 +268,7 @@ export default function RespuestaDetail() {
                 <button
                   onClick={handleGuardar}
                   disabled={saving}
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm disabled:opacity-50 flex items-center gap-2"
+                  className="btn btn-primario gap-2"
                 >
                   {saving && <Spinner size="sm" />}
                   {saving ? "Guardando..." : "Guardar cambios"}
@@ -293,9 +294,9 @@ export default function RespuestaDetail() {
 
         <div className="mb-6">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-bold text-text">
-              Respuesta #{respuesta.id}
-            </h1>
+            <PageHeader
+              titulo={`Respuesta #${respuesta.id}`}
+            />
             {estadoCfg && (
               <span
                 className={`px-2 py-1 rounded-full text-xs font-medium ${estadoCfg.badgeClass}`}

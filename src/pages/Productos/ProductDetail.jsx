@@ -6,6 +6,7 @@ import { ModifyButton, DeleteButton, BackButton } from "../../components/Buttons
 import TabButton from "../../components/Wizard/TabButton";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -149,18 +150,11 @@ export default function ProductDetail() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/catalogo/productos" />
-      </div>
-
-      <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Detalle del Producto</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Vista completa: datos → receta → ingredientes/subproductos → costos secos → pauta → costos indirectos.
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        volverA="/catalogo/productos"
+        titulo="Detalle del Producto"
+        subtitulo="Vista completa: datos → receta → ingredientes/subproductos → costos secos → pauta → costos indirectos."
+        acciones={<div className="flex gap-2">
           {receta?.id ? (
             <button
               type="button"
@@ -177,8 +171,8 @@ export default function ProductDetail() {
             tooltipText="Eliminar Producto"
             entityName="producto"
           />
-        </div>
-      </div>
+        </div>}
+      />
 
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-2 flex flex-wrap gap-2 mb-6">
         <TabButton active={tab === "datos"} onClick={() => setTab("datos")}>Datos</TabButton>

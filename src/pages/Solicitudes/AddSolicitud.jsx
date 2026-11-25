@@ -332,7 +332,7 @@ export default function AddSolicitud() {
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm disabled:opacity-50"
+              className="btn btn-primario"
             >
               {loading ? 'Creando…' : 'Crear solicitud'}
             </button>

@@ -17,6 +17,7 @@ import { insumoToSearchText } from "../../services/fuzzyMatch";
 import { toNumber } from "../../utils/toNumber";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function InsumoEdit() {
   const { id } = useParams();
@@ -701,7 +702,9 @@ export default function InsumoEdit() {
   return (
     <div>
       <BackButton to={`/catalogo/insumos/${id}`} />
-      <h1 className="text-2xl font-bold text-text mb-6">Editar Insumo</h1>
+      <PageHeader
+        titulo="Editar Insumo"
+      />
 
       {error ? <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">{error}</div> : null}
 
@@ -903,7 +906,7 @@ export default function InsumoEdit() {
             <button type="button" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={handleCancelClick}>
               Cancelar
             </button>
-            <button type="submit" className="bg-primary text-white px-6 py-2 rounded">
+            <button type="submit" className="btn btn-primario">
               Guardar
             </button>
           </div>
@@ -919,7 +922,7 @@ export default function InsumoEdit() {
               <button type="button" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setShowCancelModal(false)}>
                 Seguir editando
               </button>
-              <button type="button" className="px-4 py-2 bg-primary text-white rounded-lg" onClick={() => navigate(`/catalogo/insumos/${id}`)}>
+              <button type="button" className="btn btn-primario" onClick={() => navigate(`/catalogo/insumos/${id}`)}>
                 Salir
               </button>
             </div>

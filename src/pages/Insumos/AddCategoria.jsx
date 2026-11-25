@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "../../lib/toast";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function AddCategoria() {
   const navigate = useNavigate();
@@ -58,7 +59,9 @@ export default function AddCategoria() {
         </div>
       )}
       <BackButton to="/catalogo/categorias-insumo" />
-      <h1 className="text-2xl font-bold text-text mb-6">Añadir Categoría</h1>
+      <PageHeader
+        titulo="Añadir Categoría"
+      />
 
       {error && <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">{error}</div>}
 
@@ -93,7 +96,7 @@ export default function AddCategoria() {
 
         <div className="flex justify-end">
           <button
-            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded disabled:opacity-50"
+            className="btn btn-primario"
             type="submit"
             disabled={isSubmitting}
           >

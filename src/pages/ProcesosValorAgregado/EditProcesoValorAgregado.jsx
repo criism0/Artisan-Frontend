@@ -5,6 +5,7 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function EditProcesoValorAgregado() {
   const { id } = useParams();
@@ -157,11 +158,10 @@ export default function EditProcesoValorAgregado() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to={`/catalogo/procesos-valor-agregado/${id}`} />
-      </div>
-
-      <h1 className="text-2xl font-bold text-text mb-6">Editar Proceso de Valor Agregado</h1>
+      <PageHeader
+        volverA={`/catalogo/procesos-valor-agregado/${id}`}
+        titulo="Editar Proceso de Valor Agregado"
+      />
 
       <div className="bg-white p-6 rounded-lg shadow space-y-6">
         <div>
@@ -291,7 +291,7 @@ export default function EditProcesoValorAgregado() {
         <button
           onClick={handleSubmit}
           disabled={!canWriteAddedValueProcess}
-          className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+          className="btn btn-primario"
         >
           Guardar Cambios
         </button>

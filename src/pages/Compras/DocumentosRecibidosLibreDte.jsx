@@ -236,7 +236,7 @@ function PanelVincular({ doc, onCerrar, onVinculado }) {
           <button
             onClick={confirmarManual}
             disabled={guardando || !ocElegida}
-            className="w-full px-3 py-2 border border-primary text-primary rounded-md text-sm hover:bg-primary/5 disabled:opacity-50 flex items-center justify-center gap-1.5"
+            className="btn btn-secundario w-full hover:bg-primary/5 gap-1.5"
           >
             {guardando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
             Vincular a mano
@@ -434,7 +434,7 @@ export default function DocumentosRecibidosLibreDte() {
           />
           <button
             onClick={cargar}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm"
+            className="btn btn-primario"
           >
             Buscar
           </button>

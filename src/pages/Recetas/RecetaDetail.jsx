@@ -10,6 +10,7 @@ import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
+import PageHeader from "../../components/UI/PageHeader";
 
 // ────────────────────────────────────────────────
 // CONSTANTS
@@ -554,7 +555,9 @@ export default function RecetaDetail() {
 
         <div className="mb-6">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold text-text">{receta.nombre}</h1>
+            <PageHeader
+              titulo={receta.nombre}
+            />
             {receta.tipo ? (
               <span className="px-3 py-1 rounded-full text-xs border border-gray-200 text-text bg-white">
                 {receta.tipo}
@@ -1105,7 +1108,7 @@ export default function RecetaDetail() {
                               <button
                                 type="button"
                                 onClick={handleSaveEquivalentes}
-                                className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded text-sm"
+                                className="btn btn-primario"
                               >
                                 Guardar
                               </button>
@@ -1394,7 +1397,7 @@ export default function RecetaDetail() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={openPautaSelector}
-                  className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm"
+                  className="btn btn-primario"
                 >
                   Cambiar pauta
                 </button>
@@ -1567,7 +1570,7 @@ export default function RecetaDetail() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   onClick={openPautaSelector}
-                  className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded text-sm"
+                  className="btn btn-primario"
                 >
                   Asignar pauta
                 </button>

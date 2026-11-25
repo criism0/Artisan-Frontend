@@ -20,6 +20,7 @@ import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatCLP } from "../../services/formatHelpers";
 import AvanceItems from "../../components/AvanceItems";
 import Ayuda from "../../components/UI/Ayuda.jsx";
+import PageHeader from "../../components/UI/PageHeader";
 
 // Evita que el scroll cambie el valor del input type="number"
 const handleNumberInputWheel = (e) => {
@@ -813,12 +814,10 @@ export default function RecepcionarOrden() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/adquisiciones/ordenes-compra" />
-      </div>
-      <h1 className="text-2xl font-bold text-text mb-4">
-        Recepcionar Orden de Compra
-      </h1>
+      <PageHeader
+        volverA="/adquisiciones/ordenes-compra"
+        titulo="Recepcionar Orden de Compra"
+      />
 
       <div className="bg-white p-4 rounded-lg shadow mb-6">
         <div className="grid grid-cols-1 gap-4">
@@ -1074,7 +1073,7 @@ export default function RecepcionarOrden() {
         <button
           onClick={handleFinalizarRecepcion}
           disabled={!canWritePurchaseOrder || !canWriteBulk || recepcionando}
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-60 disabled:cursor-not-allowed"
+          className="btn btn-primario"
         >
           {recepcionando ? "Recepcionando…" : "Recepcionar"}
         </button>
@@ -1091,7 +1090,7 @@ export default function RecepcionarOrden() {
             </p>
             <div className="flex justify-end">
               <button
-                className="px-4 py-2 bg-primary text-white rounded hover:bg-hover"
+                className="btn btn-primario"
                 onClick={() => navigate("/adquisiciones/ordenes-compra")}
               >
                 Volver a Ordenes

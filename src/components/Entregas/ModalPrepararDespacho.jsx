@@ -88,7 +88,7 @@ export default function ModalPrepararDespacho({ idOrden, despacho, onCerrar, onP
             type="button"
             onClick={confirmar}
             disabled={!!faltante || enviando}
-            className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark disabled:opacity-50"
+            className="btn btn-primario"
             title={faltante ?? ""}
           >
             {enviando ? "Guardando…" : faltante ?? "Confirmar preparación"}

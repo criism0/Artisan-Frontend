@@ -311,7 +311,7 @@ export default function RolManagement() {
         emptyMessage="No hay roles registrados."
         headerActions={
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="btn btn-primario"
             onClick={() => navigate('/admin/roles/nuevo')}
           >
             Añadir Rol
@@ -401,7 +401,7 @@ export default function RolManagement() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary-dark"
+                  className="btn btn-primario"
                 >
                   {editingRole ? 'Guardar Cambios' : 'Crear Rol'}
                 </button>

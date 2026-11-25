@@ -10,6 +10,7 @@ const MONEDAS_POSIBLES = ["CLP", "USD", "EUR", "UF"];
 import { toNumber } from "../../utils/toNumber";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 function InfoTable({ title, rows }) {
   return (
@@ -398,7 +399,7 @@ function ProveedorInsumos({ proveedorId }) {
 
         <div className="flex items-center gap-2 px-4 py-3">
           <button
-            className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-60"
+            className="btn btn-primario"
             onClick={() =>
               navigate(
                 `/catalogo/insumos/proveedores?proveedor=${encodeURIComponent(String(proveedorId ?? ""))}`
@@ -419,7 +420,7 @@ function ProveedorInsumos({ proveedorId }) {
             Descartar
           </button>
           <button
-            className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-60"
+            className="btn btn-primario"
             onClick={handleGuardarCambios}
             disabled={loading || resumen.pendientes === 0 || !canWriteRawMaterialProvider}
             type="button"
@@ -654,13 +655,10 @@ export default function ProveedorDetail() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/comercial/proveedores" />
-      </div>
-
-      <div className="flex items-center justify-between mb-4 w-full">
-        <h1 className="text-2xl font-bold text-text">Detalle de Proveedor</h1>
-        <div className="flex gap-2 items-center">
+      <PageHeader
+        volverA="/comercial/proveedores"
+        titulo="Detalle de Proveedor"
+        acciones={<div className="flex gap-2 items-center">
           <EditButton
             onClick={() => navigate(`/comercial/proveedores/${id}/editar`)}
             tooltipText="Editar Proveedor"
@@ -670,8 +668,8 @@ export default function ProveedorDetail() {
             entityName={"proveedor " + razon}
             onToggleActive={handleToggleStatus}
           />
-        </div>
-      </div>
+        </div>}
+      />
     
       <div className="w-full">
         <InfoTable

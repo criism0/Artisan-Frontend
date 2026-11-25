@@ -422,7 +422,7 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
                         </button>
                         <button
                           type="button"
-                          className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium"
+                          className="btn btn-primario flex-1"
                           onClick={handleSaveEdit}
                           disabled={loading}
                         >
@@ -432,7 +432,7 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
                     ) : (
                       <button
                         type="button"
-                        className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium"
+                        className="btn btn-primario w-full"
                         onClick={handleCreateFormato}
                         disabled={loading}
                       >
@@ -526,7 +526,7 @@ export default function CostosSecosTab({ recetaId, opcionesMateriaPrima, onNext 
         <div className="flex justify-end mt-4">
           <button
             type="button"
-            className="bg-primary hover:bg-hover text-white px-6 py-2 rounded font-medium"
+            className="btn btn-primario"
             onClick={onNext}
             disabled={!recetaId}
           >

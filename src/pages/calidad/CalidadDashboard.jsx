@@ -21,6 +21,7 @@ import {
 import { toast } from "../../lib/toast";
 import { Spinner } from "../../components/UI/Spinner";
 import KpiCard from "../../components/UI/KpiCard";
+import PageHeader from "../../components/UI/PageHeader";
 
 const formatoHora = (iso) =>
   iso
@@ -103,14 +104,10 @@ export default function CalidadDashboard() {
   return (
     <div>
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-text">Dashboard de Calidad</h1>
-            <p className="text-sm text-gray-500 capitalize mt-1">
-              {formatoFechaLarga(new Date())}
-            </p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
+        <PageHeader
+          titulo="Dashboard de Calidad"
+          subtitulo={formatoFechaLarga(new Date())}
+          acciones={<div className="flex gap-2 flex-wrap">
             <button
               onClick={() => navigate("/calidad/formularios")}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
@@ -134,8 +131,8 @@ export default function CalidadDashboard() {
             >
               Ver alertas
             </button>
-          </div>
-        </div>
+          </div>}
+        />
 
         {loading && (
           <div className="bg-white p-8 rounded-lg shadow flex justify-center">

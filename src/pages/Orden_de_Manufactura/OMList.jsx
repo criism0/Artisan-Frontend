@@ -406,7 +406,7 @@ export default function OMList() {
         emptyMessage="No hay órdenes de manufactura registradas."
         headerActions={
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="btn btn-primario"
             onClick={() => navigate("/produccion/elaboraciones/nuevo")}
           >
             Añadir OM

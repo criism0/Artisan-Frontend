@@ -166,7 +166,7 @@ export default function TransportePage() {
         pie={
           <>
             <button type="button" onClick={() => setEditando(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
-            <button type="button" onClick={guardar} disabled={guardando} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50">
+            <button type="button" onClick={guardar} disabled={guardando} className="btn btn-primario">
               {guardando ? "Guardando…" : "Guardar"}
             </button>
           </>
@@ -207,7 +207,7 @@ export default function TransportePage() {
             </select>
           </label>
           <label className="flex items-center gap-2 self-end pb-2 text-sm text-gray-700">
-            <input type="checkbox" checked={!!form.activa} onChange={(e) => campo("activa", e.target.checked)} className="w-4 h-4 accent-[#7A5AF8]" />
+            <input type="checkbox" checked={!!form.activa} onChange={(e) => campo("activa", e.target.checked)} className="w-4 h-4 accent-primary" />
             Activa
           </label>
         </div>

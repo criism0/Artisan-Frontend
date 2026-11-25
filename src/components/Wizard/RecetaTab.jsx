@@ -115,7 +115,7 @@ export default function RecetaTab({
         <div className="flex justify-end pt-2">
           <button
             type="button"
-            className="bg-primary hover:bg-hover text-white px-6 py-2 rounded font-medium"
+            className="btn btn-primario"
             onClick={onGuardarReceta}
           >
             {recetaId ? "Actualizar receta y continuar" : "Crear receta y continuar"}
@@ -245,7 +245,7 @@ export default function RecetaTab({
 
                   <button
                     type="button"
-                    className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium"
+                    className="btn btn-primario w-full"
                     onClick={onSubmitIngrediente}
                   >
                     {editingIngredienteId ? "Guardar cambios" : "Agregar ingrediente"}
@@ -370,7 +370,7 @@ export default function RecetaTab({
             <div className="flex justify-end mt-4">
               <button
                 type="button"
-                className="bg-primary hover:bg-hover text-white px-6 py-2 rounded font-medium"
+                className="btn btn-primario"
                 onClick={onNext}
               >
                 Continuar a Costos Secos

@@ -103,7 +103,7 @@ function CostoIndirectoForm({ form, setForm, onCancel, onSubmit, isSaving, submi
         </button>
         <button
           type="button"
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+          className="btn btn-primario"
           onClick={onSubmit}
           disabled={isSaving || !canWrite}
         >
@@ -400,7 +400,7 @@ export default function CostosIndirectos() {
           <>
             <BackButton to="/inicio" />
             <button
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+              className="btn btn-primario"
               onClick={openAdd}
             >
               Añadir Costo Indirecto

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ClipboardPen, DollarSign, Edit, Eye, Lock, Plus, RotateCcw, Trash, Unlock, Warehouse } from "lucide-react";
+import { ChevronLeft, ClipboardPen, DollarSign, Edit, Eye, Lock, Plus, RotateCcw, Trash, Unlock, Warehouse } from "lucide-react";
 import { toast } from "../../lib/toast"
 
 // 🔴 TODOS los botones de este archivo llevan `type="button"` explícito. Sin él, el default de
@@ -192,7 +192,7 @@ export function TrashIconButton({ onClick, tooltipText }) {
 
 export function ModifyButton({ onClick }) {
   return (
-    <button type="button" onClick={onClick} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover">
+    <button type="button" onClick={onClick} className="btn btn-primario">
       Modificar
     </button>
   );
@@ -249,9 +249,11 @@ export function BackButton({ to = null, label = "Volver" }) {
     <button
       type="button"
       onClick={handleClick}
-      className="text-primary border border-primary hover:bg-gray-100 font-medium text-sm flex items-center gap-2 px-4 py-2 rounded-md transition"
+      // Gris, sin borde y con un chevron del alto del texto: se lee como «ir atrás», no como una
+      // acción más. El margen negativo lo alinea con el borde del título (maqueta de la Fase 4).
+      className="-ml-1.5 inline-flex items-center gap-1 rounded-lg py-1.5 pl-1.5 pr-2.5 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
     >
-      <ArrowLeft className="w-4 h-4" />
+      <ChevronLeft className="h-[18px] w-[18px] shrink-0" />
       {label}
     </button>
   );

@@ -399,7 +399,7 @@ export default function OrdenesVentaPage() {
         <button
           onClick={() => handleDescargarNV(row)}
           disabled={descargando === `nv-${row.id}`}
-          className="text-gray-400 hover:text-[#7A5AF8] disabled:opacity-40"
+          className="text-gray-400 hover:text-primary disabled:opacity-40"
           title="Descargar Nota de Venta"
         >
           <Receipt className="w-5 h-5" />
@@ -408,7 +408,7 @@ export default function OrdenesVentaPage() {
           <button
             onClick={() => handleDescargarFactura(row)}
             disabled={descargando === `factura-${row.id}`}
-            className="text-gray-400 hover:text-[#7A5AF8] disabled:opacity-40"
+            className="text-gray-400 hover:text-primary disabled:opacity-40"
             title="Descargar factura"
           >
             <FileDown className="w-5 h-5" />
@@ -539,7 +539,7 @@ export default function OrdenesVentaPage() {
       headerActions={
         <>
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="btn btn-primario"
             onClick={() => navigate("/ventas/ordenes/nuevo")}
           >
             Añadir Orden

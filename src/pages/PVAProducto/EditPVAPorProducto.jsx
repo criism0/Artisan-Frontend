@@ -5,6 +5,7 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function EditPVAPorProducto() {
   const api = useApi();
@@ -197,13 +198,10 @@ export default function EditPVAPorProducto() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to={`/catalogo/pva-por-producto/${id}`} />
-      </div>
-
-      <h1 className="text-2xl font-bold text-text mb-6">
-        Editar Relación PVA por Producto
-      </h1>
+      <PageHeader
+        volverA={`/catalogo/pva-por-producto/${id}`}
+        titulo="Editar Relación PVA por Producto"
+      />
 
       <div className="bg-white p-6 rounded-lg shadow space-y-6">
         <div>
@@ -385,7 +383,7 @@ export default function EditPVAPorProducto() {
         <button
           onClick={handleSubmit}
           disabled={!canWritePVAProduct}
-          className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+          className="btn btn-primario"
         >
           Guardar Cambios Generales
         </button>

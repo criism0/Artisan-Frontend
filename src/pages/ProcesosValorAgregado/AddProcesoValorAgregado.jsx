@@ -5,6 +5,7 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function AddProcesoValorAgregado() {
   const navigate = useNavigate();
@@ -146,11 +147,10 @@ export default function AddProcesoValorAgregado() {
           <Spinner size="lg" />
         </div>
       )}
-      <div className="mb-4">
-        <BackButton to="/catalogo/procesos-valor-agregado" />
-      </div>
-
-      <h1 className="text-2xl font-bold text-text mb-6">Añadir Proceso de Valor Agregado</h1>
+      <PageHeader
+        volverA="/catalogo/procesos-valor-agregado"
+        titulo="Añadir Proceso de Valor Agregado"
+      />
 
       <div className="bg-white p-6 rounded-lg shadow space-y-6">
         <h2 className="text-lg font-semibold text-gray-800">Datos del Proceso</h2>
@@ -288,7 +288,7 @@ export default function AddProcesoValorAgregado() {
         <button
           onClick={handleSubmit}
           disabled={isSubmitting}
-          className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded disabled:opacity-50"
+          className="btn btn-primario"
         >
           {isSubmitting ? "Creando..." : "Crear Proceso de Valor Agregado"}
         </button>

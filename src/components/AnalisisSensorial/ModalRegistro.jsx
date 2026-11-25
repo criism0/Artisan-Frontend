@@ -266,7 +266,7 @@ export default function ModalAnalisisSensorial({ isOpen, onClose, idOrdenManufac
           <button
             type="button"
             onClick={handleSubmit}
-            className="px-4 py-2 bg-primary text-white rounded-md hover:bg-hover disabled:opacity-50"
+            className="btn btn-primario"
             disabled={saving || loading}
           >
             {saving ? 'Guardando...' : (registro ? 'Actualizar' : 'Guardar')}

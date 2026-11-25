@@ -114,9 +114,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading || !email || !password}
-              className="group w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 
-                         text-white font-medium shadow-sm transition hover:bg-hover 
-                         disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-primario group w-full gap-2"
             >
               {loading && (
                 <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">

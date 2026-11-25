@@ -225,7 +225,7 @@ const generarNombreTecnico = (etiqueta) => {
             <button
               type="button"
               onClick={handleAgregar}
-              className="flex-1 px-4 py-2 bg-primary text-white rounded-md hover:bg-hover"
+              className="btn btn-primario flex-1"
             >
               {modoEdicion ? 'Actualizar' : 'Agregar Campo'}
             </button>

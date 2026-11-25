@@ -24,7 +24,7 @@ export default function SubproductoAdder({
       <div className="flex items-end">
         <button
           type="button"
-          className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+          className="btn btn-primario w-full"
           onClick={onAddSubproducto}
         >
           Agregar

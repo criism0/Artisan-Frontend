@@ -685,7 +685,7 @@ export default function AddAsociacion() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+            className="btn btn-primario"
           >
             {isSubmitting ? "Creando..." : "Crear Asociación"}
           </button>

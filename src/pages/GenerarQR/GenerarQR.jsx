@@ -2,6 +2,7 @@ import { useState } from "react";
 import { encodeCredentials } from "../../lib/qrCredentialsUtils";
 import QRCode from "qrcode";
 import { toast } from "../../lib/toast";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function GenerarQR() {
   const [qrImageUrl, setQrImageUrl] = useState("");
@@ -33,9 +34,9 @@ export default function GenerarQR() {
   return (
     <div>
       {/* Header */}
-      <div className="flex justify-between items-center mb-2">
-        <h1 className="text-2xl font-bold text-text">Generar QR de acceso</h1>
-      </div>
+      <PageHeader
+        titulo="Generar QR de acceso"
+      />
 
       <p className="text-sm text-gray-500 mb-6 ">
         Este código podrá ser escaneado para acceder a la aplicación. Ingresa
@@ -59,7 +60,7 @@ export default function GenerarQR() {
         />
         <button
           onClick={generateTestQR}
-          className="w-full bg-primary text-white px-4 py-2 rounded-lg"
+          className="btn btn-primario w-full"
         >
           Generar QR
         </button>

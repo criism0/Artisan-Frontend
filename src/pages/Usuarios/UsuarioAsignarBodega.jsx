@@ -6,6 +6,7 @@ import { PageLoader } from "../../components/UI/PageLoader";
 import { Spinner } from "../../components/UI/Spinner";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import Table from "../../components/Tables/Table";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function UsuarioAsignarBodega(params) {
   const { id } = useParams();
@@ -118,7 +119,9 @@ export default function UsuarioAsignarBodega(params) {
     <div>
       <BackButton to={"/admin/usuarios"} />
       <div className="mt-4 mb-6">
-        <h1 className="text-2xl font-bold">Asignar Bodega</h1>
+        <PageHeader
+          titulo="Asignar Bodega"
+        />
         <p className="text-sm text-gray-500 mt-1">
           Usuario:{" "}
           <span className="font-medium text-gray-700">{usuario?.nombre}</span>

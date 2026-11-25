@@ -548,7 +548,7 @@ export default function OMDetail() {
             autoFocus
           />
           <button
-            className="px-3 py-1 bg-primary text-white rounded hover:bg-hover text-sm font-medium disabled:opacity-60"
+            className="btn btn-primario"
             onClick={handleGuardarCantidad}
             disabled={guardandoCantidad}
           >
@@ -748,7 +748,7 @@ export default function OMDetail() {
               Descargar seleccionados
             </button>
             <button
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium shadow disabled:opacity-50"
+              className="btn btn-primario"
               onClick={() => descargarEtiquetas((bultosAsociados || []).map((b) => b.id), `etiquetas_OM_${id}.pdf`)}
               disabled={loadingBultos || (bultosAsociados || []).length === 0}
               title="Descargar etiquetas de todos"
@@ -1005,7 +1005,7 @@ export default function OMDetail() {
                                 </button>
                               )}
                               <button
-                                className="px-3 py-2 bg-primary text-white rounded hover:bg-hover text-sm shadow disabled:opacity-60"
+                                className="btn btn-primario"
                                 disabled={estaCompletada || hayPreviasIncompletas || !canWriteAddedValueGuideline}
                                 title={hayPreviasIncompletas ? "Debes completar los PVAs anteriores" : undefined}
                                 onClick={() => void comenzarYejecutar()}

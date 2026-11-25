@@ -22,6 +22,7 @@ import {
   colorEstadoSolicitud,
 } from "../../services/logisticaAnalytics";
 import KpiCard from "../../components/UI/KpiCard";
+import PageHeader from "../../components/UI/PageHeader";
 
 const formatNumCL = (num) =>
   new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 }).format(num || 0);
@@ -75,14 +76,10 @@ export default function LogisticaDashboard() {
   return (
     <div>
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-text">Dashboard de Logística</h1>
-            <p className="text-sm text-gray-500 capitalize mt-1">
-              {formatoFechaLarga(new Date())}
-            </p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
+        <PageHeader
+          titulo="Dashboard de Logística"
+          subtitulo={formatoFechaLarga(new Date())}
+          acciones={<div className="flex gap-2 flex-wrap">
             {/* "Ver pallets" apuntaba a /Pallets, eliminada: los pallets se ven dentro de su
                 solicitud, que es donde se sabe de dónde salen y a dónde van. */}
             <button
@@ -91,8 +88,8 @@ export default function LogisticaDashboard() {
             >
               Ver solicitudes
             </button>
-          </div>
-        </div>
+          </div>}
+        />
 
         {error && (
           <div className="bg-white p-8 rounded-lg shadow text-center">

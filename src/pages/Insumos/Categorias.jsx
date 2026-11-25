@@ -56,7 +56,7 @@ export default function CategoriasPage() {
         <>
           <BackButton to="/catalogo/insumos" />
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="btn btn-primario"
             onClick={() => navigate("/catalogo/categorias-insumo/nuevo")}
           >
             Añadir Categoría

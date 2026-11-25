@@ -200,7 +200,7 @@ function OrigenPrecio({ origen, nombreLista, precioActual, onUsarDeLista }) {
       <button
         type="button"
         onClick={() => onUsarDeLista(origen.precio)}
-        className="ml-1 font-medium text-[#7A5AF8] hover:text-[#6648e0] underline"
+        className="ml-1 font-medium text-primary hover:text-primary-dark underline"
       >
         usar
       </button>
@@ -446,7 +446,7 @@ function ProductoRow({
             <input
               type="number" min="1" value={cantidad}
               onChange={(e) => setCantidad(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={saving}
             />
           </div>
@@ -460,7 +460,7 @@ function ProductoRow({
                 // número tecleado como si viniera del acuerdo con el cliente.
                 setOrigenPrecio((o) => (o?.tipo === "lista" ? { ...o, tipo: "editado" } : o));
               }}
-              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={saving}
             />
             <OrigenPrecio
@@ -481,7 +481,7 @@ function ProductoRow({
               type="number" min="0" max="100" step="any" value={descuento}
               placeholder="0"
               onChange={(e) => setDescuento(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+              className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
               disabled={saving}
             />
           </div>
@@ -500,7 +500,7 @@ function ProductoRow({
           <button
             onClick={handleSave}
             disabled={saving || !cantidad}
-            className="flex items-center gap-1 text-xs bg-[#7A5AF8] text-white px-3 py-1 rounded-lg hover:bg-[#6648e0] disabled:opacity-50"
+            className="btn btn-primario gap-1 text-xs px-3 py-1 rounded-lg"
           >
             {saving ? "Guardando…" : "Guardar"}
           </button>
@@ -600,7 +600,7 @@ function ProductoRow({
               className={`text-xs transition ${
                 conProblema
                   ? "text-amber-900 font-medium underline decoration-dotted hover:text-amber-950"
-                  : "text-gray-500 hover:text-[#7A5AF8] opacity-0 group-hover:opacity-100"
+                  : "text-gray-500 hover:text-primary opacity-0 group-hover:opacity-100"
               }`}
             >
               {conProblema ? "Corregir" : "Editar"}
@@ -735,8 +735,8 @@ function AgregarProductoRow({
   };
 
   return (
-    <li className="py-2 flex flex-col gap-2 border-t border-dashed border-[#7A5AF8]/30 mt-1 pt-2">
-      <p className="text-xs font-semibold text-[#7A5AF8]">Agregar producto</p>
+    <li className="py-2 flex flex-col gap-2 border-t border-dashed border-primary/30 mt-1 pt-2">
+      <p className="text-xs font-semibold text-primary">Agregar producto</p>
       <div>
         <label className="text-xs text-gray-500 mb-0.5 block">Producto del catálogo</label>
         <Selector
@@ -752,7 +752,7 @@ function AgregarProductoRow({
           type="text" value={descOrig}
           onChange={(e) => setDescOrig(e.target.value)}
           placeholder="Texto tal como llegó en el email…"
-          className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+          className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
           disabled={saving}
         />
       </div>
@@ -762,7 +762,7 @@ function AgregarProductoRow({
           <input
             type="number" min="1" value={cantidad}
             onChange={(e) => setCantidad(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             disabled={saving}
           />
         </div>
@@ -774,7 +774,7 @@ function AgregarProductoRow({
               setPrecio(e.target.value);
               setOrigenPrecio((o) => (o?.tipo === "lista" ? { ...o, tipo: "editado" } : o));
             }}
-            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             disabled={saving}
           />
           <OrigenPrecio
@@ -793,7 +793,7 @@ function AgregarProductoRow({
             type="number" min="0" max="100" step="any" value={descuento}
             placeholder="0"
             onChange={(e) => setDescuento(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8]"
+            className="w-full border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             disabled={saving}
           />
         </div>
@@ -812,7 +812,7 @@ function AgregarProductoRow({
         <button
           onClick={handleAdd}
           disabled={saving}
-          className="flex items-center gap-1 text-xs bg-[#7A5AF8] text-white px-3 py-1 rounded-lg hover:bg-[#6648e0] disabled:opacity-50"
+          className="btn btn-primario gap-1 text-xs px-3 py-1 rounded-lg"
         >
           {saving ? "Agregando…" : "Agregar"}
         </button>
@@ -854,7 +854,7 @@ function EmailModal({ log, onClose }) {
 
         {/* Fila remitente: avatar + email + fecha, como en Gmail */}
         <div className="px-6 pb-4 flex items-start gap-3 border-b border-gray-100 shrink-0">
-          <div className="w-9 h-9 rounded-full bg-[#7A5AF8] text-white flex items-center justify-center font-semibold text-sm shrink-0">
+          <div className="w-9 h-9 rounded-full bg-primary text-white flex items-center justify-center font-semibold text-sm shrink-0">
             {inicial}
           </div>
           <div className="flex-1 min-w-0 flex items-baseline justify-between gap-2">
@@ -1271,7 +1271,7 @@ function OVIACard({
             <span className="text-gray-600 truncate flex-1">{log.email_remitente}</span>
             <button
               onClick={() => setEmailOpen(true)}
-              className="shrink-0 flex items-center gap-1 text-xs text-[#7A5AF8] hover:text-[#6648e0] font-medium ml-2"
+              className="shrink-0 flex items-center gap-1 text-xs text-primary hover:text-primary-dark font-medium ml-2"
             >
               Ver correo
             </button>
@@ -1308,7 +1308,7 @@ function OVIACard({
             onChange={(e) => setFechaEntregaSel(e.target.value)}
             onBlur={handleGuardarFechaEntrega}
             disabled={guardandoFechaEntrega}
-            className="border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-[#7A5AF8] disabled:opacity-50"
+            className="border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
           />
           {!fechaEntregaSel && (
             <span className="text-gray-400">sin fecha comprometida</span>
@@ -1497,7 +1497,7 @@ function OVIACard({
           {!agregando && (
             <button
               onClick={() => setAgregando(true)}
-              className="flex items-center gap-1 text-xs text-[#7A5AF8] hover:text-[#6648e0] font-medium"
+              className="flex items-center gap-1 text-xs text-primary hover:text-primary-dark font-medium"
             >
               Agregar
             </button>
@@ -1540,7 +1540,7 @@ function OVIACard({
         {productosOcultos > 0 && (
           <button
             onClick={() => setProductosExpandido(true)}
-            className="mt-2 w-full flex items-center justify-center gap-1 text-xs font-medium text-[#7A5AF8] hover:text-[#6648e0] py-1.5 border-t border-dashed border-gray-200"
+            className="mt-2 w-full flex items-center justify-center gap-1 text-xs font-medium text-primary hover:text-primary-dark py-1.5 border-t border-dashed border-gray-200"
           >
             Ver {productosOcultos} línea{productosOcultos === 1 ? "" : "s"} más
             {conProblema.length > 0 ? ", todas correctas" : ""}
@@ -1584,7 +1584,7 @@ function OVIACard({
             onChange={handleToggleReferencial}
             disabled={guardandoRef || procesando}
           />
-          <div className={`w-9 h-5 rounded-full transition-colors ${esReferencial ? "bg-[#7A5AF8]" : "bg-gray-200"}`} />
+          <div className={`w-9 h-5 rounded-full transition-colors ${esReferencial ? "bg-primary" : "bg-gray-200"}`} />
           <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${esReferencial ? "translate-x-4" : ""}`} />
         </div>
         <div className="flex flex-col">
@@ -1613,7 +1613,7 @@ function OVIACard({
         <button
           onClick={() => onValidar(ov.id, bodegaId, clienteIdLocal || null)}
           disabled={loQueFalta.length > 0 || procesando}
-          className="flex-1 bg-[#7A5AF8] hover:bg-[#6648e0] disabled:bg-gray-200 disabled:text-gray-500 text-white text-sm font-semibold py-2 rounded-xl transition"
+          className="flex-1 bg-primary hover:bg-primary-dark disabled:bg-gray-200 disabled:text-gray-500 text-white text-sm font-semibold py-2 rounded-xl transition"
         >
           {procesando
             ? "Procesando…"
@@ -1876,7 +1876,7 @@ export default function ColaIAPage() {
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar por cliente, RUT, N° OC, remitente o asunto…"
-            className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[#7A5AF8] focus:border-[#7A5AF8]"
+            className="w-full border border-gray-200 rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
           />
         </div>
       )}
@@ -1893,7 +1893,7 @@ export default function ColaIAPage() {
           <p className="text-gray-500 font-medium">Sin resultados para "{busqueda}"</p>
           <button
             onClick={() => setBusqueda("")}
-            className="text-xs text-[#7A5AF8] hover:text-[#6648e0] font-medium mt-2"
+            className="text-xs text-primary hover:text-primary-dark font-medium mt-2"
           >
             Limpiar búsqueda
           </button>

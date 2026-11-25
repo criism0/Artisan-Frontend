@@ -126,7 +126,7 @@ export default function ProveedorEdit() {
           <button
             type="submit"
             disabled={guardando}
-            className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+            className="btn btn-primario"
           >
             {guardando ? "Guardando..." : "Guardar Cambios"}
           </button>

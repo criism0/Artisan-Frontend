@@ -6,6 +6,7 @@ import {
 import { dteService } from '../../services/dteService.js';
 import { formatCLP } from '../../services/formatHelpers.js';
 import { toast } from '../../lib/toast.js';
+import PageHeader from "../../components/UI/PageHeader";
 
 /**
  * Conciliación con LibreDTE (B5).
@@ -118,7 +119,7 @@ function ModalLiberar({ discrepancia, onCerrar, onLiberado }) {
           <button
             onClick={liberar}
             disabled={nota.trim().length < 5 || enviando}
-            className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+            className="btn btn-primario gap-2"
           >
             <Unlock size={15} /> {enviando ? 'Liberando…' : 'Liberar'}
           </button>
@@ -235,11 +236,10 @@ export default function ConciliacionLibreDTE() {
           <Scale size={22} className="text-indigo-600" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-text">Conciliación con LibreDTE</h1>
-          <p className="text-sm text-gray-500">
-            Cruza nuestros documentos con los emitidos y los borradores de LibreDTE. Ante cualquier
-            diferencia, manda LibreDTE.
-          </p>
+          <PageHeader
+            titulo="Conciliación con LibreDTE"
+            subtitulo="Cruza nuestros documentos con los emitidos y los borradores de LibreDTE. Ante cualquier diferencia, manda LibreDTE."
+          />
         </div>
       </div>
 
@@ -264,7 +264,7 @@ export default function ConciliacionLibreDTE() {
         <button
           onClick={cargar}
           disabled={loading}
-          className="px-4 py-2 rounded-lg bg-primary text-white text-sm hover:bg-primary-dark disabled:opacity-50 inline-flex items-center gap-2"
+          className="btn btn-primario gap-2"
         >
           <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           {loading ? 'Consultando…' : 'Conciliar'}
@@ -276,7 +276,7 @@ export default function ConciliacionLibreDTE() {
           onClick={sincronizar}
           disabled={sincronizando}
           title="Le pregunta al SII por todos los documentos que siguen sin resolverse"
-          className="px-4 py-2 rounded-lg border border-primary text-primary text-sm hover:bg-primary/5 disabled:opacity-50 inline-flex items-center gap-2"
+          className="btn btn-secundario hover:bg-primary/5 gap-2"
         >
           <RefreshCw size={15} className={sincronizando ? 'animate-spin' : ''} />
           {sincronizando ? 'Consultando al SII…' : 'Actualizar estados SII'}

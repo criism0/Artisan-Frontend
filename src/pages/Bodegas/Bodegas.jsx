@@ -76,7 +76,7 @@ export default function BodegasPage() {
       emptyMessage="No hay bodegas registradas."
       headerActions={
         <button
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+          className="btn btn-primario"
           onClick={() => navigate("/catalogo/bodegas/nuevo")}
         >
           Añadir Bodega

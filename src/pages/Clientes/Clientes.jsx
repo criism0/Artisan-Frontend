@@ -194,7 +194,7 @@ export default function ClientesPage() {
         headerActions={
           <>
             <button
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover transition-colors text-sm font-medium"
+              className="btn btn-primario"
               onClick={() => navigate("/comercial/clientes/nuevo")}
             >
               Añadir Cliente
@@ -236,7 +236,7 @@ export default function ClientesPage() {
                 />
                 <button
                   onClick={handleCreateCanal}
-                  className="px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-hover transition-colors font-medium"
+                  className="btn btn-primario"
                 >
                   Agregar
                 </button>
@@ -278,7 +278,7 @@ export default function ClientesPage() {
                                 <>
                                   <button
                                     onClick={saveEditCanal}
-                                    className="px-2.5 py-1 bg-primary text-white rounded text-xs hover:bg-hover transition-colors"
+                                    className="btn btn-primario px-2.5 py-1 rounded text-xs"
                                   >
                                     Guardar
                                   </button>

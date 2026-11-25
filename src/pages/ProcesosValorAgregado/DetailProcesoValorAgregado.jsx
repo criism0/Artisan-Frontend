@@ -5,6 +5,7 @@ import { BackButton, EditButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function DetailProcesoValorAgregado() {
   const { id } = useParams();
@@ -50,19 +51,16 @@ export default function DetailProcesoValorAgregado() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/catalogo/procesos-valor-agregado" />
-      </div>
-
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-text">Detalle del Proceso de Valor Agregado</h1>
-        <div className="flex gap-2">
+      <PageHeader
+        volverA="/catalogo/procesos-valor-agregado"
+        titulo="Detalle del Proceso de Valor Agregado"
+        acciones={<div className="flex gap-2">
           <EditButton
             onClick={() => navigate(`/catalogo/procesos-valor-agregado/${id}/editar`)}
             tooltipText="Editar Proceso"
           />
-        </div>
-      </div>
+        </div>}
+      />
 
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
         <h2 className="text-lg font-semibold text-text mb-4">Información del Proceso</h2>

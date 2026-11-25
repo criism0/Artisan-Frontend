@@ -6,6 +6,7 @@ import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function AddPVAPorProducto() {
   const api = useApi();
@@ -181,7 +182,9 @@ export default function AddPVAPorProducto() {
         </div>
       )}
       <BackButton to="/catalogo/pva-por-producto" />
-      <h1 className="text-2xl font-bold mb-6">Asociar PVA con Producto</h1>
+      <PageHeader
+        titulo="Asociar PVA con Producto"
+      />
 
       {!nuevoPvaId && (
         <div className="bg-white p-6 rounded-lg shadow space-y-6">
@@ -246,7 +249,7 @@ export default function AddPVAPorProducto() {
           <button
             onClick={handleSubmit}
             disabled={!canWritePVAProduct}
-            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+            className="btn btn-primario"
           >
             Crear Asociación
           </button>
@@ -310,7 +313,7 @@ export default function AddPVAPorProducto() {
 
             <button
               onClick={handleSaveInsumos}
-              className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+              className="btn btn-primario"
             >
               Guardar Insumos
             </button>

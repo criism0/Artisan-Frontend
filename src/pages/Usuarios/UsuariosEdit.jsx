@@ -6,6 +6,7 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { esEmailValido } from "../../services/formatHelpers";
+import PageHeader from "../../components/UI/PageHeader";
 
 
 export default function UsuariosEdit() {
@@ -152,7 +153,9 @@ export default function UsuariosEdit() {
     <div>
       <BackButton to={`/admin/usuarios/${id}`} />
       <div className="mt-4">
-        <h1 className="text-2xl font-bold mb-6">Editar Usuario</h1>
+        <PageHeader
+          titulo="Editar Usuario"
+        />
       </div>
 
       <form

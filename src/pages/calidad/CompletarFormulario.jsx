@@ -227,7 +227,7 @@ export default function CompletarFormulario() {
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm disabled:opacity-50 flex items-center gap-2"
+            className="btn btn-primario gap-2"
           >
             {saving && <Spinner size="sm"/>}
             {saving ? "Guardando..." : "Enviar registro"}

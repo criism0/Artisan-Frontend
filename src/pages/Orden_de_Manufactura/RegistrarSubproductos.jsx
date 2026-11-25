@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function RegistrarSubproductos() {
   const { id } = useParams();
@@ -102,7 +103,9 @@ export default function RegistrarSubproductos() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded shadow">
-      <h1 className="text-2xl font-bold mb-6">Registrar Subproducto</h1>
+      <PageHeader
+        titulo="Registrar Subproducto"
+      />
 
       {error && <div className="mb-4 text-red-600 text-sm">{error}</div>}
 

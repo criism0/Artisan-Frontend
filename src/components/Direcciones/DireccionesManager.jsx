@@ -185,7 +185,7 @@ export default function DireccionesManager({
             type="button"
             onClick={handleAddDireccion}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn btn-primario gap-1.5"
           >
             <Plus className="w-4 h-4" />
             Añadir dirección

@@ -1,5 +1,29 @@
 @tailwind base;
 @tailwind components;
+
+/**
+ * Botones estándar (Fase 4 de UI, 2026-11-25): reemplazan 42 variantes del botón principal.
+ * Primario: la acción principal de la vista (una). Secundario: otras acciones. Peligro: borrar o
+ * anular, siempre con confirmación. Texto: cancelar o cerrar. Se combinan con `btn`:
+ * `className="btn btn-primario"`. Los botones de ícono de las tablas siguen en ActionButtons.
+ */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-transparent px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primario {
+    @apply bg-primary text-white hover:bg-primary-dark;
+  }
+  .btn-secundario {
+    @apply border-primary bg-white text-primary hover:bg-primary-light;
+  }
+  .btn-peligro {
+    @apply border-red-300 bg-white text-red-600 hover:bg-red-50;
+  }
+  .btn-texto {
+    @apply bg-transparent text-gray-700 hover:bg-gray-100;
+  }
+}
 @tailwind utilities;
 
 /**

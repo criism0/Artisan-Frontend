@@ -5,6 +5,7 @@ import { useApi } from "../../lib/api";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import toast from "../../lib/toast.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function BodegaAsignarEncargados() {
   const { id } = useParams();
@@ -77,7 +78,9 @@ export default function BodegaAsignarEncargados() {
     <div>
       <div className="mb-4 flex items-center gap-2">
         <BackButton to={`/catalogo/bodegas/${id}`} />
-        <h1 className="text-2xl font-bold">Asignar Encargados — Bodega #{id}</h1>
+        <PageHeader
+          titulo={`Asignar Encargados — Bodega #${id}`}
+        />
       </div>
 
       {error && (
