@@ -19,5 +19,5 @@ export default function RutaNoEncontrada() {
   }, [loading, location.pathname]);
 
   if (loading) return null;
-  return <Navigate to={isAuth ? "/Home" : "/login"} replace />;
+  return <Navigate to={isAuth ? "/inicio" : "/login"} replace />;
 }

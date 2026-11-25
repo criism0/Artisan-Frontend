@@ -121,7 +121,7 @@ export default function ModalResolverRevision({ entrega, soloLectura = false, on
         descripcion={
           entrega.ruta ? (
             <span>
-              <Link to={`/Logistica/entregas/${entrega.ruta.id}`} className="text-primary hover:underline">Ruta #{entrega.ruta.id}</Link>
+              <Link to={`/logistica/entregas/rutas/${entrega.ruta.id}`} className="text-primary hover:underline">Ruta #{entrega.ruta.id}</Link>
               {` del ${formatearFecha(entrega.ruta.fecha)}${entrega.ruta.transportista ? ` · ${entrega.ruta.transportista}` : ""}${entrega.parada?.direccion ? ` · ${entrega.parada.direccion}` : ""}`}
             </span>
           ) : null

@@ -264,7 +264,7 @@ export default function EditAsociacion() {
       });
 
       toast.success("Asociación actualizada correctamente");
-      navigate(`/Insumos/${formData.id_materia_prima}`);
+      navigate(`/catalogo/insumos/${formData.id_materia_prima}`);
     } catch (err) {
       toast.error(err?.message || "Error al actualizar la asociación.");
     } finally {
@@ -272,7 +272,7 @@ export default function EditAsociacion() {
     }
   };
 
-  const salir = () => navigate(`/Insumos/${formData.id_materia_prima}`);
+  const salir = () => navigate(`/catalogo/insumos/${formData.id_materia_prima}`);
   const handleCancelClick = () => (hasChanges ? setShowCancelModal(true) : salir());
 
   if (isLoading) return <PageLoader message="Cargando asociación" />;
@@ -290,7 +290,7 @@ export default function EditAsociacion() {
       )}
 
       <PageHeader
-        volverA={`/Insumos/${formData.id_materia_prima}`}
+        volverA={`/catalogo/insumos/${formData.id_materia_prima}`}
         titulo="Editar Formato"
         subtitulo={
           base
@@ -301,7 +301,7 @@ export default function EditAsociacion() {
           formData.id_materia_prima && formData.id_proveedor ? (
             <button
               type="button"
-              onClick={() => navigate(`/Insumos/asociar/${formData.id_materia_prima}?proveedor=${formData.id_proveedor}`)}
+              onClick={() => navigate(`/catalogo/insumos/proveedores/${formData.id_materia_prima}?proveedor=${formData.id_proveedor}`)}
               className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/5 font-medium"
             >
               + Agregar formato

@@ -462,7 +462,7 @@ export default function EditOrden() {
       } catch (emailErr) {
         toast.error(`Error enviando email tras crear orden: ${emailErr.message}`);
       }
-      navigate("/Ordenes");
+      navigate("/adquisiciones/ordenes-compra");
     } catch (error) {
       toast.error(`Error al actualizar la orden: ${error.message}`);
     } finally {
@@ -479,7 +479,7 @@ export default function EditOrden() {
           <Spinner size="lg" />
         </div>
       )}
-      <BackButton to="/Ordenes" />
+      <BackButton to="/adquisiciones/ordenes-compra" />
       <h1 className="text-2xl font-bold text-text mb-4">Editar Orden de Compra</h1>
 
       <ConfirmModal

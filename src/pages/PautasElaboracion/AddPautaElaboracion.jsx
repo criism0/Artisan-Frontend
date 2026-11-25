@@ -160,7 +160,7 @@ export default function AddPautaElaboracion() {
       }
 
       toast.success("Pauta de elaboración creada correctamente con sus pasos.");
-      navigate(`/PautasElaboracion/${idPauta}`);
+      navigate(`/catalogo/pautas-elaboracion/${idPauta}`);
     } catch (err) {
       console.error("Error al crear pauta:", err);
       toast.error(err.message || "Error al crear la pauta de elaboración. Verifica los campos e intenta nuevamente.");
@@ -178,7 +178,7 @@ export default function AddPautaElaboracion() {
       )}
       <div className="max-w-6xl mx-auto">
         <div className="mb-4">
-          <BackButton to="/PautasElaboracion" />
+          <BackButton to="/catalogo/pautas-elaboracion" />
         </div>
 
         <h1 className="text-2xl font-bold text-text mb-6">Añadir Pauta de Elaboración</h1>

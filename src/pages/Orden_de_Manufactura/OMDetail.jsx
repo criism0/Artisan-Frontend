@@ -357,7 +357,7 @@ export default function OMDetail() {
   const puedeCerrar =
     estado === "Esperando Salidas" || (!hasPasos && estado === "Insumos Asignados");
 
-  const irA = (ruta) => () => navigate(`/Orden_de_Manufactura/${id}/${ruta}`);
+  const irA = (ruta) => () => navigate(`/produccion/elaboraciones/${id}/${ruta}`);
 
   const accionPrincipal =
     estado === "Borrador" && !insumosAsignados && tieneRegistrosInsumo
@@ -468,7 +468,7 @@ export default function OMDetail() {
       {/* Acciones de la OM en el panel estándar, junto al título. Antes eran seis botones
           sueltos de cinco colores distintos sin decir cuál correspondía al estado actual. */}
       <PageHeader
-        volverA="/Orden_de_Manufactura"
+        volverA="/produccion/elaboraciones"
         titulo={`Orden de Manufactura #${om.id ?? id}`}
         estado={<EstadoOMBadge estado={om.estado} />}
         tituloAyuda="Cómo avanza una OM"
@@ -839,7 +839,7 @@ export default function OMDetail() {
                           </button>
 
                           <button
-                            onClick={() => navigate(`/Inventario/bultos/editar/${b.id}`)}
+                            onClick={() => navigate(`/inventario/bultos/${b.id}/editar`)}
                             className="text-gray-400 hover:text-blue-600"
                             title="Editar bulto"
                           >
@@ -966,7 +966,7 @@ export default function OMDetail() {
                           if (estaPendiente) {
                             await api(`/pautas-valor-agregado/${p.id}/comenzar`, { method: "PUT" });
                           }
-                          navigate(`/PautasValorAgregado/ejecutar/${p.id}`);
+                          navigate(`/produccion/pva/ejecutar/${p.id}`);
                         } catch (err) {
                           const msg = err?.error || err?.message;
                           toast.error(msg || "No se pudo comenzar la pauta");
@@ -990,7 +990,7 @@ export default function OMDetail() {
                               {utilizaInsumos ? (
                                 <button
                                   className="px-3 py-2 bg-white border border-border rounded hover:bg-gray-100 text-sm"
-                                  onClick={() => navigate(`/PautasValorAgregado/asignar-insumos/${p.id}`)}
+                                  onClick={() => navigate(`/produccion/pva/asignar-insumos/${p.id}`)}
                                 >
                                   Insumos
                                 </button>

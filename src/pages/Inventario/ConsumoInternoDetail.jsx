@@ -61,7 +61,7 @@ export default function ConsumoInternoDetail() {
   if (error || !consumo) {
     return (
       <div className="max-w-4xl mx-auto">
-        <div className="mb-4"><BackButton to="/Inventario/consumo-interno" /></div>
+        <div className="mb-4"><BackButton to="/inventario/consumo-interno" /></div>
         <div className="bg-white p-8 rounded-lg shadow text-center text-sm text-red-600">{error ?? "No se encontró el consumo."}</div>
       </div>
     );
@@ -74,7 +74,7 @@ export default function ConsumoInternoDetail() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="mb-4"><BackButton to="/Inventario/consumo-interno" /></div>
+      <div className="mb-4"><BackButton to="/inventario/consumo-interno" /></div>
 
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>

@@ -229,7 +229,7 @@ export default function RecetaDetail() {
     try {
       await api(`/recetas/${id}`, { method: "DELETE" });
       toast.success("Receta eliminada correctamente.");
-      navigate("/Recetas");
+      navigate("/catalogo/recetas");
     } catch (err) {
       console.error("Error eliminando receta:", err);
       toast.error("No se pudo eliminar la receta.");
@@ -541,9 +541,9 @@ export default function RecetaDetail() {
     <div>
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between gap-4 mb-4">
-          <BackButton to="/Recetas" />
+          <BackButton to="/catalogo/recetas" />
           <div className="flex gap-2">
-            <ModifyButton onClick={() => navigate(`/Recetas/${id}/edit`)} />
+            <ModifyButton onClick={() => navigate(`/catalogo/recetas/${id}/editar`)} />
             <DeleteButton
               onConfirmDelete={handleDelete}
               tooltipText="Eliminar Receta"
@@ -1400,7 +1400,7 @@ export default function RecetaDetail() {
                 </button>
                 <button
                   onClick={() =>
-                    navigate(`/PautasElaboracion/${pautaElaboracion.id}`)
+                    navigate(`/catalogo/pautas-elaboracion/${pautaElaboracion.id}`)
                   }
                   className="px-3 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
                 >
@@ -1572,7 +1572,7 @@ export default function RecetaDetail() {
                   Asignar pauta
                 </button>
               <button
-                onClick={() => navigate("/PautasElaboracion")}
+                onClick={() => navigate("/catalogo/pautas-elaboracion")}
                 className="px-4 py-2 rounded border border-gray-300 text-text hover:bg-gray-100 text-sm"
               >
                 Crear Pauta

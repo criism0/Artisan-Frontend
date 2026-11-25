@@ -15,7 +15,7 @@ export default function Login() {
   const [showScanQrCode, setShowScanQrCode] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || "/Home";
+  const from = location.state?.from?.pathname || "/inicio";
 
   useEffect(() => {
     if (authError) {
@@ -140,7 +140,7 @@ export default function Login() {
             </div>
             <div className="text-right">
               <Link
-                to="/forgot-password"
+                to="/recuperar-contrasena"
                 className="text-sm text-primary hover:text-primary-dark transition"
               >
                 Olvidé mi contraseña

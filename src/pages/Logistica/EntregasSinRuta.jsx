@@ -70,7 +70,7 @@ export default function EntregasSinRuta() {
 
   return (
     <>
-      <div className="px-6 pt-6"><BackButton to="/Logistica/entregas" /></div>
+      <div className="px-6 pt-6"><BackButton to="/logistica/entregas" /></div>
       <DataTable
         title="Entregas sin ruta"
         data={filas}

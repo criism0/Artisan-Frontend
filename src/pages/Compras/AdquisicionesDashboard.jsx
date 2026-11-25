@@ -114,13 +114,13 @@ export default function AdquisicionesDashboard() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => navigate("/Ordenes")}
+              onClick={() => navigate("/adquisiciones/ordenes-compra")}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
             >
               Ver órdenes
             </button>
             <button
-              onClick={() => navigate("/Ordenes/add")}
+              onClick={() => navigate("/adquisiciones/ordenes-compra/nuevo")}
               className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm"
             >
               Nueva orden
@@ -338,7 +338,7 @@ function DashboardContent({ data, navigate, api }) {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-text">Pendientes y alertas</h2>
             <button
-              onClick={() => navigate("/Ordenes")}
+              onClick={() => navigate("/adquisiciones/ordenes-compra")}
               className="text-sm text-primary hover:underline"
             >
               Ver todas →
@@ -359,7 +359,7 @@ function DashboardContent({ data, navigate, api }) {
               {pendientes.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => navigate(`/Ordenes/${p.id}`)}
+                  onClick={() => navigate(`/adquisiciones/ordenes-compra/${p.id}`)}
                   className="w-full text-left flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                 >
                   <IconoTipoPendiente tipo={p.tipo} />

@@ -52,7 +52,7 @@ export default function AddProvider() {
       body: JSON.stringify(confirmarSimilar ? { ...payload, confirmSimilarName: true } : payload),
     });
     toast.success("Proveedor creado correctamente");
-    navigate("/Proveedores");
+    navigate("/comercial/proveedores");
   };
 
   const handleSubmit = async (e) => {
@@ -120,7 +120,7 @@ export default function AddProvider() {
       )}
 
       <PageHeader
-        volverA="/Proveedores"
+        volverA="/comercial/proveedores"
         titulo="Añadir Proveedor"
         subtitulo={
           <>
@@ -144,7 +144,7 @@ export default function AddProvider() {
         <div className="flex justify-end gap-3 mt-6">
           <button
             type="button"
-            onClick={() => navigate("/Proveedores")}
+            onClick={() => navigate("/comercial/proveedores")}
             className="px-5 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
           >
             Cancelar

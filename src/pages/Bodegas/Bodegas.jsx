@@ -57,8 +57,8 @@ export default function BodegasPage() {
 
   const actions = (row) => (
     <div className="flex gap-2">
-      <ViewDetailButton onClick={() => navigate(`/Bodegas/${row.id}`)} tooltipText="Ver detalle" />
-      <EditButton onClick={() => navigate(`/Bodegas/${row.id}/edit`)} tooltipText="Editar Bodega" />
+      <ViewDetailButton onClick={() => navigate(`/catalogo/bodegas/${row.id}`)} tooltipText="Ver detalle" />
+      <EditButton onClick={() => navigate(`/catalogo/bodegas/${row.id}/editar`)} tooltipText="Editar Bodega" />
       <TrashButton onConfirmDelete={() => handleDeleteBodega(row.id)} tooltipText="Eliminar Bodega" entityName="bodega" />
     </div>
   );
@@ -77,7 +77,7 @@ export default function BodegasPage() {
       headerActions={
         <button
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-          onClick={() => navigate("/Bodegas/add")}
+          onClick={() => navigate("/catalogo/bodegas/nuevo")}
         >
           Añadir Bodega
         </button>

@@ -111,11 +111,11 @@ export default function PIPList() {
   const actions = (row) => (
     <div className="flex gap-2">
       <ViewDetailButton
-        onClick={() => navigate(`/Insumos/${row.id}`)}
+        onClick={() => navigate(`/catalogo/insumos/${row.id}`)}
         tooltipText="Ver Detalle"
       />
       <EditButton
-        onClick={() => navigate(`/Insumos/${row.id}/edit`)}
+        onClick={() => navigate(`/catalogo/insumos/${row.id}/editar`)}
         tooltipText="Editar Insumo"
       />
       <ToggleActiveButton
@@ -143,16 +143,16 @@ export default function PIPList() {
       emptyMessage="No hay PIPs registrados."
       headerActions={
         <>
-          <BackButton to="/Home" />
+          <BackButton to="/inicio" />
           <button
             className="text-primary border border-primary hover:bg-gray-100 font-medium text-sm flex items-center gap-2 px-4 py-2 rounded-md transition"
-            onClick={() => navigate("/Insumos")}
+            onClick={() => navigate("/catalogo/insumos")}
           >
             Ver Insumos
           </button>
           <button
             className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-            onClick={() => navigate("/PIP/crear")}
+            onClick={() => navigate("/catalogo/pip/nuevo")}
           >
             Crear PIP
           </button>

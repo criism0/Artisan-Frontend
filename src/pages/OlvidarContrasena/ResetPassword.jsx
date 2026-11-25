@@ -62,7 +62,7 @@ export default function ResetPassword() {
   const code = location.state?.code ?? "";
 
   useEffect(() => {
-    if (!email || !code) navigate("/forgot-password", { replace: true });
+    if (!email || !code) navigate("/recuperar-contrasena", { replace: true });
   }, [email, code, navigate]);
 
   const [newPassword, setNewPassword] = useState("");
@@ -112,7 +112,7 @@ export default function ResetPassword() {
           <div className="mb-6">
             <button
               type="button"
-              onClick={() => navigate("/reset-code", { state: { email } })}
+              onClick={() => navigate("/recuperar-contrasena/codigo", { state: { email } })}
               className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4 transition"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

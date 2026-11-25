@@ -100,8 +100,8 @@ export default function ProveedoresPage() {
 
   const actions = (row) => (
     <div className="flex gap-2">
-      <ViewDetailButton onClick={() => navigate(`/Proveedores/${row.id}`)} tooltipText="Ver Detalle" />
-      <EditButton onClick={() => navigate(`/Proveedores/${row.id}/edit`)} tooltipText="Editar Proveedor" />
+      <ViewDetailButton onClick={() => navigate(`/comercial/proveedores/${row.id}`)} tooltipText="Ver Detalle" />
+      <EditButton onClick={() => navigate(`/comercial/proveedores/${row.id}/editar`)} tooltipText="Editar Proveedor" />
     </div>
   );
 
@@ -122,7 +122,7 @@ export default function ProveedoresPage() {
       headerActions={
         <button
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
-          onClick={() => navigate("/Proveedores/add")}
+          onClick={() => navigate("/comercial/proveedores/nuevo")}
           aria-label="Añadir Proveedor"
         >
           Añadir Proveedor

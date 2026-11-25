@@ -102,7 +102,7 @@ export default function PautaElaboracionDetail() {
     try {
       await api(`/pautas-elaboracion/${id}`, { method: "DELETE" });
       toast.success("Pauta de elaboración eliminada correctamente.");
-      navigate("/PautasElaboracion");
+      navigate("/catalogo/pautas-elaboracion");
     } catch (err) {
       console.error("Error eliminando pauta:", err);
       toast.error("No se pudo eliminar la pauta de elaboración.");
@@ -144,7 +144,7 @@ export default function PautaElaboracionDetail() {
     <div>
       <div className="max-w-6xl mx-auto">
         <PageHeader
-          volverA="/PautasElaboracion"
+          volverA="/catalogo/pautas-elaboracion"
           titulo={`Pauta de Elaboración: ${pauta.name}`}
           estado={
             <span
@@ -159,7 +159,7 @@ export default function PautaElaboracionDetail() {
           }
           acciones={
             <div className="flex flex-wrap items-center gap-2">
-              <ModifyButton onClick={() => navigate(`/PautasElaboracion/${id}/edit`)} />
+              <ModifyButton onClick={() => navigate(`/catalogo/pautas-elaboracion/${id}/editar`)} />
               <DeleteButton
                 onConfirmDelete={handleDelete}
                 tooltipText="Eliminar pauta"
@@ -299,7 +299,7 @@ export default function PautaElaboracionDetail() {
                     accessor: 'nombre',
                     Cell: ({ row, value }) => (
                       <button
-                        onClick={() => navigate(`/Recetas/${row.id}`)}
+                        onClick={() => navigate(`/catalogo/recetas/${row.id}`)}
                         className="text-primary hover:text-primary-dark underline"
                         title={value || ''}
                       >

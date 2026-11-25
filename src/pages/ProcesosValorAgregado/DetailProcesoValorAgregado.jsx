@@ -51,14 +51,14 @@ export default function DetailProcesoValorAgregado() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/ProcesosValorAgregado" />
+        <BackButton to="/catalogo/procesos-valor-agregado" />
       </div>
 
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-text">Detalle del Proceso de Valor Agregado</h1>
         <div className="flex gap-2">
           <EditButton
-            onClick={() => navigate(`/ProcesosValorAgregado/${id}/edit`)}
+            onClick={() => navigate(`/catalogo/procesos-valor-agregado/${id}/editar`)}
             tooltipText="Editar Proceso"
           />
         </div>

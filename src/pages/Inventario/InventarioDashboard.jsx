@@ -91,13 +91,13 @@ export default function InventarioDashboard() {
           </div>
           <div className="flex gap-2 flex-wrap">
             <button
-              onClick={() => navigate("/Inventario")}
+              onClick={() => navigate("/inventario/stock")}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
             >
               Ver inventario
             </button>
             <button
-              onClick={() => navigate("/Inventario/bultos")}
+              onClick={() => navigate("/inventario/bultos")}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
             >
               Ver bultos
@@ -170,7 +170,7 @@ function DashboardContent({ data, navigate, api }) {
                 return (
                   <button
                     key={b.id}
-                    onClick={() => navigate(`/Inventario?bodega=${b.id}`)}
+                    onClick={() => navigate(`/inventario/stock?bodega=${b.id}`)}
                     className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                   >
                     <div className="flex items-center justify-between gap-2 mb-2">
@@ -246,7 +246,7 @@ function DashboardContent({ data, navigate, api }) {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-text">Alertas de stock</h2>
             <button
-              onClick={() => navigate("/Inventario")}
+              onClick={() => navigate("/inventario/stock")}
               className="text-sm text-primary hover:underline"
             >
               Ver inventario →

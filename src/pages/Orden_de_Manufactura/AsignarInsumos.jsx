@@ -630,7 +630,7 @@ export default function AsignarInsumos() {
     const ejecutar = async () => {
       const ok = await handleAsignarTodo();
       if (!ok) return;
-      navigate(`/Orden_de_Manufactura/${id}`);
+      navigate(`/produccion/elaboraciones/${id}`);
     };
 
     if (warnings.length > 0) {
@@ -718,7 +718,7 @@ export default function AsignarInsumos() {
 
       <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
         <PageHeader
-          volverA={`/Orden_de_Manufactura/${id}`}
+          volverA={`/produccion/elaboraciones/${id}`}
           titulo={`Asignar insumos · OM #${id}`}
           tituloAyuda="Asignar insumos"
           ayuda="Para cada insumo se eligen los bultos y cuánto se usa de cada uno, hasta cubrir lo que pide la receta. Lo asignado sale de la bodega."
@@ -1055,7 +1055,7 @@ export default function AsignarInsumos() {
 
             return puedeEjecutar ? (
               <button
-                onClick={() => navigate(`/Orden_de_Manufactura/${id}/pasos`)}
+                onClick={() => navigate(`/produccion/elaboraciones/${id}/pasos`)}
                 className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10"
               >
                 Ejecutar pasos de producción

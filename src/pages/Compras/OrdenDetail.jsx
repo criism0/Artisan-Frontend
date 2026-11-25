@@ -405,11 +405,11 @@ export default function OrdenDetail() {
     },
     Validada: {
       label: "Recepcionar",
-      onClick: () => navigate(`/Ordenes/recepcionar/${orden.id}`),
+      onClick: () => navigate(`/adquisiciones/ordenes-compra/${orden.id}/recepcionar`),
     },
     "Parcialmente recepcionada": {
       label: "Recepcionar lo que falta",
-      onClick: () => navigate(`/Ordenes/recepcionar/${orden.id}`),
+      onClick: () => navigate(`/adquisiciones/ordenes-compra/${orden.id}/recepcionar`),
     },
   };
   const accionPrincipal = canWritePurchaseOrder ? enFlujo[orden.estado] ?? null : null;
@@ -428,7 +428,7 @@ export default function OrdenDetail() {
     orden.estado === "Creada" &&
       canWritePurchaseOrder && {
         label: "Editar",
-        onClick: () => navigate(`/Ordenes/edit/${orden.id}`),
+        onClick: () => navigate(`/adquisiciones/ordenes-compra/${orden.id}/editar`),
       },
     // El `.catch` va acá y no dentro de `handleDownloadPDF` para no reindentar sus 150 líneas.
     // Sin él, un fallo es una promesa rechazada sin dueño y el botón se queda mudo — que es
@@ -473,7 +473,7 @@ export default function OrdenDetail() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/Ordenes" />
+        <BackButton to="/adquisiciones/ordenes-compra" />
       </div>
 
       <div className="flex flex-wrap justify-between items-center gap-3 mb-4">

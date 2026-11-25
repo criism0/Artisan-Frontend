@@ -56,7 +56,7 @@ export default function ClienteDetail() {
     try {
       await api(`/clientes/${clienteId}`, { method: "DELETE" });
       toast.success("Cliente eliminado correctamente");
-      navigate("/clientes");
+      navigate("/comercial/clientes");
     } catch (err) {
       toast.error("Error al eliminar cliente: " + (err?.message || ""));
     }
@@ -83,13 +83,13 @@ export default function ClienteDetail() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/clientes" />
+        <BackButton to="/comercial/clientes" />
       </div>
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-text">Detalle del Cliente</h1>
         <div className="flex gap-2">
           <EditButton
-            onClick={() => navigate(`/clientes/${clienteId}/edit`)}
+            onClick={() => navigate(`/comercial/clientes/${clienteId}/editar`)}
             tooltipText="Editar Cliente"
           />
           <TrashButton

@@ -24,7 +24,7 @@ export default function ForgotPassword() {
       });
 
       toast.success("Si el correo está registrado, recibirás un código a este.");
-      navigate("/reset-code", {state: { email: email.toLowerCase().trim() } });
+      navigate("/recuperar-contrasena/codigo", {state: { email: email.toLowerCase().trim() } });
     } catch {
       toast.error("Error de conexión. Intenta nuevamente.");
     } finally {

@@ -35,13 +35,13 @@ export default function UsuarioById() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/Usuarios" />
+        <BackButton to="/admin/usuarios" />
       </div>
 
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-text">Detalle de Usuario</h1>
         <div className="flex gap-2">
-          <EditButton onClick={() => navigate(`/Usuarios/${usuario.id}/edit`)} tooltipText="Editar Usuario" />
+          <EditButton onClick={() => navigate(`/admin/usuarios/${usuario.id}/editar`)} tooltipText="Editar Usuario" />
         </div>
       </div>
 

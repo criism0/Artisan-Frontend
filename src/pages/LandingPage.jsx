@@ -12,7 +12,7 @@ const LandingPage = () => {
   };
 
   React.useEffect(() => {
-    if (user) navigate("/Home");
+    if (user) navigate("/inicio");
   }, [user, navigate]);
 
   return (

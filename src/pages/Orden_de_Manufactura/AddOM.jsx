@@ -369,9 +369,9 @@ export default function AddOM() {
       const omId = nuevaOM?.id ?? nuevaOM?.nuevaProduccion?.id;
 
       if (omId) {
-        navigate(`/Orden_de_Manufactura/${omId}`);
+        navigate(`/produccion/elaboraciones/${omId}`);
       } else {
-        navigate("/Orden_de_Manufactura");
+        navigate("/produccion/elaboraciones");
       }
     } catch (e) {
       toast.error(e?.body?.error || e?.message || "Error al crear la OM.");
@@ -387,7 +387,7 @@ export default function AddOM() {
 
   return (
     <div>
-      <PageHeader volverA="/Orden_de_Manufactura" titulo="Crear Orden de Manufactura" />
+      <PageHeader volverA="/produccion/elaboraciones" titulo="Crear Orden de Manufactura" />
 
       {error && <div className="mb-3 text-sm text-red-600">{error}</div>}
       {success && <div className="mb-3 text-sm text-green-700">{success}</div>}

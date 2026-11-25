@@ -137,7 +137,7 @@ export default function PanelConsumoInterno({ api }) {
               </button>
             ))}
           </div>
-          <button type="button" onClick={() => navigate("/Inventario/consumo-interno")} className="text-sm text-primary hover:underline">
+          <button type="button" onClick={() => navigate("/inventario/consumo-interno")} className="text-sm text-primary hover:underline">
             Ver consumos →
           </button>
         </div>

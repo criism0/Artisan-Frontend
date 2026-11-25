@@ -122,21 +122,21 @@ export default function UsuariosPage() {
   const actions = (row) => (
     <div className="flex gap-2">
       <ViewDetailButton
-        onClick={() => navigate(`/Usuarios/${row.id}`)}
+        onClick={() => navigate(`/admin/usuarios/${row.id}`)}
         tooltipText="Ver detalle"
       />
       <EditButton
-        onClick={() => navigate(`/Usuarios/${row.id}/edit`)}
+        onClick={() => navigate(`/admin/usuarios/${row.id}/editar`)}
         tooltipText="Editar Usuario"
       />
 
       <WarehouseButton
-        onClick={() => navigate(`/Usuarios/${row.id}/asignar-bodega`)}
+        onClick={() => navigate(`/admin/usuarios/${row.id}/asignar-bodega`)}
         tooltipText="Asignar Bodega"
       />
 
       <button
-        onClick={() => navigate(`/Usuarios/${row.id}/Contrasena`)}
+        onClick={() => navigate(`/admin/usuarios/${row.id}/contrasena`)}
         className="text-gray-400 hover:text-blue-500"
         title="Cambiar contraseña"
       >
@@ -168,7 +168,7 @@ export default function UsuariosPage() {
       emptyMessage="No hay usuarios registrados."
       headerActions={
         <button
-          onClick={() => navigate("/Usuarios/add")}
+          onClick={() => navigate("/admin/usuarios/nuevo")}
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
         >
           Añadir Usuario

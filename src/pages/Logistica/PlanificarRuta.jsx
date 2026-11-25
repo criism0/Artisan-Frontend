@@ -111,7 +111,7 @@ export default function PlanificarRuta() {
           const r = await rutasApi.obtenerRuta(idRutaEditar);
           if (r.estado !== "Planificada") {
             toast.error(`La ruta #${r.id} está ${r.estado}: ya no se modifica.`);
-            navigate(`/Logistica/entregas/${r.id}`, { replace: true });
+            navigate(`/logistica/entregas/rutas/${r.id}`, { replace: true });
             return;
           }
           setFecha(r.fecha);
@@ -347,7 +347,7 @@ export default function PlanificarRuta() {
   return (
     <div className="p-6 bg-background min-h-screen">
       <PageHeader
-        volverA={idRutaEditar ? `/Logistica/entregas/${idRutaEditar}` : "/Logistica/entregas"}
+        volverA={idRutaEditar ? `/logistica/entregas/rutas/${idRutaEditar}` : "/logistica/entregas"}
         titulo={idRutaEditar ? `Editar pedidos de la ruta #${idRutaEditar}` : "Planificar ruta"}
         tituloAyuda={idRutaEditar ? "Editar la ruta" : "Cómo se planifica"}
         ayuda={
@@ -550,7 +550,7 @@ export default function PlanificarRuta() {
                       )}
                       {o.ruta && (
                         <Link
-                          to={`/Logistica/entregas/${o.ruta.id}`}
+                          to={`/logistica/entregas/rutas/${o.ruta.id}`}
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
                           title="Ver la ruta"
                         >
@@ -623,7 +623,7 @@ export default function PlanificarRuta() {
                 </h2>
                 <button
                   type="button"
-                  onClick={() => (idRutaEditar ? navigate(`/Logistica/entregas/${idRutaEditar}`) : descartar())}
+                  onClick={() => (idRutaEditar ? navigate(`/logistica/entregas/rutas/${idRutaEditar}`) : descartar())}
                   className="text-sm text-gray-500 hover:text-gray-700"
                 >
                   Descartar
@@ -697,7 +697,7 @@ export default function PlanificarRuta() {
               {propuesta.idRuta ? (
                 <button
                   type="button"
-                  onClick={() => navigate(`/Logistica/entregas/${propuesta.idRuta}`)}
+                  onClick={() => navigate(`/logistica/entregas/rutas/${propuesta.idRuta}`)}
                   className="w-full py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary-dark"
                 >
                   Ver la ruta #{propuesta.idRuta} · {guardando ? "guardando…" : "guardada"}

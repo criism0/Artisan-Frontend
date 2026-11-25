@@ -89,7 +89,7 @@ export default function PVAPorProducto() {
 
   const actions = (row) => (
     <div className="flex gap-2 justify-center">
-      <ViewDetailButton onClick={() => navigate(`/PVAPorProducto/${row.id}`)} tooltipText="Ver Detalle" />
+      <ViewDetailButton onClick={() => navigate(`/catalogo/pva-por-producto/${row.id}`)} tooltipText="Ver Detalle" />
       <TrashButton onConfirmDelete={() => handleDelete(row.id)} tooltipText="Eliminar relación" entityName="PVA por producto" />
     </div>
   );
@@ -106,7 +106,7 @@ export default function PVAPorProducto() {
       emptyMessage="No hay relaciones PVA-Producto registradas."
       headerActions={
         <button
-          onClick={() => navigate("/PVAPorProducto/agregar")}
+          onClick={() => navigate("/catalogo/pva-por-producto/nuevo")}
           className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
         >
           + Añadir Relación

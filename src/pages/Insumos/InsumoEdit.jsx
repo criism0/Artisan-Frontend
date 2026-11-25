@@ -684,7 +684,7 @@ export default function InsumoEdit() {
       };
       await api(`/materias-primas/${id}`, { method: "PUT", body: JSON.stringify(body) });
       toast.success("Insumo actualizado correctamente.");
-      navigate(`/Insumos/${id}`);
+      navigate(`/catalogo/insumos/${id}`);
     } catch (err) {
       console.error(err);
       toast.error(`Error al actualizar insumo: ${err?.message || err}`);
@@ -693,14 +693,14 @@ export default function InsumoEdit() {
 
   const handleCancelClick = () => {
     if (hasChanges) setShowCancelModal(true);
-    else navigate(`/Insumos/${id}`);
+    else navigate(`/catalogo/insumos/${id}`);
   };
 
   if (loading) return <PageLoader message="Cargando datos" />;
 
   return (
     <div>
-      <BackButton to={`/Insumos/${id}`} />
+      <BackButton to={`/catalogo/insumos/${id}`} />
       <h1 className="text-2xl font-bold text-text mb-6">Editar Insumo</h1>
 
       {error ? <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">{error}</div> : null}
@@ -919,7 +919,7 @@ export default function InsumoEdit() {
               <button type="button" className="px-4 py-2 border rounded-lg hover:bg-gray-50" onClick={() => setShowCancelModal(false)}>
                 Seguir editando
               </button>
-              <button type="button" className="px-4 py-2 bg-primary text-white rounded-lg" onClick={() => navigate(`/Insumos/${id}`)}>
+              <button type="button" className="px-4 py-2 bg-primary text-white rounded-lg" onClick={() => navigate(`/catalogo/insumos/${id}`)}>
                 Salir
               </button>
             </div>

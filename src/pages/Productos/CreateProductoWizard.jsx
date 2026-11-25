@@ -593,7 +593,7 @@ export default function CreateProductoWizard() {
   return (
     <div>
       <div className="mb-4">
-        <BackButton to="/Productos" />
+        <BackButton to="/catalogo/productos" />
       </div>
 
       <SimilarNameConfirmModal
@@ -731,7 +731,7 @@ export default function CreateProductoWizard() {
         <button
           type="button"
           className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-          onClick={() => navigate("/Productos")}
+          onClick={() => navigate("/catalogo/productos")}
         >
           Volver a Productos
         </button>

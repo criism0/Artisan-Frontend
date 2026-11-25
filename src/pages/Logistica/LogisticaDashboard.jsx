@@ -86,7 +86,7 @@ export default function LogisticaDashboard() {
             {/* "Ver pallets" apuntaba a /Pallets, eliminada: los pallets se ven dentro de su
                 solicitud, que es donde se sabe de dónde salen y a dónde van. */}
             <button
-              onClick={() => navigate("/Solicitudes")}
+              onClick={() => navigate("/logistica/solicitudes")}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
             >
               Ver solicitudes
@@ -185,7 +185,7 @@ function DashboardContent({ data, navigate }) {
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-text">Alertas y pendientes</h2>
             <button
-              onClick={() => navigate("/Solicitudes")}
+              onClick={() => navigate("/logistica/solicitudes")}
               className="text-sm text-primary hover:underline"
             >
               Ver todo →
@@ -208,8 +208,8 @@ function DashboardContent({ data, navigate }) {
                   key={`${a.tipo}-${a.id}`}
                   onClick={() =>
                     a.tipo === "solicitud"
-                      ? navigate(`/Solicitudes/${a.id}`)
-                      : navigate(a.id_solicitud ? `/Solicitudes/${a.id_solicitud}` : "/Solicitudes")
+                      ? navigate(`/logistica/solicitudes/${a.id}`)
+                      : navigate(a.id_solicitud ? `/logistica/solicitudes/${a.id_solicitud}` : "/logistica/solicitudes")
                   }
                   className="w-full text-left flex items-start gap-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                 >

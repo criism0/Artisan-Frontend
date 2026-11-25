@@ -119,7 +119,7 @@ export default function ConsumoInternoPage() {
 
   const acciones = (row) => (
     <div className="flex gap-2 justify-center items-center">
-      <ViewDetailButton onClick={() => navigate(`/Inventario/consumo-interno/${row.id}`)} tooltipText="Ver detalle" />
+      <ViewDetailButton onClick={() => navigate(`/inventario/consumo-interno/${row.id}`)} tooltipText="Ver detalle" />
       {!row.anulado_en && puedeDeshacer && (
         <UndoButton onClick={() => setADeshacer(row)} tooltipText="Deshacer consumo" />
       )}

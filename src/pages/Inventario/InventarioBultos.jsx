@@ -664,7 +664,7 @@ export default function InventarioBultos() {
 
                       {canWriteBulk && (
                         <button
-                          onClick={() => navigate(`/Inventario/bultos/editar/${b.id}`)}
+                          onClick={() => navigate(`/inventario/bultos/${b.id}/editar`)}
                           className="text-gray-400 hover:text-blue-600"
                           title="Editar bulto"
                         >
