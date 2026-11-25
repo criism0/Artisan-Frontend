@@ -147,10 +147,7 @@ const EditarBulto = lazy(() => import("./pages/Inventario/EditarBulto.jsx"));
 const UsuariosEdit = lazy(() => import("./pages/Usuarios/UsuariosEdit.jsx"));
 const CambiarContrasena = lazy(() => import("./pages/Usuarios/CambiarContrasena.jsx"));
 
-// ====== Excel ======
-const OrdenVentaExcel = lazy(() => import("./pages/Excel/AddExcel"));
 
-const FacturasIA = lazy(() => import('./pages/Facturas_IA/facturas.jsx'));
 const BandejaSII = lazy(() => import('./pages/Ventas/BandejaSII.jsx'));
 const BandejaDTEEmitidos = lazy(() => import('./pages/Ventas/BandejaDTEEmitidos.jsx'));
 const ConciliacionLibreDTE = lazy(() => import('./pages/Ventas/ConciliacionLibreDTE.jsx'));
@@ -398,17 +395,9 @@ function Routing() {
           />
 
           {/* La importación desde Jumpseller se retiró el 2026-08-04: los pedidos web
-              ya entran solos por la Cola IA, que los recibe por correo. */}
-
-          {/* Excel */}
-          <Route 
-            path="/ventas/ordenes/importar-excel" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.ORDEN_VENTA, ScopeType.READ]]}>
-                <OrdenVentaExcel />
-              </ProtectedRoute>
-            } 
-          />
+              ya entran solos por la Cola IA, que los recibe por correo. La carga de OV desde Excel
+              y la lectura de facturas con IA (servicio externo del capstone) se retiraron el
+              2026-11-25: no se usaban. */}
 
           {/* Bodegas */}
           <Route
@@ -1066,15 +1055,6 @@ function Routing() {
           />
 
 
-          {/* Facturas IA */}
-          <Route 
-            path="/ventas/facturas" 
-            element={
-              <ProtectedRoute permissions={[[ModelType.OCR_FACTURA, ScopeType.READ]]}>
-                <FacturasIA />
-              </ProtectedRoute>
-            } 
-          />
 
           {/* Bandeja SII — documentos recibidos de proveedores vía LibreDTE */}
           <Route

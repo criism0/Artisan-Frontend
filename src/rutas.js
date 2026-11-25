@@ -23,7 +23,6 @@ export const REDIRECCIONES = [
   ["/clientes/add", "/comercial/clientes/nuevo"],
   ["/ConsumoGemini", "/admin/consumo-ia"],
   ["/CostosIndirectos", "/catalogo/costos-indirectos"],
-  ["/Excel/products", "/ventas/ordenes/importar-excel"],
   ["/forgot-password", "/recuperar-contrasena"],
   ["/GenerarQR", "/admin/generar-qr"],
   ["/Home", "/inicio"],
