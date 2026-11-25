@@ -500,7 +500,7 @@ export default function AddOM() {
             <button
               type="submit"
               disabled={loading || !idElaborador}
-              className="px-4 py-2 rounded-lg bg-primary text-white hover:bg-hover disabled:opacity-60"
+              className="btn btn-primario"
             >
               {loading ? "Creando…" : "Crear Orden de Manufactura"}
             </button>

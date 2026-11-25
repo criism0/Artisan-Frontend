@@ -21,7 +21,7 @@ const LandingPage = () => {
       <p className="mb-8 text-lg">Por favor, inicia sesión para continuar.</p>
       <button
         onClick={handleAction}
-        className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-hover"
+        className="btn btn-primario"
       >
         {user ? "Cerrar Sesión" : "Iniciar Sesión"}
       </button>

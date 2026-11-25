@@ -207,7 +207,7 @@ export default function BuscadorDteExterno({ idOrdenVenta, idSolicitud, onCancel
           <button
             type="submit"
             disabled={buscando || (modo === 'folio' && !folio)}
-            className="flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50 text-sm"
+            className="btn btn-primario gap-2"
           >
             <Search className="w-4 h-4" />
             {buscando ? 'Buscando…' : 'Buscar'}
@@ -308,7 +308,7 @@ export default function BuscadorDteExterno({ idOrdenVenta, idSolicitud, onCancel
           type="button"
           onClick={vincular}
           disabled={!seleccionado || vinculando || nota.trim().length < 5}
-          className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+          className="btn btn-primario gap-2"
         >
           <Link2 className="w-4 h-4" />
           {vinculando ? 'Vinculando…' : 'Vincular documento'}

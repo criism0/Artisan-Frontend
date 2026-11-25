@@ -228,7 +228,7 @@ function NombreForm({ form, setForm, onCancel, onSubmit, isSaving, submitLabel, 
         </button>
         <button
           type="button"
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+          className="btn btn-primario"
           onClick={onSubmit}
           disabled={isSaving || !canWrite}
         >
@@ -787,7 +787,7 @@ export default function NombresFacturacion() {
         headerActions={
           <>
             <button
-              className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="btn btn-secundario hover:bg-primary/10 gap-2"
               onClick={openMerge}
               disabled={selectedIds.length < 2}
               title={
@@ -800,7 +800,7 @@ export default function NombresFacturacion() {
               Fusionar{selectedIds.length >= 2 ? ` (${selectedIds.length})` : ""}
             </button>
             <button
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+              className="btn btn-primario"
               onClick={openAdd}
             >
               Añadir Nombre
@@ -925,7 +925,7 @@ export default function NombresFacturacion() {
           </button>
           <button
             type="button"
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+            className="btn btn-primario"
             onClick={() => void handleMerge()}
             disabled={isMerging || !mergeDestinoId}
           >
@@ -1000,7 +1000,7 @@ export default function NombresFacturacion() {
           </button>
           <button
             type="button"
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+            className="btn btn-primario"
             onClick={handleResolverConflictos}
             disabled={isMerging || !conflictosResueltos}
           >

@@ -8,6 +8,7 @@ import {
   ScopeType,
 } from "../../services/scopeCheck";
 import { Spinner } from "../../components/UI/Spinner.jsx";
+import PageHeader from "../../components/UI/PageHeader";
 
 const CATEGORIAS = [
   { value: "I", label: "Insumos (I)" },
@@ -140,15 +141,18 @@ export default function EditarBulto() {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">EDICIÓN DEL BULTO</h1>
-        <button
+      <PageHeader
+        titulo="EDICIÓN DEL BULTO"
+        acciones={
+<>
+<button
           onClick={() => navigate(-1)}
           className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
         >
           Volver
         </button>
-      </div>
+</>}
+      />
 
       {loading && !bulto ? (
         <div className="flex justify-center py-6"><Spinner size="md" /></div>
@@ -293,7 +297,7 @@ export default function EditarBulto() {
             <button
               onClick={handleGuardar}
               disabled={loading}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-violet-700 disabled:opacity-60"
+              className="btn btn-primario"
             >
               Guardar
             </button>

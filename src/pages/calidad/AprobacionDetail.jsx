@@ -13,6 +13,7 @@ import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader";
 import { Spinner } from "../../components/UI/Spinner";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import PageHeader from "../../components/UI/PageHeader";
 
 const TIPO_LABEL = {
   texto: "Texto corto",
@@ -147,9 +148,9 @@ export default function AprobacionDetail() {
 
         {/* Metadata */}
         <div className="bg-white p-6 rounded-lg shadow mb-6">
-          <h1 className="text-2xl font-bold text-text mb-4">
-            {formulario.nombre}
-          </h1>
+          <PageHeader
+            titulo={formulario.nombre}
+          />
           <dl className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
             <MetaRow label="Código" value={formulario.codigo} />
             <MetaRow label="Versión" value={`v${formulario.version}`} />

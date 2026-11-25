@@ -468,7 +468,7 @@ export default function EditAsociacion() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+            className="btn btn-primario"
           >
             {isSubmitting ? "Guardando..." : "Guardar Cambios"}
           </button>

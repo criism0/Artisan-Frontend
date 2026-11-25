@@ -109,7 +109,7 @@ export default function PanelReglasColaIA() {
         {reglas.length === 0 && <p className="text-sm text-gray-500 p-4">No hay reglas.</p>}
         {reglas.map((r) => (
           <div key={r.id} className={`flex items-center gap-3 px-4 py-3 ${r.activa ? "" : "opacity-50"}`}>
-            <input type="checkbox" checked={r.activa} onChange={() => alternar(r)} title={r.activa ? "Desactivar" : "Activar"} className="w-4 h-4 accent-[#7A5AF8]" />
+            <input type="checkbox" checked={r.activa} onChange={() => alternar(r)} title={r.activa ? "Desactivar" : "Activar"} className="w-4 h-4 accent-primary" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">
                 {r.nombre}
@@ -140,7 +140,7 @@ export default function PanelReglasColaIA() {
         pie={
           <>
             <button type="button" onClick={() => setEditando(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancelar</button>
-            <button type="button" onClick={guardar} disabled={guardando} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50">
+            <button type="button" onClick={guardar} disabled={guardando} className="btn btn-primario">
               {form.accion === "ignorar" && prueba?.crearon_orden > 0 ? "Guardar igual" : "Guardar"}
             </button>
           </>

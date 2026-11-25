@@ -26,6 +26,7 @@ import {
   descuentoAGuardar,
   formatearDescuento,
 } from "../../utils/descuentoLinea.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function AddOrdenVenta() {
   const [isLoading, setIsLoading] = useState(true);
@@ -601,7 +602,9 @@ export default function AddOrdenVenta() {
         <ArrowLeft size={18} className="mr-1" /> Volver
       </button>
 
-      <h1 className="text-2xl font-bold mb-6">Nueva Orden de Venta</h1>
+      <PageHeader
+        titulo="Nueva Orden de Venta"
+      />
 
       {/* ── Card: Datos del pedido ── */}
       <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
@@ -1174,7 +1177,7 @@ export default function AddOrdenVenta() {
           type="button"
           onClick={handleSubmit}
           disabled={isSubmitting}
-          className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium transition-colors disabled:opacity-50"
+          className="btn btn-primario"
         >
           {isSubmitting ? "Guardando..." : "Guardar Orden"}
         </button>
@@ -1199,7 +1202,7 @@ export default function AddOrdenVenta() {
               type="button"
               onClick={crearOrden}
               disabled={isSubmitting}
-              className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+              className="btn btn-primario"
             >
               {isSubmitting ? "Creando…" : "Crear de todas formas"}
             </button>

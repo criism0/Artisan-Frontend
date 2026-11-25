@@ -7,6 +7,7 @@ import AnalisisSensorialDefinicionForm from "../../components/AnalisisSensorial/
 import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function PautaElaboracionEdit() {
   const { id } = useParams();
@@ -215,11 +216,10 @@ export default function PautaElaboracionEdit() {
   return (
     <div>
       <div className="max-w-6xl mx-auto">
-        <div className="mb-4">
-          <BackButton to={`/catalogo/pautas-elaboracion/${id}`} />
-        </div>
-
-        <h1 className="text-2xl font-bold text-text mb-6">Editar Pauta de Elaboración</h1>
+        <PageHeader
+          volverA={`/catalogo/pautas-elaboracion/${id}`}
+          titulo="Editar Pauta de Elaboración"
+        />
 
         {/* ─────────────── SECCIÓN 1: DATOS DE LA PAUTA ─────────────── */}
         <div className="bg-white p-6 rounded-lg shadow space-y-6 mb-8">
@@ -311,7 +311,7 @@ export default function PautaElaboracionEdit() {
 
           <button
             onClick={handleSubmit}
-            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+            className="btn btn-primario"
           >
             Actualizar Pauta de Elaboración
           </button>

@@ -6,6 +6,7 @@ import { toast } from "../../lib/toast";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { esEmailValido } from "../../services/formatHelpers";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function AddUsuario() {
   const navigate = useNavigate();
@@ -71,11 +72,10 @@ export default function AddUsuario() {
           <Spinner size="lg" />
         </div>
       )}
-      <div className="mb-4">
-        <BackButton to="/admin/usuarios" />
-      </div>
-
-      <h1 className="text-2xl font-bold text-text mb-6">Registrar Usuario</h1>
+      <PageHeader
+        volverA="/admin/usuarios"
+        titulo="Registrar Usuario"
+      />
 
       <form
         onSubmit={handleSubmit}
@@ -123,7 +123,7 @@ export default function AddUsuario() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded disabled:opacity-50"
+            className="btn btn-primario"
           >
             {isSubmitting ? "Registrando..." : "Registrar Usuario"}
           </button>

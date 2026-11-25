@@ -180,7 +180,7 @@ export default function ProductosBaseManager({
             type="button"
             onClick={handleAddProducto}
             disabled={loading}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn btn-primario"
           >
             Añadir Producto
           </button>

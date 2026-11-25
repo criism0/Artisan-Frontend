@@ -16,6 +16,7 @@ import {
   ModelType,
   ScopeType,
 } from "../../services/scopeCheck";
+import PageHeader from "../../components/UI/PageHeader";
 
 const CATEGORIAS = [
   { value: "", label: "Todas" },
@@ -405,10 +406,9 @@ export default function InventarioBultos() {
           <Spinner size="lg" />
         </div>
       )}
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <h1 className="text-2xl font-bold">Inventario de Bultos</h1>
-
-        <div className="flex flex-col items-end gap-1">
+      <PageHeader
+        titulo="Inventario de Bultos"
+        acciones={<div className="flex flex-col items-end gap-1">
           <span className="text-xs text-gray-400">Exportar a Google Sheets</span>
           <div className="flex items-center gap-2">
             {selectedIds.size > 0 && (
@@ -424,8 +424,8 @@ export default function InventarioBultos() {
               title="Exportar a Google Sheets"
             />
           </div>
-        </div>
-      </div>
+        </div>}
+      />
 
       <div className="bg-white shadow rounded p-4 mb-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">

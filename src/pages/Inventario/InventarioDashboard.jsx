@@ -28,6 +28,8 @@ import { formatCLP, formatCLPCompact } from "../../services/formatHelpers";
 import KpiCard from "../../components/UI/KpiCard";
 import PanelConsumoInterno from "../../components/Inventario/PanelConsumoInterno.jsx";
 import { formatFecha } from "../../lib/dateUtils";
+import { MORADO } from "../../marca";
+import PageHeader from "../../components/UI/PageHeader";
 
 const formatNumCL = (num) =>
   new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(num || 0);
@@ -81,14 +83,15 @@ export default function InventarioDashboard() {
   return (
     <div>
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-text">Dashboard de Inventario</h1>
-            <p className="text-sm text-gray-500 capitalize mt-1">
-              {formatoFechaLarga(new Date())}{" "}
+        <PageHeader
+          titulo="Dashboard de Inventario"
+          subtitulo={
+            <>
+              <span className="capitalize">{formatoFechaLarga(new Date())}</span>{" "}
               <span className="text-xs text-gray-400">· Snapshot del estado actual</span>
-            </p>
-          </div>
+            </>
+          }
+          acciones={
           <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => navigate("/inventario/stock")}
@@ -103,7 +106,8 @@ export default function InventarioDashboard() {
               Ver bultos
             </button>
           </div>
-        </div>
+          }
+        />
 
         {error && (
           <div className="bg-white p-8 rounded-lg shadow text-center">
@@ -395,11 +399,11 @@ function PanelValorInventario({ api, bodegas }) {
             <div className="overflow-x-auto">
               <svg viewBox={`0 0 ${W} ${H}`} className="w-full max-w-2xl" role="img" aria-label="Evolución del valor de inventario">
                 <polyline
-                  fill="none" stroke="#7A5AF8" strokeWidth="2"
+                  fill="none" stroke={MORADO} strokeWidth="2"
                   points={puntos.map((p) => `${p.x},${p.y}`).join(" ")}
                 />
                 {puntos.map((p) => (
-                  <circle key={p.s.id} cx={p.x} cy={p.y} r="3.5" fill="#7A5AF8" />
+                  <circle key={p.s.id} cx={p.x} cy={p.y} r="3.5" fill={MORADO} />
                 ))}
               </svg>
             </div>

@@ -8,6 +8,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import toast from "../../lib/toast.js";
 import { mensajeDelBackend } from "../../utils/mensajeError.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function ListaPrecioEdit() {
   const { id } = useParams();
@@ -126,10 +127,10 @@ export default function ListaPrecioEdit() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to={`/comercial/listas-precio/${id}`} />
-      </div>
-      <h1 className="text-2xl font-bold text-text mb-4">Editar Lista de Precio</h1>
+      <PageHeader
+        volverA={`/comercial/listas-precio/${id}`}
+        titulo="Editar Lista de Precio"
+      />
       {error && (
         <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">
           {error}

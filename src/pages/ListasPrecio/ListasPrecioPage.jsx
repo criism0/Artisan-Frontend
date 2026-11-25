@@ -104,7 +104,7 @@ export default function ListasPrecio() {
       emptyMessage="No hay listas de precio registradas."
       headerActions={
         <button
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+          className="btn btn-primario"
           onClick={() => navigate("/comercial/listas-precio/nuevo")}
         >
           Añadir Lista de Precio

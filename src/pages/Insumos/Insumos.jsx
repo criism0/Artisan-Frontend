@@ -150,19 +150,19 @@ export default function InsumosPage() {
         <>
           <BackButton to="/inicio" />
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="btn btn-primario"
             onClick={() => navigate("/catalogo/insumos/nuevo")}
           >
             Añadir Insumo
           </button>
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="btn btn-primario"
             onClick={() => navigate("/catalogo/insumos/proveedores")}
           >
             Asociar Insumo
           </button>
           <button
-            className="text-primary border border-primary hover:bg-gray-100 font-medium text-sm flex items-center gap-2 px-4 py-2 rounded-md transition"
+            className="btn btn-secundario gap-2"
             onClick={() => navigate("/catalogo/categorias-insumo")}
           >
             Ver Categorías

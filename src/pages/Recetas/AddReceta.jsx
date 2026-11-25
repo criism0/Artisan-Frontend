@@ -5,6 +5,7 @@ import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmModal";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import PageHeader from "../../components/UI/PageHeader";
 
 // ────────────────────────────────────────────────
 // CONSTANTS
@@ -369,11 +370,10 @@ export default function AddReceta() {
         }}
         confirmText="Crear receta igualmente"
       />
-      <div className="mb-4">
-        <BackButton to="/catalogo/recetas" />
-      </div>
-
-      <h1 className="text-2xl font-bold text-text mb-6">Añadir Receta</h1>
+      <PageHeader
+        volverA="/catalogo/recetas"
+        titulo="Añadir Receta"
+      />
 
       {/* ─────────────── SECCIÓN 1: CREACIÓN DE RECETA ─────────────── */}
       <div className="bg-white p-6 rounded-lg shadow space-y-6">

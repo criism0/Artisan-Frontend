@@ -52,7 +52,7 @@ export default function CostosIndirectosTab({
                 <div className="flex items-end">
                   <button
                     type="button"
-                    className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium"
+                    className="btn btn-primario w-full"
                     onClick={onAddCostoReceta}
                   >
                     Asociar

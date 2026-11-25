@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BackButton } from "../../components/Buttons/ActionButtons";
 import { toast } from "../../lib/toast";
 import { crearFormulario, actualizarFormulario } from "../../services/calidad";
 import { Spinner } from "../../components/UI/Spinner";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import PageHeader from "../../components/UI/PageHeader";
 
 const TIPOS_CAMPO = [
   { value: "texto", label: "Texto corto" },
@@ -260,25 +260,16 @@ export default function FormularioBuilder({ initialData = null }) {
   return (
     <div>
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <BackButton to="/calidad/formularios" />
-          <button
-            onClick={handleGuardar}
-            disabled={saving}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm disabled:opacity-50 flex items-center gap-2"
-          >
-            {saving && <Spinner size="sm" />}
-            {saving
-              ? "Guardando..."
-              : initialData?.id
-              ? "Guardar cambios"
-              : "Guardar formulario"}
-          </button>
-        </div>
-
-        <h1 className="text-2xl font-bold text-text mb-6">
-          {initialData?.id ? "Editar Formulario" : "Nuevo Formulario"}
-        </h1>
+        <PageHeader
+          volverA="/calidad/formularios"
+          titulo={initialData?.id ? "Editar formulario" : "Nuevo formulario"}
+          acciones={
+            <button onClick={handleGuardar} disabled={saving} className="btn btn-primario">
+              {saving && <Spinner size="sm" />}
+              {saving ? "Guardando..." : initialData?.id ? "Guardar cambios" : "Guardar formulario"}
+            </button>
+          }
+        />
 
         {/* Datos generales */}
         <div className="bg-white p-6 rounded-lg shadow space-y-4 mb-6">
@@ -369,7 +360,7 @@ export default function FormularioBuilder({ initialData = null }) {
             </h2>
             <button
               onClick={addSeccion}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm"
+              className="btn btn-primario"
             >
               Agregar sección
             </button>
@@ -499,7 +490,7 @@ function SeccionCard({
           <button
             type="button"
             onClick={onAddCampo}
-            className="px-3 py-1.5 bg-primary text-white rounded text-xs hover:bg-primary-dark"
+            className="btn btn-primario px-3 py-1.5 rounded text-xs"
           >
             + Campo
           </button>

@@ -115,7 +115,7 @@ export default function NombreFacturacionSelector({ value, onChange, disabled = 
           </select>
           <button
             type="button"
-            className="px-3 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 whitespace-nowrap"
+            className="btn btn-secundario hover:bg-primary/10 whitespace-nowrap"
             onClick={() => setCreating(true)}
             disabled={disabled}
           >
@@ -135,7 +135,7 @@ export default function NombreFacturacionSelector({ value, onChange, disabled = 
             />
             <button
               type="button"
-              className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+              className="btn btn-primario"
               onClick={() => handleCrear(false)}
               disabled={isSaving}
             >

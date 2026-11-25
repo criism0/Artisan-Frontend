@@ -31,6 +31,7 @@ import {
 } from "../../services/produccionAnalytics";
 import KpiCard from "../../components/UI/KpiCard";
 import { formatFecha } from "../../lib/dateUtils";
+import PageHeader from "../../components/UI/PageHeader";
 
 const formatNumCL = (num) =>
   new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(num || 0);
@@ -91,14 +92,10 @@ export default function ProduccionDashboard() {
   return (
     <div>
       <div className="max-w-7xl mx-auto">
-        <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-text">Dashboard de Producción</h1>
-            <p className="text-sm text-gray-500 capitalize mt-1">
-              {formatoFechaLarga(new Date())}
-            </p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
+        <PageHeader
+          titulo="Dashboard de Producción"
+          subtitulo={formatoFechaLarga(new Date())}
+          acciones={<div className="flex gap-2 flex-wrap">
             <button
               onClick={() => navigate("/produccion/elaboraciones")}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
@@ -117,8 +114,8 @@ export default function ProduccionDashboard() {
             >
               Nueva elaboración
             </button>
-          </div>
-        </div>
+          </div>}
+        />
 
         {error && (
           <div className="bg-white p-8 rounded-lg shadow text-center">
@@ -427,7 +424,7 @@ function GraficoEficienciaLote({ api, filtrosOpciones }) {
         )}
         <button 
           onClick={aplicar} 
-          className="px-3 py-1.5 bg-primary text-white text-xs rounded-lg hover:bg-primary-dark"
+          className="btn btn-primario px-3 py-1.5 text-xs rounded-lg"
         >
           Aplicar
         </button>
@@ -732,7 +729,7 @@ function GraficoRendimiento({ api, filtrosOpciones }) {
         )}
         <button 
           onClick={aplicar} 
-          className="px-3 py-1.5 bg-primary text-white text-xs rounded-lg hover:bg-primary-dark"
+          className="btn btn-primario px-3 py-1.5 text-xs rounded-lg"
         >
           Aplicar
         </button>

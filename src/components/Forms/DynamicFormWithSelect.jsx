@@ -118,7 +118,7 @@ export default function DynamicFormWithSelect({ entity, onSubmit, validationRule
           {renderField(key, value)}
         </div>
       ))}
-      <button type="submit" className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover">
+      <button type="submit" className="btn btn-primario">
         Guardar Cambios
       </button>
     </form>

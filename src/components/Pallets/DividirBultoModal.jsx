@@ -233,7 +233,7 @@ export default function DividirBultoModal({ bulto, onClose, onSuccess }) {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-primary text-white rounded hover:bg-hover disabled:opacity-50"
+              className="btn btn-primario"
               disabled={loading || excedeDisponible}
             >
               {loading ? 'Procesando...' : 'Dividir'}

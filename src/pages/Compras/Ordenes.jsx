@@ -486,7 +486,7 @@ export default function Ordenes() {
         renderExpandedRow={isCompactView ? renderExpandedRow : undefined}
         headerActions={
           <button
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+            className="btn btn-primario"
             onClick={() => navigate("/adquisiciones/ordenes-compra/nuevo")}
           >
             Añadir Orden

@@ -6,6 +6,7 @@ import { toast } from "../../lib/toast";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function EditCategoria() {
   const { id } = useParams();
@@ -104,7 +105,9 @@ export default function EditCategoria() {
         </div>
       )}
       <BackButton to="/catalogo/categorias-insumo" />
-      <h1 className="text-2xl font-bold text-text mb-6">Editar Categoría</h1>
+      <PageHeader
+        titulo="Editar Categoría"
+      />
 
       {error && (
         <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">
@@ -161,7 +164,7 @@ export default function EditCategoria() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded transition disabled:opacity-50"
+            className="btn btn-primario"
           >
             {isSubmitting ? "Guardando..." : "Guardar Cambios"}
           </button>

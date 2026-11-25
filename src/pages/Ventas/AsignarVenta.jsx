@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { ArrowLeft, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
+import PageHeader from "../../components/UI/PageHeader";
 
 // Sin búsqueda, la lista de bultos disponibles se colapsa a estas filas para no
 // saturar la vista; con búsqueda activa se muestran todas las coincidencias.
@@ -523,23 +524,11 @@ export default function AsignarVenta() {
           <Spinner size="lg" />
         </div>
       )}
-      <button
-        onClick={() => navigate("/ventas/ordenes")}
-        className="flex items-center text-primary mb-4 hover:underline"
-      >
-        <ArrowLeft size={18} className="mr-1" /> Volver
-      </button>
-
-      <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-text">
-            Asignar Bultos a la Orden #{ordenId}
-          </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Crea pallets y asígnales bultos para cubrir cada línea de la orden.
-          </p>
-        </div>
-        {totalLineas > 0 && (
+      <PageHeader
+        volverA="/ventas/ordenes"
+        titulo={`Asignar bultos a la orden #${ordenId}`}
+        subtitulo="Crea pallets y asígnales bultos para cubrir cada línea de la orden."
+        estado={totalLineas > 0 && (
           <span
             className={`px-3 py-1.5 rounded-full text-sm font-medium ${
               todoAsignado ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
@@ -548,7 +537,7 @@ export default function AsignarVenta() {
             {lineasCompletas} de {totalLineas} líneas completas
           </span>
         )}
-      </div>
+      />
 
       {/* SECCIÓN DE RESUMEN DE PRODUCTOS */}
       <div className="mb-8">

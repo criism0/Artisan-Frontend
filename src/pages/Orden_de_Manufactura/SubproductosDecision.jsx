@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function SubproductosDecision() {
   const { id } = useParams();
@@ -66,7 +67,9 @@ export default function SubproductosDecision() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 bg-white rounded shadow">
-      <h1 className="text-2xl font-bold mb-6">¿Se produjeron subproductos?</h1>
+      <PageHeader
+        titulo="¿Se produjeron subproductos?"
+      />
       
       <div className="mb-6">
         <p className="text-gray-700 mb-4">

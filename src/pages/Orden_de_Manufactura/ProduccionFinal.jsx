@@ -1452,7 +1452,7 @@ export default function ProduccionFinal() {
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2 bg-primary text-white rounded hover:bg-hover disabled:opacity-60"
+            className="btn btn-primario"
           >
             {loading ? "Guardando…" : "Registrar Producción"}
           </button>

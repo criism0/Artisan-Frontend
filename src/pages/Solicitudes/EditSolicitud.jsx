@@ -423,7 +423,7 @@ export default function EditSolicitud() {
             <button
               onClick={handleSubmit}
               disabled={loading || !solicitudEditable}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover text-sm disabled:opacity-50"
+              className="btn btn-primario"
             >
               {loading ? "Guardando…" : "Guardar cambios"}
             </button>

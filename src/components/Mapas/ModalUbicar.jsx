@@ -84,7 +84,7 @@ export default function ModalUbicar({ abierto, onCerrar, titulo, texto, actual, 
             type="button"
             onClick={guardar}
             disabled={!movido || ocupado}
-            className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary-dark disabled:opacity-50"
+            className="btn btn-primario"
           >
             Guardar ubicación
           </button>

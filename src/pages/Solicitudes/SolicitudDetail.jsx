@@ -1004,7 +1004,7 @@ export default function SolicitudDetail() {
                   (emiteAlEnviar && transporteExigido && !idTransporte) ||
                   (guiaFueraDelSistema && gds.length === 0 && !guiaDespacho.trim())
                 }
-                className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+                className="btn btn-primario"
               >
                 {emitiendoGD ? "Emitiendo guía…" : emiteAlEnviar ? "Emitir guía y enviar" : "Enviar"}
               </button>

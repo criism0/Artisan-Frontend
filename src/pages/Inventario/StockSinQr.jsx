@@ -228,7 +228,7 @@ function ModalMovimiento({ tipo, fila, productos, bodega, onCerrar, onListo }) {
       pie={
         <>
           <button type="button" onClick={onCerrar} className="px-4 py-2 text-sm rounded-lg border border-gray-300">Volver</button>
-          <button type="button" onClick={guardar} disabled={!valido || guardando} className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary-dark disabled:opacity-50">
+          <button type="button" onClick={guardar} disabled={!valido || guardando} className="btn btn-primario">
             {guardando ? "Guardando…" : "Guardar"}
           </button>
         </>
@@ -358,7 +358,7 @@ function ModalAgregar({ yaMarcados, onCerrar, onListo }) {
       pie={
         <>
           <button type="button" onClick={onCerrar} className="px-4 py-2 text-sm rounded-lg border border-gray-300">Volver</button>
-          <button type="button" onClick={guardar} disabled={!idNf || guardando} className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary-dark disabled:opacity-50">Agregar</button>
+          <button type="button" onClick={guardar} disabled={!idNf || guardando} className="btn btn-primario">Agregar</button>
         </>
       }
     >

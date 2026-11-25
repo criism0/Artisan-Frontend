@@ -5,6 +5,7 @@ import { toast } from "../../lib/toast";
 import { BackButton, EditButton } from "../../components/Buttons/ActionButtons";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function DetailPVAPorProducto() {
   const { id } = useParams();
@@ -60,19 +61,16 @@ export default function DetailPVAPorProducto() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/catalogo/pva-por-producto" />
-      </div>
-
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-text">Detalle PVA por Producto</h1>
-        <div className="flex gap-2">
+      <PageHeader
+        volverA="/catalogo/pva-por-producto"
+        titulo="Detalle PVA por Producto"
+        acciones={<div className="flex gap-2">
           <EditButton
             onClick={() => navigate(`/catalogo/pva-por-producto/${id}/editar`)}
             tooltipText="Editar PVA por Producto"
           />
-        </div>
-      </div>
+        </div>}
+      />
 
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">
         <h2 className="text-lg font-semibold text-text mb-4">Información del PVA</h2>

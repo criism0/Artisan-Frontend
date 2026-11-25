@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { AlertCircle, ArrowLeft, DollarSign, RefreshCw } from "lucide-react";
+import PageHeader from "../../components/UI/PageHeader";
 
 function formatMoneda(valor, moneda) {
   if (valor == null) return "—";
@@ -44,26 +45,25 @@ export default function ConsumoGeminiPage() {
       <div className="mb-4">
         <Link
           to="/ventas/cola-ia"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-[#7A5AF8] transition"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-primary transition"
         >
           <ArrowLeft size={14} /> Volver a Cola IA
         </Link>
       </div>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Consumo API de Gemini</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Gasto real del mes en curso, desde la exportación de facturación de Google Cloud.
-          </p>
-        </div>
-        <button
+      <PageHeader
+        titulo="Consumo API de Gemini"
+        subtitulo="Gasto real del mes en curso, desde la exportación de facturación de Google Cloud."
+        acciones={
+<>
+<button
           onClick={fetchData}
           disabled={loading}
-          className="flex items-center gap-1.5 text-sm text-[#7A5AF8] hover:text-[#6648e0] font-medium disabled:opacity-50 shrink-0"
+          className="flex items-center gap-1.5 text-sm text-primary hover:text-primary-dark font-medium disabled:opacity-50 shrink-0"
         >
           <RefreshCw className={loading ? "animate-spin" : ""} size={14} /> Actualizar
         </button>
-      </div>
+</>}
+      />
 
       {loading ? (
         <div className="text-center py-20 text-gray-400">Cargando…</div>
@@ -101,7 +101,7 @@ export default function ConsumoGeminiPage() {
                     className="flex-1 flex flex-col items-center justify-end h-full group relative"
                   >
                     <div
-                      className="w-full bg-[#7A5AF8]/70 hover:bg-[#7A5AF8] rounded-t transition-colors"
+                      className="w-full bg-primary/70 hover:bg-primary rounded-t transition-colors"
                       style={{ height: maxCosto > 0 ? `${Math.max((d.costo / maxCosto) * 100, 2)}%` : "2%" }}
                     />
                     <div className="absolute bottom-full mb-1 hidden group-hover:block bg-gray-900 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10">

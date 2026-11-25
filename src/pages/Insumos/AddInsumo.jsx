@@ -6,6 +6,7 @@ import { useApi, ApiError } from "../../lib/api";
 import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmModal";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function AddInsumo() {
   const navigate = useNavigate();
@@ -137,7 +138,9 @@ export default function AddInsumo() {
   return (
     <div>
       <BackButton to="/catalogo/insumos" />
-      <h1 className="text-2xl font-bold text-text mb-6">Añadir Insumo</h1>
+      <PageHeader
+        titulo="Añadir Insumo"
+      />
 
       {error && <div className="p-3 bg-red-100 text-red-700 rounded mb-4 text-sm">{error}</div>}
 
@@ -225,7 +228,7 @@ export default function AddInsumo() {
           {errors.semanas_seguridad && <p className="text-red-500 text-sm mt-1">{errors.semanas_seguridad}</p>}
         </div>
         <div className="flex justify-end">
-          <button className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded" type="submit">
+          <button className="btn btn-primario" type="submit">
             Crear Insumo
           </button>
         </div>

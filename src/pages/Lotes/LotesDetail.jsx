@@ -6,6 +6,7 @@ import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 import { formatFecha } from "../../lib/dateUtils";
+import PageHeader from "../../components/UI/PageHeader";
 
 function Row({ label, value }) {
   return (
@@ -132,15 +133,18 @@ export default function LoteDetail() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Detalle de Lote</h1>
-        <button
+      <PageHeader
+        titulo="Detalle de Lote"
+        acciones={
+<>
+<button
           onClick={() => navigate("/produccion/lotes")}
           className="btn btn-secondary px-4 py-2 rounded-lg shadow"
         >
           Volver
         </button>
-      </div>
+</>}
+      />
 
       <div className="bg-white rounded-xl shadow border">
         <div className="px-4 py-3 border-b font-semibold text-gray-700">

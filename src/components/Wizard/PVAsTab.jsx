@@ -522,7 +522,7 @@ export default function PVAsTab({
                   </div>
                   <button
                     type="button"
-                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+                    className="btn btn-primario"
                     onClick={handleCrearPVA}
                     disabled={loading || !canReadPVAProduct}
                   >
@@ -643,7 +643,7 @@ export default function PVAsTab({
                       </button>
                       <button
                         type="button"
-                        className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+                        className="btn btn-primario"
                         onClick={handleCrearProcesoYAgregar}
                         disabled={creandoProceso || loading || !canWriteAddedValueProcess || !canWritePVAProduct}
                       >
@@ -769,7 +769,7 @@ export default function PVAsTab({
                                 </div>
                                 <button
                                   type="button"
-                                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+                                  className="btn btn-primario"
                                   onClick={() => handleAddInsumo(pva.id)}
                                   disabled={loading}
                                 >
@@ -834,7 +834,7 @@ export default function PVAsTab({
             <div className="flex justify-end mt-4">
               <button
                 type="button"
-                className="bg-primary hover:bg-hover text-white px-6 py-2 rounded"
+                className="btn btn-primario"
                 onClick={onNext}
               >
                 Continuar

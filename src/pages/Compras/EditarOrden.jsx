@@ -11,6 +11,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function EditOrden() {
   const { user } = useAuth();
@@ -480,7 +481,9 @@ export default function EditOrden() {
         </div>
       )}
       <BackButton to="/adquisiciones/ordenes-compra" />
-      <h1 className="text-2xl font-bold text-text mb-4">Editar Orden de Compra</h1>
+      <PageHeader
+        titulo="Editar Orden de Compra"
+      />
 
       <ConfirmModal
         open={showInsumoError}
@@ -801,7 +804,7 @@ export default function EditOrden() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 bg-primary text-white rounded hover:bg-hover disabled:opacity-50"
+              className="btn btn-primario"
             >
               {isSubmitting ? "Guardando..." : "Guardar Cambios"}
             </button>

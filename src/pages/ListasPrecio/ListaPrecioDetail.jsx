@@ -6,6 +6,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { getNombreComercial } from "../../utils/nombreComercial.js";
 import toast from "../../lib/toast.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function ListaPrecioDetail() {
   const { id } = useParams();
@@ -103,12 +104,10 @@ export default function ListaPrecioDetail() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/comercial/listas-precio" />
-      </div>
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-text">Detalle de la Lista de Precio</h1>
-        <div className="flex gap-2 items-center">
+      <PageHeader
+        volverA="/comercial/listas-precio"
+        titulo="Detalle de la Lista de Precio"
+        acciones={<div className="flex gap-2 items-center">
           <EditButton
             onClick={() => navigate(`/comercial/listas-precio/${id}/editar`)}
             tooltipText="Editar Lista de Precio"
@@ -118,8 +117,8 @@ export default function ListaPrecioDetail() {
             tooltipText="Eliminar Lista de Precio"
             entityName={`lista de precio ${listaPrecio.nombre || ""}`}
           />
-        </div>
-      </div>
+        </div>}
+      />
 
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
         <h2 className="text-lg font-semibold text-text mb-4">Información de la Lista</h2>

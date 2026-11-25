@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { EditButton, BackButton } from "../../components/Buttons/ActionButtons";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function UsuarioById() {
   const { id } = useParams();
@@ -34,16 +35,13 @@ export default function UsuarioById() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/admin/usuarios" />
-      </div>
-
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-text">Detalle de Usuario</h1>
-        <div className="flex gap-2">
+      <PageHeader
+        volverA="/admin/usuarios"
+        titulo="Detalle de Usuario"
+        acciones={<div className="flex gap-2">
           <EditButton onClick={() => navigate(`/admin/usuarios/${usuario.id}/editar`)} tooltipText="Editar Usuario" />
-        </div>
-      </div>
+        </div>}
+      />
 
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
         <h2 className="text-lg font-semibold text-text mb-4">Información del Usuario</h2>

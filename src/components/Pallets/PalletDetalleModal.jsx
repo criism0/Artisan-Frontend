@@ -81,7 +81,7 @@ export default function PalletDetalleModal({ pallet, abierto, onCerrar }) {
           <button
             onClick={descargarEtiquetas}
             disabled={imprimiendo || idsBultos.length === 0}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-dark disabled:opacity-50"
+            className="btn btn-primario gap-2"
           >
             {imprimiendo ? (
               <>

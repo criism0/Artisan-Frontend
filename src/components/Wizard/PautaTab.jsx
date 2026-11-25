@@ -32,7 +32,7 @@ export default function PautaTab({
         </button>
         <button
           type="button"
-          className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium"
+          className="btn btn-primario"
           onClick={onGuardar}
         >
           Guardar pauta

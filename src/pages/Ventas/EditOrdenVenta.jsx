@@ -14,6 +14,7 @@ import {
   descuentoAGuardar,
   formatearDescuento,
 } from "../../utils/descuentoLinea.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function EditOrdenVenta() {
   const canWriteSaleOrder = checkScope(ModelType.ORDEN_VENTA, ScopeType.WRITE);
@@ -412,7 +413,9 @@ export default function EditOrdenVenta() {
         <ArrowLeft size={18} className="mr-1" /> Volver
       </button>
 
-      <h1 className="text-2xl font-bold mb-6">Editar Orden de Venta #{id}</h1>
+      <PageHeader
+        titulo={`Editar Orden de Venta #${id}`}
+      />
 
       {/* ── Card: Datos del pedido ── */}
       <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
@@ -676,7 +679,7 @@ export default function EditOrdenVenta() {
           <button
             type="button"
             onClick={handleAddProduct}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white hover:bg-hover transition-colors"
+            className="btn btn-primario"
           >
             Agregar producto
           </button>
@@ -814,7 +817,7 @@ export default function EditOrdenVenta() {
       <div className="flex justify-end">
         <button
           onClick={handleSubmit}
-          className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-hover font-medium transition-colors"
+          className="btn btn-primario"
         >
           Guardar Cambios
         </button>

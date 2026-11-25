@@ -13,6 +13,7 @@ import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import RutLookupField from "../../components/RUT/RutLookupField.jsx";
 import { esEmailValido, formatPhoneInput, validarTelefonoCL } from "../../services/formatHelpers";
+import PageHeader from "../../components/UI/PageHeader";
 
 
 export default function AddClientes() {
@@ -391,10 +392,10 @@ export default function AddClientes() {
           <Spinner size="lg" />
         </div>
       )}
-      <div className="mb-4">
-        <BackButton to="/comercial/clientes" />
-      </div>
-      <h1 className="text-2xl font-bold text-text mb-6">Añadir Cliente</h1>
+      <PageHeader
+        volverA="/comercial/clientes"
+        titulo="Añadir Cliente"
+      />
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Sección 1: Clasificación Comercial */}
@@ -737,7 +738,7 @@ export default function AddClientes() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-hover font-medium text-lg disabled:opacity-50"
+            className="btn btn-primario text-lg"
           >
             {isSubmitting ? "Guardando..." : "Guardar Cliente"}
           </button>

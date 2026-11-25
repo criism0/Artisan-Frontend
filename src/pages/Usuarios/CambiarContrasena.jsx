@@ -4,6 +4,7 @@ import { api } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function UsuariosEdit() {
   const { id } = useParams();
@@ -85,7 +86,9 @@ export default function UsuariosEdit() {
     <div>
       <BackButton to={`/admin/usuarios/${id}`} />
       <div className="mt-4">
-        <h1 className="text-2xl font-bold mb-6">Cambiar contraseña</h1>
+        <PageHeader
+          titulo="Cambiar contraseña"
+        />
       </div>
 
       {loading ? (

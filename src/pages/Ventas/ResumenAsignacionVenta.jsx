@@ -7,6 +7,7 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { useConfirm } from "../../components/Modals/ConfirmProvider.jsx";
 import { formatFecha } from "../../lib/dateUtils";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function ResumenAsignacionVenta() {
   const { ordenId } = useParams();
@@ -174,9 +175,9 @@ export default function ResumenAsignacionVenta() {
         <ArrowLeft size={18} className="mr-1" /> Volver a Órdenes
       </button>
 
-      <h1 className="text-2xl font-bold mb-6 text-text">
-        Resumen de Asignación - Orden #{ordenId}
-      </h1>
+      <PageHeader
+        titulo={`Resumen de Asignación - Orden #${ordenId}`}
+      />
 
       {/* Información de la Orden */}
       <div className="bg-white shadow rounded-xl p-6 mb-6">

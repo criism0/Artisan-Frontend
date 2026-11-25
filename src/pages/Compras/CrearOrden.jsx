@@ -11,6 +11,7 @@ import { useAuth } from "../../auth/AuthContext";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function CrearOrden() {
   const { user } = useAuth();
@@ -452,11 +453,10 @@ export default function CrearOrden() {
           <Spinner size="lg" />
         </div>
       )}
-      <div className="mb-4">
-        <BackButton to="/adquisiciones/ordenes-compra" />
-      </div>
-
-      <h1 className="text-2xl font-bold text-text mb-4">Crear Orden de Compra</h1>
+      <PageHeader
+        volverA="/adquisiciones/ordenes-compra"
+        titulo="Crear Orden de Compra"
+      />
 
       <ConfirmModal
         open={showInsumoError}
@@ -810,7 +810,7 @@ export default function CrearOrden() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-2 bg-primary text-white rounded hover:bg-hover disabled:opacity-50"
+              className="btn btn-primario"
             >
               {isSubmitting ? "Guardando..." : "Guardar Orden"}
             </button>

@@ -160,9 +160,7 @@ export default function VerifyResetCode() {
             <button
               type="submit"
               disabled={loading || !isComplete}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3
-                          text-white font-medium shadow-sm transition hover:bg-primary-dark
-                          disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn btn-primario w-full gap-2"
             >
               {loading && (<Spinner/>)}
               Verificar código

@@ -94,7 +94,7 @@ export default function DatosProductoComercialTab({ productoId, productoForm, se
       <div className="flex justify-end pt-2">
         <button
           type="button"
-          className="bg-primary hover:bg-hover text-white px-6 py-2 rounded font-medium"
+          className="btn btn-primario"
           onClick={onGuardarProducto}
         >
           {productoId ? "Actualizar y continuar" : "Guardar y continuar"}

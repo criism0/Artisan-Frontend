@@ -203,7 +203,7 @@ export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, compacto = 
               type="button"
               onClick={confirmarSubida}
               disabled={subiendo}
-              className="px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+              className="btn btn-primario"
             >
               {subiendo ? 'Subiendo…' : 'Subir archivo'}
             </button>

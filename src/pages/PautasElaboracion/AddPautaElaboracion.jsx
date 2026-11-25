@@ -6,6 +6,7 @@ import StepsEditor from "../../components/Pautas/StepsEditor";
 import { toast } from "../../lib/toast";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function AddPautaElaboracion() {
   const navigate = useNavigate();
@@ -177,11 +178,10 @@ export default function AddPautaElaboracion() {
         </div>
       )}
       <div className="max-w-6xl mx-auto">
-        <div className="mb-4">
-          <BackButton to="/catalogo/pautas-elaboracion" />
-        </div>
-
-        <h1 className="text-2xl font-bold text-text mb-6">Añadir Pauta de Elaboración</h1>
+        <PageHeader
+          volverA="/catalogo/pautas-elaboracion"
+          titulo="Añadir Pauta de Elaboración"
+        />
 
         {/* ─────────────── SECCIÓN 1: DATOS DE LA PAUTA ─────────────── */}
         <div className="bg-white p-6 rounded-lg shadow space-y-6 mb-8">
@@ -242,7 +242,7 @@ export default function AddPautaElaboracion() {
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded disabled:opacity-50"
+            className="btn btn-primario"
           >
             {isSubmitting ? "Creando..." : "Crear Pauta de Elaboración"}
           </button>

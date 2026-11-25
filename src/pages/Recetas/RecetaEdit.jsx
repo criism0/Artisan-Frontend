@@ -7,6 +7,7 @@ import { AlertTriangle, Edit, X } from "lucide-react";
 import PautaEditor from "../../components/Pautas/PautaEditor";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 // ────────────────────────────────────────────────
 // CONSTANTS
@@ -392,11 +393,10 @@ export default function RecetaEdit() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to={`/catalogo/recetas/${id}`} />
-      </div>
-
-      <h1 className="text-2xl font-bold text-text mb-6">Editar Receta</h1>
+      <PageHeader
+        volverA={`/catalogo/recetas/${id}`}
+        titulo="Editar Receta"
+      />
 
       {/* SECCIÓN 1: DATOS DE LA RECETA */}
       <div className="bg-white p-6 rounded-lg shadow space-y-6 mb-8">
@@ -577,7 +577,7 @@ export default function RecetaEdit() {
       <div className="flex justify-end mt-8">
         <button
           onClick={handleSave}
-          className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+          className="btn btn-primario"
         >
           Guardar Cambios
         </button>
@@ -637,7 +637,7 @@ export default function RecetaEdit() {
                   </button>
                   <button
                     onClick={handleGuardarPauta}
-                    className="px-6 py-2 bg-primary hover:bg-primary-dark text-white rounded"
+                    className="btn btn-primario"
                   >
                     Guardar Pauta
                   </button>

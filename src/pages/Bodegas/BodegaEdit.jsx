@@ -6,6 +6,7 @@ import SimilarNameConfirmModal from "../../components/Modals/SimilarNameConfirmM
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { toast } from "../../lib/toast.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function BodegaEdit() {
   const { id } = useParams();
@@ -89,11 +90,10 @@ export default function BodegaEdit() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to={`/catalogo/bodegas/${id}`} />
-      </div>
-
-      <h1 className="text-2xl font-bold text-text mb-6">Editar Bodega</h1>
+      <PageHeader
+        volverA={`/catalogo/bodegas/${id}`}
+        titulo="Editar Bodega"
+      />
 
       {error && <div className="p-3 bg-red-100 text-red-700 rounded mb-4">{error}</div>}
 
@@ -165,7 +165,7 @@ export default function BodegaEdit() {
           <button
             type="submit"
             disabled={saving}
-            className="bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded"
+            className="btn btn-primario"
           >
             {saving ? "Guardando..." : "Actualizar Bodega"}
           </button>

@@ -10,6 +10,7 @@ import { api } from "../../lib/api.js";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import PageHeader from "../../components/UI/PageHeader";
 
 
 export default function ClienteDetail() {
@@ -82,12 +83,10 @@ export default function ClienteDetail() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/comercial/clientes" />
-      </div>
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold text-text">Detalle del Cliente</h1>
-        <div className="flex gap-2">
+      <PageHeader
+        volverA="/comercial/clientes"
+        titulo="Detalle del Cliente"
+        acciones={<div className="flex gap-2">
           <EditButton
             onClick={() => navigate(`/comercial/clientes/${clienteId}/editar`)}
             tooltipText="Editar Cliente"
@@ -97,8 +96,8 @@ export default function ClienteDetail() {
             tooltipText="Eliminar Cliente"
             entityName={`cliente ${cliente.nombre_empresa || ""}`}
           />
-        </div>
-      </div>
+        </div>}
+      />
 
       {/* Sección 1: Clasificación Comercial */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">

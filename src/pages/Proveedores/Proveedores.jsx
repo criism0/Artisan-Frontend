@@ -121,7 +121,7 @@ export default function ProveedoresPage() {
       emptyMessage="No hay proveedores registrados."
       headerActions={
         <button
-          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-hover"
+          className="btn btn-primario"
           onClick={() => navigate("/comercial/proveedores/nuevo")}
           aria-label="Añadir Proveedor"
         >

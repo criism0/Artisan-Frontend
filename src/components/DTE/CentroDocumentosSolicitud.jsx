@@ -157,7 +157,7 @@ export default function CentroDocumentosSolicitud({
                 type="button"
                 onClick={onEnviar}
                 disabled={cargando}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-hover disabled:opacity-50"
+                className="btn btn-primario gap-1.5"
               >
                 <Truck className="w-4 h-4" /> Emitir guía y enviar
               </button>

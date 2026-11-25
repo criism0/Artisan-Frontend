@@ -5,6 +5,7 @@ import { useApi } from '../../lib/api';
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from '../../services/scopeCheck.js';
 import toast from '../../lib/toast.js';
+import PageHeader from "../../components/UI/PageHeader";
 
 export default function RolDetail() {
   const [role, setRole] = useState(null);
@@ -56,22 +57,17 @@ export default function RolDetail() {
 
   return (
     <div>
-      <div className="mb-4">
-        <BackButton to="/admin/roles" />
-      </div>
-
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Detalle del Rol</h1>
-          <p className="text-sm text-gray-600 mt-1">Información completa del rol y sus permisos</p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        volverA="/admin/roles"
+        titulo="Detalle del Rol"
+        subtitulo="Información completa del rol y sus permisos"
+        acciones={<div className="flex gap-2">
           <EditButton
             onClick={() => navigate(`/admin/roles/${id}/editar`)}
             tooltipText="Editar Rol"
           />
-        </div>
-      </div>
+        </div>}
+      />
 
       {/* Role Information */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-6">

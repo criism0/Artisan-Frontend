@@ -10,6 +10,7 @@ import { mensajeError } from "../../utils/mensajeError.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { abreviaturaUnidad, cantidadConUnidad, fmtFechaHora } from "../../utils/consumoInterno.js";
 import { ModalDeshacer } from "./ConsumoInternoPage.jsx";
+import PageHeader from "../../components/UI/PageHeader";
 
 /**
  * Un consumo interno, completo (2026-09-28). Pedido de Cristóbal: en vez de leerlo en diez
@@ -79,7 +80,9 @@ export default function ConsumoInternoDetail() {
       <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold text-text">{consumo.materiaPrima?.nombre ?? "Insumo"}</h1>
+            <PageHeader
+              titulo={consumo.materiaPrima?.nombre ?? "Insumo"}
+            />
             {deshecho ? (
               <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Deshecho</span>
             ) : (
