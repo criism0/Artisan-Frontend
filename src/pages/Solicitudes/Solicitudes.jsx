@@ -1,21 +1,33 @@
 import { ViewDetailButton } from "../../components/Buttons/ActionButtons";
 import DataTable from "../../components/Tables/DataTable";
-import Selector from "../../components/Forms/Selector";
+import ChipsEstado from "../../components/UI/ChipsEstado.jsx";
+import Ayuda from "../../components/UI/Ayuda.jsx";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { formatFecha } from "../../lib/dateUtils";
-import { EstadoSolicitudBadge, claseEstadoSolicitud, normalizeEstadoSolicitud } from "../../utils/estadoSolicitud.jsx";
+import {
+  ESTADOS_SOLICITUD_CHIPS,
+  EstadoSolicitudBadge,
+  MarcasSolicitud,
+  marcasSolicitud,
+  normalizeEstadoSolicitud,
+  tienePerdida,
+} from "../../utils/estadoSolicitud.jsx";
+import { fechaDelPaso, DIAS_TRANSITO_LARGO } from "../../utils/solicitudesVista.js";
 
-const fmtFecha = (value) => formatFecha(value);
+const CLAVE_UI = "solicitudes_v2";
+
+const chipBase =
+  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors whitespace-nowrap";
 
 export default function Solicitudes() {
   const [solicitudes, setSolicitudes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [filtroEstado, setFiltroEstado] = useState("Todos");
-  const [filtroBodegaProv, setFiltroBodegaProv] = useState("Todas");
-  const [filtroBodegaSol, setFiltroBodegaSol] = useState("Todas");
+  const [origen, setOrigen] = useState("");
+  const [destino, setDestino] = useState("");
+  const [soloPerdida, setSoloPerdida] = useState(false);
   const navigate = useNavigate();
   const api = useApi();
 
@@ -23,21 +35,13 @@ export default function Solicitudes() {
     const fetchSolicitudes = async () => {
       try {
         const data = await api(`/solicitudes-mercaderia`);
-        const list = Array.isArray(data)
-          ? data.map((s) => ({
-              id: s.id,
-              bodegaProveedora: s.bodegaProveedora,
-              bodegaSolicitante: s.bodegaSolicitante,
-              usuarioSolicitante: s.usuarioSolicitante,
-              estado: normalizeEstadoSolicitud(s.estado),
-              createdAt: s.createdAt,
-              fecha_envio: s.fecha_envio,
-              fecha_recepcion: s.fecha_recepcion,
-              numero_guia_despacho: s.numero_guia_despacho,
-              medio_transporte: s.medio_transporte,
-            }))
-          : [];
-        setSolicitudes(list);
+        setSolicitudes(
+          (Array.isArray(data) ? data : []).map((s) => ({
+            ...s,
+            estado: normalizeEstadoSolicitud(s.estado),
+            usuarioSolicitante: s.usuarioSolicitante ?? s.Usuario,
+          }))
+        );
       } catch (err) {
         console.error("Error cargando solicitudes:", err);
         toast.error("No se pudieron cargar las solicitudes");
@@ -48,102 +52,121 @@ export default function Solicitudes() {
     fetchSolicitudes();
   }, [api]);
 
-  const estadoOptions = useMemo(
-    () => ["Todos", ...Array.from(new Set(solicitudes.map((s) => s.estado).filter(Boolean)))],
-    [solicitudes]
-  );
-
-  const buildBodegaOptions = (items, key) => {
+  const opcionesBodega = (clave) => {
     const map = new Map();
-    items.forEach((s) => {
-      const b = s[key];
-      if (b?.id && !map.has(String(b.id))) map.set(String(b.id), b.nombre || `Bodega ${b.id}`);
-    });
-    return [{ value: "Todas", label: "Todas" }, ...Array.from(map, ([value, label]) => ({ value, label }))];
+    for (const s of solicitudes) {
+      const b = s[clave];
+      if (b?.id != null && !map.has(String(b.id))) map.set(String(b.id), b.nombre || `Bodega ${b.id}`);
+    }
+    return [...map].sort((a, b) => a[1].localeCompare(b[1], "es"));
   };
+  const origenes = useMemo(() => opcionesBodega("bodegaProveedora"), [solicitudes]); // eslint-disable-line react-hooks/exhaustive-deps
+  const destinos = useMemo(() => opcionesBodega("bodegaSolicitante"), [solicitudes]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const bodegaProvOptions = useMemo(() => buildBodegaOptions(solicitudes, "bodegaProveedora"), [solicitudes]);
-  const bodegaSolOptions = useMemo(() => buildBodegaOptions(solicitudes, "bodegaSolicitante"), [solicitudes]);
-
-  // Filtros de negocio: se aplican ANTES de pasar la data al DataTable
-  const dataFiltrada = useMemo(() => {
-    let list = solicitudes;
-    if (filtroEstado !== "Todos") list = list.filter((s) => s.estado === filtroEstado);
-    if (filtroBodegaProv !== "Todas") {
-      list = list.filter((s) => String(s.bodegaProveedora?.id) === String(filtroBodegaProv));
-    }
-    if (filtroBodegaSol !== "Todas") {
-      list = list.filter((s) => String(s.bodegaSolicitante?.id) === String(filtroBodegaSol));
-    }
-    return list;
-  }, [solicitudes, filtroEstado, filtroBodegaProv, filtroBodegaSol]);
+  // Origen y destino filtran antes de los chips, así los conteos son de esa ruta.
+  const porRuta = useMemo(
+    () =>
+      solicitudes.filter(
+        (s) =>
+          (!origen || String(s.bodegaProveedora?.id) === origen) &&
+          (!destino || String(s.bodegaSolicitante?.id) === destino)
+      ),
+    [solicitudes, origen, destino]
+  );
+  const conPerdida = useMemo(() => porRuta.filter((s) => tienePerdida(s.resultado)).length, [porRuta]);
+  const datos = useMemo(() => (soloPerdida ? porRuta.filter((s) => tienePerdida(s.resultado)) : porRuta), [porRuta, soloPerdida]);
 
   const columns = [
-    { header: "ID", accessor: "id", sortable: true },
+    { header: "N°", accessor: "id", sortable: true, hideable: false, filtro: "numero" },
     {
-      header: "Bodega Proveedora",
-      accessor: "bodegaProveedora",
+      header: "Ruta",
+      accessor: "ruta",
       sortable: true,
-      sortValue: (row) => row?.bodegaProveedora?.nombre || "",
-      Cell: ({ value }) => value?.nombre || value?.id || "N/A",
+      sortValue: (row) => `${row.bodegaProveedora?.nombre ?? ""} ${row.bodegaSolicitante?.nombre ?? ""}`,
+      // Con nombres de bodega largos la ruta pasa a dos líneas en vez de ensanchar la tabla.
+      cellClassName: "!whitespace-normal min-w-[9rem] max-w-[13rem]",
+      Cell: ({ row }) => (
+        <span>
+          {row.bodegaProveedora?.nombre ?? "—"} <span className="text-gray-400">→</span> {row.bodegaSolicitante?.nombre ?? "—"}
+        </span>
+      ),
     },
     {
-      header: "Bodega Solicitante",
-      accessor: "bodegaSolicitante",
-      sortable: true,
-      sortValue: (row) => row?.bodegaSolicitante?.nombre || "",
-      Cell: ({ value }) => value?.nombre || value?.id || "N/A",
-    },
-    {
-      header: "Usuario Solicitante",
+      header: "Solicita",
       accessor: "usuarioSolicitante",
       sortable: true,
       sortValue: (row) => row?.usuarioSolicitante?.nombre || row?.usuarioSolicitante?.email || "",
-      Cell: ({ value }) => value?.nombre || value?.email || "N/A",
+      cellClassName: "!whitespace-normal max-w-[10rem]",
+      Cell: ({ value }) => value?.nombre || value?.email || "—",
     },
     {
       header: "Estado",
       accessor: "estado",
       sortable: true,
-      align: "center",
-      Cell: ({ value }) => (
-        <div className="flex justify-center">
-          <EstadoSolicitudBadge estado={value} />
-        </div>
+      filtro: "valores",
+      Cell: ({ value }) => <EstadoSolicitudBadge estado={value} />,
+    },
+    {
+      header: (
+        <span className="inline-flex items-center gap-1">
+          Envío · Recepción
+          <Ayuda titulo="Envío y recepción">
+            <div className="space-y-1.5 normal-case tracking-normal font-normal">
+              <p><b>Envío</b>: lo enviado contra lo pedido, línea por línea. «= pedido» si salió todo, «▼» cuántas líneas salieron con menos y «▲» con más.</p>
+              <p><b>Recepción</b>: lo recibido contra lo enviado. «= enviado» si llegó todo y «▼ pérdida» cuántas líneas llegaron con menos.</p>
+            </div>
+          </Ayuda>
+        </span>
       ),
+      headerLabel: "Envío · Recepción",
+      headerClassName: "!whitespace-normal",
+      cellClassName: "!whitespace-normal min-w-[8rem] max-w-[11rem]",
+      accessor: "resultado",
+      filtro: "valores",
+      filtroValor: (row) => marcasSolicitud(row.resultado, { corto: true }).map((m) => m.texto).join(" · ") || "—",
+      Cell: ({ value }) => <MarcasSolicitud resultado={value} corto />,
     },
     {
-      header: "Fecha Solicitud",
-      accessor: "createdAt",
+      header: "Guía",
+      accessor: "numero_guia_despacho",
       sortable: true,
-      align: "center",
-      sortValue: (row) => (row.createdAt ? new Date(row.createdAt).getTime() : 0),
-      Cell: ({ value }) => <div className="text-center text-sm text-gray-700">{fmtFecha(value)}</div>,
+      cellClassName: "!whitespace-normal break-all max-w-[8rem]",
+      Cell: ({ value }) => (value ? value : <span className="text-gray-400">—</span>),
     },
     {
-      header: "Fecha Envío",
-      accessor: "fecha_envio",
+      header: "Fecha",
+      accessor: "fecha_paso",
       sortable: true,
-      align: "center",
-      sortValue: (row) => (row.fecha_envio ? new Date(row.fecha_envio).getTime() : 0),
-      Cell: ({ value }) => <div className="text-center text-sm text-gray-700">{fmtFecha(value)}</div>,
+      cellClassName: "!whitespace-normal max-w-[8rem]",
+      sortValue: (row) => fechaDelPaso(row).fecha?.getTime() ?? 0,
+      Cell: ({ row }) => {
+        const { fecha, etiqueta, dias } = fechaDelPaso(row);
+        if (!fecha) return <span className="text-gray-400">—</span>;
+        const largo = row.estado === "En tránsito" && dias > DIAS_TRANSITO_LARGO;
+        return (
+          <span className="text-sm">
+            <span className="whitespace-nowrap">{formatFecha(fecha)}</span>{" "}
+            {largo ? (
+              <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700" title={`Lleva ${dias} días en tránsito`}>
+                hace {dias} d
+              </span>
+            ) : (
+              <span className="text-xs text-gray-500">{etiqueta}</span>
+            )}
+          </span>
+        );
+      },
     },
-    {
-      header: "Fecha Recepción",
-      accessor: "fecha_recepcion",
-      sortable: true,
-      align: "center",
-      sortValue: (row) => (row.fecha_recepcion ? new Date(row.fecha_recepcion).getTime() : 0),
-      Cell: ({ value }) => <div className="text-center text-sm text-gray-700">{fmtFecha(value)}</div>,
-    },
+    // Las tres fechas por separado siguen disponibles en «Columnas».
+    { header: "Creada", accessor: "createdAt", sortable: true, defaultHidden: true, filtro: "fecha", Cell: ({ value }) => formatFecha(value) },
+    { header: "Enviada", accessor: "fecha_envio", sortable: true, defaultHidden: true, filtro: "fecha", Cell: ({ value }) => formatFecha(value) },
+    { header: "Recibida", accessor: "fecha_recepcion", sortable: true, defaultHidden: true, filtro: "fecha", Cell: ({ value }) => formatFecha(value) },
+    { header: "Transporte", accessor: "medio_transporte", sortable: true, defaultHidden: true },
   ];
 
   const actions = (row) => (
     <div className="flex gap-2 justify-center">
-      <ViewDetailButton
-        onClick={() => navigate(`/logistica/solicitudes/${row.id}`)}
-        tooltipText="Ver detalle"
-      />
+      <ViewDetailButton onClick={() => navigate(`/logistica/solicitudes/${row.id}`)} tooltipText="Ver detalle" />
     </div>
   );
 
@@ -161,84 +184,65 @@ export default function Solicitudes() {
       .filter(Boolean)
       .join(" ");
 
-  const filtrosPanel = (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-      <div className="flex flex-col gap-1 justify-center">
-        <label className="text-sm text-gray-600 p-1">Estado</label>
-        <div className="flex flex-wrap gap-2 px-1">
-          {estadoOptions.map((opt) => {
-            const isActive = filtroEstado === opt;
-            const color =
-              opt === "Todos" ? "border-gray-300 bg-gray-100 text-gray-700" : claseEstadoSolicitud(opt);
-            return (
-              <button
-                key={opt}
-                type="button"
-                onClick={() => setFiltroEstado(opt)}
-                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${color} ${
-                  isActive ? "ring-2 ring-offset-1 ring-primary" : "opacity-80 hover:opacity-100"
-                }`}
-                aria-pressed={isActive}
-              >
-                {opt}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-      <div className="flex flex-col gap-1 justify-center">
-        <label className="text-sm text-gray-600">Bodega Proveedora</label>
-        <Selector
-          options={bodegaProvOptions}
-          selectedValue={filtroBodegaProv}
-          onSelect={setFiltroBodegaProv}
-          className="px-3 py-2 border border-gray-300 rounded-lg"
-        />
-      </div>
-      <div className="flex flex-col gap-1 justify-center">
-        <label className="text-sm text-gray-600">Bodega Solicitante</label>
-        <Selector
-          options={bodegaSolOptions}
-          selectedValue={filtroBodegaSol}
-          onSelect={setFiltroBodegaSol}
-          className="px-3 py-2 border border-gray-300 rounded-lg"
-        />
-      </div>
-      <div className="md:col-span-3 flex justify-end">
-        <button
-          type="button"
-          className="px-3 py-2 text-sm text-gray-700 hover:text-primary"
-          onClick={() => {
-            setFiltroEstado("Todos");
-            setFiltroBodegaProv("Todas");
-            setFiltroBodegaSol("Todas");
-          }}
-        >
-          Limpiar filtros
-        </button>
-      </div>
-    </div>
-  );
+  const selectClase = "border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white";
 
   return (
     <DataTable
       title="Solicitudes"
-      data={dataFiltrada}
+      data={datos}
+      headerExtra={({ filtrosColumna, cambiarFiltroColumna }) => (
+        <div className="flex flex-wrap items-start gap-2">
+          <ChipsEstado
+            filas={porRuta}
+            estados={ESTADOS_SOLICITUD_CHIPS}
+            filtro={filtrosColumna.estado}
+            onCambiar={(f) => cambiarFiltroColumna("estado", f)}
+          />
+          {conPerdida > 0 && (
+            <button
+              type="button"
+              aria-pressed={soloPerdida}
+              onClick={() => setSoloPerdida((v) => !v)}
+              title="Llegó menos de lo enviado"
+              className={`${chipBase} ${
+                soloPerdida ? "border-red-500 bg-red-50 text-red-700 font-medium" : "border-red-200 bg-white text-red-700 hover:bg-red-50"
+              }`}
+            >
+              ⚠ Con pérdida <b className="font-semibold">{conPerdida}</b>
+            </button>
+          )}
+        </div>
+      )}
+      toolbarStart={
+        <div className="flex items-center gap-2">
+          <select aria-label="Bodega de origen" value={origen} onChange={(e) => setOrigen(e.target.value)} className={selectClase}>
+            <option value="">Todos los orígenes</option>
+            {origenes.map(([id, nombre]) => (
+              <option key={id} value={id}>{nombre}</option>
+            ))}
+          </select>
+          <span className="text-gray-400">→</span>
+          <select aria-label="Bodega de destino" value={destino} onChange={(e) => setDestino(e.target.value)} className={selectClase}>
+            <option value="">Todos los destinos</option>
+            {destinos.map(([id, nombre]) => (
+              <option key={id} value={id}>{nombre}</option>
+            ))}
+          </select>
+        </div>
+      }
       columns={columns}
       actions={actions}
       stickyActions
       getSearchText={getSearchText}
-      filters={filtrosPanel}
       loading={isLoading}
       loadingMessage="Cargando solicitudes"
+      defaultRowsPerPage={25}
       initialSort={{ key: "id", direction: "desc" }}
-      emptyMessage="No hay solicitudes registradas."
+      persistKey={CLAVE_UI}
+      emptyMessage="No hay solicitudes que calcen."
       headerActions={
-        <button
-          className="btn btn-primario"
-          onClick={() => navigate("/logistica/solicitudes/nuevo")}
-        >
-          Nueva Solicitud
+        <button className="btn btn-primario" onClick={() => navigate("/logistica/solicitudes/nuevo")}>
+          + Nueva solicitud
         </button>
       }
     />

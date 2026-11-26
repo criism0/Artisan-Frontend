@@ -1,5 +1,7 @@
 import { checkScope, ModelType, ScopeType } from "./scopeCheck";
 import toast from "../lib/toast";
+// Los cuatro estados de recepción (y sus nombres más antiguos) son hoy «Recepcionada».
+import { normalizeEstadoSolicitud } from "../utils/estadoSolicitud.jsx";
 
 const ESTADOS_SOLICITUD = [
   "Creada",
@@ -8,10 +10,7 @@ const ESTADOS_SOLICITUD = [
   "En preparación",
   "Lista para despacho",
   "En tránsito",
-  "Recepción Completa",
-  "Recepción Completa con Pérdida",
-  "Recepción Parcial",
-  "Recepción Parcial con Pérdida",
+  "Recepcionada",
   "Cancelada",
 ];
 
@@ -31,29 +30,12 @@ const COLOR_POR_ESTADO_SOLICITUD = {
   "En preparación": "bg-amber-500",
   "Lista para despacho": "bg-lime-500",
   "En tránsito": "bg-indigo-500",
-  "Recepción Completa": "bg-green-500",
-  "Recepción Completa con Pérdida": "bg-amber-600",
-  "Recepción Parcial": "bg-yellow-500",
-  "Recepción Parcial con Pérdida": "bg-orange-600",
+  "Recepcionada": "bg-green-500",
   "Cancelada": "bg-rose-500",
 };
 
 export function colorEstadoSolicitud(estado) {
   return COLOR_POR_ESTADO_SOLICITUD[estado] || "bg-gray-300";
-}
-
-function normalizeEstadoSolicitud(estado) {
-  if (!estado) return estado;
-  switch (estado) {
-    case "Recepcionada Completa":
-      return "Recepción Completa";
-    case "Recepcionada Parcial Falta Stock":
-      return "Recepción Parcial";
-    case "Recepcionada Parcial Perdida":
-      return "Recepción Parcial con Pérdida";
-    default:
-      return estado;
-  }
 }
 
 export async function cargarDatosLogistica(api) {
@@ -111,8 +93,7 @@ export function calcularKpisLogistica(solicitudes, pallets) {
     if (s.estado === "Lista para despacho" || s.estado === "Validada")
       pendientesDespacho += 1;
     if (ESTADOS_ACTIVOS.has(s.estado)) activos += 1;
-    if (s.estado === "Recepción Completa" || s.estado === "Recepción Completa con Pérdida")
-      completados += 1;
+    if (s.estado === "Recepcionada") completados += 1;
   }
 
   const palletsAbiertos = pallets.filter(palletAbierto).length;

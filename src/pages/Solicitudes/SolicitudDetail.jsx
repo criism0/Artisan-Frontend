@@ -24,7 +24,8 @@ import { formatCLP } from "../../services/formatHelpers.js";
 import { construirLineasSolicitud } from "../../utils/lineasSolicitud.js";
 import { bultosSinEtiqueta } from "../../utils/contenidoPallet.js";
 import Ayuda from "../../components/UI/Ayuda.jsx";
-import { EstadoSolicitudBadge, normalizeEstadoSolicitud } from "../../utils/estadoSolicitud.jsx";
+import { EstadoSolicitudBadge, MarcasSolicitud, normalizeEstadoSolicitud } from "../../utils/estadoSolicitud.jsx";
+import { diferencia } from "../../utils/solicitudesVista.js";
 
 function downloadBlob(blob, filename) {
   const url = window.URL.createObjectURL(blob);
@@ -144,6 +145,24 @@ export default function SolicitudDetail() {
   const celdaCantidad = ({ value }) =>
     value == null ? <span className="text-gray-400">—</span> : formatCantidad(value);
 
+  // Lo enviado contra lo pedido (ámbar si faltó, azul si sobró) y lo recibido contra lo enviado
+  // (rojo si faltó). Antes había que comparar las columnas a ojo.
+  const celdaConDiferencia = (referencia, tonoFalta) =>
+    function CeldaDiferencia({ value, row }) {
+      if (value == null) return <span className="text-gray-400">—</span>;
+      const dif = diferencia(value, row?.[referencia]);
+      if (!dif) return formatCantidad(value);
+      const tono = dif < 0 ? tonoFalta : "text-blue-700";
+      return (
+        <span className="whitespace-nowrap">
+          <b className={tono}>{formatCantidad(value)}</b>{" "}
+          <span className={`text-xs ${tono}`}>({dif > 0 ? "+" : "−"}{formatCantidad(Math.abs(dif))})</span>
+        </span>
+      );
+    };
+  const celdaEnviado = celdaConDiferencia("cantidad_solicitada", "text-amber-700");
+  const celdaRecibido = celdaConDiferencia("cantidad_despachada", "text-red-700");
+
   // No todos los PT se piden en cajas. Decir "0 cajas · 12 unidades" hace pensar que falta
   // información; cuando no hay cajas simplemente no se nombran.
   const resumenPT = () => {
@@ -213,9 +232,9 @@ export default function SolicitudDetail() {
           </div>
         ),
       },
-      { header: "Solicitada", accessor: "cantidad_solicitada", Cell: celdaCantidad },
-      { header: "Despachada", accessor: "cantidad_despachada", Cell: celdaCantidad },
-      { header: "Recepcionada", accessor: "cantidad_recepcionada", Cell: celdaCantidad },
+      { header: "Pedido", accessor: "cantidad_solicitada", Cell: celdaCantidad },
+      { header: "Enviado", accessor: "cantidad_despachada", Cell: celdaEnviado },
+      { header: "Recibido", accessor: "cantidad_recepcionada", Cell: celdaRecibido },
       celdaComentario,
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -251,14 +270,10 @@ export default function SolicitudDetail() {
             </span>
           ),
       },
-      { header: "Unidades", accessor: "cantidad_solicitada", Cell: celdaCantidad },
-      {
-        header: "Despachadas",
-        accessor: "cantidad_despachada",
-        // Lo sin QR se carga al pallet en la app (2026-11-03): acá sólo se lee.
-        Cell: celdaCantidad,
-      },
-      { header: "Recepcionadas", accessor: "cantidad_recepcionada", Cell: celdaCantidad },
+      { header: "Pedido (un.)", accessor: "cantidad_solicitada", Cell: celdaCantidad },
+      // Lo sin QR se carga al pallet en la app (2026-11-03): acá sólo se lee.
+      { header: "Enviado", accessor: "cantidad_despachada", Cell: celdaEnviado },
+      { header: "Recibido", accessor: "cantidad_recepcionada", Cell: celdaRecibido },
       celdaComentario,
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -672,6 +687,30 @@ export default function SolicitudDetail() {
     );
   }
 
+  // Una línea bajo el título en vez de cuatro tarjetas: ruta, quién pide, qué lleva y cuánto vale.
+  // Con la solicitud recibida los pallets ya se cerraron y `valor_despacho` queda en 0: el valor
+  // es entonces el que declaró la guía.
+  const valorGuia = gds.reduce((acc, g) => acc + (Number(g?.montoTotal) || 0), 0);
+  const valor = valorDespacho > 0 ? valorDespacho : valorGuia;
+  const plural = (n, uno, varios) => `${n} ${n === 1 ? uno : varios}`;
+  const resumen = (
+    <span className="flex flex-wrap gap-x-1.5">
+      <b className="text-gray-800 font-semibold">
+        {solicitud.bodegaProveedora?.nombre ?? "—"} → {solicitud.bodegaSolicitante?.nombre ?? "—"}
+      </b>
+      <span>· {solicitanteNombre}</span>
+      {totales.insumos > 0 && <span>· {plural(totales.insumos, "insumo", "insumos")}</span>}
+      {totales.productosTerminados > 0 && <span>· {plural(totales.productosTerminados, "PT", "PT")}</span>}
+      {palletsData.length > 0 && <span>· {plural(palletsData.length, "pallet", "pallets")}</span>}
+      {(gds[0]?.folio ?? solicitud.numero_guia_despacho) && <span>· Guía {gds[0]?.folio ?? solicitud.numero_guia_despacho}</span>}
+      {valor > 0 && (
+        <span title={valorDespacho > 0 ? "Costo de los bultos en los pallets" : "Total de la guía de despacho"}>
+          · <b className="text-gray-800 font-semibold">{formatCLP(valor, 0)}</b>
+        </span>
+      )}
+    </span>
+  );
+
   // Enviar emite la guía salvo que ya exista (emitida o vinculada) o se haya emitido fuera.
   const emiteAlEnviar = gds.length === 0 && !guiaFueraDelSistema;
 
@@ -734,7 +773,13 @@ export default function SolicitudDetail() {
         <PageHeader
           volverA="/logistica/solicitudes"
           titulo={`Solicitud #${solicitud.id}`}
-          estado={<EstadoSolicitudBadge estado={solicitud.estado} />}
+          estado={
+            <>
+              <EstadoSolicitudBadge estado={solicitud.estado} />
+              <MarcasSolicitud resultado={solicitud.resultado} />
+            </>
+          }
+          subtitulo={resumen}
           tituloAyuda="Cómo avanza una solicitud"
           ayuda={
             <ul className="list-disc ml-4 space-y-1">
@@ -757,69 +802,17 @@ export default function SolicitudDetail() {
           }
         />
 
-        {/* Una sola fila de indicadores. Antes había dos filas de tarjetas seguidas —las 4
-            de cabecera y las 2 del resumen— que decían cosas parecidas y ocupaban una
-            pantalla entera antes de llegar al contenido. */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
-            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Bodegas</div>
-            <div className="font-bold text-text mt-2">{solicitud.bodegaProveedora?.nombre ?? "—"}</div>
-            <div className="text-xs text-gray-600 mt-1">
-              → {solicitud.bodegaSolicitante?.nombre ?? "—"} · Solicita: {solicitanteNombre}
-            </div>
+        {/* Sin guía todavía: «Enviar» la emite. Se dice acá porque es lo que hay que hacer. */}
+        {solicitud.estado === "Lista para despacho" && gds.length === 0 && canWriteMerchRequest && (
+          <div className="flex items-center justify-between gap-3 flex-wrap text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4">
+            <span>
+              Sin guía de despacho: <strong>se emite al apretar «Enviar»</strong>.
+            </span>
+            <button type="button" onClick={() => setMostrarFormularioEnvio(true)} className="btn btn-primario shrink-0">
+              <Send className="w-4 h-4" /> Enviar
+            </button>
           </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">Insumos</div>
-            <div className="text-3xl font-bold text-gray-800 mt-1">{totales.insumos}</div>
-            <div className="text-xs text-gray-600 mt-1">
-              {totales.insumos === 0 ? "Sin insumos" : `en ${palletsData.length} pallet${palletsData.length === 1 ? "" : "s"}`}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">
-              Productos terminados
-            </div>
-            <div className="text-3xl font-bold text-gray-800 mt-1">
-              {totales.productosTerminados}
-            </div>
-            <div className="text-xs text-gray-600 mt-1">
-              {totales.productosTerminados === 0 ? "Esta solicitud no lleva PT" : resumenPT()}
-            </div>
-          </div>
-
-          {/*
-            🔴 EL MONTO SE MUESTRA AUNQUE EL DESPACHO SEA PARCIAL.
-
-            Antes se escondía hasta que todas las líneas tuvieran cantidad despachada, con
-            el argumento de que si no era "una proyección sobre cantidades que todavía
-            pueden cambiar". Eso describe al costo estimado POR LÍNEA —que multiplica lo
-            pedido por el precio de lista del proveedor— pero no a `valor_despacho`, que el
-            backend calcula sumando el costo real de los bultos montados en los pallets.
-            No es una proyección: es la medición de lo que va arriba del camión, que es
-            justo lo que hay que declarar en la guía de despacho.
-
-            Y esconderlo dejaba a Logística sin el dato en el momento exacto en que lo
-            necesita: medido el 2026-08-08, 5 de las 7 solicitudes En tránsito y las 6
-            Validadas ocultaban un monto que estaba bien calculado. Un despacho parcial no
-            es una operación a medias — es un envío completo de parte del pedido, y el
-            resto viaja después con su propia guía.
-
-            Vivía en la pestaña de Insumos; acá se ve sin abrir nada y cubre también los PT.
-          */}
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
-            <div className="text-xs text-gray-500 font-medium uppercase tracking-wide">
-              Valor despachado
-            </div>
-            <div className="text-3xl font-bold text-gray-800 mt-1">
-              {valorDespacho > 0 ? formatCLP(valorDespacho, 0) : "—"}
-            </div>
-            <div className="text-xs text-gray-600 mt-1">
-              {valorDespacho > 0 ? "costo de los bultos en los pallets" : "Sin bultos cargados"}
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Va en la cabecera y no dentro de la pestaña de pallets: es lo único que puede
             arruinar la recepción entera, y tiene que verse sin buscarlo. */}
@@ -846,20 +839,6 @@ export default function SolicitudDetail() {
             </button>
           </div>
         )}
-
-        {/* 🔴 TODO LO DOCUMENTAL, FUERA DE LAS PESTAÑAS. Igual que en la orden de venta: las
-            guías de despacho y los archivos adjuntos eran dos pestañas separadas —a dos clics, y
-            sin saber desde afuera si había algo dentro—. Acá están siempre a la vista, y las
-            pestañas quedan para el contenido de la solicitud. */}
-        <CentroDocumentosSolicitud
-          solicitudId={Number(solicitudId)}
-          solicitud={solicitud}
-          gds={gds}
-          cargando={loading}
-          onConfirmarLlegada={handleConfirmarLlegadaGD}
-          onCambio={() => { cargarGDs(); fetchSolicitud(); }}
-          onEnviar={solicitud.estado === "Lista para despacho" ? () => setMostrarFormularioEnvio(true) : null}
-        />
 
         <Tabs
           activa={tab}
@@ -965,6 +944,20 @@ export default function SolicitudDetail() {
             )}
           </div>
         )}
+
+        {/* 🔴 TODO LO DOCUMENTAL, FUERA DE LAS PESTAÑAS y siempre a la vista, pero DESPUÉS de las
+            líneas (Fase 5, 2026-11-26): lo primero que se busca es qué se pidió y qué llegó, como
+            en la orden de venta. Las guías se siguen emitiendo con «Enviar» y desde acá se
+            vinculan las emitidas afuera. */}
+        <CentroDocumentosSolicitud
+          solicitudId={Number(solicitudId)}
+          solicitud={solicitud}
+          gds={gds}
+          cargando={loading}
+          onConfirmarLlegada={handleConfirmarLlegadaGD}
+          onCambio={() => { cargarGDs(); fetchSolicitud(); }}
+          onEnviar={solicitud.estado === "Lista para despacho" ? () => setMostrarFormularioEnvio(true) : null}
+        />
 
         {/* Modal de envío. Enviar ES emitir la guía: se elige el transporte, se mira el borrador
             si se quiere, y un solo botón emite la guía y despacha con su folio. */}

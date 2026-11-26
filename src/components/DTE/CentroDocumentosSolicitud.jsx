@@ -239,7 +239,7 @@ export default function CentroDocumentosSolicitud({
                       <span>· Emitida: {formatFecha(gd.fechaEmision)}</span>
                     )}
                     {fechaLlegada
-                      ? <span className="text-green-700 font-medium">· Llegada confirmada el {new Date(fechaLlegada).toLocaleString('es-CL')}</span>
+                      ? <span className="text-green-700 font-medium" title={new Date(fechaLlegada).toLocaleString("es-CL")}>· ✓ Llegó el {formatFecha(fechaLlegada)}</span>
                       : <span className="text-amber-600">· En tránsito</span>}
                   </div>
                   {gd.montoTotal > 0 && (
