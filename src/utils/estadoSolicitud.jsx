@@ -64,11 +64,12 @@ export function EstadoSolicitudBadge({ estado }) {
 
 const lineas = (n) => `${n} línea${n === 1 ? "" : "s"}`;
 
-const ESTILO_MARCA = {
+export const ESTILO_MARCA = {
   ok: "bg-emerald-50 text-emerald-700",
   menos: "bg-amber-50 text-amber-700",
   mas: "bg-blue-50 text-blue-700",
   perdida: "bg-red-50 text-red-700",
+  gris: "bg-gray-100 text-gray-600",
 };
 
 /**
