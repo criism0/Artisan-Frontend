@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
-import Tabs from "../../components/UI/Tabs.jsx";
+import BarraInventario from "../../components/Inventario/BarraInventario";
 import GoogleSheetsExportButton from "../../components/UI/GoogleSheetsExportButton";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
@@ -12,8 +12,10 @@ import {
   ENCABEZADOS_EXPORTACION,
   TIPOS,
   conteoPorTipo,
+  esCritico,
   etiquetaTipo,
   filaExportacion,
+  filtrarCriticos,
   filtrarPorTipo,
   formatearStock,
   textoBusqueda,
@@ -25,6 +27,30 @@ const TONO_TIPO = {
   subproducto: "bg-purple-100 text-purple-700",
   producto_terminado: "bg-green-100 text-green-700",
 };
+
+const PUNTO_TIPO = {
+  materia_prima: "bg-blue-500",
+  pip: "bg-amber-500",
+  subproducto: "bg-purple-500",
+  producto_terminado: "bg-green-500",
+};
+
+// Nombres cortos de los chips: «En proceso (PIP)» y «Productos terminados» no caben en una fila.
+const CHIP_TIPO = {
+  materia_prima: "Materias primas",
+  pip: "En proceso",
+  subproducto: "Subproductos",
+  producto_terminado: "Terminados",
+};
+
+const LINK_A_BULTOS = new Set(["materia_prima", "producto_terminado"]);
+
+const SIGLA_TIPO =Object.fromEntries(TIPOS.map((t) => [t.id, t.corta]));
+
+const chipBase =
+  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors whitespace-nowrap";
+const chipOn = "border-primary bg-primary-light text-primary font-medium";
+const chipOff = "border-gray-200 bg-white text-gray-700 hover:bg-gray-50";
 
 const fmtFecha = (d) =>
   d ? new Date(d).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }) : "—";
@@ -48,6 +74,7 @@ export default function Inventario() {
     const t = searchParams.get("tipo");
     return TIPOS.some((x) => x.id === t) ? t : "todos";
   });
+  const [soloCriticos, setSoloCriticos] = useState(() => searchParams.get("critico") === "1");
   const [bodegas, setBodegas] = useState([]);
   const [filas, setFilas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -85,8 +112,12 @@ export default function Inventario() {
     setSearchParams(next, { replace: true });
   };
 
-  const visibles = useMemo(() => filtrarPorTipo(filas, tipo), [filas, tipo]);
+  // El chip «Bajo crítico» se suma al tipo: los conteos de los tipos siguen siendo del total, y
+  // el de «Bajo crítico», del tipo elegido.
+  const delTipo = useMemo(() => filtrarPorTipo(filas, tipo), [filas, tipo]);
+  const visibles = useMemo(() => filtrarCriticos(delTipo, soloCriticos), [delTipo, soloCriticos]);
   const conteo = useMemo(() => conteoPorTipo(filas), [filas]);
+  const nCriticos = useMemo(() => delTipo.filter(esCritico).length, [delTipo]);
   const valorVisible = useMemo(() => visibles.reduce((s, f) => s + Number(f.precio_total || 0), 0), [visibles]);
 
   // Los bultos se piden al expandir, y se guardan por bodega + fila: con otra bodega son otros.
@@ -154,7 +185,9 @@ export default function Inventario() {
       ),
     },
     {
-      header: "Nombre",
+      // La categoría va como segunda línea del nombre (Fase 5): como columna propia empujaba
+      // «Costo» fuera de la pantalla a 1.300 px. Sigue ordenable/filtrable desde «Columnas».
+      header: "Ítem",
       accessor: "nombre",
       sortable: true,
       hideable: false,
@@ -162,13 +195,16 @@ export default function Inventario() {
         <button
           type="button"
           onClick={() => alternarFila(row)}
-          className="flex items-center gap-1.5 text-left font-medium text-text hover:text-primary"
-          title={expandidas.has(row.clave) ? "Ocultar bultos" : "Ver bultos"}
+          className="flex items-start gap-1.5 text-left text-text hover:text-primary"
+          title={expandidas.has(row.clave) ? "Ocultar bultos" : `Ver bultos de ${row.nombre}`}
         >
           {expandidas.has(row.clave)
-            ? <ChevronDown className="w-4 h-4 shrink-0 text-gray-400" />
-            : <ChevronRight className="w-4 h-4 shrink-0 text-gray-400" />}
-          <span className="max-w-[380px] truncate">{row.nombre}</span>
+            ? <ChevronDown className="mt-0.5 w-4 h-4 shrink-0 text-gray-400" />
+            : <ChevronRight className="mt-0.5 w-4 h-4 shrink-0 text-gray-400" />}
+          <span className="min-w-0">
+            <span className="block max-w-[420px] truncate font-medium">{row.nombre}</span>
+            {row.categoria && <span className="block text-xs text-gray-400">{row.categoria}</span>}
+          </span>
         </button>
       ),
     },
@@ -178,24 +214,35 @@ export default function Inventario() {
       sortable: true,
       filtroValor: (row) => etiquetaTipo(row.tipo),
       Cell: ({ row }) => (
-        <span className={`px-2 py-0.5 rounded text-xs font-semibold ${TONO_TIPO[row.tipo] ?? "bg-gray-100 text-gray-600"}`}>
-          {etiquetaTipo(row.tipo)}
+        <span
+          className={`px-2 py-0.5 rounded text-xs font-semibold ${TONO_TIPO[row.tipo] ?? "bg-gray-100 text-gray-600"}`}
+          title={etiquetaTipo(row.tipo)}
+        >
+          {SIGLA_TIPO[row.tipo] ?? etiquetaTipo(row.tipo)}
         </span>
       ),
     },
-    { header: "Categoría", accessor: "categoria", sortable: true },
+    { header: "Categoría", accessor: "categoria", sortable: true, defaultHidden: true },
     {
       header: "Stock",
       accessor: "stock",
       align: "right",
       sortable: true,
-      Cell: ({ row }) => <span className="tabular-nums">{formatearStock(row.stock, row.unidad_medida)}</span>,
+      Cell: ({ row }) => (
+        <span className="tabular-nums">
+          {formatearStock(row.stock, row.unidad_medida)}
+          {esCritico(row) && (
+            <span className="block text-xs font-semibold text-red-700" title="Bajo el stock mínimo del ítem">⚠ bajo crítico</span>
+          )}
+        </span>
+      ),
     },
     { header: "Bultos", accessor: "bultos", align: "right", sortable: true },
     {
       header: "Estado",
       accessor: "estado_stock",
       sortable: true,
+      defaultHidden: true,
       Cell: ({ value }) => value === "Peligro"
         ? <span className="px-2 py-0.5 rounded-full text-xs font-semibold border border-red-200 bg-red-50 text-red-800">Bajo crítico</span>
         : value === "Bien"
@@ -203,7 +250,7 @@ export default function Inventario() {
           : <span className="text-gray-400">—</span>,
     },
     {
-      header: "Costo total",
+      header: "Costo",
       accessor: "precio_total",
       align: "right",
       sortable: true,
@@ -265,19 +312,72 @@ export default function Inventario() {
               </table>
             </div>
           )}
+          {/* Del stock al bulto: para editar, dividir o reimprimir la etiqueta. Sólo insumos y
+              terminados, que son los que la lista de Bultos sabe buscar por nombre. */}
+          {Array.isArray(lista) && lista.length > 0 && LINK_A_BULTOS.has(row.tipo) && (
+            <Link
+              to={`/inventario/bultos?${new URLSearchParams({ item: row.nombre, ...(bodegaId ? { bodega: String(bodegaId) } : {}) })}`}
+              className="mt-2 inline-block text-sm font-semibold text-primary hover:underline"
+            >
+              Ver {lista.length === 1 ? "el bulto" : `los ${lista.length}`} en Bultos →
+            </Link>
+          )}
         </td>
       </tr>
     );
   };
 
-  const pestanas = [
-    { id: "todos", label: "Todos", cantidad: conteo.todos },
-    ...TIPOS.map((t) => ({ id: t.id, label: t.label, cantidad: conteo[t.id] })),
-  ];
+  const elegirTipo = (t) => { setTipo(t); cambiarParam("tipo", t === "todos" ? null : t); };
+  const alternarCriticos = () => {
+    const v = !soloCriticos;
+    setSoloCriticos(v);
+    cambiarParam("critico", v ? "1" : null);
+  };
+
+  // Tipos como chips (Fase 5), igual que los estados en Ventas y Entregas, y al lado
+  // «⚠ Bajo crítico», que antes no se podía aislar: se mezclaba con las filas «Bien».
+  const chips = (
+    <div className="mb-4 flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por tipo">
+      <button type="button" aria-pressed={tipo === "todos"} onClick={() => elegirTipo("todos")} className={`${chipBase} ${tipo === "todos" ? chipOn : chipOff}`}>
+        Todos <b className="font-semibold">{conteo.todos}</b>
+      </button>
+      {TIPOS.filter((t) => conteo[t.id] > 0).map((t) => (
+        <button
+          key={t.id}
+          type="button"
+          aria-pressed={tipo === t.id}
+          title={t.label}
+          onClick={() => elegirTipo(tipo === t.id ? "todos" : t.id)}
+          className={`${chipBase} ${tipo === t.id ? chipOn : chipOff}`}
+        >
+          <span className={`h-2 w-2 rounded-full ${PUNTO_TIPO[t.id]}`} aria-hidden="true" />
+          {CHIP_TIPO[t.id]} <b className="font-semibold">{conteo[t.id]}</b>
+        </button>
+      ))}
+      {(nCriticos > 0 || soloCriticos) && (
+        <>
+          <span className="mx-1 h-5 w-px bg-gray-200" aria-hidden="true" />
+          <button
+            type="button"
+            aria-pressed={soloCriticos}
+            onClick={alternarCriticos}
+            title="Ítems bajo su stock mínimo"
+            className={`${chipBase} ${soloCriticos ? "border-red-600 bg-red-50 text-red-700 font-medium" : "border-red-200 bg-white text-red-700 hover:bg-red-50"}`}
+          >
+            ⚠ Bajo crítico <b className="font-semibold">{nCriticos}</b>
+          </button>
+        </>
+      )}
+    </div>
+  );
 
   return (
+    <>
+    <div className="px-6 pt-6">
+      <BarraInventario />
+    </div>
     <DataTable
-      title="Inventario"
+      title="Stock"
       data={visibles}
       columns={columns}
       getSearchText={textoBusqueda}
@@ -286,8 +386,9 @@ export default function Inventario() {
       loadingMessage="Cargando inventario"
       defaultRowsPerPage={25}
       initialSort={{ key: "nombre", direction: "asc" }}
-      persistKey="inventario"
-      emptyMessage={cargando ? "Cargando…" : "Sin stock para esta bodega y tipo."}
+      // v2: cambió qué columnas se ven por defecto (Fase 5); la clave vieja guardaba las de antes.
+      persistKey="inventario_v2"
+      emptyMessage={cargando ? "Cargando…" : soloCriticos ? "Nada bajo crítico para esta bodega y tipo." : "Sin stock para esta bodega y tipo."}
       headerActions={
         <div className="flex items-center gap-2">
           {seleccion.size > 0 && (
@@ -298,35 +399,32 @@ export default function Inventario() {
             onError={() => toast.error("No se pudo autenticar con Google")}
             isExporting={exportando}
             disabled={exportando || visibles.length === 0}
+            etiqueta="Exportar"
             title={seleccion.size ? `Exportar ${seleccion.size} seleccionada(s) a Google Sheets` : "Exportar lo que se ve a Google Sheets"}
           />
         </div>
       }
-      headerExtra={
-        <Tabs
-          pestanas={pestanas}
-          activa={tipo}
-          onCambiar={(t) => { setTipo(t); cambiarParam("tipo", t === "todos" ? null : t); }}
-        />
-      }
+      headerExtra={chips}
       toolbarStart={
         <div className="flex items-center gap-3 text-sm">
           <label className="flex items-center gap-2 text-gray-700">
-            <span className="font-medium">Bodega</span>
+            <span className="sr-only">Bodega</span>
             <select
+              aria-label="Bodega"
               value={bodegaId}
               onChange={(e) => { const v = Number(e.target.value); setBodegaId(v); cambiarParam("bodega", v || null); }}
               className="border border-gray-300 rounded-lg px-3 py-2 bg-white"
             >
-              <option value={0}>Todas</option>
+              <option value={0}>Todas las bodegas</option>
               {bodegas.map((b) => <option key={b.id} value={b.id}>{b.nombre}</option>)}
             </select>
           </label>
           <span className="text-gray-500">
-            {cargando ? "Actualizando…" : <>Valor: <span className="font-medium text-text">{formatCLP(valorVisible, 0)}</span></>}
+            {cargando ? "Actualizando…" : <>Valor <span className="font-medium text-text tabular-nums">{formatCLP(valorVisible, 0)}</span></>}
           </span>
         </div>
       }
     />
+    </>
   );
 }

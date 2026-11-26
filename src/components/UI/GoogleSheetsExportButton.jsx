@@ -14,16 +14,22 @@ const GOOGLE_ENABLED = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID);
  * - onToken: async ({ access_token }) => void — hace la exportación real.
  * - onError: () => void — error de autenticación con Google.
  * - isExporting / disabled / title: presentación del botón.
+ * - etiqueta: si viene, se dibuja como botón con texto («Exportar») en vez del ícono suelto, que
+ *   no decía qué hacía (Inventario, Fase 5 de la revisión de UI).
  */
-export default function GoogleSheetsExportButton({ onToken, onError, isExporting, disabled, title }) {
+const CLASE_CON_TEXTO = "btn border-gray-300 bg-white text-gray-700 hover:bg-gray-50";
+
+export default function GoogleSheetsExportButton({ onToken, onError, isExporting, disabled, title, etiqueta }) {
   if (!GOOGLE_ENABLED) {
     return (
       <button
+        type="button"
         disabled
-        className="text-gray-300 cursor-not-allowed"
+        className={etiqueta ? CLASE_CON_TEXTO : "text-gray-300 cursor-not-allowed"}
         title="Exportación a Google Sheets no configurada (falta VITE_GOOGLE_CLIENT_ID)"
       >
         <FileSpreadsheet className="w-5 h-5" />
+        {etiqueta}
       </button>
     );
   }
@@ -34,11 +40,12 @@ export default function GoogleSheetsExportButton({ onToken, onError, isExporting
       isExporting={isExporting}
       disabled={disabled}
       title={title}
+      etiqueta={etiqueta}
     />
   );
 }
 
-function EnabledExportButton({ onToken, onError, isExporting, disabled, title }) {
+function EnabledExportButton({ onToken, onError, isExporting, disabled, title, etiqueta }) {
   const loginAndExport = useGoogleLogin({
     onSuccess: onToken,
     onError,
@@ -47,14 +54,22 @@ function EnabledExportButton({ onToken, onError, isExporting, disabled, title })
 
   return (
     <button
+      type="button"
       onClick={() => loginAndExport()}
       disabled={disabled}
-      className="text-gray-500 hover:text-green-700 disabled:opacity-40"
+      className={etiqueta ? CLASE_CON_TEXTO : "text-gray-500 hover:text-green-700 disabled:opacity-40"}
       title={title}
     >
-      {isExporting
-        ? <span className="text-xs text-gray-500">Exportando…</span>
-        : <FileSpreadsheet className="w-5 h-5" />}
+      {etiqueta ? (
+        <>
+          <FileSpreadsheet className="w-4 h-4" />
+          {isExporting ? "Exportando…" : etiqueta}
+        </>
+      ) : isExporting ? (
+        <span className="text-xs text-gray-500">Exportando…</span>
+      ) : (
+        <FileSpreadsheet className="w-5 h-5" />
+      )}
     </button>
   );
 }

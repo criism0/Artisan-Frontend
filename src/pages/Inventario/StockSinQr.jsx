@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { History, Plus, SlidersHorizontal, X } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
+import BarraInventario from "../../components/Inventario/BarraInventario";
+import MenuAcciones from "../../components/UI/MenuAcciones";
 import Modal from "../../components/UI/Modal";
 import Ayuda from "../../components/UI/Ayuda";
 import Selector from "../../components/Forms/Selector";
@@ -71,20 +73,25 @@ export default function StockSinQr() {
     { header: "Último movimiento", accessor: "actualizado_en", sortable: true, filtro: "fecha", Cell: ({ value }) => (value ? fmtFechaHora(value) : "—") },
   ], []);
 
+  // «Historial» con nombre y lo demás en el «⋯» (Fase 5): antes eran tres íconos sin nombre y la
+  // ✕ de «dejar de controlar» quedaba pegada al historial.
   const acciones = (row) => (
-    <div className="flex gap-3 justify-center items-center">
-      {puede && (
-        <button type="button" title="Ajustar" onClick={() => setMovimiento({ tipo: "Ajuste", fila: row })} className="text-gray-400 hover:text-primary">
-          <SlidersHorizontal className="w-5 h-5" />
-        </button>
-      )}
-      <button type="button" title="Historial" onClick={() => setHistorial(row)} className="text-gray-400 hover:text-primary">
-        <History className="w-5 h-5" />
+    <div className="flex gap-1 justify-end items-center">
+      <button
+        type="button"
+        onClick={() => setHistorial(row)}
+        className="inline-flex items-center gap-1 rounded-md border border-primary/30 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary-light"
+      >
+        <History className="w-3.5 h-3.5" /> Historial
       </button>
       {puede && (
-        <button type="button" title="Dejar de controlar sin QR" onClick={() => setQuitar(row)} className="text-gray-400 hover:text-red-600">
-          <X className="w-5 h-5" />
-        </button>
+        <MenuAcciones
+          items={[
+            { label: "Ajustar stock", icon: <SlidersHorizontal className="w-4 h-4" />, onClick: () => setMovimiento({ tipo: "Ajuste", fila: row }) },
+            { separador: true },
+            { label: "Dejar de controlar sin QR", icon: <X className="w-4 h-4" />, peligro: true, onClick: () => setQuitar(row) },
+          ]}
+        />
       )}
     </div>
   );
@@ -93,6 +100,9 @@ export default function StockSinQr() {
 
   return (
     <>
+      <div className="px-6 pt-6">
+        <BarraInventario />
+      </div>
       <DataTable
         title={
           <span className="inline-flex items-center gap-2">
@@ -123,11 +133,16 @@ export default function StockSinQr() {
         headerActions={
           puede ? (
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setAgregando(true)} className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm hover:bg-gray-50">
+              <button type="button" onClick={() => setAgregando(true)} className="btn border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
                 Agregar producto
               </button>
-              <button type="button" onClick={() => setMovimiento({ tipo: "Producción no registrada" })} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-sm hover:bg-primary-dark">
-                <Plus className="w-4 h-4" /> Producción
+              <button
+                type="button"
+                onClick={() => setMovimiento({ tipo: "Producción no registrada" })}
+                className="btn btn-primario"
+                title="Sumar producción que no pasó por el sistema"
+              >
+                <Plus className="w-4 h-4" /> Registrar producción
               </button>
             </div>
           ) : null

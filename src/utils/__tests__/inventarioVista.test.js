@@ -6,6 +6,9 @@ import {
   filtrarPorTipo,
   formatearStock,
   textoBusqueda,
+  esCritico,
+  filtrarCriticos,
+  tomaAbierta,
 } from "../inventarioVista.js";
 
 /**
@@ -65,5 +68,34 @@ describe("búsqueda y formato", () => {
   it("la exportación lleva tipo, stock y costo redondeado", () => {
     expect(filaExportacion({ ...FILAS[0], precio_total: 20000.4, ultimo_movimiento: null }))
       .toEqual(["LECHE EN POLVO", "Materias primas", "Insumo", 25, "kilogramos", 1, "Bien", 20000, "—"]);
+  });
+});
+
+describe("bajo crítico", () => {
+  const filas = [
+    { clave: "a", tipo: "materia_prima", estado_stock: "Peligro" },
+    { clave: "b", tipo: "materia_prima", estado_stock: "Bien" },
+    { clave: "c", tipo: "producto_terminado", estado_stock: null },
+  ];
+  it("sólo «Peligro» es bajo crítico", () => {
+    expect(filas.map(esCritico)).toEqual([true, false, false]);
+  });
+  it("el filtro apagado no quita nada y encendido deja sólo lo crítico", () => {
+    expect(filtrarCriticos(filas, false)).toHaveLength(3);
+    expect(filtrarCriticos(filas, true).map((f) => f.clave)).toEqual(["a"]);
+  });
+});
+
+describe("tomaAbierta (número en ámbar de la pestaña Tomas)", () => {
+  const ahora = new Date("2026-11-25T15:00:00Z").getTime();
+  it("cuenta las por validar aunque sean viejas", () => {
+    expect(tomaAbierta({ estado: "Terminada", createdAt: "2026-08-01T10:00:00Z" }, ahora)).toBe(true);
+  });
+  it("cuenta las activas recientes y no las abandonadas hace meses", () => {
+    expect(tomaAbierta({ estado: "Activa", createdAt: "2026-11-24T12:00:00Z" }, ahora)).toBe(true);
+    expect(tomaAbierta({ estado: "Activa", createdAt: "2026-07-29T18:00:00Z" }, ahora)).toBe(false);
+  });
+  it("no cuenta las validadas", () => {
+    expect(tomaAbierta({ estado: "Validada", createdAt: "2026-11-25T10:00:00Z" }, ahora)).toBe(false);
   });
 });
