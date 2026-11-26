@@ -22,12 +22,25 @@ describe("accionesOC", () => {
     });
   });
 
-  it("Parcial: recepcionar lo que falta, cerrar con lo recibido y no se elimina", () => {
+  it("Parcial: recepcionar lo que falta, cerrar con lo recibido, no se retrocede ni se elimina", () => {
     expect(etiquetas({ id: 1, estado: "Parcialmente recepcionada", pagada: true })).toEqual({
       principal: "Recepcionar lo que falta",
       menu: ["Revertir pago", "Cerrar con lo recibido"],
-      destructivas: ["Retroceder estado", "Eliminar (off)"],
+      destructivas: ["Eliminar (off)"],
     });
+  });
+
+  it("Validada: rechazar (si la pantalla lo ofrece) y volver a Creada", () => {
+    expect(etiquetas({ id: 1, estado: "Validada" }, { ...permisos, rechazar: vi.fn() })).toEqual({
+      principal: "Recepcionar",
+      menu: ["Marcar como pagada", "Rechazar orden…"],
+      destructivas: ["Volver a Creada", "Eliminar"],
+    });
+  });
+
+  it("con un borrador abierto, la acción principal lo retoma", () => {
+    expect(etiquetas({ id: 1, estado: "Validada", recepcion_borrador: { id: 9, numero: 2 } }).principal).toBe("Seguir recepción 2");
+    expect(etiquetas({ id: 1, estado: "Parcialmente recepcionada", recepcion_en_borrador: true }).principal).toBe("Seguir recepción");
   });
 
   it("Recepcionada: sin acción principal", () => {

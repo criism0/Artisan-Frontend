@@ -38,7 +38,7 @@ function IconoArchivo({ mimeType }) {
   return <File className="w-4 h-4 text-gray-400" />;
 }
 
-export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, compacto = false, onCantidad }) {
+export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, idOrdenCompra, idRecepcionOC, compacto = false, onCantidad }) {
   const [adjuntos, setAdjuntos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [subiendo, setSubiendo] = useState(false);
@@ -53,13 +53,15 @@ export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, compacto = 
   const cargar = useCallback(async () => {
     setCargando(true);
     try {
-      setAdjuntos(await adjuntosService.listar({ idOrdenVenta, idSolicitud }));
+      const todos = await adjuntosService.listar({ idOrdenVenta, idSolicitud, idOrdenCompra });
+      // Desde una recepción se ven sólo los de esa recepción; desde la OC, todos.
+      setAdjuntos(idRecepcionOC ? todos.filter((a) => a.idRecepcionOC === idRecepcionOC) : todos);
     } catch (err) {
       toast.error(err?.message ?? 'No se pudieron cargar los archivos adjuntos');
     } finally {
       setCargando(false);
     }
-  }, [idOrdenVenta, idSolicitud]);
+  }, [idOrdenVenta, idSolicitud, idOrdenCompra, idRecepcionOC]);
 
   useEffect(() => { cargar(); }, [cargar]);
   // El contador de la pestaña «Adjuntos» del detalle de la OV.
@@ -88,6 +90,8 @@ export default function SeccionAdjuntos({ idOrdenVenta, idSolicitud, compacto = 
         descripcion: descripcion.trim(),
         idOrdenVenta,
         idSolicitud,
+        idOrdenCompra,
+        idRecepcionOC,
       });
       toast.success('Archivo adjuntado.');
       setPendiente(null);

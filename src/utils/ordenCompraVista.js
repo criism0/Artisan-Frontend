@@ -64,7 +64,7 @@ export const nombreInsumoOC = (mp) =>
  * Las acciones de una orden según su estado, con la forma de `PanelAcciones`:
  * { principal, menu, destructivas }. `ejecutar(ruta, exito, metodo)` llama al backend.
  */
-export function accionesOC(o, { puedeEscribir, puedeBorrar, ejecutar, navigate }) {
+export function accionesOC(o, { puedeEscribir, puedeBorrar, ejecutar, navigate, rechazar }) {
   const ruta = `/adquisiciones/ordenes-compra/${o.id}`;
   const e = o.estado;
   let principal = null;
@@ -75,7 +75,10 @@ export function accionesOC(o, { puedeEscribir, puedeBorrar, ejecutar, navigate }
       confirmar: { titulo: `¿Validar la OC #${o.id}?`, mensaje: "Queda lista para recepcionar y se avisa por correo.", textoBoton: "Validar" },
     };
   } else if (puedeEscribir && (e === "Validada" || e === PARCIAL)) {
-    principal = { label: e === PARCIAL ? "Recepcionar lo que falta" : "Recepcionar", onClick: () => navigate(`${ruta}/recepcionar`) };
+    // Con un borrador abierto, «Recepcionar» lo retoma: la lista sólo sabe que existe; el detalle, su número.
+    const borrador = o.recepcion_borrador ?? (o.recepcion_en_borrador ? {} : null);
+    const label = borrador ? `Seguir recepción${borrador.numero ? ` ${borrador.numero}` : ""}` : e === PARCIAL ? "Recepcionar lo que falta" : "Recepcionar";
+    principal = { label, onClick: () => navigate(`${ruta}/recepcionar`) };
   }
 
   const menu = [
@@ -89,22 +92,21 @@ export function accionesOC(o, { puedeEscribir, puedeBorrar, ejecutar, navigate }
       onClick: () => ejecutar("cerrar", "Orden cerrada con lo recibido"),
       confirmar: { titulo: "¿Cerrar con lo recibido?", mensaje: "Pasa a «Recepcionada» con lo que ya llegó y no se espera el resto.", textoBoton: "Cerrar" },
     },
+    // Antes era el botón «Rechazar Recepción» de la pantalla de recepción, pero rechaza la orden entera.
+    puedeEscribir && rechazar && e === "Validada" && { label: "Rechazar orden…", onClick: rechazar },
   ].filter(Boolean);
 
   const destructivas = [
-    puedeEscribir && ["Validada", PARCIAL, "Recepcionada"].includes(e) && {
-      label: "Retroceder estado",
-      onClick: () => ejecutar("retroceder", "Orden retrocedida"),
-      confirmar: {
-        titulo: "¿Retroceder la orden un paso?",
-        mensaje: e === "Validada" ? "Vuelve a «Creada» y se puede editar." : "Vuelve a «Validada» y se eliminan los bultos que creó la recepción.",
-        textoBoton: "Retroceder",
-      },
+    // Una orden recibida no se retrocede: se anula la recepción que corresponda (pestaña «Recepciones»).
+    puedeEscribir && e === "Validada" && {
+      label: "Volver a Creada",
+      onClick: () => ejecutar("retroceder", "La orden volvió a Creada"),
+      confirmar: { titulo: "¿Volver la orden a Creada?", mensaje: "Se puede editar de nuevo.", textoBoton: "Volver a Creada" },
     },
     puedeBorrar && {
       label: "Eliminar",
       disabled: !ESTADOS_BORRABLES_OC.includes(e),
-      title: ESTADOS_BORRABLES_OC.includes(e) ? undefined : "Ya recibió mercadería: retrocédela primero",
+      title: ESTADOS_BORRABLES_OC.includes(e) ? undefined : "Ya recibió mercadería: anula sus recepciones primero",
       onClick: () => ejecutar("", "Orden eliminada", "DELETE"),
       confirmar: { titulo: `¿Eliminar la OC #${o.id}?`, mensaje: "No se puede deshacer.", textoBoton: "Eliminar" },
     },

@@ -70,6 +70,7 @@ export const ESTILO_MARCA = {
   mas: "bg-blue-50 text-blue-700",
   perdida: "bg-red-50 text-red-700",
   gris: "bg-gray-100 text-gray-600",
+  borrador: "bg-violet-50 text-violet-700",
 };
 
 /**
