@@ -9,6 +9,7 @@ import ProductosTerminadosTable from "../../components/Solicitudes/ProductosTerm
 import Selector from "../../components/Forms/Selector";
 import { useApi } from "../../lib/api";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
+import { useEncargadosAutomaticos } from "../../hooks/useEncargadosAutomaticos.js";
 
 export default function EditSolicitud() {
   const { solicitudId } = useParams();
@@ -32,6 +33,18 @@ export default function EditSolicitud() {
   const [canAddMoreInsumos, setCanAddMoreInsumos] = useState(false);
 
   const canWriteMerchRequest = checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE);
+
+  // En Editar los encargados se suman sólo si el usuario cambia una bodega: al abrir se respeta a
+  // quiénes ya se avisaba.
+  const [bodegaTocada, setBodegaTocada] = useState(false);
+  useEncargadosAutomaticos({
+    bodegas,
+    usuarios: users,
+    origen: selectedOrigen,
+    destino: selectedDestino,
+    setSeleccion: setSelectedUsers,
+    activo: bodegaTocada,
+  });
 
   const solicitudEditable = useMemo(() => String(solicitud?.estado || "") === "Creada", [solicitud]);
 
@@ -140,14 +153,6 @@ export default function EditSolicitud() {
       .filter((v) => v != null);
   }, [bodegas, selectedOrigen]);
 
-  const handleAddEncargados = () => {
-    if (!priorityUserIds || priorityUserIds.length === 0) return;
-    const existingIds = new Set(selectedUsers.map((u) => u.id));
-    const encargados = users.filter((u) => priorityUserIds.includes(u.id));
-    const toAdd = encargados.filter((u) => !existingIds.has(u.id));
-    if (toAdd.length === 0) return;
-    setSelectedUsers([...selectedUsers, ...toAdd]);
-  };
 
   const computeErrors = () => {
     const newErrors = {};
@@ -258,11 +263,12 @@ export default function EditSolicitud() {
           {/* Origen y destino */}
           <div className="mb-4 flex gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Bodega Proveedora</label>
+              <label className="block text-sm font-medium mb-1">Desde</label>
               <Selector
                 options={bodegas}
                 selectedValue={selectedOrigen}
                 onSelect={(v) => {
+                  setBodegaTocada(true);
                   setSelectedOrigen(v);
                 }}
                 disabled={loading || !solicitudEditable}
@@ -278,11 +284,14 @@ export default function EditSolicitud() {
               <ArrowRight className="w-6 h-6" />
             </div>
             <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Bodega Destino</label>
+              <label className="block text-sm font-medium mb-1">Hacia</label>
               <Selector
                 options={bodegas}
                 selectedValue={selectedDestino}
-                onSelect={(v) => setSelectedDestino(v)}
+                onSelect={(v) => {
+                  setBodegaTocada(true);
+                  setSelectedDestino(v);
+                }}
                 disabled={loading || !solicitudEditable}
                 className={`w-full px-3 py-2 border ${
                   (showErrors && errors.destino) ||
@@ -304,56 +313,11 @@ export default function EditSolicitud() {
             </div>
           </div>
 
-          {/* Usuarios */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-sm font-medium text-gray-700">Personas a notificar</label>
-              <button
-                type="button"
-                onClick={handleAddEncargados}
-                disabled={
-                  loading ||
-                  !solicitudEditable ||
-                  !priorityUserIds ||
-                  priorityUserIds.length === 0
-                }
-                className={`text-sm ${
-                  loading || !solicitudEditable || !priorityUserIds || priorityUserIds.length === 0
-                    ? "text-gray-400 cursor-not-allowed"
-                    : "text-primary hover:underline"
-                }`}
-                title={
-                  !priorityUserIds || priorityUserIds.length === 0
-                    ? "No hay encargados para la bodega seleccionada"
-                    : "Agregar encargados de la bodega proveedora"
-                }
-              >
-                Agregar encargados de bodega proveedora
-              </button>
-            </div>
-
-            <MultiSelectInput
-              options={users}
-              selected={selectedUsers}
-              onSelectionChange={setSelectedUsers}
-              placeholder="Buscar personas por nombre o correo..."
-              label=""
-              error={showErrors ? errors.usuarios : null}
-              priorityIds={priorityUserIds}
-              disabled={loading || !solicitudEditable}
-            />
-          </div>
-
           {/* Insumos */}
           <div>
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold">Insumos y PIP a Solicitar</h3>
-                {(!selectedOrigen || !selectedDestino) && (
-                  <p className="mt-1 text-sm text-gray-500">
-                    Selecciona ambas bodegas para agregar insumos.
-                  </p>
-                )}
+                <h3 className="text-lg font-semibold">Insumos y PIP <span className="text-gray-400 font-normal">{insumosSeleccionados.length}</span></h3>
                 {(selectedOrigen && selectedDestino && !canAddMoreInsumos) && (
                   <p className="mt-1 text-sm text-gray-500">No quedan insumos por agregar.</p>
                 )}
@@ -408,7 +372,7 @@ export default function EditSolicitud() {
 
           {/* Productos terminados (B4) */}
           <div className="mt-8">
-            <h3 className="text-lg font-semibold mb-4">Productos Terminados a Solicitar</h3>
+            <h3 className="text-lg font-semibold mb-4">Productos terminados <span className="text-gray-400 font-normal">{productosSeleccionados.length}</span></h3>
             <ProductosTerminadosTable
               key={`edit_pt_${selectedOrigen}`}
               bodegaId={selectedOrigen}
@@ -418,8 +382,29 @@ export default function EditSolicitud() {
             />
           </div>
 
+          {/* Avisar a: al final, después de lo que se pide. Los encargados de las dos bodegas se
+              agregan solos (useEncargadosAutomaticos); se pueden quitar o sumar a otros. */}
+          <div className="mt-8">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Avisar a <span className="text-xs font-normal text-gray-500">· se agregan solos los encargados de las dos bodegas</span>
+            </label>
+            <MultiSelectInput
+                options={users}
+                selected={selectedUsers}
+                onSelectionChange={setSelectedUsers}
+                placeholder="Buscar personas por nombre o correo..."
+                label=""
+                error={showErrors ? errors.usuarios : null}
+                priorityIds={priorityUserIds}
+                disabled={loading || !solicitudEditable}
+              />
+          </div>
+
           {/* Botón */}
-          <div className="mt-6 flex items-center justify-end">
+          <div className="mt-6 flex items-center justify-end gap-3 border-t pt-4">
+            <span className="text-sm text-gray-500">
+              {insumosSeleccionados.length} insumo{insumosSeleccionados.length === 1 ? "" : "s"} · {productosSeleccionados.length} PT
+            </span>
             <button
               onClick={handleSubmit}
               disabled={loading || !solicitudEditable}

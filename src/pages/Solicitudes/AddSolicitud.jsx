@@ -12,6 +12,7 @@ import { useApi } from '../../lib/api';
 import { toast } from "../../lib/toast.js";
 import { Spinner } from "../../components/UI/Spinner.jsx";
 import { checkScope, ModelType, ScopeType } from '../../services/scopeCheck.js';
+import { useEncargadosAutomaticos } from '../../hooks/useEncargadosAutomaticos.js';
 
 export default function AddSolicitud() {
   const { user } = useAuth();
@@ -33,6 +34,14 @@ export default function AddSolicitud() {
   const api = useApi();
 
   const canWriteMerchRequest = checkScope(ModelType.SOLICITUD_MERCADERIA, ScopeType.WRITE);
+
+  useEncargadosAutomaticos({
+    bodegas,
+    usuarios: users,
+    origen: selectedOrigen,
+    destino: selectedDestino,
+    setSeleccion: setSelectedUsers,
+  });
 
   // Limpiar insumos/productos al cambiar la bodega de origen
   useEffect(() => {
@@ -178,15 +187,6 @@ export default function AddSolicitud() {
     );
   };
 
-  // Precargar encargados de la bodega proveedora en las selecciones
-  const handleAddEncargados = () => {
-    if (!priorityUserIds || priorityUserIds.length === 0) return;
-    const existingIds = new Set(selectedUsers.map(u => u.id));
-    const encargados = users.filter(u => priorityUserIds.includes(u.id));
-    const toAdd = encargados.filter(u => !existingIds.has(u.id));
-    if (toAdd.length === 0) return;
-    setSelectedUsers([...selectedUsers, ...toAdd]);
-  };
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -199,7 +199,7 @@ export default function AddSolicitud() {
           {/* Origen y destino */}
           <div className="mb-4 flex gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Bodega Proveedora</label>
+              <label className="block text-sm font-medium mb-1">Desde</label>
               <Selector
                 options={bodegas}
                 selectedValue={selectedOrigen}
@@ -212,7 +212,7 @@ export default function AddSolicitud() {
               <ArrowRight className="w-6 h-6" />
             </div>
             <div className="flex-1">
-              <label className="block text-sm font-medium mb-1">Bodega Destino</label>
+              <label className="block text-sm font-medium mb-1">Hacia</label>
               <Selector
                 options={bodegas}
                 selectedValue={selectedDestino}
@@ -232,41 +232,11 @@ export default function AddSolicitud() {
             
           </div>
 
-          {/* Usuarios */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-sm font-medium text-gray-700">
-                Personas a notificar
-              </label>
-              <button
-                type="button"
-                onClick={handleAddEncargados}
-                disabled={!priorityUserIds || priorityUserIds.length === 0}
-                className={`text-sm ${(!priorityUserIds || priorityUserIds.length === 0) ? 'text-gray-400 cursor-not-allowed' : 'text-primary hover:underline'}`}
-                title={(!priorityUserIds || priorityUserIds.length === 0) ? 'No hay encargados para la bodega seleccionada' : 'Agregar encargados de la bodega proveedora'}
-              >
-                Agregar encargados de bodega proveedora
-              </button>
-            </div>
-            <MultiSelectInput
-              options={users}
-              selected={selectedUsers}
-              onSelectionChange={setSelectedUsers}
-              placeholder="Buscar personas por nombre o correo..."
-              label=""
-              error={showErrors ? errors.usuarios : null}
-              priorityIds={priorityUserIds}
-            />
-          </div>
-
           {/* Insumos */}
           <div>
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-semibold">Insumos y PIP a Solicitar</h3>
-                {(!selectedOrigen || !selectedDestino) && (
-                  <p className="mt-1 text-sm text-gray-500">Selecciona ambas bodegas para agregar insumos.</p>
-                )}
+                <h3 className="text-lg font-semibold">Insumos y PIP <span className="text-gray-400 font-normal">{insumosSeleccionados.length}</span></h3>
                 {(selectedOrigen && selectedDestino && !canAddMoreInsumos) && (
                   <p className="mt-1 text-sm text-gray-500">No quedan insumos por agregar.</p>
                 )}
@@ -312,10 +282,7 @@ export default function AddSolicitud() {
           {/* Productos terminados (B4) */}
           <div className="mt-8">
             <div className="mb-4">
-              <h3 className="text-lg font-semibold">Productos Terminados a Solicitar</h3>
-              {(!selectedOrigen || !selectedDestino) && (
-                <p className="mt-1 text-sm text-gray-500">Selecciona ambas bodegas para agregar productos.</p>
-              )}
+              <h3 className="text-lg font-semibold">Productos terminados <span className="text-gray-400 font-normal">{productosSeleccionados.length}</span></h3>
             </div>
             <ProductosTerminadosTable
               bodegaId={selectedOrigen}
@@ -324,8 +291,28 @@ export default function AddSolicitud() {
             />
           </div>
 
+          {/* Avisar a: al final, después de lo que se pide. Los encargados de las dos bodegas se
+              agregan solos (useEncargadosAutomaticos); se pueden quitar o sumar a otros. */}
+          <div className="mt-8">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Avisar a <span className="text-xs font-normal text-gray-500">· se agregan solos los encargados de las dos bodegas</span>
+            </label>
+            <MultiSelectInput
+                options={users}
+                selected={selectedUsers}
+                onSelectionChange={setSelectedUsers}
+                placeholder="Buscar personas por nombre o correo..."
+                label=""
+                error={showErrors ? errors.usuarios : null}
+                priorityIds={priorityUserIds}
+              />
+          </div>
+
           {/* Botón */}
-          <div className="mt-6 flex items-center justify-end">
+          <div className="mt-6 flex items-center justify-end gap-3 border-t pt-4">
+            <span className="text-sm text-gray-500">
+              {insumosSeleccionados.length} insumo{insumosSeleccionados.length === 1 ? "" : "s"} · {productosSeleccionados.length} PT
+            </span>
             {/* El botón se llama igual que lo que produce, como en el resto de la app:
                 "Crear solicitud" → "Solicitud creada". "Solicitar" dejaba la duda de si
                 creaba un borrador o mandaba algo. */}
