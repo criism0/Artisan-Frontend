@@ -33,6 +33,7 @@ import {
   formatearMinutos,
   paradasDeRutaGuardada,
   pedidosDeRuta,
+  avanceDeRuta,
 } from "../../utils/rutas";
 
 /**
@@ -198,11 +199,11 @@ export default function RutaDetail() {
   ) : !editable ? (
     <PanelAcciones secundarias={[accionNotas]} />
   ) : (
+    // «Agregar o quitar pedidos» al «⋯» (revisión de UI, Fase 5): competía con «Editar».
     <PanelAcciones
       principal={{ label: "Editar", icon: <Pencil className="w-4 h-4" />, onClick: empezarEdicion }}
-      secundarias={[
-        accionNotas,
-        accionEtiquetas,
+      secundarias={[accionNotas, accionEtiquetas]}
+      menu={[
         {
           label: "Agregar o quitar pedidos",
           icon: <ListPlus className="w-4 h-4" />,
@@ -214,15 +215,29 @@ export default function RutaDetail() {
     />
   );
 
+  const avance = avanceDeRuta(ruta);
+  const conAvance = ["En curso", "Cerrada"].includes(ruta.estado);
+  const creada = `Creada el ${new Date(ruta.createdAt).toLocaleString("es-CL")}${ruta.creador?.nombre ? ` por ${ruta.creador.nombre}` : ""}`;
+
   return (
     <div className="p-6 bg-background min-h-screen">
       <PageHeader
         volverA="/logistica/entregas"
         titulo={`Ruta #${ruta.id}`}
         estado={<EstadoRuta estado={ruta.estado} />}
-        subtitulo={`${formatearFecha(ruta.fecha)} · sale de ${ruta.bodega?.nombre ?? "—"}`}
+        // Día, encargado y bodega en una línea (antes, además, en una tarjeta de cinco filas).
+        subtitulo={
+          <span title={creada}>
+            {formatearFecha(ruta.fecha)} · {ruta.transportista?.nombre ?? "sin encargado"} ·{" "}
+            {vuelve ? `sale de y vuelve a ${ruta.bodega?.nombre ?? "—"}` : `sale de ${ruta.bodega?.nombre ?? "—"} · termina en la última parada`}
+          </span>
+        }
         acciones={acciones}
       />
+
+      {!borrador && ruta.comentario && (
+        <p className="mb-4 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">💬 {ruta.comentario}</p>
+      )}
 
       {ruta.estado === "Cancelada" && (
         <div className="mb-4 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
@@ -233,7 +248,23 @@ export default function RutaDetail() {
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-        <Dato titulo="Paradas" valor={paradas.length} />
+        {conAvance && !borrador ? (
+          <Dato
+            titulo="Avance"
+            valor={
+              <>
+                {avance.conResultado} de {avance.total}
+                {avance.problemas > 0 && (
+                  <span className="ml-2 text-sm font-semibold text-amber-700" title="Paradas parciales o no entregadas">
+                    ⚠ {avance.problemas}
+                  </span>
+                )}
+              </>
+            }
+          />
+        ) : (
+          <Dato titulo="Paradas" valor={paradas.length} />
+        )}
         <Dato titulo="Pedidos" valor={borrador ? paradas.reduce((n, p) => n + p.ordenes.length, 0) : pedidosDeRuta(ruta)} />
         <Dato titulo="Recorrido" valor={formatearKm(ruta.km_planificados)} />
         <Dato titulo="Tiempo manejando" valor={formatearMinutos(ruta.minutos_planificados)} />
@@ -245,70 +276,46 @@ export default function RutaDetail() {
         </p>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <div className="flex flex-col gap-4">
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-col gap-3 text-sm">
-            <h2 className="font-semibold text-gray-900">Datos de la ruta</h2>
-            <Campo titulo="Día">
-              {borrador ? (
-                <input
-                  type="date"
-                  value={borrador.fecha}
-                  onChange={(e) => setBorrador((b) => ({ ...b, fecha: e.target.value }))}
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-              ) : (
-                formatearFecha(ruta.fecha)
-              )}
-            </Campo>
-            <Campo titulo="Encargado">
-              {borrador ? (
-                transportistas.length ? (
-                  <Selector
-                    options={transportistas.map((t) => ({ value: String(t.id), label: rutasApi.etiquetaEncargado(t) }))}
-                    selectedValue={borrador.idTransportista}
-                    onSelect={(v) => setBorrador((b) => ({ ...b, idTransportista: v }))}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
-                ) : (
-                  <span className="text-xs text-amber-800">No hay usuarios que puedan hacerse cargo de una ruta.</span>
-                )
-              ) : (
-                ruta.transportista?.nombre ?? <span className="text-gray-400">Sin encargado</span>
-              )}
-            </Campo>
-            <Campo titulo={vuelve ? "Sale de y vuelve a" : "Sale de"}>
-              {ruta.bodega?.nombre ?? "—"}
-              {!vuelve && <span className="text-gray-500"> · termina en la última parada</span>}
-            </Campo>
-            <Campo titulo="Comentario">
-              {borrador ? (
-                <textarea
-                  value={borrador.comentario}
-                  onChange={(e) => setBorrador((b) => ({ ...b, comentario: e.target.value }))}
-                  rows={3}
-                  placeholder="Indicaciones para el chofer"
-                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                />
-              ) : (
-                ruta.comentario || <span className="text-gray-400">—</span>
-              )}
-            </Campo>
-            <Campo titulo="Creada">
-              {new Date(ruta.createdAt).toLocaleString("es-CL")}
-              {ruta.creador?.nombre ? ` por ${ruta.creador.nombre}` : ""}
-            </Campo>
-          </div>
+      {/* Los datos de la ruta se editan acá; leídos, van en el subtítulo (revisión de UI, Fase 5). */}
+      {borrador && (
+        <div className="mb-4 bg-white rounded-xl border border-gray-200 shadow-sm p-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <Campo titulo="Día">
+            <input
+              type="date"
+              value={borrador.fecha}
+              onChange={(e) => setBorrador((b) => ({ ...b, fecha: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            />
+          </Campo>
+          <Campo titulo="Encargado">
+            {transportistas.length ? (
+              <Selector
+                options={transportistas.map((t) => ({ value: String(t.id), label: rutasApi.etiquetaEncargado(t) }))}
+                selectedValue={borrador.idTransportista}
+                onSelect={(v) => setBorrador((b) => ({ ...b, idTransportista: v }))}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              />
+            ) : (
+              <span className="text-xs text-amber-800">No hay usuarios que puedan hacerse cargo de una ruta.</span>
+            )}
+          </Campo>
+          <Campo titulo="Comentario">
+            <textarea
+              value={borrador.comentario}
+              onChange={(e) => setBorrador((b) => ({ ...b, comentario: e.target.value }))}
+              rows={2}
+              placeholder="Indicaciones para el chofer"
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            />
+          </Campo>
         </div>
+      )}
 
-        <div className="xl:col-span-2 flex flex-col gap-4">
-          <MapaRuta
-            bodega={ruta.bodega}
-            paradas={paradas}
-            polilinea={recorridoCambiado ? null : ruta.polilinea}
-            vuelve={vuelve}
-          />
-
+      {/* 🔴 LAS PARADAS PRIMERO (revisión de UI, Fase 5, 2026-11-25): son lo que se viene a ver y
+          quedaban bajo el mapa. Ahora van a la izquierda y el mapa y las fotos a la derecha, fijos
+          al hacer scroll en pantallas anchas. */}
+      <div className="grid grid-cols-1 xl:grid-cols-5 gap-4 items-start">
+        <div className="xl:col-span-3 flex flex-col gap-4">
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <h2 className="font-semibold text-gray-900 mb-2">Paradas</h2>
             <ol className="flex flex-col divide-y divide-gray-100">
@@ -375,19 +382,29 @@ export default function RutaDetail() {
               />
             </ol>
           </div>
+        </div>
+
+        <div className="xl:col-span-2 flex flex-col gap-4 xl:sticky xl:top-4">
+          <MapaRuta
+            bodega={ruta.bodega}
+            paradas={paradas}
+            polilinea={recorridoCambiado ? null : ruta.polilinea}
+            vuelve={vuelve}
+          />
 
           {(ruta.fotos_carga?.length > 0 || ruta.fotos_devolucion?.length > 0) && (
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 grid grid-cols-2 gap-4">
               <div>
-                <h2 className="font-semibold text-gray-900 mb-2">Carga del camión</h2>
+                <h2 className="text-sm font-semibold text-gray-900 mb-2">Carga del camión</h2>
                 <FotosMini fotos={ruta.fotos_carga ?? []} tipo="CARGA" vacio="Sin foto de la carga" />
               </div>
               <div>
-                <h2 className="font-semibold text-gray-900 mb-2">Lo que volvió</h2>
+                <h2 className="text-sm font-semibold text-gray-900 mb-2">Lo que volvió</h2>
                 <FotosMini fotos={ruta.fotos_devolucion ?? []} tipo="DEVOLUCION" vacio="No volvió nada" />
               </div>
             </div>
           )}
+          <p className="text-xs text-gray-400">{creada}</p>
         </div>
       </div>
 

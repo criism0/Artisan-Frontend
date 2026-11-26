@@ -89,6 +89,18 @@ export const formatearCLP = (n) => (n == null ? "—" : `$${Math.round(n).toLoca
 /** Cuántas OV lleva una ruta guardada (sumando todas sus paradas). */
 export const pedidosDeRuta = (ruta) => (ruta?.paradas ?? []).reduce((n, p) => n + (p.ordenes?.length ?? 0), 0);
 
+/**
+ * Cuánto lleva una ruta: paradas con resultado sobre el total, y cuántas salieron parciales o no
+ * entregadas. Antes había que abrir la ruta para saber si iba bien (revisión de UI, Fase 5,
+ * 2026-11-25). Lo usan la columna «Avance» de la lista y el primer indicador del detalle.
+ */
+export function avanceDeRuta(ruta) {
+  const paradas = ruta?.paradas ?? [];
+  const conResultado = paradas.filter((p) => p.estado && p.estado !== "Pendiente").length;
+  const problemas = paradas.filter((p) => p.estado === "Parcial" || p.estado === "No entregada").length;
+  return { total: paradas.length, conResultado, problemas };
+}
+
 export const formatearKm = (km) => (km == null ? "—" : `${Number(km).toLocaleString("es-CL", { maximumFractionDigits: 1 })} km`);
 
 export function formatearMinutos(min) {

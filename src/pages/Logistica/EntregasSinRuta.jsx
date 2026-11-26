@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Eye, PackageCheck } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
-import { BackButton } from "../../components/Buttons/ActionButtons";
+import BarraEntregas from "../../components/Entregas/BarraEntregas";
 import Modal from "../../components/UI/Modal";
 import EntregaParada from "../../components/Entregas/EntregaParada";
 import ModalEntregaSinRuta from "../../components/Entregas/ModalEntregaSinRuta";
@@ -70,7 +70,7 @@ export default function EntregasSinRuta() {
 
   return (
     <>
-      <div className="px-6 pt-6"><BackButton to="/logistica/entregas" /></div>
+      <div className="px-6 pt-6"><BarraEntregas /></div>
       <DataTable
         title="Entregas sin ruta"
         data={filas}

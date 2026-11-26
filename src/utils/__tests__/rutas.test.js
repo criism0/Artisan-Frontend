@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  avanceDeRuta,
   caminoDeRuta,
   contarPorFiltro,
   decodificarPolilinea,
@@ -109,5 +110,17 @@ describe("el trazado en línea recta de una ruta", () => {
   it("sin bodega ubicada o sin paradas no hay trazado", () => {
     expect(caminoDeRuta({ lat: null }, paradas)).toEqual([]);
     expect(caminoDeRuta(bodega, [])).toEqual([]);
+  });
+});
+
+describe("avanceDeRuta", () => {
+  it("cuenta las paradas con resultado y las que salieron con problemas", () => {
+    const ruta = { paradas: [{ estado: "Entregada" }, { estado: "Parcial" }, { estado: "No entregada" }, { estado: "Pendiente" }] };
+    expect(avanceDeRuta(ruta)).toEqual({ total: 4, conResultado: 3, problemas: 2 });
+  });
+
+  it("una ruta sin paradas no lleva nada", () => {
+    expect(avanceDeRuta({ paradas: [] })).toEqual({ total: 0, conResultado: 0, problemas: 0 });
+    expect(avanceDeRuta(null)).toEqual({ total: 0, conResultado: 0, problemas: 0 });
   });
 });

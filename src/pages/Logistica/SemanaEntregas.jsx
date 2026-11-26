@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, Search, Settings2, X, Zap, Route as IconoRuta } from "lucide-react";
 import PageHeader from "../../components/UI/PageHeader";
+import BarraEntregas from "../../components/Entregas/BarraEntregas";
 import CargandoVista from "../../components/UI/CargandoVista";
 import Selector from "../../components/Forms/Selector";
 import ModalSectores from "../../components/Entregas/ModalSectores";
@@ -288,8 +289,8 @@ export default function SemanaEntregas() {
 
   return (
     <div className="p-4 sm:p-6 bg-background min-h-screen flex flex-col gap-4">
+      <BarraEntregas />
       <PageHeader
-        volverA="/logistica/entregas"
         titulo="Semana de entregas"
         tituloAyuda="Semana de entregas"
         ayuda={

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ScanLine, Undo2 } from "lucide-react";
+import { ScanLine } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
-import { BackButton } from "../../components/Buttons/ActionButtons";
+import BarraEntregas from "../../components/Entregas/BarraEntregas";
 import Modal from "../../components/UI/Modal";
 import DecidirDevolucion from "../../components/Entregas/DecidirDevolucion";
 import FotosMini from "../../components/Entregas/FotosMini";
@@ -78,7 +78,7 @@ export default function Devoluciones() {
 
   return (
     <>
-      <div className="px-6 pt-6"><BackButton to="/logistica/entregas" /></div>
+      <div className="px-6 pt-6"><BarraEntregas recargar={filas.length} /></div>
       <div className="px-6 pt-4">
         <form onSubmit={buscar} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-wrap items-center gap-3">
           <ScanLine className="w-5 h-5 text-primary" />
@@ -98,8 +98,9 @@ export default function Devoluciones() {
         data={filas}
         columns={columns}
         actions={(row) => (
-          <button type="button" onClick={() => abrir(row)} className="text-gray-400 hover:text-primary" title="Decidir">
-            <Undo2 className="w-5 h-5" />
+          // Con nombre (revisión de UI, Fase 5): antes era «↶», que se leía como «deshacer».
+          <button type="button" onClick={() => abrir(row)} className="inline-flex items-center rounded-md border border-primary/30 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary-light" title="Reintegrar, merma o volver a despachar">
+            Resolver
           </button>
         )}
         stickyActions
