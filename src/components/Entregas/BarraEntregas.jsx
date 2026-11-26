@@ -21,7 +21,11 @@ const PESTANAS = [
   { to: "/logistica/entregas/devoluciones", label: "Devoluciones", cuenta: "devoluciones" },
 ];
 
-export default function BarraEntregas({ recargar = 0 }) {
+/**
+ * `planificarSecundario`: en Semana la acción del tablero es «Planificación rápida» (y cada día
+ * tiene «Armar ruta»); dos botones morados juntos competían, así que ahí éste va con borde.
+ */
+export default function BarraEntregas({ recargar = 0, planificarSecundario = false }) {
   const navigate = useNavigate();
   const [cuentas, setCuentas] = useState({ revision: 0, devoluciones: 0 });
   const puedeEscribir = checkScope(ModelType.RUTA, ScopeType.WRITE);
@@ -72,7 +76,7 @@ export default function BarraEntregas({ recargar = 0 }) {
         <button
           type="button"
           onClick={() => navigate("/logistica/entregas/planificar")}
-          className="btn btn-primario mb-2 inline-flex items-center gap-2"
+          className={`btn ${planificarSecundario ? "btn-secundario" : "btn-primario"} mb-2 inline-flex items-center gap-2`}
         >
           <IconoRuta className="w-4 h-4" /> Planificar ruta
         </button>

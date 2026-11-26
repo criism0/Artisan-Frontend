@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Ayuda from "../UI/Ayuda";
 
 const formato = (n, unidad) => {
@@ -12,19 +13,43 @@ const formato = (n, unidad) => {
  * toda la semana. Lo que se pide sale de los pedidos puestos en cada día (más la propuesta de la
  * planificación rápida, mientras no se confirme).
  */
-export default function InventarioSemana({ filas, dias }) {
+export default function InventarioSemana({ filas: todas, dias }) {
+  // Por defecto sólo lo que no alcanza (revisión de UI, Fase 5, 2026-11-25): la tabla se mira por
+  // lo rojo, y entre decenas de productos que sí alcanzan se perdía. «Ver todos» muestra el resto.
+  const [verTodos, setVerTodos] = useState(false);
+  const faltan = todas.filter((f) => f.celdas.some((c) => c.falta));
+  const filas = verTodos ? todas : faltan;
+  const alcanzan = todas.length - faltan.length;
+
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-3 flex flex-col gap-2">
-      <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
-        Inventario de la semana
-        <Ayuda titulo="Inventario de la semana">
-          <p>Disponible = bultos con QR + stock sin QR de la bodega.</p>
-          <p>Cada día muestra lo que queda después de lo que piden ese día y los anteriores. En rojo, no alcanza.</p>
-        </Ayuda>
-      </h2>
-      {filas.length === 0 ? (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-base font-semibold text-gray-800 flex items-center gap-1.5">
+          Inventario de la semana
+          <Ayuda titulo="Inventario de la semana">
+            <p>Disponible = bultos con QR + stock sin QR de la bodega.</p>
+            <p>Cada día muestra lo que queda después de lo que piden ese día y los anteriores. En rojo, no alcanza.</p>
+          </Ayuda>
+        </h2>
+        {todas.length > 0 && (
+          <div className="flex items-center gap-3 text-sm">
+            {faltan.length > 0 ? (
+              <span className="rounded-full bg-red-50 px-2 py-0.5 font-semibold text-red-700">⚠ {faltan.length} no alcanza{faltan.length === 1 ? "" : "n"}</span>
+            ) : (
+              <span className="rounded-full bg-green-50 px-2 py-0.5 font-semibold text-green-700">✓ Todo alcanza para la semana</span>
+            )}
+            {alcanzan > 0 && faltan.length > 0 && <span className="text-gray-500">{alcanzan} alcanzan</span>}
+            {alcanzan > 0 && (
+              <button type="button" onClick={() => setVerTodos((v) => !v)} className="font-semibold text-primary hover:underline">
+                {verTodos ? "Sólo lo que no alcanza" : "Ver todos"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      {todas.length === 0 ? (
         <p className="text-sm text-gray-500">Ningún pedido de la semana, ni de los que esperan, pide productos con nombre de facturación.</p>
-      ) : (
+      ) : filas.length === 0 ? null : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[720px]">
             <thead>
