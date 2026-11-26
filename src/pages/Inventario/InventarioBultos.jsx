@@ -1,204 +1,190 @@
-import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api, apiBlob } from "../../lib/api";
 import { createAndOpenSheet } from "../../lib/googleSheets";
 import GoogleSheetsExportButton from "../../components/UI/GoogleSheetsExportButton";
 import DividirBultoModal from "../../components/Pallets/DividirBultoModal";
+import BarraInventario from "../../components/Inventario/BarraInventario";
+import MenuAcciones from "../../components/UI/MenuAcciones";
 import { toast } from "../../lib/toast";
-import { FileDown, Pencil, Scissors, X } from "lucide-react";
+import { Pencil, Scissors, SlidersHorizontal, Tag, X } from "lucide-react";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import Pagination from "../../components/UI/Pagination";
 import RowsPerPageSelector from "../../components/UI/RowsPerPageSelector";
-import { Spinner } from "../../components/UI/Spinner.jsx";
-import {
-  checkScope,
-  ModelType,
-  ScopeType,
-} from "../../services/scopeCheck";
-import PageHeader from "../../components/UI/PageHeader";
-
-const CATEGORIAS = [
-  { value: "", label: "Todas" },
-  { value: "I", label: "Insumos (I)" },
-  { value: "PIP", label: "PIP" },
-  { value: "PT", label: "PT" },
-  { value: "M", label: "Merma (M)" },
-];
-
-const STORAGE_KEY = "inventario_bultos_ui_v1";
-
-function getBodegaNombre(b) {
-  return b?.Bodega?.nombre ?? b?.bodega?.nombre ?? "(sin bodega)";
-}
+import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
+import { abreviaturaUnidad } from "../../utils/inventarioVista.js";
 
 /**
- * Encabezado de columna que ordena al hacer clic.
+ * Inventario → Bultos: la lista de bultos, paginada en el servidor (son miles).
  *
- * Vive fuera del componente a propósito: definido adentro, cada render creaba un tipo de
- * componente nuevo y React desmontaba y volvía a montar el `<thead>` entero en vez de
- * actualizarlo. Es el mismo antipatrón que se corrigió en `StepBar`.
+ * Rehecha en la Fase 5 de la revisión de UI (2026-11-25, maqueta aprobada por Cristóbal):
+ *   · chips «Con stock» (por defecto), «Agotados» y «Mermas» con su conteo. Antes los 685
+ *     bultos en cero salían junto a los que tienen stock, y las mermas eran un check aparte;
+ *   · la tabla se ve como las demás listas (era una de las 38 hechas a mano), sin el ID interno
+ *     (se sigue encontrando escribiéndolo entero en el buscador);
+ *   · los rangos (formato, disponible, costo) van en un panel plegable, no en ocho casillas
+ *     siempre abiertas;
+ *   · al filtrar ya no se tapa la pantalla con un spinner: se atenúa la tabla y se sigue escribiendo;
+ *   · `?item=…&bodega=…` llega desde «Ver en Bultos» de la vista de Stock.
  */
-function SortHeader({ label, sortKey, className, sort, onToggle }) {
+
+const TIPOS = [
+  { value: "", label: "Todos los tipos" },
+  { value: "I", label: "Insumos" },
+  { value: "PIP", label: "En proceso (PIP)" },
+  { value: "PT", label: "Terminados (PT)" },
+];
+
+const EXISTENCIAS = [
+  { id: "con_stock", label: "Con stock", punto: "bg-green-500" },
+  { id: "agotados", label: "Agotados", punto: "bg-gray-400" },
+  { id: "mermas", label: "Mermas", punto: "bg-red-500" },
+];
+
+const RANGOS = [
+  { label: "Formato", min: "peso_min", max: "peso_max" },
+  { label: "Disponible", min: "disp_min", max: "disp_max" },
+  { label: "Costo", min: "costo_min", max: "costo_max" },
+];
+
+const FILTROS_VACIOS = {
+  id_bodega: "",
+  clave_categoria: "",
+  item: "",
+  peso_min: "",
+  peso_max: "",
+  disp_min: "",
+  disp_max: "",
+  costo_min: "",
+  costo_max: "",
+};
+
+// v2: cambiaron los filtros (salieron ID, identificador y pallet como casillas; entró la existencia).
+const STORAGE_KEY = "inventario_bultos_ui_v2";
+
+const TONO_CLAVE = {
+  M: "bg-red-100 text-red-700",
+  PT: "bg-green-100 text-green-700",
+  PIP: "bg-amber-100 text-amber-800",
+  I: "bg-blue-100 text-blue-700",
+};
+const NOMBRE_CLAVE = { M: "Merma", PT: "Producto terminado", PIP: "En proceso", I: "Insumo" };
+
+const chipBase =
+  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors whitespace-nowrap";
+const chipOn = "border-primary bg-primary-light text-primary font-medium";
+const chipOff = "border-gray-200 bg-white text-gray-700 hover:bg-gray-50";
+const campo = "border border-gray-300 rounded-lg px-3 py-2 bg-white text-sm";
+
+const getBodegaNombre = (b) => b?.Bodega?.nombre ?? b?.bodega?.nombre ?? "(sin bodega)";
+const getPalletIdentificador = (b) => b?.Pallet?.identificador ?? b?.pallet?.identificador ?? "";
+const getItemNombre = (b) =>
+  b?.materiaPrima?.nombre ?? b?.loteProductoFinal?.productoBase?.nombre ?? b?.ProductoBase?.nombre ?? "Desconocido";
+const getUnidadMedida = (b) =>
+  b?.materiaPrima?.unidad_medida ?? b?.loteProductoFinal?.productoBase?.unidad_medida ?? "";
+const getClaveCategoria = (b) => b?.clave_categoria ?? (b?.es_merma ? "M" : b?.categoria) ?? "";
+
+// Fecha en que el bulto ingresó al sistema (incluye los resultantes de una división), DD/MM/YYYY.
+function formatFechaIngreso(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+const conUnidad = (n, unidad, dec = 2) => `${formatNumberCL(n, dec)} ${abreviaturaUnidad(unidad)}`.trim();
+
+/**
+ * Encabezado que ordena al hacer clic. Vive fuera del componente a propósito: definido adentro,
+ * cada render creaba un tipo nuevo y React volvía a montar el `<thead>` entero.
+ */
+function SortHeader({ label, sortKey, sort, onToggle, align = "left" }) {
   const active = sort.key === sortKey;
-  const arrow = !active ? "" : sort.dir === "asc" ? "▲" : "▼";
   return (
     <button
       type="button"
       onClick={() => onToggle(sortKey)}
-      className={`w-full text-left font-semibold ${className || ""}`}
+      className={`inline-flex items-center gap-1 uppercase tracking-wider ${align === "right" ? "flex-row-reverse" : ""}`}
       title="Ordenar"
     >
-      <span className="inline-flex items-center gap-1">
-        <span>{label}</span>
-        <span className={`text-[10px] ${active ? "text-gray-700" : "text-gray-300"}`}>
-          {arrow || "▲"}
-        </span>
+      <span>{label}</span>
+      <span className={`text-[10px] ${active ? "text-gray-700" : "text-gray-300"}`}>
+        {active && sort.dir === "desc" ? "▼" : "▲"}
       </span>
     </button>
   );
 }
 
-function getPalletIdentificador(b) {
-  return b?.Pallet?.identificador ?? b?.pallet?.identificador ?? "";
-}
-
-function getItemNombre(b) {
-  return (
-    b?.materiaPrima?.nombre ??
-    b?.loteProductoFinal?.productoBase?.nombre ??
-    b?.ProductoBase?.nombre ??
-    "Desconocido"
-  );
-}
-
-function getUnidadMedida(b) {
-  return (
-    b?.materiaPrima?.unidad_medida ??
-    b?.loteProductoFinal?.productoBase?.unidad_medida ??
-    ""
-  );
-}
-
-function getClaveCategoria(b) {
-  return b?.clave_categoria ?? (b?.es_merma ? "M" : b?.categoria) ?? "";
-}
-
-// Fecha en que el bulto ingresó al sistema (incluye los resultantes de una división), formato DD/MM/YYYY.
-function formatFechaIngreso(value) {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  const dia = String(d.getDate()).padStart(2, "0");
-  const mes = String(d.getMonth() + 1).padStart(2, "0");
-  const ano = d.getFullYear();
-  return `${dia}/${mes}/${ano}`;
-}
-
-function BadgeCategoria({ value }) {
-  const v = value || "";
-  const base = "inline-flex items-center justify-center rounded px-2 py-0.5 text-xs font-semibold";
-  if (v === "M") return <span className={`${base} bg-red-100 text-red-700`}>M</span>;
-  if (v === "PT") return <span className={`${base} bg-green-100 text-green-700`}>PT</span>;
-  if (v === "PIP") return <span className={`${base} bg-amber-100 text-amber-800`}>PIP</span>;
-  if (v === "I") return <span className={`${base} bg-blue-100 text-blue-700`}>I</span>;
-  return <span className={`${base} bg-gray-100 text-gray-600`}>—</span>;
+function leerGuardado() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function InventarioBultos() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Lo guardado se lee una vez, al montar; un enlace con `?item=` (desde Stock) manda sobre eso.
+  const inicial = useRef(null);
+  if (inicial.current === null) {
+    const g = leerGuardado() ?? {};
+    const item = searchParams.get("item");
+    const desdeStock = item != null;
+    inicial.current = {
+      busqueda: desdeStock ? "" : typeof g.busqueda === "string" ? g.busqueda : "",
+      filters: desdeStock
+        ? { ...FILTROS_VACIOS, item, id_bodega: searchParams.get("bodega") ?? "" }
+        : { ...FILTROS_VACIOS, ...(g.filters && typeof g.filters === "object" ? g.filters : {}) },
+      existencia: desdeStock ? "con_stock" : EXISTENCIAS.some((e) => e.id === g.existencia) ? g.existencia : "con_stock",
+      sort: g.sort?.key && (g.sort.dir === "asc" || g.sort.dir === "desc") ? g.sort : { key: "updatedAt", dir: "desc" },
+    };
+  }
+
   const [bodegas, setBodegas] = useState([]);
   const [bultos, setBultos] = useState([]);
-  const [busqueda, setBusqueda] = useState("");
+  const [busqueda, setBusqueda] = useState(inicial.current.busqueda);
+  const [filters, setFilters] = useState(inicial.current.filters);
+  const [existencia, setExistencia] = useState(inicial.current.existencia);
+  const [sort, setSort] = useState(inicial.current.sort);
+  const [rangosAbiertos, setRangosAbiertos] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [bultoADividir, setBultoADividir] = useState(null);
 
-  const [filters, setFilters] = useState({
-    id_bodega: "",
-    clave_categoria: "",
-    id: "",
-    identificador: "",
-    item: "",
-    pallet: "",
-    peso_min: "",
-    peso_max: "",
-    disp_min: "",
-    disp_max: "",
-    costo_min: "",
-    costo_max: "",
-  });
-
-  const [sort, setSort] = useState({ key: "updatedAt", dir: "desc" });
-  // Las mermas son bultos que ya no representan inventario disponible; por default no
-  // aparecen en la lista (§ pedido de Cristóbal) y se muestran sólo si se marca este check.
-  const [verMermas, setVerMermas] = useState(false);
-
-  // Paginación server-side (B2): la BD ya supera los 6.000 bultos
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [conteos, setConteos] = useState(null);
 
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [isExporting, setIsExporting] = useState(false);
 
   const canWriteBulk = checkScope(ModelType.BULTO, ScopeType.WRITE);
 
-  // Restaurar filtros/orden desde localStorage (experiencia tipo Excel)
+  // El `?item=` ya se aplicó: se saca de la URL para que recargar no pise lo que se cambie después.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-
-      if (parsed && typeof parsed === "object") {
-        if (typeof parsed.busqueda === "string") setBusqueda(parsed.busqueda);
-        if (parsed.filters && typeof parsed.filters === "object") {
-          setFilters((prev) => ({ ...prev, ...parsed.filters }));
-        }
-        if (parsed.sort && typeof parsed.sort === "object") {
-          if (typeof parsed.sort.key === "string" && (parsed.sort.dir === "asc" || parsed.sort.dir === "desc")) {
-            setSort({ key: parsed.sort.key, dir: parsed.sort.dir });
-          }
-        }
-        if (typeof parsed.verMermas === "boolean") setVerMermas(parsed.verMermas);
-      }
-    } catch {
-      // Si el storage está corrupto, lo ignoramos.
-    }
+    if (searchParams.has("item") || searchParams.has("bodega")) setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Persistir filtros/orden
   useEffect(() => {
     try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          busqueda,
-          filters,
-          sort,
-          verMermas,
-        })
-      );
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ busqueda, filters, sort, existencia }));
     } catch {
       // Sin storage disponible: no bloquea la UI.
     }
-  }, [busqueda, filters, sort, verMermas]);
+  }, [busqueda, filters, sort, existencia]);
 
   useEffect(() => {
-    const fetchBodegas = async () => {
-      try {
-        const res = await api("/bodegas");
-        if (res && Array.isArray(res.bodegas)) {
-          setBodegas(res.bodegas);
-        }
-      } catch (error) {
-        console.error("Error al obtener bodegas:", error);
-      }
-    };
-    fetchBodegas();
+    api("/bodegas")
+      .then((res) => setBodegas(Array.isArray(res?.bodegas) ? res.bodegas : []))
+      .catch((error) => console.error("Error al obtener bodegas:", error));
   }, []);
 
   const buildQueryParams = ({ paginado = true } = {}) => {
@@ -206,13 +192,16 @@ export default function InventarioBultos() {
     for (const [k, v] of Object.entries(filters)) {
       if (v !== "" && v != null) qs.set(k, String(v).trim());
     }
+    // Las mermas no tienen tipo propio (su clave es «M»): con el chip Mermas el tipo no aplica.
+    if (existencia === "mermas") qs.delete("clave_categoria");
     if (busqueda.trim()) qs.set("q", busqueda.trim());
+    qs.set("existencia", existencia);
     qs.set("sort_key", sort.key);
     qs.set("sort_dir", sort.dir);
-    if (verMermas) qs.set("incluir_merma", "true");
     if (paginado) {
       qs.set("page", String(page));
       qs.set("limit", String(limit));
+      qs.set("con_conteos", "true");
     }
     return qs;
   };
@@ -224,6 +213,7 @@ export default function InventarioBultos() {
       setBultos(Array.isArray(res?.rows) ? res.rows : []);
       setTotal(Number(res?.count) || 0);
       setTotalPages(Number(res?.total_pages) || 1);
+      setConteos(res?.conteos ?? null);
     } catch (error) {
       console.error("Error al obtener bultos:", error);
       toast.error("No se pudieron cargar los bultos");
@@ -233,33 +223,27 @@ export default function InventarioBultos() {
     }
   };
 
-  // Cambios de filtros/búsqueda/orden: debounce y volver a página 1
-  const isFirstFilterRun = React.useRef(true);
+  // Cambios de filtros/búsqueda/orden: debounce y volver a la página 1.
+  const isFirstFilterRun = useRef(true);
   useEffect(() => {
     if (isFirstFilterRun.current) { isFirstFilterRun.current = false; return; }
     const t = setTimeout(() => {
+      setSelectedIds(new Set());
       if (page !== 1) setPage(1);
       else fetchBultos();
     }, 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, busqueda, sort, verMermas]);
+  }, [filters, busqueda, sort, existencia]);
 
-  // Cambios de página/tamaño: fetch inmediato (también cubre la carga inicial)
+  // Cambios de página/tamaño: fetch inmediato (también cubre la carga inicial).
   useEffect(() => {
     fetchBultos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, limit]);
 
-  // Filtrado y orden ahora son server-side; `bultos` ya es la página lista.
-  const bultosOrdenados = bultos;
-
-  const toggleSort = (key) => {
-    setSort((prev) => {
-      if (prev.key !== key) return { key, dir: "asc" };
-      return { key, dir: prev.dir === "asc" ? "desc" : "asc" };
-    });
-  };
+  const toggleSort = (key) =>
+    setSort((prev) => (prev.key !== key ? { key, dir: "asc" } : { key, dir: prev.dir === "asc" ? "desc" : "asc" }));
 
   const generarEtiqueta = async (bulto) => {
     try {
@@ -277,28 +261,17 @@ export default function InventarioBultos() {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error al descargar etiqueta:", error);
-      toast.error("No se pudo descargar la etiqueta. Revisa la consola.");
+      toast.error("No se pudo descargar la etiqueta");
     }
   };
 
-  const toggleSelectAll = (checked) => {
-    if (!checked) {
-      setSelectedIds(new Set());
-      return;
-    }
-    const next = new Set();
-    bultosOrdenados.forEach((b) => next.add(b.id));
-    setSelectedIds(next);
-  };
-
-  const toggleSelectOne = (id, checked) => {
+  const toggleSelectAll = (checked) => setSelectedIds(checked ? new Set(bultos.map((b) => b.id)) : new Set());
+  const toggleSelectOne = (id, checked) =>
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
+      if (checked) next.add(id); else next.delete(id);
       return next;
     });
-  };
 
   const HEADERS_BULTOS = [
     "ID", "Identificador", "Categoría", "Bodega", "Pallet", "Ítem",
@@ -307,58 +280,27 @@ export default function InventarioBultos() {
     "Fecha ingreso",
   ];
 
-  const buildExportRows = (list) => {
-    return list.map((b) => {
-      const unidad = getUnidadMedida(b);
-      const item = getItemNombre(b);
-      const bodega = getBodegaNombre(b);
-      const pallet = getPalletIdentificador(b);
-      const clave = getClaveCategoria(b);
-
+  const rowsToValues = (list) =>
+    list.map((b) => {
       const pesoUnit = Number(b?.peso_unitario ?? 0);
       const unidadesDisp = Number(b?.unidades_disponibles ?? 0);
       const unidadesTot = Number(b?.cantidad_unidades ?? 0);
-      const totalDisp = unidadesDisp * pesoUnit;
-      const totalTot = unidadesTot * pesoUnit;
       const costoUnit = Number(b?.costo_unitario ?? 0);
-      const costoTot = costoUnit * unidadesDisp;
-
-      return {
-        id: b?.id ?? "",
-        identificador: b?.identificador ?? "",
-        clave_categoria: clave,
-        bodega,
-        pallet,
-        item,
-        unidad_medida: unidad,
-        peso_unitario: pesoUnit,
-        unidades_disponibles: unidadesDisp,
-        cantidad_unidades: unidadesTot,
-        total_disponible: totalDisp,
-        total_cantidad: totalTot,
-        costo_unitario: costoUnit,
-        costo_total: costoTot,
-        updatedAt: b?.updatedAt ?? "",
-        fecha_ingreso: formatFechaIngreso(b?.createdAt),
-      };
+      return [
+        b?.id ?? "", b?.identificador ?? "", getClaveCategoria(b), getBodegaNombre(b), getPalletIdentificador(b),
+        getItemNombre(b), getUnidadMedida(b), pesoUnit, unidadesDisp, unidadesTot,
+        unidadesDisp * pesoUnit, unidadesTot * pesoUnit, costoUnit, costoUnit * unidadesDisp, b?.updatedAt ?? "",
+        formatFechaIngreso(b?.createdAt),
+      ];
     });
-  };
-
-  const rowsToValues = (rows) =>
-    rows.map((r) => [
-      r.id, r.identificador, r.clave_categoria, r.bodega, r.pallet, r.item,
-      r.unidad_medida, r.peso_unitario, r.unidades_disponibles, r.cantidad_unidades,
-      r.total_disponible, r.total_cantidad, r.costo_unitario, r.costo_total, r.updatedAt,
-      r.fecha_ingreso,
-    ]);
 
   const exportarASheets = async ({ access_token }) => {
     const hasSelection = selectedIds.size > 0;
     let data;
     if (hasSelection) {
-      data = bultosOrdenados.filter((b) => selectedIds.has(b.id));
+      data = bultos.filter((b) => selectedIds.has(b.id));
     } else {
-      // Export completo: mismo filtro, sin paginar (el server lo resuelve)
+      // Export completo: mismo filtro, sin paginar (el server lo resuelve).
       const res = await api(`/inventario/bultos?${buildQueryParams({ paginado: false }).toString()}`);
       data = Array.isArray(res) ? res : [];
     }
@@ -368,7 +310,7 @@ export default function InventarioBultos() {
       const title = hasSelection
         ? `Bultos seleccionados ${new Date().toLocaleDateString("es-CL")}`
         : `Inventario Bultos ${new Date().toLocaleDateString("es-CL")}`;
-      const url = await createAndOpenSheet(access_token, title, [HEADERS_BULTOS, ...rowsToValues(buildExportRows(data))]);
+      const url = await createAndOpenSheet(access_token, title, [HEADERS_BULTOS, ...rowsToValues(data)]);
       toast.link("Hoja creada", url);
     } catch {
       toast.error("Error al exportar a Google Sheets");
@@ -377,43 +319,32 @@ export default function InventarioBultos() {
     }
   };
 
-  const clearFilters = () => {
-    setBusqueda("");
-    setFilters((prev) => ({
-      ...prev,
-      clave_categoria: "",
-      id: "",
-      identificador: "",
-      item: "",
-      pallet: "",
-      peso_min: "",
-      peso_max: "",
-      disp_min: "",
-      disp_max: "",
-      costo_min: "",
-      costo_max: "",
-    }));
-  };
-
-
+  const setFiltro = (clave, valor) => setFilters((p) => ({ ...p, [clave]: valor }));
+  const nRangos = RANGOS.reduce((n, r) => n + (filters[r.min] !== "" ? 1 : 0) + (filters[r.max] !== "" ? 1 : 0), 0);
+  const hayFiltros = Boolean(busqueda || filters.id_bodega || filters.clave_categoria || filters.item || nRangos);
+  const limpiar = () => { setBusqueda(""); setFilters({ ...FILTROS_VACIOS }); };
+  const limpiarRangos = () =>
+    setFilters((p) => ({ ...p, ...Object.fromEntries(RANGOS.flatMap((r) => [[r.min, ""], [r.max, ""]])) }));
 
   if (isInitialLoading) return <PageLoader message="Cargando bultos" />;
 
+  const desde = total === 0 ? 0 : (page - 1) * limit + 1;
+  const hasta = Math.min(page * limit, total);
+  const th = "px-4 py-3 text-left text-xs font-medium text-text";
+  const td = "px-4 py-3 text-sm text-text align-top";
+
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      {cargando && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
-          <Spinner size="lg" />
-        </div>
-      )}
-      <PageHeader
-        titulo="Inventario de Bultos"
-        acciones={<div className="flex flex-col items-end gap-1">
-          <span className="text-xs text-gray-400">Exportar a Google Sheets</span>
+    <>
+      <div className="px-6 pt-6">
+        <BarraInventario />
+      </div>
+      <div className="p-6 bg-background min-h-screen">
+        <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
+          <h1 className="text-2xl font-bold text-text">Bultos</h1>
           <div className="flex items-center gap-2">
             {selectedIds.size > 0 && (
               <span className="text-xs text-gray-500">
-                {selectedIds.size} seleccionada{selectedIds.size !== 1 ? "s" : ""}
+                {selectedIds.size} seleccionado{selectedIds.size !== 1 ? "s" : ""}
               </span>
             )}
             <GoogleSheetsExportButton
@@ -421,294 +352,214 @@ export default function InventarioBultos() {
               onError={() => toast.error("No se pudo autenticar con Google")}
               isExporting={isExporting}
               disabled={isExporting || total === 0}
-              title="Exportar a Google Sheets"
+              etiqueta="Exportar"
+              title={selectedIds.size ? `Exportar ${selectedIds.size} seleccionado(s) a Google Sheets` : "Exportar lo filtrado a Google Sheets"}
             />
           </div>
-        </div>}
-      />
+        </div>
 
-      <div className="bg-white shadow rounded p-4 mb-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Bodega</label>
-            <select
-              className="border rounded px-3 py-2 w-full"
-              value={filters.id_bodega}
-              onChange={(e) => setFilters((p) => ({ ...p, id_bodega: e.target.value }))}
-            >
-              <option value="">Todas las bodegas</option>
-              {bodegas.map((b) => (
-                <option key={b.id} value={String(b.id)}>
-                  {b.nombre} — {b.comuna}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-1">Categoría</label>
-            <select
-              className="border rounded px-3 py-2 w-full"
-              value={filters.clave_categoria}
-              onChange={(e) => setFilters((p) => ({ ...p, clave_categoria: e.target.value }))}
-            >
-              {CATEGORIAS.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-1">Búsqueda</label>
-            <input
-              type="text"
-              placeholder="Identificador, item, bodega, pallet…"
-              className="border rounded px-3 py-2 w-full"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-end">
+        <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar por existencia">
+          {EXISTENCIAS.map((e) => (
             <button
-              onClick={clearFilters}
-              className="text-gray-400 hover:text-red-500 p-2 rounded"
-              title="Limpiar filtros"
+              key={e.id}
+              type="button"
+              aria-pressed={existencia === e.id}
+              onClick={() => setExistencia(e.id)}
+              className={`${chipBase} ${existencia === e.id ? chipOn : chipOff}`}
             >
-              <X className="w-5 h-5" />
+              <span className={`h-2 w-2 rounded-full ${e.punto}`} aria-hidden="true" />
+              {e.label}
+              {conteos && <b className="font-semibold tabular-nums">{formatNumberCL(conteos[e.id] ?? 0, 0)}</b>}
             </button>
-          </div>
+          ))}
         </div>
 
-        <div className="flex items-center justify-between mt-3">
-          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={verMermas}
-              onChange={(e) => setVerMermas(e.target.checked)}
-            />
-            Ver mermas
-          </label>
-          <div className="text-xs text-gray-500">
-            Filas: <span className="font-semibold">{bultosOrdenados.length}</span> de {formatNumberCL(total)} (página {page} de {totalPages})
+        <div className="flex flex-wrap justify-between items-center gap-3 mb-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <select aria-label="Bodega" className={campo} value={filters.id_bodega} onChange={(e) => setFiltro("id_bodega", e.target.value)}>
+              <option value="">Todas las bodegas</option>
+              {bodegas.map((b) => <option key={b.id} value={String(b.id)}>{b.nombre}</option>)}
+            </select>
+            <select
+              aria-label="Tipo"
+              className={`${campo} disabled:text-gray-400`}
+              value={existencia === "mermas" ? "" : filters.clave_categoria}
+              disabled={existencia === "mermas"}
+              title={existencia === "mermas" ? "Las mermas no se separan por tipo" : undefined}
+              onChange={(e) => setFiltro("clave_categoria", e.target.value)}
+            >
+              {TIPOS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+            <button
+              type="button"
+              onClick={() => setRangosAbiertos((v) => !v)}
+              aria-expanded={rangosAbiertos}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                nRangos || rangosAbiertos ? "border-primary/30 bg-primary-light text-primary" : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              <SlidersHorizontal className="w-4 h-4" /> Rangos{nRangos ? ` · ${nRangos}` : ""}
+            </button>
+            {filters.item && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary-light px-3 py-1 text-sm text-primary">
+                Ítem: {filters.item}
+                <button type="button" onClick={() => setFiltro("item", "")} aria-label="Quitar el filtro de ítem" className="hover:text-primary-dark">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            )}
+            {hayFiltros && (
+              <button type="button" onClick={limpiar} className="text-sm text-gray-500 hover:text-red-600">
+                Limpiar filtros
+              </button>
+            )}
+            {cargando && <span className="text-sm text-primary">Actualizando…</span>}
           </div>
+          <input
+            type="search"
+            aria-label="Buscar bultos"
+            placeholder="Identificador, ítem, pallet o ID…"
+            className={`${campo} w-72 max-w-full`}
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
         </div>
-      </div>
 
-      <div className="overflow-x-auto bg-white shadow rounded">
-        <table className="w-full border border-gray-300 text-sm">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="p-2 border w-10 text-center">
-                  <input
-                    type="checkbox"
-                    checked={bultosOrdenados.length > 0 && selectedIds.size === bultosOrdenados.length}
-                    onChange={(e) => toggleSelectAll(e.target.checked)}
-                    aria-label="Seleccionar todo"
-                  />
-                </th>
-                <th className="p-2 border"><SortHeader label="Cat" sortKey="clave_categoria" sort={sort} onToggle={toggleSort} /></th>
-                <th className="p-2 border"><SortHeader label="ID" sortKey="id" sort={sort} onToggle={toggleSort} /></th>
-                <th className="p-2 border"><SortHeader label="Identificador" sortKey="identificador" sort={sort} onToggle={toggleSort} /></th>
-                <th className="p-2 border"><SortHeader label="Item" sortKey="item" sort={sort} onToggle={toggleSort} /></th>
-                <th className="p-2 border"><SortHeader label="Bodega" sortKey="bodega" sort={sort} onToggle={toggleSort} /></th>
-                <th className="p-2 border"><SortHeader label="Formato" sortKey="peso_unitario" sort={sort} onToggle={toggleSort} /></th>
-                <th className="p-2 border"><SortHeader label="Disponible" sortKey="disponible" sort={sort} onToggle={toggleSort} /></th>
-                <th className="p-2 border"><SortHeader label="Costo" sortKey="costo" sort={sort} onToggle={toggleSort} /></th>
-                <th className="p-2 border"><SortHeader label="Fecha ingreso" sortKey="fecha_ingreso" sort={sort} onToggle={toggleSort} /></th>
-                <th className="p-2 border w-28 text-center">Acciones</th>
-              </tr>
+        {rangosAbiertos && (
+          <div className="mb-3 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-lg border border-dashed border-gray-300 bg-white px-4 py-3 text-sm text-gray-600">
+            {RANGOS.map((r) => (
+              <label key={r.label} className="flex items-center gap-2">
+                <span className="font-medium text-gray-700">{r.label}</span>
+                <input inputMode="decimal" aria-label={`${r.label} mínimo`} placeholder="mín" className="w-20 rounded-md border border-gray-300 px-2 py-1" value={filters[r.min]} onChange={(e) => setFiltro(r.min, e.target.value)} />
+                a
+                <input inputMode="decimal" aria-label={`${r.label} máximo`} placeholder="máx" className="w-20 rounded-md border border-gray-300 px-2 py-1" value={filters[r.max]} onChange={(e) => setFiltro(r.max, e.target.value)} />
+              </label>
+            ))}
+            {nRangos > 0 && (
+              <button type="button" onClick={limpiarRangos} className="ml-auto text-sm font-medium text-primary hover:underline">
+                Limpiar rangos
+              </button>
+            )}
+          </div>
+        )}
 
-              <tr className="bg-white">
-                <th className="p-1 border"></th>
-                <th className="p-1 border"></th>
-                <th className="p-1 border">
-                  <input
-                    className="border rounded px-2 py-1 w-24"
-                    placeholder="filtrar"
-                    value={filters.id}
-                    onChange={(e) => setFilters((p) => ({ ...p, id: e.target.value }))}
-                  />
-                </th>
-                <th className="p-1 border">
-                  <input
-                    className="border rounded px-2 py-1 w-40"
-                    placeholder="filtrar"
-                    value={filters.identificador}
-                    onChange={(e) => setFilters((p) => ({ ...p, identificador: e.target.value }))}
-                  />
-                </th>
-                <th className="p-1 border">
-                  <input
-                    className="border rounded px-2 py-1 w-44"
-                    placeholder="filtrar"
-                    value={filters.item}
-                    onChange={(e) => setFilters((p) => ({ ...p, item: e.target.value }))}
-                  />
-                </th>
-                <th className="p-1 border"></th>
-                <th className="p-1 border">
-                  <div className="flex gap-1">
-                    <input
-                      className="border rounded px-2 py-1 w-20"
-                      placeholder="min"
-                      value={filters.peso_min}
-                      onChange={(e) => setFilters((p) => ({ ...p, peso_min: e.target.value }))}
-                    />
-                    <input
-                      className="border rounded px-2 py-1 w-20"
-                      placeholder="max"
-                      value={filters.peso_max}
-                      onChange={(e) => setFilters((p) => ({ ...p, peso_max: e.target.value }))}
-                    />
-                  </div>
-                </th>
-                <th className="p-1 border">
-                  <div className="flex gap-1">
-                    <input
-                      className="border rounded px-2 py-1 w-20"
-                      placeholder="min"
-                      value={filters.disp_min}
-                      onChange={(e) => setFilters((p) => ({ ...p, disp_min: e.target.value }))}
-                    />
-                    <input
-                      className="border rounded px-2 py-1 w-20"
-                      placeholder="max"
-                      value={filters.disp_max}
-                      onChange={(e) => setFilters((p) => ({ ...p, disp_max: e.target.value }))}
-                    />
-                  </div>
-                </th>
-                <th className="p-1 border">
-                  <div className="flex gap-1">
-                    <input
-                      className="border rounded px-2 py-1 w-20"
-                      placeholder="min"
-                      value={filters.costo_min}
-                      onChange={(e) => setFilters((p) => ({ ...p, costo_min: e.target.value }))}
-                    />
-                    <input
-                      className="border rounded px-2 py-1 w-20"
-                      placeholder="max"
-                      value={filters.costo_max}
-                      onChange={(e) => setFilters((p) => ({ ...p, costo_max: e.target.value }))}
-                    />
-                  </div>
-                </th>
-                <th className="p-1 border"></th>
-                <th className="p-1 border"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {!cargando && bultosOrdenados.length === 0 ? (
+        <div className={`bg-white rounded-lg shadow overflow-hidden transition-opacity ${cargando ? "opacity-60" : ""}`}>
+          <div className="w-full overflow-x-auto">
+            <table className="min-w-max w-full">
+              <thead className="bg-gray-50 uppercase">
                 <tr>
-                  <td className="p-6 text-center text-gray-600" colSpan={11}>
-                    No hay bultos para los filtros actuales.
-                  </td>
-                </tr>
-              ) : null}
-
-              {bultosOrdenados.map((b) => {
-                const unidad = getUnidadMedida(b);
-                const nombre = getItemNombre(b);
-                const bodegaNombre = getBodegaNombre(b);
-
-                const cantidadDisponibleNum =
-                  Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0);
-                const cantidadDisponible = formatNumberCL(cantidadDisponibleNum, 2);
-
-                const costoTotal =
-                  Number(b.costo_unitario || 0) * Number(b.unidades_disponibles || 0);
-                const checked = selectedIds.has(b.id);
-                
-                return (
-                <tr key={b.id} className="hover:bg-gray-50">
-                  <td className="p-2 border text-center">
+                  <th className={`${th} w-10`}>
                     <input
                       type="checkbox"
-                      checked={checked}
-                      onChange={(e) => toggleSelectOne(b.id, e.target.checked)}
-                      aria-label={`Seleccionar bulto ${b.identificador || b.id}`}
+                      checked={bultos.length > 0 && selectedIds.size === bultos.length}
+                      onChange={(e) => toggleSelectAll(e.target.checked)}
+                      aria-label="Seleccionar la página"
+                      className="rounded border-gray-300 text-primary focus:ring-primary"
                     />
-                  </td>
-                  <td className="p-2 border text-center">
-                    <BadgeCategoria value={getClaveCategoria(b)} />
-                  </td>
-                  <td className="p-2 border">{b.id}</td>
-                  <td className="p-2 border font-mono text-xs">{b.identificador}</td>
-                  <td className="p-2 border">{nombre}</td>
-                  <td className="p-2 border">{bodegaNombre}</td>
-
-                  <td className="p-2 border">
-                    {formatNumberCL(b.peso_unitario, 2)} {unidad}
-                  </td>
-                  <td className="p-2 border">
-                    <div className="font-medium">{cantidadDisponible} {unidad}</div>
-                    <div className="text-xs text-gray-500">({b.unidades_disponibles}/{b.cantidad_unidades} un.)</div>
-                  </td>
-                  <td className="p-2 border">
-                    <div className="font-medium">{formatCLP(costoTotal, 0)}</div>
-                  </td>
-                  <td className="p-2 border whitespace-nowrap">{formatFechaIngreso(b.createdAt)}</td>
-                  <td className="p-2 border text-center">
-                    <div className="flex items-center justify-center gap-3">
-                      <button
-                        onClick={() => generarEtiqueta(b)}
-                        className="text-gray-400 hover:text-blue-600"
-                        title="Descargar etiqueta"
-                      >
-                        <FileDown className="w-5 h-5" />
-                      </button>
-
-                      {canWriteBulk && (
-                        <button
-                          onClick={() => navigate(`/inventario/bultos/${b.id}/editar`)}
-                          className="text-gray-400 hover:text-blue-600"
-                          title="Editar bulto"
-                        >
-                          <Pencil className="w-5 h-5" />
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => setBultoADividir(b)}
-                        className="text-gray-400 hover:text-orange-600"
-                        title="Dividir bulto"
-                      >
-                        <Scissors className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </td>
+                  </th>
+                  <th className={th}><SortHeader label="Tipo" sortKey="clave_categoria" sort={sort} onToggle={toggleSort} /></th>
+                  <th className={th}><SortHeader label="Identificador" sortKey="identificador" sort={sort} onToggle={toggleSort} /></th>
+                  <th className={th}><SortHeader label="Ítem" sortKey="item" sort={sort} onToggle={toggleSort} /></th>
+                  <th className={th}><SortHeader label="Bodega" sortKey="bodega" sort={sort} onToggle={toggleSort} /></th>
+                  <th className={`${th} text-right`}><SortHeader label="Formato" sortKey="peso_unitario" sort={sort} onToggle={toggleSort} align="right" /></th>
+                  <th className={`${th} text-right`}><SortHeader label="Disponible" sortKey="disponible" sort={sort} onToggle={toggleSort} align="right" /></th>
+                  <th className={`${th} text-right`}><SortHeader label="Costo" sortKey="costo" sort={sort} onToggle={toggleSort} align="right" /></th>
+                  <th className={th}><SortHeader label="Ingreso" sortKey="fecha_ingreso" sort={sort} onToggle={toggleSort} /></th>
+                  <th className={`${th} text-right tracking-wider`}>Acciones</th>
                 </tr>
-              )})}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {!cargando && bultos.length === 0 && (
+                  <tr>
+                    <td className="px-4 py-8 text-center text-sm text-gray-500" colSpan={10}>
+                      No hay bultos para estos filtros.
+                    </td>
+                  </tr>
+                )}
+                {bultos.map((b) => {
+                  const unidad = getUnidadMedida(b);
+                  const clave = getClaveCategoria(b);
+                  const pallet = getPalletIdentificador(b);
+                  const disponible = Number(b.unidades_disponibles || 0) * Number(b.peso_unitario || 0);
+                  const costoTotal = Number(b.costo_unitario || 0) * Number(b.unidades_disponibles || 0);
+                  return (
+                    <tr key={b.id} className="hover:bg-gray-50">
+                      <td className={td}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(b.id)}
+                          onChange={(e) => toggleSelectOne(b.id, e.target.checked)}
+                          aria-label={`Seleccionar bulto ${b.identificador || b.id}`}
+                          className="rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                      </td>
+                      <td className={td}>
+                        <span className={`rounded px-2 py-0.5 text-xs font-semibold ${TONO_CLAVE[clave] ?? "bg-gray-100 text-gray-600"}`} title={NOMBRE_CLAVE[clave]}>
+                          {clave || "—"}
+                        </span>
+                      </td>
+                      <td className={`${td} font-mono text-xs`} title={`ID ${b.id}`}>{b.identificador}</td>
+                      <td className={td}><span className="block max-w-[280px] truncate" title={getItemNombre(b)}>{getItemNombre(b)}</span></td>
+                      <td className={td}>
+                        {getBodegaNombre(b)}
+                        {pallet && <span className="block text-xs text-gray-400">{pallet}</span>}
+                      </td>
+                      <td className={`${td} text-right tabular-nums`}>{conUnidad(b.peso_unitario, unidad)}</td>
+                      <td className={`${td} text-right tabular-nums`}>
+                        <span className={disponible > 0 ? "font-medium" : "text-gray-400"}>{conUnidad(disponible, unidad)}</span>
+                        <span className="block text-xs text-gray-400">{formatNumberCL(b.unidades_disponibles, 2)}/{b.cantidad_unidades} un.</span>
+                      </td>
+                      <td className={`${td} text-right tabular-nums`}>{formatCLP(costoTotal, 0)}</td>
+                      <td className={`${td} whitespace-nowrap text-gray-500`}>{formatFechaIngreso(b.createdAt)}</td>
+                      <td className={td}>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => generarEtiqueta(b)}
+                            className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-primary"
+                            title="Descargar etiqueta"
+                            aria-label={`Descargar la etiqueta de ${b.identificador}`}
+                          >
+                            <Tag className="w-4 h-4" />
+                          </button>
+                          <MenuAcciones
+                            items={[
+                              canWriteBulk && { label: "Editar bulto", icon: <Pencil className="w-4 h-4" />, onClick: () => navigate(`/inventario/bultos/${b.id}/editar`) },
+                              { label: "Dividir bulto", icon: <Scissors className="w-4 h-4" />, onClick: () => setBultoADividir(b) },
+                            ]}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
+          <RowsPerPageSelector
+            value={limit}
+            options={[10, 25, 50, 100, 200]}
+            onRowsChange={(n) => { setLimit(n); setPage(1); }}
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-gray-500 tabular-nums">
+              {formatNumberCL(desde, 0)}–{formatNumberCL(hasta, 0)} de {formatNumberCL(total, 0)}
+            </span>
+            <Pagination currentPage={page} totalPages={totalPages} onPageChange={(p) => setPage(p)} />
+          </div>
+        </div>
+
+        {bultoADividir && (
+          <DividirBultoModal
+            bulto={bultoADividir}
+            onClose={() => setBultoADividir(null)}
+            onSuccess={fetchBultos}
+          />
+        )}
       </div>
-
-      {/* Paginación server-side */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
-        <RowsPerPageSelector
-          value={limit}
-          options={[10, 25, 50, 100, 200]}
-          onRowsChange={(n) => { setLimit(n); setPage(1); }}
-        />
-        <Pagination
-          currentPage={page}
-          totalPages={totalPages}
-          onPageChange={(p) => setPage(p)}
-        />
-      </div>
-
-      {bultoADividir && (
-        <DividirBultoModal
-          bulto={bultoADividir}
-          onClose={() => setBultoADividir(null)}
-          onSuccess={fetchBultos}
-        />
-      )}
-    </div>
+    </>
   );
 }

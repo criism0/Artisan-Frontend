@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import DataTable from "../../components/Tables/DataTable";
+import BarraInventario from "../../components/Inventario/BarraInventario";
 import Modal from "../../components/UI/Modal.jsx";
 import { UndoButton, ViewDetailButton } from "../../components/Buttons/ActionButtons";
 import { useApi } from "../../lib/api";
@@ -127,7 +128,10 @@ export default function ConsumoInternoPage() {
   );
 
   return (
-    <div className="p-6">
+    <>
+      <div className="px-6 pt-6">
+        <BarraInventario />
+      </div>
       <DataTable
         title="Consumo interno"
         data={filas}
@@ -158,7 +162,7 @@ export default function ConsumoInternoPage() {
         onCancelar={() => setADeshacer(null)}
         onConfirmar={deshacer}
       />
-    </div>
+    </>
   );
 }
 

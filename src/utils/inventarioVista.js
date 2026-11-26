@@ -57,3 +57,25 @@ export const filaExportacion = (f) => [
   Math.round(Number(f.precio_total || 0)),
   f.ultimo_movimiento ? new Date(f.ultimo_movimiento).toLocaleString("es-CL") : "—",
 ];
+
+/**
+ * Bajo crítico = `estado_stock: "Peligro"` del backend (stock bajo el mínimo del ítem). Es lo
+ * único del estado que se muestra en la lista: «Bien» en 210 filas era ruido (Fase 5, 2026-11-25).
+ */
+export const esCritico = (f) => f?.estado_stock === "Peligro";
+
+export function filtrarCriticos(filas, soloCriticos) {
+  return soloCriticos ? filas.filter(esCritico) : filas;
+}
+
+// Una toma se hace en el día. Hay sesiones «Activa» de meses atrás que nadie cerró (6 en
+// producción al 2026-11-25): contarlas dejaba fijo el número en ámbar de la pestaña Tomas y
+// dejaba de avisar. Cuentan las por validar y las activas de los últimos días.
+export const DIAS_TOMA_EN_CURSO = 3;
+
+export function tomaAbierta(s, ahora = Date.now()) {
+  if (s?.estado === "Terminada") return true;
+  if (s?.estado !== "Activa") return false;
+  const t = new Date(s.createdAt ?? s.created_at ?? 0).getTime();
+  return Number.isFinite(t) && t > 0 && ahora - t <= DIAS_TOMA_EN_CURSO * 24 * 3600 * 1000;
+}

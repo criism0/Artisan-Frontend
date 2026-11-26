@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import DataTable from "../../components/Tables/DataTable";
+import BarraInventario from "../../components/Inventario/BarraInventario";
+import Ayuda from "../../components/UI/Ayuda";
 import Selector from "../../components/Forms/Selector";
 import { ViewDetailButton } from "../../components/Buttons/ActionButtons";
 
@@ -189,17 +191,22 @@ export default function SesionesInventariado() {
   );
 
   return (
+    <>
+    <div className="px-6 pt-6">
+      <BarraInventario />
+    </div>
     <DataTable
       // El título de esta lista es un elemento y no texto, así que la clave de memoria va
       // explícita: `DataTable` sólo la deriva sola cuando el título es una cadena.
       persistKey="tomas_inventario"
       title={
-        <span>
-          Tomas de Inventario
-          <span className="block text-sm font-normal text-gray-500 mt-1">
+        <span className="inline-flex items-center gap-2">
+          Tomas de inventario
+          <Ayuda titulo="Tomas de inventario">
             Las sesiones se crean y escanean desde la app móvil; al validar una sesión terminada,
-            los conteos se aplican a la bodega.
-          </span>
+            los conteos se aplican a la bodega. Mientras haya una toma abierta no se hacen
+            solicitudes ni ventas.
+          </Ayuda>
         </span>
       }
       data={filtradas}
@@ -212,5 +219,6 @@ export default function SesionesInventariado() {
       loadingMessage="Cargando sesiones de inventariado"
       emptyMessage="No hay sesiones registradas."
     />
+    </>
   );
 }

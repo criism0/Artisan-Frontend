@@ -30,6 +30,7 @@ import PanelConsumoInterno from "../../components/Inventario/PanelConsumoInterno
 import { formatFecha } from "../../lib/dateUtils";
 import { MORADO } from "../../marca";
 import PageHeader from "../../components/UI/PageHeader";
+import BarraInventario from "../../components/Inventario/BarraInventario";
 
 const formatNumCL = (num) =>
   new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(num || 0);
@@ -83,6 +84,9 @@ export default function InventarioDashboard() {
   return (
     <div>
       <div className="max-w-7xl mx-auto">
+        <div className="mb-6">
+          <BarraInventario />
+        </div>
         <PageHeader
           titulo="Dashboard de Inventario"
           subtitulo={
@@ -90,22 +94,6 @@ export default function InventarioDashboard() {
               <span className="capitalize">{formatoFechaLarga(new Date())}</span>{" "}
               <span className="text-xs text-gray-400">· Snapshot del estado actual</span>
             </>
-          }
-          acciones={
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => navigate("/inventario/stock")}
-              className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
-            >
-              Ver inventario
-            </button>
-            <button
-              onClick={() => navigate("/inventario/bultos")}
-              className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-sm"
-            >
-              Ver bultos
-            </button>
-          </div>
           }
         />
 
