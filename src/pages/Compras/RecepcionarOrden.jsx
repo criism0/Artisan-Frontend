@@ -13,8 +13,6 @@ import Table from "../../components/Tables/Table";
 import { BackButton } from "../../components/Buttons/ActionButtons";
 import { useApi, apiBlob } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { buildOcEmailItemsFromOrden, notifyOrderChange } from "../../services/emailService";
-import { useAuth } from "../../auth/AuthContext";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatCLP } from "../../services/formatHelpers";
@@ -30,7 +28,6 @@ const handleNumberInputWheel = (e) => {
 const EPSILON = 1e-6;
 
 export default function RecepcionarOrden() {
-  const { user } = useAuth();
   const api = useApi();
   const navigate = useNavigate();
   const { ordenId } = useParams();
@@ -277,59 +274,6 @@ export default function RecepcionarOrden() {
   const sumBultos = (insumo) =>
     (insumo.bultos_detalle || []).reduce((s, b) => s + (Number(b.cantidad_unidades) || 0), 0);
 
-  const emailSender = async (ordenId) => {
-    try {
-      const ordenData = await api(
-        `/proceso-compra/ordenes/${ordenId}`, { method: "GET" }
-      );
-      const { items, totalNeto, iva, totalPago } = buildOcEmailItemsFromOrden(ordenData);
-
-      // Obtener usuarios con rol Super Admin
-      const superAdmins = await api(`/usuarios?role=Super Admin`, { method: "GET" });
-      const adminsArray = Array.isArray(superAdmins) ? superAdmins : [];
-
-      // Obtener encargados de la bodega
-      const bodegaId = ordenData.BodegaSolicitante?.id;
-      let encargados = [];
-      if (bodegaId) {
-        const bodegaData = await api(`/bodegas/${bodegaId}`, { method: "GET" });
-        encargados = Array.isArray(bodegaData?.Encargados) ? bodegaData.Encargados : [];
-      }
-
-      // Combinar ambos grupos de destinatarios
-      const adminEmails = adminsArray.map((admin) => admin?.email).filter(Boolean);
-      const encargadoEmails = encargados.map((e) => e?.usuario?.email).filter(Boolean);
-      const allEmails = [...new Set([...adminEmails, ...encargadoEmails])];
-
-      const to = allEmails.map((email) => ({ email }));
-
-      const adminsNames = adminsArray.map((admin) => admin?.nombre).filter(Boolean).join(", ");
-      const encargadosNames = encargados.map((e) => e?.usuario?.nombre).filter(Boolean).join(", ");
-      const allNames = [adminsNames, encargadosNames].filter(Boolean).join(", ") || "Sin destinatarios";
-
-      let newState = ordenData.estado;
-      if (ordenData.estado === "Rechazada") {
-        newState = ordenData.estado + (ordenData.motivo_rechazo ? ` - ${ordenData.motivo_rechazo}` : "");
-      }
-
-      // Enviar correo de notificación
-      await notifyOrderChange({
-        emails: to.map((t) => t.email),
-        ordenId: ordenId,
-        operador: user.nombre || user.email || "Operador desconocido",
-        state: newState || "Estado desconocido",
-        bodega: ordenData.BodegaSolicitante?.nombre || "No especificada",
-        proveedor: ordenData.Proveedor?.nombre_empresa || ordenData.proveedor?.nombre_empresa || "No especificado",
-        clientNames: allNames,
-        items,
-        totalNeto,
-        iva,
-        totalPago,
-      });
-    } catch (emailError) {
-      console.error("Error enviando correo de notificación:", emailError);
-    }
-  };
 
   const handleFormChange = (e) => {
     const { name, value } = e.target;
@@ -604,12 +548,6 @@ export default function RecepcionarOrden() {
       } catch (e) {
         toast.error("Error al descargar etiquetas: " + (e?.message || e));
       }
-
-      try {
-        await emailSender(ordenId);
-      } catch (emailErr) {
-        toast.error("Error enviando email tras validar orden:" + emailErr);
-      }
     } catch (error) {
       toast.error("Error al recepcionar la orden: " + (error?.message || error));
     } finally {
@@ -644,11 +582,6 @@ export default function RecepcionarOrden() {
 
       setShowRejectPopup(false);
       toast.success("Orden rechazada correctamente");
-      try {
-        await emailSender(ordenId);
-      } catch (emailErr) {
-        toast.error(`Error enviando email tras validar orden: ${emailErr.message}`);
-      }
       navigate("/adquisiciones/ordenes-compra");
     } catch (error) {
       toast.error("No se pudo rechazar la orden." + error);

@@ -21,7 +21,7 @@ import MenuAcciones from "./MenuAcciones.jsx";
  *   { label, onClick, icon?, disabled?, title?, confirmar?: { titulo, mensaje?, textoBoton? } }
  */
 
-function ModalConfirmacion({ accion, onCerrar }) {
+export function ModalConfirmacion({ accion, onCerrar }) {
   if (!accion) return null;
   const { confirmar = {}, label, destructiva } = accion;
 

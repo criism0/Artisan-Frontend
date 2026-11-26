@@ -34,7 +34,6 @@ import {
 } from "../../services/adquisicionesAnalytics";
 import { formatCLP, formatCLPCompact } from "../../services/formatHelpers";
 import KpiCard from "../../components/UI/KpiCard";
-import { formatFecha } from "../../lib/dateUtils";
 import PageHeader from "../../components/UI/PageHeader";
 
 const formatEjeY = (num) => formatCLPCompact(num, true);
@@ -47,7 +46,6 @@ const formatoFechaLarga = (d) =>
     day: "numeric",
   });
 
-const fmtFecha = (v) => formatFecha(v);
 
 function seleccionarEtiquetasFecha(fechas, maxEtiquetas) {
   if (fechas.length <= maxEtiquetas) return fechas;
@@ -630,7 +628,7 @@ function GraficoVariacionCosto({ api }) {
  
   const maxEtiquetasX = Math.max(2, Math.floor(innerW / 45));
 
-  const { fechas, maxY, marcasY, sx, sy } = useMemo(() => {
+  const { fechas, marcasY, sx, sy } = useMemo(() => {
     const pasos = 4;
     const sinDatos = !serie || serie.series.every((s) => s.puntos.length === 0);
     if (sinDatos) {

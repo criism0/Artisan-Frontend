@@ -1,307 +1,203 @@
 import { useNavigate, useParams } from "react-router-dom";
-import { useState, useEffect } from "react";
-import { BackButton } from "../../components/Buttons/ActionButtons";
+import { useState, useEffect, useCallback } from "react";
 import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
 import Tabs from "../../components/UI/Tabs.jsx";
 import HistorialCambiosModal from "../../components/Compras/HistorialCambiosModal.jsx";
-// jsPDF y su plugin de tablas pesan ~460 KB juntos y sólo hacen falta al apretar
-// "Descargar PDF". Importados arriba viajaban con la vista entera; acá bajan cuando se piden.
-import logo from "../../assets/logo.png";
 import { toast } from "../../lib/toast";
 import { useApi, apiBlob } from "../../lib/api";
 import { uploadToS3 } from "../../lib/uploadToS3";
-import { formatValorCambio } from "../../utils/formatValorCambio";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import DTERecibidoPanel from "../../components/DTE/DTERecibidoPanel.jsx";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import DataTable from "../../components/Tables/DataTable";
-import AvanceItems from "../../components/AvanceItems";
 import { formatFecha } from "../../lib/dateUtils";
 import PageHeader from "../../components/UI/PageHeader";
+import { mensajeDelBackend } from "../../utils/mensajeError.js";
+import { claseEstadoOC } from "../../utils/estadoOrdenCompra.js";
+import { descargarPdfOrdenCompra } from "../../utils/pdfOrdenCompra.js";
+import {
+  accionesOC,
+  etiquetaEstadoOC,
+  marcaPagoOC,
+  marcaRecepcionOC,
+  nombreInsumoOC,
+} from "../../utils/ordenCompraVista.js";
+import Marca from "../../components/Compras/MarcaOC.jsx";
+
+const formatFechaCambio = (registro) => {
+  const fecha = registro?.creado_en ?? registro?.fecha_cambio;
+  return fecha ? new Date(fecha).toLocaleString("es-CL", { dateStyle: "short", timeStyle: "short" }) : "—";
+};
+
+/** Celda «Recibido» con la diferencia contra lo pedido marcada en la fila. */
+function celdaRecibido(pedido, recibido) {
+  const d = Math.round((recibido - pedido) * 1000) / 1000;
+  if (d === 0) return <span>{formatNumberCL(recibido, 2)}</span>;
+  const menos = d < 0;
+  return (
+    <span className={menos ? "text-amber-700 font-semibold" : "text-blue-700 font-semibold"}>
+      {formatNumberCL(recibido, 2)}{" "}
+      <span className="text-xs">
+        {menos ? "▼" : "▲"}
+        {formatNumberCL(Math.abs(d), 2)}
+      </span>
+    </span>
+  );
+}
+
+const COLUMNAS_BULTOS = [
+  {
+    header: "Bulto",
+    accessor: "identificador",
+    sortable: true,
+    Cell: ({ row: b }) => <span className="font-medium">{b.identificador || `#${b.id}`}</span>,
+  },
+  {
+    header: "Item",
+    accessor: "item",
+    sortable: true,
+    sortValue: (b) => b?.materiaPrima?.nombre ?? "",
+    cellClassName: "!whitespace-normal max-w-[11rem] lg:max-w-[15rem] xl:max-w-[20rem]",
+    Cell: ({ row: b }) => b.materiaPrima?.nombre || "—",
+  },
+  {
+    // Mismo formato que Inventario: el contenido de un bulto en la unidad del insumo.
+    header: "Formato",
+    accessor: "peso_unitario",
+    sortable: true,
+    Cell: ({ row: b }) => (
+      <>
+        {formatNumberCL(b.peso_unitario, 2)} <span className="text-gray-500">{b.materiaPrima?.unidad_medida || ""}</span>
+      </>
+    ),
+  },
+  {
+    // «Queda de cuánto vino»: `cantidad_unidades` es lo inicial y no se mueve.
+    header: "Disponible",
+    accessor: "unidades_disponibles",
+    sortable: true,
+    sortValue: (b) => Number(b?.unidades_disponibles || 0),
+    Cell: ({ row: b }) => {
+      const quedan = Number(b.unidades_disponibles ?? 0);
+      const inicial = Number(b.cantidad_unidades ?? 0);
+      return (
+        <div className="font-medium">
+          <span className={inicial > 0 && quedan < inicial ? "text-amber-700" : undefined}>{formatNumberCL(quedan, 2)}</span>
+          <span className="text-gray-500 font-normal"> / {formatNumberCL(inicial, 2)}</span>
+        </div>
+      );
+    },
+  },
+  {
+    header: "Lote proveedor",
+    accessor: "lote",
+    sortable: true,
+    sortValue: (b) => b?.lote?.identificador_proveedor ?? "",
+    Cell: ({ row: b }) => b.lote?.identificador_proveedor || "—",
+  },
+  {
+    header: "Costo",
+    accessor: "costo_unitario",
+    sortable: true,
+    align: "right",
+    Cell: ({ row: b }) =>
+      b.costo_unitario ? (
+        <>
+          <div className="font-medium">{formatCLP(Number(b.costo_unitario) * Number(b.cantidad_unidades || 0), 0)}</div>
+          <div className="text-xs text-gray-500">{formatCLP(b.costo_unitario, 0)} c/u</div>
+        </>
+      ) : (
+        "—"
+      ),
+  },
+];
 
 export default function OrdenDetail() {
   const { ordenId } = useParams();
-  const api = useApi()
+  const api = useApi();
+  const navigate = useNavigate();
   const [orden, setOrden] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [cargando, setCargando] = useState(true);
+  const [ocupado, setOcupado] = useState(false);
   const [historial, setHistorial] = useState([]);
-  const [showHistorial, setshowHistorial] = useState(false);
+  const [showHistorial, setShowHistorial] = useState(false);
   const [nuevosArchivos, setNuevosArchivos] = useState([]);
   const [subiendoArchivos, setSubiendoArchivos] = useState(false);
   const [mostrarModalArchivos, setMostrarModalArchivos] = useState(false);
-  const [tab, setTab] = useState("datos");
-  const navigate = useNavigate();
+  const [tab, setTab] = useState("insumos");
 
-  const canWritePurchaseOrder = checkScope(ModelType.ORDEN_COMPRA, ScopeType.WRITE);
+  const puedeEscribir = checkScope(ModelType.ORDEN_COMPRA, ScopeType.WRITE);
+  const puedeBorrar = checkScope(ModelType.ORDEN_COMPRA, ScopeType.DELETE);
 
-  const formatFechaCambio = (registro) => {
-    const fecha = registro?.creado_en ?? registro?.fecha_cambio;
-    return fecha
-      ? new Date(fecha).toLocaleString("es-CL", {
-          dateStyle: "short",
-          timeStyle: "short",
-        })
-      : "—";
-  };
+  const cargar = useCallback(async () => {
+    try {
+      setOrden(await api(`/proceso-compra/ordenes/${ordenId}`));
+    } catch (error) {
+      toast.error(mensajeDelBackend(error) || "No se pudo cargar la orden");
+    } finally {
+      setCargando(false);
+    }
+  }, [api, ordenId]);
 
   useEffect(() => {
-    const fetchOrden = async () => {
+    if (ordenId) cargar();
+  }, [ordenId, cargar]);
+
+  // El correo de cada cambio lo manda el backend.
+  const ejecutar = async (ruta, exito, metodo = "PUT") => {
+    setOcupado(true);
     try {
-      const data = await api(`/proceso-compra/ordenes/${ordenId}`, { method: "GET" });
-      setOrden(data);
+      await api(`/proceso-compra/ordenes/${ordenId}${ruta ? `/${ruta}` : ""}`, { method: metodo });
+      toast.success(exito);
+      if (metodo === "DELETE") navigate("/adquisiciones/ordenes-compra");
+      else await cargar();
     } catch (error) {
-      toast.error("Error al obtener detalles de la orden: " + error);
+      toast.error(mensajeDelBackend(error) || "No se pudo completar la acción");
+    } finally {
+      setOcupado(false);
     }
   };
-    if (ordenId) {
-      fetchOrden();
-    }
-  }, [ordenId]);
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files || []);
-    setNuevosArchivos((prev) => [
-      ...prev,
-      ...files.filter(
-        (nuevo) => !prev.some((existente) => existente.name === nuevo.name)
-      ),
-    ]);
-    // Resetear el input para permitir seleccionar el mismo archivo nuevamente
+    setNuevosArchivos((prev) => [...prev, ...files.filter((n) => !prev.some((p) => p.name === n.name))]);
     e.target.value = "";
   };
 
-  const handleRemoveNewFile = (indexToRemove) => {
-    setNuevosArchivos((prev) => prev.filter((_, i) => i !== indexToRemove));
+  const cerrarModalArchivos = () => {
+    setMostrarModalArchivos(false);
+    setNuevosArchivos([]);
   };
 
   const handleAdjuntarArchivos = async () => {
-    if (nuevosArchivos.length === 0) {
-      toast.error("Selecciona al menos un archivo para adjuntar");
-      return;
-    }
-
-    if (!canWritePurchaseOrder) {
-      toast.permissionError([ModelType.ORDEN_COMPRA, ScopeType.WRITE]);
-      setSubiendoArchivos(false);
-      return;
-    }
-
+    if (nuevosArchivos.length === 0) return;
     setSubiendoArchivos(true);
     try {
-      // Subir archivos a S3
-      const s3Refs = await Promise.all(
-        nuevosArchivos.map(async (file) => {
-          try {
-            const ref = await uploadToS3(file);
-            return ref;
-          } catch (err) {
+      const refs = await Promise.all(
+        nuevosArchivos.map((file) =>
+          uploadToS3(file).catch((err) => {
             toast.error(`Error subiendo ${file.name}: ${err}`);
             return null;
-          }
-        })
+          })
+        )
       );
-
-      const archivosValidos = s3Refs.filter(Boolean);
-
-      if (archivosValidos.length === 0) {
-        toast.error("No se pudo subir ningún archivo");
-        setSubiendoArchivos(false);
-        return;
-      }
-
-      // Enviar las referencias al backend para adjuntar a la orden
-      const response = await api(
-        `/proceso-compra/ordenes/${ordenId}/adjuntar-archivos`,
-        {
-          method: "PUT",
-          body: { archivos: archivosValidos },
-        }
-      );
-
-      toast.success("Archivos adjuntados correctamente");
-      setNuevosArchivos([]);
-
-      // Recargar la orden para mostrar los nuevos archivos
-      const dataActualizada = await api(`/proceso-compra/ordenes/${ordenId}`, { method: "GET" });
-      setOrden(dataActualizada);
-      setMostrarModalArchivos(false);
+      const archivos = refs.filter(Boolean);
+      if (archivos.length === 0) return;
+      await api(`/proceso-compra/ordenes/${ordenId}/adjuntar-archivos`, { method: "PUT", body: { archivos } });
+      toast.success("Archivos adjuntados");
+      cerrarModalArchivos();
+      await cargar();
     } catch (error) {
-      toast.error("Error al adjuntar archivos: " + error);
+      toast.error(mensajeDelBackend(error) || "No se pudieron adjuntar los archivos");
     } finally {
       setSubiendoArchivos(false);
     }
   };
 
-  const handleDownloadPDF = async () => {
-    if (!orden) return;
-
-    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
-      import("jspdf"),
-      import("jspdf-autotable"),
-    ]);
-
-    const doc = new jsPDF("p", "mm", "a4");
-    const x = 18;
-    const pageW = 210;
-    let y = 18;
-
-    try {
-      const img = new Image();
-      img.src = logo;
-      await img.decode();
-      doc.addImage(img, "PNG", x, y - 6, 18, 18);
-    } catch {}
-
-    const COMPANY = {
-      nombre: "ELABORADORA DE ALIMENTOS GOURMET LTDA.",
-      rut: "76.059.975-1",
-      direccion: "Presidente Eduardo Frei Montalva 9950 Local 4",
-      comuna: "Quilicura",
-      contacto: "Administracion@quesosartisan.cl / +569 7648 4626",
-      giro: "Elaboración y Comercialización De Productos Lacteos",
-    };
-
-    doc.setFontSize(11).setFont(undefined, "bold");
-    doc.text(`RAZÓN SOCIAL: ${COMPANY.nombre}`, x + 24, y);
-    doc.setFont(undefined, "normal");
-    doc.text(`RUT: ${COMPANY.rut}`, x + 24, y + 6);
-    doc.text(`DIRECCIÓN: ${COMPANY.direccion}`, x + 24, y + 12);
-    doc.text(`COMUNA: ${COMPANY.comuna}`, x + 24, y + 18);
-    doc.text(`CONTACTO: ${COMPANY.contacto}`, x + 24, y + 24);
-    doc.text(`GIRO: ${COMPANY.giro}`, x + 24, y + 30);
-
-    y += 38;
-    doc.setLineWidth(0.6);
-    doc.line(x - 3, y, pageW - x + 3, y);
-
-    y += 10;
-    doc.setFont(undefined, "bold").setFontSize(14);
-    doc.text(`Orden de Compra N° ${orden.id}`, x, y);
-    doc.setFont(undefined, "normal");
-
-    const fmtDateEN = (d) =>
-      d
-        ? new Date(d).toLocaleDateString("en-US", {
-            month: "short",
-            day: "2-digit",
-            year: "numeric",
-          })
-        : "—";
-
-    const proveedor = orden.proveedor?.nombre_empresa || "—";
-    const estado = orden.estado || "—";
-    const condiciones = orden.condiciones || "—";
-
-    autoTable(doc, {
-      startY: y + 6,
-      theme: "grid",
-      styles: { fontSize: 11, lineWidth: 0.4, cellPadding: 3 },
-      columnStyles: { 0: { cellWidth: 45 }, 1: { cellWidth: 120 } },
-      body: [
-        ["Fecha de Emisión:", fmtDateEN(orden.fecha)],
-        ["Proveedor:", proveedor],
-        ["Estado:", estado],
-        ["Condiciones:", condiciones],
-      ],
-      didParseCell: (d) => {
-        if (d.section === "body" && d.column.index === 0)
-          d.cell.styles.fontStyle = "bold";
-      },
-      margin: { left: x, right: x },
-    });
-
-    const afterInfoY = doc.lastAutoTable.finalY + 8;
-
-    const bodyRows = (orden.materiasPrimas || []).map((mp) => {
-      // Usar unidad de medida - nombre insumo (cantidad total) para la descripción del PDF
-      let unidadMedida = mp.proveedorMateriaPrima?.unidad_medida || 'Unidad';
-      if (unidadMedida.toLowerCase() === 'kilogramos') {
-        unidadMedida = 'Kilogramos';
-      } else if (unidadMedida.toLowerCase() === 'litros') {
-        unidadMedida = 'Litros';
-      } else if (unidadMedida.toLowerCase() === 'unidades') {
-        unidadMedida = 'Unidades';
-      }
-      const nombreInsumo = mp.proveedorMateriaPrima?.materiaPrima?.nombre || 'Insumo desconocido';
-      const cantidadTotal = mp.cantidad || 0;
-       const nombre = `${unidadMedida} - ${nombreInsumo}`;
-      
-      const cantidad = mp.cantidad_formato || 0;
-      const precio = mp.precio_unitario || 0;
-      const sub = cantidad * precio;
-       return [nombre, String(cantidadTotal), formatCLP(Number(cantidadTotal ? (sub / cantidadTotal) : precio) || 0, 0), formatCLP(Number(sub) || 0, 0)];
-    });
-
-    const neto = orden.total_neto || 0;
-    const iva = orden.iva || Math.round(neto * 0.19);
-    const total = orden.total_pago || neto + iva;
-
-    autoTable(doc, {
-      startY: afterInfoY,
-      head: [["Insumo", "Cantidad", "Precio", "Valor Neto"]],
-      body: bodyRows,
-      foot: [
-        [
-          { content: "", colSpan: 2 },
-          { content: "Neto", styles: { halign: "right" } },
-          formatCLP(Number(neto) || 0, 0),
-        ],
-        [
-          { content: "", colSpan: 2 },
-          { content: "IVA", styles: { halign: "right" } },
-          formatCLP(Number(iva) || 0, 0),
-        ],
-        [
-          { content: "", colSpan: 2 },
-          { content: "Total", styles: { halign: "right", fontStyle: "bold" } },
-          { content: formatCLP(Number(total) || 0, 0), styles: { fontStyle: "bold" } },
-        ],
-      ],
-      theme: "grid",
-      styles: { fontSize: 11, lineWidth: 0.4, cellPadding: 3 },
-      headStyles: { fillColor: [245, 245, 245], textColor: 50, fontStyle: "bold" },
-      footStyles: { fillColor: [255, 255, 255], textColor: 20 },
-      columnStyles: {
-        1: { halign: "right" },
-        2: { halign: "right" },
-        3: { halign: "right" },
-      },
-      margin: { left: x, right: x },
-    });
-
-    doc.setFontSize(11).setFont(undefined, "bold");
-    doc.text(
-      "Por favor adjuntar esta orden de compra con la factura. De lo contrario será rechazada.",
-      x,
-      doc.lastAutoTable.finalY + 10
-    );
-
-    const lineY = 270;
-    const lineWidth = 50;
-    const lineCenterX = pageW - 35;
-    const lineStartX = lineCenterX - lineWidth / 2;
-    const lineEndX = lineCenterX + lineWidth / 2;
-    doc.setLineWidth(0.4);
-    doc.line(lineStartX, lineY, lineEndX, lineY);
-    const textWidth = doc.getTextWidth("Firma");
-    doc.text("Firma", lineCenterX - textWidth / 2, lineY + 6);
-
-    doc.text("Página 1 de 1", pageW - 45, 285);
-    doc.save(`Artisan-OC-#${orden.id}-${proveedor}.pdf`);
-    toast.success("PDF descargado correctamente");
-  };
-
   const handleDownloadEtiquetas = async () => {
     try {
-      const bultos = Array.isArray(orden?.bultos) ? orden.bultos : [];
-      if (bultos.length === 0) {
-        toast.error("No hay bultos asociados a esta orden.");
-        return;
-      }
-
-      const ids_bultos = bultos.map((b) => b.id).filter(Boolean);
+      const ids_bultos = (orden?.bultos || []).map((b) => b.id).filter(Boolean);
       const blob = await apiBlob("/bultos/etiquetas", { method: "POST", body: { ids_bultos } });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -311,699 +207,240 @@ export default function OrdenDetail() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
-      toast.success("Etiquetas descargadas correctamente");
     } catch (error) {
       toast.error("Error al descargar las etiquetas: " + (error?.message || error));
     }
   };
 
-  const handlePagar = async () => {
-    if (loading) return;
-    if (!canWritePurchaseOrder) {
-      toast.permissionError([ModelType.ORDEN_COMPRA, ScopeType.WRITE]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      await api(`/proceso-compra/ordenes/${ordenId}/pagar`, { method: "PUT" });
-      const updatedData = await api(`/proceso-compra/ordenes/${ordenId}`);
-      setOrden(updatedData);
-      toast.success("Orden marcada como pagada");
-    } catch (error) {
-      toast.error(`Error al marcar la orden como pagada: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleVerHistorial = async () => {
     try {
-      const data = await api(`/proceso-compra/ordenes/${ordenId}/historial`, { method: "GET" });
-      setHistorial(data ?? []);
-      setshowHistorial(true)
-
+      setHistorial((await api(`/proceso-compra/ordenes/${ordenId}/historial`)) ?? []);
+      setShowHistorial(true);
     } catch (error) {
-      toast.error(`Error al obtener el historial de la solicitud: ${error.message}`);
+      toast.error(mensajeDelBackend(error) || "No se pudo cargar el historial");
     }
   };
 
-  // Las acciones que mueven el estado vivían sólo en la lista (`Ordenes.jsx`), dentro de la
-  // fila de la tabla: para validar o recepcionar había que salir del detalle y volver atrás.
-  const ejecutarTransicion = async (ruta, exito) => {
-    setLoading(true);
-    try {
-      await api(`/proceso-compra/ordenes/${ordenId}/${ruta}`, { method: "PUT" });
-      setOrden(await api(`/proceso-compra/ordenes/${ordenId}`));
-      toast.success(exito);
-    } catch (error) {
-      toast.error(error?.message || "No se pudo completar la acción");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading && !orden) return <PageLoader message="Cargando orden" />;
-
-  if (!orden && !loading)
+  if (cargando) return <PageLoader message="Cargando orden" />;
+  if (!orden)
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="p-4 text-red-700 bg-red-100 rounded-lg">
-          No se encontró la orden o hubo un error al cargar.
-        </div>
+        <div className="p-4 text-red-700 bg-red-100 rounded-lg">No se encontró la orden o hubo un error al cargar.</div>
       </div>
     );
 
-  if (!orden) return null;
+  const lineas = orden.materiasPrimas || [];
+  const bultos = orden.bultos || [];
+  const archivos = orden.archivos || [];
+  const facturas = Array.isArray(orden.numero_factura) ? orden.numero_factura : orden.numero_factura ? [orden.numero_factura] : [];
+  const conRecepcion = Boolean(orden.resultado?.recepcion);
+  const precio = (mp) => Number(mp.precio_unitario) || 0;
+  const pedido = (mp) => Number(mp.cantidad_formato) || 0;
+  const recibido = (mp) => Number(mp.cantidad_recepcionada) || 0;
+  const netoRecibido = lineas.reduce((s, mp) => s + precio(mp) * recibido(mp), 0);
+  const ivaRecibido = Math.round(netoRecibido * 0.19);
 
-  const bultosList = Array.isArray(orden?.bultos)
-    ? orden.bultos
-    : (Array.isArray(orden?.Bultos) ? orden.Bultos : []);
-  const totalNetoFacturado = bultosList.reduce((acc, b) => {
-    const costoUnitario = Number(b?.costo_unitario) || 0;
-    const unidades = Number(b?.cantidad_unidades) || 0;
-    return acc + (costoUnitario * unidades);
-  }, 0);
+  const { principal, menu, destructivas } = accionesOC(orden, { puedeEscribir, puedeBorrar, ejecutar, navigate });
+  const desactivar = (a) => ({ ...a, disabled: a.disabled || ocupado });
 
-  // ── Acciones de la orden ────────────────────────────────────────────────────────────────
-  //
-  // El flujo real de una OC es Creada → Validada → Recepcionada, con una parada intermedia
-  // en «Parcialmente recepcionada» cuando llega sólo una parte. `retroceder` deshace un paso.
-  //
-  // ⚠️ El pago es un EJE APARTE, no una etapa: `pagada` es un booleano que se mueve en
-  // cualquier momento. En producción hay órdenes Validadas ya pagadas y Creadas ya pagadas,
-  // así que Pagar no puede colgar del estado. (El ENUM declara además 'Pagada', 'Rechazada'
-  // y 'En tránsito', que en producción no tiene ninguna orden.)
-  const enFlujo = {
-    Creada: {
-      label: "Validar orden",
-      onClick: () => ejecutarTransicion("validar", "Orden validada"),
-      confirmar: {
-        titulo: "¿Validar esta orden de compra?",
-        mensaje: "Queda lista para recepcionar y se le avisa al proveedor.",
-        textoBoton: "Validar",
-      },
-    },
-    Validada: {
-      label: "Recepcionar",
-      onClick: () => navigate(`/adquisiciones/ordenes-compra/${orden.id}/recepcionar`),
-    },
-    "Parcialmente recepcionada": {
-      label: "Recepcionar lo que falta",
-      onClick: () => navigate(`/adquisiciones/ordenes-compra/${orden.id}/recepcionar`),
-    },
-  };
-  const accionPrincipal = canWritePurchaseOrder ? enFlujo[orden.estado] ?? null : null;
-
-  const accionesSecundarias = [
-    canWritePurchaseOrder && {
-      label: orden.pagada ? "Revertir pago" : "Marcar como pagada",
-      onClick: orden.pagada
-        ? () => ejecutarTransicion("revertir-pago", "Pago revertido")
-        : handlePagar,
-      disabled: loading,
-      confirmar: orden.pagada
-        ? { titulo: "¿Revertir el pago?", textoBoton: "Revertir" }
-        : null,
-    },
-    orden.estado === "Creada" &&
-      canWritePurchaseOrder && {
-        label: "Editar",
-        onClick: () => navigate(`/adquisiciones/ordenes-compra/${orden.id}/editar`),
-      },
-    // El `.catch` va acá y no dentro de `handleDownloadPDF` para no reindentar sus 150 líneas.
-    // Sin él, un fallo es una promesa rechazada sin dueño y el botón se queda mudo — que es
-    // exactamente el síntoma que se reportó en solicitudes y en la orden de venta.
-    {
-      label: "Descargar PDF",
-      onClick: () =>
-        handleDownloadPDF().catch((err) => {
-          console.error("PDF error:", err);
-          toast.error("Error generando PDF");
-        }),
-    },
-    orden.bultos?.length > 0 && {
-      label: "Descargar etiquetas",
-      onClick: handleDownloadEtiquetas,
-    },
-    {
-      // Antes decía «Ver Detalle» estando ya en el detalle, y desplegaba una tabla al final
-      // de la página sin avisar que algo había aparecido. Ahora abre un modal.
-      label: "Historial de cambios",
-      onClick: handleVerHistorial,
-    },
-    { label: "Adjuntar archivos", onClick: () => setMostrarModalArchivos(true) },
-  ].filter(Boolean);
-
-  const accionesDestructivas = [
-    orden.estado !== "Creada" &&
-      canWritePurchaseOrder && {
-        label: "Retroceder estado",
-        onClick: () => ejecutarTransicion("retroceder", "Orden retrocedida"),
-        confirmar: {
-          titulo: "¿Retroceder la orden un paso?",
-          mensaje:
-            orden.estado === "Validada"
-              ? "Vuelve a «Creada» y se podrá editar de nuevo."
-              : "Vuelve a «Validada» y se eliminan los bultos que generó la recepción.",
-          textoBoton: "Retroceder",
-        },
-      },
+  const resumen = [
+    orden.BodegaSolicitante?.nombre,
+    `emitida ${formatFecha(orden.fecha)}`,
+    orden.estado === "Recepcionada" && orden.fecha_recepcion && `recibida ${formatFecha(orden.fecha_recepcion)}`,
+    facturas.length > 0 && `factura ${facturas.join(", ")}`,
+    bultos.length > 0 && `${bultos.length} bulto${bultos.length === 1 ? "" : "s"}`,
+    `neto ${formatCLP(orden.total_neto, 0)}`,
   ].filter(Boolean);
 
   return (
     <div>
       <PageHeader
         volverA="/adquisiciones/ordenes-compra"
-        titulo={`Detalle de compra: ${orden.id}`}
+        titulo={`OC #${orden.id} · ${orden.proveedor?.nombre_empresa || "Sin proveedor"}`}
+        estado={
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap ${claseEstadoOC(orden.estado)}`}>
+              {etiquetaEstadoOC(orden.estado)}
+            </span>
+            <Marca marca={marcaRecepcionOC(orden.resultado)} />
+            <Marca marca={marcaPagoOC(orden)} />
+          </span>
+        }
+        subtitulo={resumen.join(" · ")}
         acciones={
-<>
-<PanelAcciones
-          principal={accionPrincipal}
-          secundarias={accionesSecundarias}
-          destructivas={accionesDestructivas}
-        />
-</>}
+          <PanelAcciones
+            principal={principal && desactivar(principal)}
+            secundarias={[
+              {
+                label: "PDF",
+                title: "Descargar la orden en PDF",
+                onClick: () => descargarPdfOrdenCompra(orden).catch(() => toast.error("Error generando el PDF")),
+              },
+            ]}
+            menu={[
+              ...menu.map(desactivar),
+              bultos.length > 0 && { label: "Descargar etiquetas", onClick: handleDownloadEtiquetas },
+              { label: "Adjuntar archivos", onClick: () => setMostrarModalArchivos(true) },
+              { label: "Historial de cambios", onClick: handleVerHistorial },
+            ]}
+            destructivas={destructivas.map(desactivar)}
+          />
+        }
       />
 
+      {orden.estado === "Rechazada" && orden.motivo_rechazo && (
+        <p className="-mt-3 mb-4 text-sm text-rose-700">Motivo del rechazo: {orden.motivo_rechazo}</p>
+      )}
 
-      {/* La vista era una sola columna: información, insumos anidados dentro de una fila
-          de esa tabla, bultos y documentos, uno tras otro. Con muchos bultos el scroll se
-          volvía enorme y no se podía saltar a lo que uno viene a mirar. */}
       <Tabs
         activa={tab}
         onCambiar={setTab}
         pestanas={[
-          { id: "datos", label: "Datos de la orden" },
-          { id: "insumos", label: "Insumos", cantidad: (orden.materiasPrimas || []).length, deshabilitadaSiVacia: true },
-          { id: "bultos", label: "Bultos", cantidad: bultosList.length, deshabilitadaSiVacia: true },
-          { id: "documentos", label: "Documentos" },
+          { id: "insumos", label: "Insumos", cantidad: lineas.length },
+          { id: "bultos", label: "Bultos", cantidad: bultos.length, deshabilitadaSiVacia: true },
+          { id: "documentos", label: "Documentos", cantidad: archivos.length || undefined },
         ]}
       />
 
-      {tab === "datos" && (
-      <div className="bg-gray-200 p-4 rounded-lg">
-        <table className="w-full bg-white rounded-lg shadow overflow-hidden">
-          
-          <thead className="bg-gray-100 text-sm text-gray-600">
+      {tab === "insumos" && (
+        <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
+          <table className="w-full text-sm min-w-[640px]">
+            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
               <tr>
-                <th className="px-6 py-3 text-xl font-semibold text-left mb-2">INFORMACIÓN</th>
-                <th className="px-6 py-3 text-xl font-semibold text-left mb-2">DATO</th>
+                <th className="px-4 py-3 text-left font-semibold">Insumo</th>
+                <th className="px-4 py-3 text-right font-semibold">Pedido</th>
+                {conRecepcion && <th className="px-4 py-3 text-right font-semibold">Recibido</th>}
+                <th className="px-4 py-3 text-right font-semibold">Precio</th>
+                <th className="px-4 py-3 text-right font-semibold">Neto pedido</th>
+                {conRecepcion && <th className="px-4 py-3 text-right font-semibold">Neto recibido</th>}
               </tr>
             </thead>
-          <tbody>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">
-                N° Orden de Compra
-              </td>
-              <td className="px-6 py-4 text-sm text-text">
-                {orden.id || "—"}
-              </td>
-            </tr>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">
-                Fecha de Emisión
-              </td>
-              <td className="px-6 py-4 text-sm text-text">
-                {formatFecha(orden.fecha)}
-              </td>
-            </tr>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Solicita</td>
-              <td className="px-6 py-4 text-sm text-text">
-                {orden.BodegaSolicitante?.nombre || "—"}
-              </td>
-            </tr>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Pagado</td>
-              <td className="px-6 py-4 text-sm text-text">
-                {orden.pagada ? "Sí" : "No" || "—"}
-              </td>
-            </tr>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Estado</td>
-              <td className="px-6 py-4 text-sm text-text">
-                {orden.estado ? (
-                  orden.estado === "Rechazada" ? (
-                    <>
-                      <span>{orden.estado}</span>
-                      {orden.motivo_rechazo && (
-                        <span className="block text-red-600 text-sm mt-1">
-                          Motivo: {orden.motivo_rechazo}
-                        </span>
-                      )}
-                    </>
-                  ) : orden.estado === "Parcialmente recepcionada" ? (
-                    <span className="font-semibold text-amber-600">{orden.estado}</span>
-                  ) : (
-                    orden.estado
-                  )
-                ) : (
-                  "—"
-                )}
-              </td>
-
-            </tr>
-            {["Parcialmente recepcionada", "Recepcionada"].includes(orden.estado) &&
-              Array.isArray(orden.materiasPrimas) &&
-              orden.materiasPrimas.length > 0 && (
-                <tr className="border-b border-border">
-                  <td className="px-6 py-4 text-sm font-medium text-text align-top">
-                    Avance de recepción
+            <tbody>
+              {lineas.map((mp) => (
+                <tr key={mp.id} className="border-t border-gray-100">
+                  <td className="px-4 py-3">
+                    <span className="font-medium text-gray-900">{nombreInsumoOC(mp)}</span>
+                    {mp.proveedorMateriaPrima?.formato && <span className="text-xs text-gray-500"> · {mp.proveedorMateriaPrima.formato}</span>}
                   </td>
-                  <td className="px-6 py-4">
-                    <AvanceItems
-                      items={orden.materiasPrimas.map((mp) => ({
-                        id: mp.id,
-                        nombre:
-                          mp.proveedorMateriaPrima?.materiaPrima?.nombre ||
-                          mp.proveedorMateriaPrima?.MateriaPrima?.nombre ||
-                          `Materia prima #${mp.id_proveedor_materia_prima}`,
-                        unidad: mp.proveedorMateriaPrima?.formato || "",
-                        solicitado: Number(mp.cantidad_formato) || 0,
-                        completado: Number(mp.cantidad_recepcionada) || 0,
-                      }))}
-                      labels={{
-                        solicitado: "Pedido",
-                        completado: "Recepcionado",
-                        pendiente: "Falta por recepcionar",
-                        itemNoun: "insumos",
-                      }}
-                    />
-                  </td>
+                  <td className="px-4 py-3 text-right tabular-nums">{formatNumberCL(pedido(mp), 2)}</td>
+                  {conRecepcion && <td className="px-4 py-3 text-right tabular-nums">{celdaRecibido(pedido(mp), recibido(mp))}</td>}
+                  <td className="px-4 py-3 text-right tabular-nums">{formatCLP(precio(mp), 0)}</td>
+                  <td className="px-4 py-3 text-right tabular-nums">{formatCLP(precio(mp) * pedido(mp), 0)}</td>
+                  {conRecepcion && <td className="px-4 py-3 text-right tabular-nums">{formatCLP(precio(mp) * recibido(mp), 0)}</td>}
                 </tr>
-              )}
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Número Factura(s)</td>
-              <td className="px-6 py-4 text-sm text-text">
-                {Array.isArray(orden.numero_factura)
-                  ? orden.numero_factura.join(" - ")
-                  : orden.numero_factura || "—"}
-              </td>
-
-            </tr>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Proveedor</td>
-              <td className="px-6 py-4 text-sm text-text">
-                {orden.proveedor?.nombre_empresa || "—"}
-              </td>
-            </tr>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Condiciones Comerciales y Especificaciones Técnicas</td>
-              <td className="px-6 py-4 text-sm text-text">
-                {orden.condiciones || "—"}
-              </td>
-            </tr>
-
-            {/* Archivos adjuntos */}
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text align-top">
-                Archivos Adjuntos
-              </td>
-              <td className="px-6 py-4 text-sm text-text">
-                {orden.archivos && orden.archivos.length > 0 ? (
-                  <ul className="space-y-2">
-                    {orden.archivos.map((file, idx) => (
-                      <li
-                        key={idx}
-                        className="flex items-center justify-between bg-gray-50 p-2 rounded-md shadow-sm border border-gray-200 hover:bg-gray-100 transition"
-                      >
-                        <div className="flex flex-col">
-                          <span className="font-medium text-gray-800">{file.original_name}</span>
-                          <span className="text-xs text-gray-500">
-                            {file.mime_type || "Archivo"} · {(file.size / 1024).toFixed(1)} KB
-                          </span>
-                        </div>
-
-                        {file.signed_url || file.url ? (
-                          <a
-                            href={file.signed_url || file.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-4 px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition"
-                          >
-                            Descargar
-                          </a>
-                        ) : (
-                          <span className="ml-4 text-xs text-red-500 italic">
-                            No disponible
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-gray-500">No hay archivos adjuntos</p>
-                )}
-              </td>
-            </tr>
-
+              ))}
             </tbody>
-        </table>
-      </div>
-      )}
-
-      {tab === "insumos" && (
-        <div className="bg-gray-200 p-4 rounded-lg">
-                {orden.materiasPrimas?.length > 0 && (
-                  <div className="p-4 rounded-lg">
-
-                  <table className="w-full bg-white  shadow overflow-hidden">
-                    <thead className="bg-gray-100 text-sm text-gray-600">
-                      <tr>
-                        <th className="px-6 py-3 text-left">Nombre</th>
-                        <th className="px-6 py-3 text-left">Cantidad</th>
-                        <th className="px-6 py-3 text-left">Precio Unitario</th>
-                        <th className="px-6 py-3 text-left">Valor Neto</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orden.materiasPrimas.map((mp, idx) => {
-                        const formato = mp.proveedorMateriaPrima?.formato || mp.formato || "—";
-                        const nombre =
-                          mp.proveedorMateriaPrima?.materiaPrima?.nombre ||
-                          mp.proveedorMateriaPrima?.MateriaPrima?.nombre ||
-                          `#${mp.id_proveedor_materia_prima}`;
-
-                        const cantidad_formato = mp.cantidad_formato ?? 0;
-                        
-                        return (
-                          <tr key={idx} className="border-t border-border">
-                            <td className="px-6 py-4 text-sm">
-                              <strong>{formato}</strong> - {nombre} ({cantidad_formato})
-                            </td>
-                            <td className="px-6 py-4 text-sm">{cantidad_formato}</td>
-                            <td className="px-6 py-4 text-sm">
-                              {formatCLP(mp.precio_unitario, 0)}
-                            </td>
-                            <td className="px-6 py-4 text-sm">{formatCLP(mp.precio_unitario*mp.cantidad_formato, 0)}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                    <tfoot className="bg-gray-50">
-                      <tr className="border-t border-gray-300">
-                        <td className="px-6 py-3" />
-                        <td className="px-6 py-3" />
-                        <td className="px-6 py-3 text-sm font-medium text-text">Neto</td>
-                        <td className="px-6 py-3 text-sm text-text">
-                          {formatCLP(orden.total_neto, 0)}
-                        </td>
-                      </tr>
-                      <tr className="border-t border-gray-200">
-                        <td className="px-6 py-3" />
-                        <td className="px-6 py-3" />
-                        <td className="px-6 py-3 text-sm font-medium text-text">IVA</td>
-                        <td className="px-6 py-3 text-sm text-text">
-                          {formatCLP(orden.iva, 0)}
-                        </td>
-                      </tr>
-                      <tr className="border-t border-gray-200">
-                        <td className="px-6 py-3" />
-                        <td className="px-6 py-3" />
-                        <td className="px-6 py-3 text-sm font-semibold text-text bg-purple-200">Total</td>
-                        <td className="px-6 py-3 text-sm font-semibold text-text bg-purple-200">
-                          {formatCLP(orden.total_pago, 0)}
-                        </td>
-                      </tr>
-                      <tr className="border-t border-gray-300">
-                        <td className="px-6 py-3" />
-                        <td className="px-6 py-3" />
-                        <td className="px-6 py-3 text-sm font-medium text-text">Total Neto Facturado</td>
-                        <td className="px-6 py-3 text-sm text-text">
-                          {formatCLP(totalNetoFacturado, 0)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-                )}
+            <tfoot>
+              {[
+                ["Neto", orden.total_neto, netoRecibido],
+                ["IVA 19%", orden.iva, ivaRecibido],
+                ["Total", orden.total_pago, netoRecibido + ivaRecibido],
+              ].map(([nombre, valorPedido, valorRecibido]) => (
+                <tr key={nombre} className={`border-t border-gray-100 ${nombre === "Total" ? "font-semibold" : ""}`}>
+                  <td colSpan={conRecepcion ? 4 : 3} className={`px-4 py-2 text-right ${nombre === "Total" ? "" : "text-gray-500"}`}>
+                    {nombre}
+                  </td>
+                  <td className="px-4 py-2 text-right tabular-nums">{formatCLP(valorPedido, 0)}</td>
+                  {conRecepcion && <td className="px-4 py-2 text-right tabular-nums">{formatCLP(valorRecibido, 0)}</td>}
+                </tr>
+              ))}
+            </tfoot>
+          </table>
+          {orden.condiciones && <p className="px-4 py-3 border-t border-gray-100 text-xs text-gray-500">Condiciones: {orden.condiciones}</p>}
         </div>
       )}
 
       {tab === "bultos" && (
         <DataTable
           title="Bultos recepcionados"
-          data={bultosList}
+          data={bultos}
           defaultRowsPerPage={25}
           emptyMessage="Esta orden todavía no generó bultos."
-          getSearchText={(b) =>
-            [b?.identificador, b?.id, b?.materiaPrima?.nombre, b?.lote?.identificador_proveedor]
-              .filter(Boolean)
-              .join(" ")
-          }
+          getSearchText={(b) => [b?.identificador, b?.id, b?.materiaPrima?.nombre, b?.lote?.identificador_proveedor].filter(Boolean).join(" ")}
           initialSort={{ key: "identificador", direction: "asc" }}
-          columns={[
-            {
-              header: "Bulto",
-              accessor: "identificador",
-              cellClassName: "!px-3",
-              headerClassName: "!px-3",
-              sortable: true,
-              Cell: ({ row: b }) => (
-                <span className="font-medium">{b.identificador || `#${b.id}`}</span>
-              ),
-            },
-            {
-              // `Table` pone whitespace-nowrap en todas las celdas: sin acotar acá, un nombre
-              // largo se lleva media tabla y aparece el deslizante horizontal.
-              header: "Item",
-              accessor: "item",
-              sortable: true,
-              sortValue: (b) => b?.materiaPrima?.nombre ?? "",
-              cellClassName: "!whitespace-normal !px-3 max-w-[11rem] lg:max-w-[15rem] xl:max-w-[20rem]",
-              headerClassName: "!px-3",
-              Cell: ({ row: b }) => b.materiaPrima?.nombre || "—",
-            },
-            {
-              // Antes eran dos columnas, «Cantidad» y «Disponible», con el peso repetido
-              // debajo de cada una. Lo que se quiere saber es cuánto queda de cuánto llegó.
-              // Mismo formato que la vista de Inventario, que es la canonica para bultos:
-              // el numero grande es el CONTENIDO (bultos x formato) en la unidad del insumo,
-              // y entre parentesis cuantos bultos de cuantos quedan.
-              //
-              // Antes el grande era el conteo de bultos con "un." detras y debajo el
-              // contenido tambien con "unidades": la misma palabra para dos cosas distintas.
-              header: "Formato",
-              accessor: "peso_unitario",
-              cellClassName: "!px-3",
-              headerClassName: "!px-3",
-              sortable: true,
-              Cell: ({ row: b }) => (
-                <>
-                  {formatNumberCL(b.peso_unitario, 2)}{" "}
-                  <span className="text-gray-500">{b.materiaPrima?.unidad_medida || ""}</span>
-                </>
-              ),
-            },
-            {
-              header: "Disponible",
-              accessor: "unidades_disponibles",
-              cellClassName: "!px-3",
-              headerClassName: "!px-3",
-              sortable: true,
-              // `cantidad_unidades` es la cantidad INICIAL del bulto: se fija al
-              // recepcionarlo y no vuelve a moverse — la edición administrativa incluso
-              // valida que `unidades_disponibles` nunca la supere. `unidades_disponibles`
-              // es lo que va quedando. Así que «queda de cuánto vino» se lee directo.
-              sortValue: (b) => Number(b?.unidades_disponibles || 0),
-              Cell: ({ row: b }) => {
-                const quedan = Number(b.unidades_disponibles ?? 0);
-                const inicial = Number(b.cantidad_unidades ?? 0);
-                const consumido = inicial > 0 && quedan < inicial;
-                return (
-                  <div className="font-medium">
-                    <span className={consumido ? "text-amber-700" : undefined}>
-                      {formatNumberCL(quedan, 2)}
-                    </span>
-                    <span className="text-gray-500 font-normal">
-                      {" "}/ {formatNumberCL(inicial, 2)}
-                    </span>
-                  </div>
-                );
-              },
-            },
-            {
-              header: "Lote proveedor",
-              accessor: "lote",
-              cellClassName: "!px-3",
-              headerClassName: "!px-3",
-              sortValue: (b) => b?.lote?.identificador_proveedor ?? "",
-              sortable: true,
-              Cell: ({ row: b }) => b.lote?.identificador_proveedor || "—",
-            },
-            {
-              header: "Costo",
-              accessor: "costo_unitario",
-              cellClassName: "!px-3",
-              headerClassName: "!px-3",
-              sortable: true,
-              align: "right",
-              Cell: ({ row: b }) => (
-                <>
-                  <div className="font-medium">
-                    {b.costo_unitario
-                      ? formatCLP(Number(b.costo_unitario) * Number(b.cantidad_unidades || 0), 0)
-                      : "—"}
-                  </div>
-                  {b.costo_unitario ? (
-                    <div className="text-xs text-gray-500">
-                      {formatCLP(b.costo_unitario, 0)} c/u
-                    </div>
-                  ) : null}
-                </>
-              ),
-            },
-          ]}
+          columns={COLUMNAS_BULTOS}
         />
       )}
 
       {tab === "documentos" && (
-        <div className="space-y-6">
-      <DTERecibidoPanel ordenId={ordenId} orden={orden} />
+        <div className="space-y-4">
+          <DTERecibidoPanel ordenId={ordenId} orden={orden} />
+          <div className="bg-white rounded-xl shadow-sm p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-gray-800">Archivos adjuntos</h3>
+              <button type="button" onClick={() => setMostrarModalArchivos(true)} className="text-sm text-primary hover:underline">
+                + Adjuntar
+              </button>
+            </div>
+            {archivos.length === 0 ? (
+              <p className="text-sm text-gray-500">Sin archivos.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {archivos.map((file, idx) => (
+                  <li key={idx} className="flex items-center justify-between py-2 text-sm">
+                    <span>
+                      <span className="font-medium text-gray-800">{file.original_name}</span>{" "}
+                      <span className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</span>
+                    </span>
+                    {file.signed_url || file.url ? (
+                      <a href={file.signed_url || file.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        Abrir
+                      </a>
+                    ) : (
+                      <span className="text-xs text-red-500">No disponible</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
 
-
-      {/* Las acciones de la orden viven en el PanelAcciones de la cabecera. Estaban acá
-          abajo, después de la tabla de bultos y del panel de DTE: para pagar una orden
-          había que bajar 900 líneas de página. */}
-
-      {/* Modal para adjuntar archivos */}
       {mostrarModalArchivos && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-2xl w-full mx-4">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-800">Adjuntar Archivos a la Orden</h3>
-              <button
-                onClick={() => {
-                  setMostrarModalArchivos(false);
-                  setNuevosArchivos([]);
-                }}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
-              >
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-6 rounded-xl shadow-xl max-w-lg w-full space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold text-gray-900">Adjuntar archivos a la OC #{orden.id}</h3>
+              <button onClick={cerrarModalArchivos} className="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="Cerrar">
                 ×
               </button>
             </div>
-
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">
-                Orden de Compra #{ordenId} - {orden.proveedor?.nombre_empresa || "Sin proveedor"}
-              </p>
-              {orden.archivos && orden.archivos.length > 0 && (
-                <p className="text-sm text-gray-500">
-                  Actualmente hay {orden.archivos.length} archivo(s) adjunto(s)
-                </p>
-              )}
-            </div>
-
-            {/* Archivos seleccionados para subir */}
             {nuevosArchivos.length > 0 && (
-              <div className="mb-4">
-                <p className="text-sm font-medium text-gray-700 mb-2">Archivos seleccionados:</p>
-                <ul className="space-y-2 max-h-60 overflow-y-auto">
-                  {nuevosArchivos.map((file, index) => (
-                    <li
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-blue-50 rounded border border-blue-200"
+              <ul className="space-y-2 max-h-60 overflow-y-auto">
+                {nuevosArchivos.map((file, index) => (
+                  <li key={index} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-gray-200 text-sm">
+                    <span className="truncate">{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => setNuevosArchivos((prev) => prev.filter((_, i) => i !== index))}
+                      className="text-red-600 hover:underline flex-shrink-0"
                     >
-                      <div className="flex items-center space-x-2 flex-1 min-w-0">
-                        <span className="text-blue-600 text-xl">📎</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-gray-800 truncate font-medium">{file.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {(file.size / 1024).toFixed(1)} KB · {file.type || "Archivo"}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveNewFile(index)}
-                        className="ml-2 px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600 flex-shrink-0"
-                      >
-                        Quitar
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                      Quitar
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
-
-            {/* Botones de acción */}
-            <div className="flex items-center justify-between pt-4 border-t">
-              <div>
-                <input
-                  type="file"
-                  id="modal-archivos"
-                  multiple
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="modal-archivos"
-                  className="inline-block px-4 py-2 bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600"
-                >
-                  Seleccionar Archivos
-                </label>
-              </div>
-              
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMostrarModalArchivos(false);
-                    setNuevosArchivos([]);
-                  }}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
-                >
-                  Cancelar
-                </button>
-                {nuevosArchivos.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleAdjuntarArchivos}
-                    disabled={subiendoArchivos || !canWritePurchaseOrder}
-                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  >
-                    {subiendoArchivos ? "Subiendo..." : `Adjuntar ${nuevosArchivos.length} archivo(s)`}
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-     
-     
-      {showConfirmation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              Pago Exitoso
-            </h3>
-            <p className="text-sm text-gray-700 mb-4">
-              La orden ha sido marcada como pagada correctamente.
-            </p>
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between pt-2 border-t">
+              <label className="btn btn-secundario cursor-pointer">
+                Elegir archivos
+                <input type="file" multiple onChange={handleFileChange} className="hidden" />
+              </label>
               <button
-                className="btn btn-primario"
-                onClick={() => setShowConfirmation(false)}
+                type="button"
+                onClick={handleAdjuntarArchivos}
+                disabled={subiendoArchivos || nuevosArchivos.length === 0 || !puedeEscribir}
+                className="btn btn-primario disabled:opacity-50"
               >
-                Cerrar
+                {subiendoArchivos ? "Subiendo…" : "Adjuntar"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <HistorialCambiosModal
-        abierto={showHistorial}
-        onCerrar={() => setshowHistorial(false)}
-        historial={historial}
-        formatFecha={formatFechaCambio}
-      />
-
-
+      <HistorialCambiosModal abierto={showHistorial} onCerrar={() => setShowHistorial(false)} historial={historial} formatFecha={formatFechaCambio} />
     </div>
   );
 }

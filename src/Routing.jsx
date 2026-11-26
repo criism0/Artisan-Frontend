@@ -56,8 +56,8 @@ const PIPList = lazy(() => import("./pages/PIP/PIPList"));
 
 // ====== Compras (Órdenes) ======
 const Ordenes = lazy(() => import("./pages/Compras/Ordenes"));
-const CrearOrden = lazy(() => import("./pages/Compras/CrearOrden"));
-const EditOrden = lazy(() => import("./pages/Compras/EditarOrden"));
+// Nueva y Editar son el mismo formulario: con `:ordenId` edita.
+const FormularioOrden = lazy(() => import("./pages/Compras/FormularioOrden"));
 const RecepcionarOrden = lazy(() => import("./pages/Compras/RecepcionarOrden"));
 const OrdenDetail = lazy(() => import("./pages/Compras/OrdenDetail"));
 const AdquisicionesDashboard = lazy(() => import("./pages/Compras/AdquisicionesDashboard"));
@@ -331,7 +331,7 @@ function Routing() {
             path="/adquisiciones/ordenes-compra/nuevo" 
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.WRITE]]}>
-                <CrearOrden />
+                <FormularioOrden />
               </ProtectedRoute>
             } 
           />
@@ -339,7 +339,7 @@ function Routing() {
             path="/adquisiciones/ordenes-compra/:ordenId/editar"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.WRITE]]}>
-                <EditOrden />
+                <FormularioOrden />
               </ProtectedRoute>
             }
           />
