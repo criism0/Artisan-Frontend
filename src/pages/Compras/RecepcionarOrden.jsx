@@ -501,8 +501,8 @@ export default function RecepcionarOrden() {
     recepcionandoRef.current = true;
     setRecepcionando(true);
     try {
+      // Recibir no toca el pago: se marca desde la orden.
       const payload = {
-        pagada: true,
         id_bodega_recepcion: Number(ordenData.id_bodega_recepcion),
         fecha_recepcion: ordenData.fecha_recepcion,
         numero_factura: ordenData.numero_factura,
