@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ClipboardCheck } from "lucide-react";
 import DataTable from "../../components/Tables/DataTable";
-import { BackButton } from "../../components/Buttons/ActionButtons";
+import BarraEntregas from "../../components/Entregas/BarraEntregas";
 import ModalResolverRevision from "../../components/Entregas/ModalResolverRevision";
 import { toast } from "../../lib/toast.js";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
@@ -127,18 +127,22 @@ export default function RevisionEntregas() {
     },
   ];
 
-  const actions = (row) => (
-    <div className="flex gap-2 justify-center items-center">
-      <button
-        type="button"
-        onClick={() => setAbierta(row)}
-        className="text-gray-400 hover:text-primary"
-        title={row.estado_revision === "Pendiente" && puedeEscribir ? "Revisar y resolver" : "Ver"}
-      >
-        <ClipboardCheck className="w-5 h-5" />
-      </button>
-    </div>
-  );
+  // La acción de la fila con nombre (revisión de UI, Fase 5): antes era un ícono de portapapeles.
+  const actions = (row) => {
+    const resolver = row.estado_revision === "Pendiente" && puedeEscribir;
+    return (
+      <div className="flex gap-2 justify-end items-center">
+        <button
+          type="button"
+          onClick={() => setAbierta(row)}
+          className={resolver ? "inline-flex items-center rounded-md border border-primary/30 px-2.5 py-1 text-xs font-semibold text-primary hover:bg-primary-light" : "text-gray-400 hover:text-primary"}
+          title={resolver ? "Revisar y resolver" : "Ver"}
+        >
+          {resolver ? "Resolver" : <ClipboardCheck className="w-5 h-5" />}
+        </button>
+      </div>
+    );
+  };
 
   const filtros = (
     <div className="flex flex-wrap gap-2 px-1">
@@ -157,7 +161,7 @@ export default function RevisionEntregas() {
 
   return (
     <>
-      <div className="px-6 pt-6"><BackButton to="/logistica/entregas" /></div>
+      <div className="px-6 pt-6"><BarraEntregas recargar={filas.length} /></div>
       <DataTable
         title="Revisión de entregas"
         data={filas}
