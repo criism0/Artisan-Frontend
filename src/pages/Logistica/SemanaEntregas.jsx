@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, Search, Settings2, X, Zap, Route as IconoRuta } from "lucide-react";
-import PageHeader from "../../components/UI/PageHeader";
+import { ChevronLeft, ChevronRight, ChevronsDownUp, ChevronsUpDown, Lock, Search, Settings2, X, Zap, EyeOff, Route as IconoRuta } from "lucide-react";
+import MenuAcciones from "../../components/UI/MenuAcciones.jsx";
 import BarraEntregas from "../../components/Entregas/BarraEntregas";
 import CargandoVista from "../../components/UI/CargandoVista";
 import Selector from "../../components/Forms/Selector";
@@ -78,8 +78,8 @@ const ESTADO_PARADA = {
 
 const DOC_AVISO = {
   guia: { texto: "sin factura", clase: "bg-amber-50 text-amber-800", ayuda: "Sale con guía de despacho: falta la factura" },
-  externo: { texto: "doc. externo", clase: "bg-gray-100 text-gray-700", ayuda: "Sale con un documento emitido fuera del ERP (boleta)" },
-  ninguno: { texto: "sin documento", clase: "bg-red-50 text-red-700", ayuda: "Sin factura ni guía: la ruta no puede salir hasta emitir uno (o marcarla con documento externo)" },
+  externo: { texto: "doc. ext.", clase: "bg-gray-100 text-gray-700", ayuda: "Sale con un documento emitido fuera del ERP (boleta)" },
+  ninguno: { texto: "sin doc.", clase: "bg-red-50 text-red-700", ayuda: "Sin factura ni guía: la ruta no puede salir hasta emitir uno (o marcarla con documento externo)" },
 };
 
 export default function SemanaEntregas() {
@@ -265,7 +265,8 @@ export default function SemanaEntregas() {
         {(movida || atrasada || o.ruta || o.propuesto || sinStock || o.estado_direccion === "falta" || DOC_AVISO[o.documento]) && (
           <span className="flex flex-wrap gap-1 mt-0.5">
             {o.propuesto && <span className="px-1 rounded bg-primary/10 text-primary font-semibold" title="Propuesta de la planificación rápida">⚡</span>}
-            {sinStock && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">sin stock</span>}
+            {/* Marcas cortas para que quepan en una línea (Fase 5); lo completo va en el tooltip. */}
+            {sinStock && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold" title="Sin stock suficiente para ese día">⚠ stock</span>}
             {o.ruta && (
               <span className="px-1.5 py-0.5 rounded bg-sky-600 text-white font-semibold inline-flex items-center gap-1" title={`Bloqueada: va en la ruta #${o.ruta.id}${o.ruta.transportista ? ` · ${o.ruta.transportista}` : ""}`}>
                 <Lock className="w-3 h-3" />Ruta #{o.ruta.id}{o.ruta.transportista ? ` · ${String(o.ruta.transportista).split(" ")[0]}` : ""}
@@ -273,7 +274,7 @@ export default function SemanaEntregas() {
             )}
             {movida && <span className="px-1 rounded bg-amber-50 text-amber-700 font-semibold" title={`Comprometida para el ${corto(o.fecha_original)}`}>↺ {corto(o.fecha_original)}</span>}
             {atrasada && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">atrasada</span>}
-            {o.estado_direccion === "falta" && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold">sin dirección</span>}
+            {o.estado_direccion === "falta" && <span className="px-1 rounded bg-red-50 text-red-700 font-semibold" title="Sin dirección de despacho">sin dir.</span>}
             {DOC_AVISO[o.documento] && (
               <span className={`px-1 rounded font-semibold ${DOC_AVISO[o.documento].clase}`} title={DOC_AVISO[o.documento].ayuda}>
                 {DOC_AVISO[o.documento].texto}
@@ -287,21 +288,63 @@ export default function SemanaEntregas() {
 
   const ordenAbierta = ordenes.find((o) => o.id === abierta);
 
+  // Lo de la derecha de la primera fila: el estado de la planificación rápida, el botón y el «⋯»
+  // con lo ocasional («Quitadas» y «Editar sectores» eran textos sueltos entre los sectores).
+  const acciones = (
+    <div className="ml-auto flex flex-wrap items-center gap-2">
+          {propuesta && (
+            <>
+              {deshacer && <span className="text-xs font-semibold rounded-full bg-green-50 text-green-700 px-2 py-0.5">✓ {deshacer.size} guardados</span>}
+              {propuesta.fuera.size > 0 && <span className="text-xs font-semibold rounded-full bg-red-50 text-red-700 px-2 py-0.5">⚠ {propuesta.fuera.size} sin stock</span>}
+              {deshacer && (
+                <button type="button" onClick={deshacerPlanificacion} disabled={confirmando} className="text-sm text-gray-600 underline disabled:opacity-50">
+                  {confirmando ? "Deshaciendo…" : "Deshacer"}
+                </button>
+              )}
+              <button type="button" onClick={() => { setPropuesta(null); setDeshacer(null); }} disabled={confirmando} className="text-sm text-gray-400 hover:text-gray-600" aria-label="Cerrar">✕</button>
+            </>
+          )}
+          {puedeEscribir && (
+            <>
+              <button type="button" onClick={planificarRapido} disabled={confirmando} className="btn btn-primario gap-1">
+                <Zap className="w-4 h-4" /> Planificación rápida
+              </button>
+              <Ayuda titulo="Planificación rápida">
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>De lunes a viernes, desde hoy; el sábado sólo a mano.</li>
+                  <li>1.º Sector: un sector por día, todo el sector junto.</li>
+                  <li>2.º Compromiso: el día más tarde que no lo pase.</li>
+                  <li>3.º Stock: si no alcanza, prueba otro día; si no alcanza en la semana, queda fuera y marcado.</li>
+                </ul>
+                <p className="mt-1">Se guarda al tiro; «Deshacer» devuelve las fechas.</p>
+              </Ayuda>
+            </>
+          )}
+      {puedeEscribir && (
+        <MenuAcciones
+          variante="boton"
+          items={[
+            { label: "Quitadas del planificador", icon: <EyeOff className="w-4 h-4" />, onClick: () => setVerQuitadas(true) },
+            { label: "Editar sectores", icon: <Settings2 className="w-4 h-4" />, onClick: () => setEditandoSectores(true) },
+          ]}
+        />
+      )}
+    </div>
+  );
+
+
   return (
     <div className="p-4 sm:p-6 bg-background min-h-screen flex flex-col gap-4">
-      <BarraEntregas />
-      <PageHeader
-        titulo="Semana de entregas"
-        tituloAyuda="Semana de entregas"
-        ayuda={
-          <>
-            <p>Arrastra un pedido a otro día (o tócalo y elige el día) para mover su fecha de entrega. Queda registrado, sin avisos.</p>
-            <p>Un pedido que ya va en una ruta sale el día de la ruta. «Armar ruta» abre el planificador del día con sus pedidos.</p>
-          </>
-        }
-      />
+      <BarraEntregas planificarSecundario />
 
+      {/* Sin título (revisión de UI, Fase 5, 2026-11-25): repetía la pestaña «Semana» y le quitaba
+          una fila al tablero. Su «(?)» va junto a la semana. Fila 1: qué semana, buscar y las
+          acciones; fila 2: sólo los sectores (antes, mezclados con herramientas sueltas). */}
       <div className="flex flex-wrap items-center gap-2">
+        <Ayuda titulo="Semana de entregas">
+          <p>Arrastra un pedido a otro día (o tócalo y elige el día) para mover su fecha de entrega. Queda registrado, sin avisos.</p>
+          <p>Un pedido que ya va en una ruta sale el día de la ruta. «Armar ruta» abre el planificador del día con sus pedidos.</p>
+        </Ayuda>
         <div className="inline-flex items-center rounded-lg border border-gray-300 bg-white">
           <button type="button" className="p-2 hover:bg-gray-50" onClick={() => { setPropuesta(null); setLunes((l) => sumarDias(l, -7)); }} aria-label="Semana anterior"><ChevronLeft className="w-4 h-4" /></button>
           <span className="px-2 text-sm font-medium tabular-nums">{corto(lunes)} – {corto(sabado)}</span>
@@ -320,7 +363,7 @@ export default function SemanaEntregas() {
             </button>
           ))}
         </div>
-        <div className="relative w-64">
+        <div className="relative w-56">
           <Search className="w-4 h-4 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
@@ -349,6 +392,10 @@ export default function SemanaEntregas() {
         <div className="w-40">
           <Selector options={bodegas.map((b) => ({ value: String(b.id), label: b.nombre }))} selectedValue={idBodega} onSelect={setIdBodega} className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm" />
         </div>
+        {acciones}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Sector">
           {[{ id: "todos", nombre: "Todos" }, ...sectores, { id: "sin", nombre: "Sin sector", color: SIN_SECTOR }].map((s) => (
             <button
@@ -362,6 +409,9 @@ export default function SemanaEntregas() {
               {s.nombre}
             </button>
           ))}
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          {masAdelante > 0 && !propuesta && <span className="text-xs text-gray-500">{masAdelante} más adelante</span>}
           {rutas.length > 0 && (
             <button
               type="button"
@@ -377,47 +427,6 @@ export default function SemanaEntregas() {
               {rutas.every((r) => rutasAbiertas.has(r.id)) ? <ChevronsDownUp className="w-3.5 h-3.5" /> : <ChevronsUpDown className="w-3.5 h-3.5" />}
               {rutas.every((r) => rutasAbiertas.has(r.id)) ? "Contraer rutas" : "Expandir rutas"}
             </button>
-          )}
-          {puedeEscribir && (
-            <button type="button" onClick={() => setVerQuitadas(true)} className="px-2 py-1 rounded-lg text-xs text-gray-600 hover:bg-gray-100" title="OV quitadas del planificador">
-              Quitadas
-            </button>
-          )}
-          {puedeEscribir && (
-            <button type="button" onClick={() => setEditandoSectores(true)} className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100" title="Editar sectores">
-              <Settings2 className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {masAdelante > 0 && !propuesta && <span className="text-xs text-gray-500">{masAdelante} más adelante</span>}
-          {propuesta && (
-            <>
-              {deshacer && <span className="text-xs font-semibold rounded-full bg-green-50 text-green-700 px-2 py-0.5">✓ {deshacer.size} guardados</span>}
-              {propuesta.fuera.size > 0 && <span className="text-xs font-semibold rounded-full bg-red-50 text-red-700 px-2 py-0.5">⚠ {propuesta.fuera.size} sin stock</span>}
-              {deshacer && (
-                <button type="button" onClick={deshacerPlanificacion} disabled={confirmando} className="text-sm text-gray-600 underline disabled:opacity-50">
-                  {confirmando ? "Deshaciendo…" : "Deshacer"}
-                </button>
-              )}
-              <button type="button" onClick={() => { setPropuesta(null); setDeshacer(null); }} disabled={confirmando} className="text-sm text-gray-400 hover:text-gray-600" aria-label="Cerrar">✕</button>
-            </>
-          )}
-          {puedeEscribir && (
-            <>
-              <button type="button" onClick={planificarRapido} disabled={confirmando} className="btn btn-primario gap-1">
-                <Zap className="w-4 h-4" /> Planificación rápida
-              </button>
-              <Ayuda titulo="Planificación rápida">
-                <ul className="list-disc pl-4 space-y-1">
-                  <li>De lunes a viernes, desde hoy; el sábado sólo a mano.</li>
-                  <li>1.º Sector: un sector por día, todo el sector junto.</li>
-                  <li>2.º Compromiso: el día más tarde que no lo pase.</li>
-                  <li>3.º Stock: si no alcanza, prueba otro día; si no alcanza en la semana, queda fuera y marcado.</li>
-                </ul>
-                <p className="mt-1">Se guarda al tiro; «Deshacer» devuelve las fechas.</p>
-              </Ayuda>
-            </>
           )}
         </div>
       </div>
@@ -490,8 +499,14 @@ export default function SemanaEntregas() {
                         >
                           <ChevronRight className={`w-3 h-3 shrink-0 transition-transform ${abierta ? "rotate-90" : ""}`} />
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${COLOR_ESTADO_RUTA[r.estado] ?? "bg-gray-400"}`} title={r.estado} />
-                          <span className="truncate flex-1 min-w-0">
-                            Ruta #{r.id} · {r.paradas?.length ?? 0} paradas{r.transportista?.nombre ? ` · ${r.transportista.nombre}` : ""}
+                          {/* «Ruta #12 · 1 paradas · Administrador Principal» se cortaba en «Ruta #12 …» en la
+                              columna angosta: el número y el primer nombre; lo completo, en el tooltip. */}
+                          <span
+                            className="truncate flex-1 min-w-0"
+                            title={`Ruta #${r.id} · ${r.estado} · ${r.paradas?.length ?? 0} parada${(r.paradas?.length ?? 0) === 1 ? "" : "s"}${r.transportista?.nombre ? ` · ${r.transportista.nombre}` : ""}`}
+                          >
+                            <span className="font-semibold">#{r.id}</span>
+                            {r.transportista?.nombre ? ` ${String(r.transportista.nombre).split(" ")[0]}` : ""}
                           </span>
                           {totalOv > 0 && (
                             <span className="shrink-0 rounded bg-white/70 px-1 tabular-nums" title={`${totalOv} OV en esta ruta`}>{totalOv}</span>
