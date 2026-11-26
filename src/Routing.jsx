@@ -58,7 +58,8 @@ const PIPList = lazy(() => import("./pages/PIP/PIPList"));
 const Ordenes = lazy(() => import("./pages/Compras/Ordenes"));
 // Nueva y Editar son el mismo formulario: con `:ordenId` edita.
 const FormularioOrden = lazy(() => import("./pages/Compras/FormularioOrden"));
-const RecepcionarOrden = lazy(() => import("./pages/Compras/RecepcionarOrden"));
+// Recepción en borrador que se guarda sola (2026-11-26); reemplaza a RecepcionarOrden.
+const RecepcionOC = lazy(() => import("./pages/Compras/RecepcionOC"));
 const OrdenDetail = lazy(() => import("./pages/Compras/OrdenDetail"));
 const AdquisicionesDashboard = lazy(() => import("./pages/Compras/AdquisicionesDashboard"));
 const DocumentosRecibidosLibreDte = lazy(() => import("./pages/Compras/DocumentosRecibidosLibreDte"));
@@ -347,7 +348,7 @@ function Routing() {
             path="/adquisiciones/ordenes-compra/:ordenId/recepcionar"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_COMPRA, ScopeType.WRITE]]}>
-                <RecepcionarOrden />
+                <RecepcionOC />
               </ProtectedRoute>
             }
           />

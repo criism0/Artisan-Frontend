@@ -1,5 +1,6 @@
 /**
- * adjuntosService — archivos colgados de una orden de venta o de una solicitud.
+ * adjuntosService — archivos colgados de una orden de venta, una solicitud o una orden de compra
+ * (esta última, también desde una de sus recepciones).
  *
  * Pedido de Cristóbal, 2026-08-22: poder adjuntar a una OV cualquier archivo relevante (una
  * foto del despacho, el PDF de la OC del cliente, un comprobante) y consultarlo después junto
@@ -29,6 +30,7 @@ function mapAdjunto(a) {
     mimeType: a.mime_type,
     tamanoBytes: Number(a.tamano_bytes ?? 0),
     descripcion: a.descripcion,
+    idRecepcionOC: a.id_recepcion_oc ?? null,
     subidoPor: a.autor?.nombre ?? null,
     fecha: a.createdAt,
   };
@@ -43,20 +45,23 @@ export function formatearTamano(bytes) {
 }
 
 export const adjuntosService = {
-  listar: async ({ idOrdenVenta, idSolicitud } = {}) => {
+  listar: async ({ idOrdenVenta, idSolicitud, idOrdenCompra } = {}) => {
     const params = new URLSearchParams();
     if (idOrdenVenta) params.set('id_orden_venta', idOrdenVenta);
     if (idSolicitud) params.set('id_solicitud_mercaderia', idSolicitud);
+    if (idOrdenCompra) params.set('id_orden_compra', idOrdenCompra);
     const res = await api(`/adjuntos?${params.toString()}`);
     return (res?.data?.adjuntos ?? []).map(mapAdjunto);
   },
 
-  subir: async ({ archivo, descripcion, idOrdenVenta, idSolicitud }) => {
+  subir: async ({ archivo, descripcion, idOrdenVenta, idSolicitud, idOrdenCompra, idRecepcionOC }) => {
     const fd = new FormData();
     fd.append('file', archivo);
     if (descripcion) fd.append('descripcion', descripcion);
     if (idOrdenVenta) fd.append('id_orden_venta', String(idOrdenVenta));
     if (idSolicitud) fd.append('id_solicitud_mercaderia', String(idSolicitud));
+    if (idOrdenCompra) fd.append('id_orden_compra', String(idOrdenCompra));
+    if (idRecepcionOC) fd.append('id_recepcion_oc', String(idRecepcionOC));
 
     // Sin `Content-Type`: el navegador tiene que ponerlo él para incluir el boundary del
     // multipart. Fijarlo a mano rompe la subida de una forma que se lee como "archivo inválido".

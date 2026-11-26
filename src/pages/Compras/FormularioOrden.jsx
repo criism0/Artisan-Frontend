@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Selector from "../../components/Forms/Selector";
 import { useApi } from "../../lib/api";
 import { toast } from "../../lib/toast";
-import { uploadToS3 } from "../../lib/uploadToS3";
+import { adjuntosService, TIPOS_ACEPTADOS } from "../../services/adjuntosService.js";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatCLP } from "../../services/formatHelpers";
@@ -26,8 +26,6 @@ const haceTresMeses = () => {
   return d.toISOString().slice(0, 10);
 };
 const lista = (res, clave) => (Array.isArray(res?.data) ? res.data : Array.isArray(res?.[clave]) ? res[clave] : Array.isArray(res?.data?.[clave]) ? res.data[clave] : Array.isArray(res) ? res : []);
-// La URL firmada caduca: no se guarda de vuelta con el archivo.
-const sinUrlFirmada = ({ signed_url, error, ...archivo }) => archivo; // eslint-disable-line no-unused-vars
 
 export default function FormularioOrden() {
   const { ordenId } = useParams();
@@ -43,8 +41,9 @@ export default function FormularioOrden() {
   const [lineasOrden, setLineasOrden] = useState([]); // líneas que ya tenía la orden (editar)
   const [lineas, setLineas] = useState({}); // id formato → { cantidad, precio }
   const [form, setForm] = useState({ id_proveedor: "", id_bodega: "", fecha: hoyISO(), condiciones: "", requiere_prepago: false });
+  // Se suben como adjuntos de la orden (los mismos de una OV) recién guardada; los que ya tenía se
+  // ven y se borran en «Documentos» del detalle.
   const [archivosNuevos, setArchivosNuevos] = useState([]);
-  const [archivosGuardados, setArchivosGuardados] = useState([]);
   const [errores, setErrores] = useState({});
 
   // Búsqueda por insumo: qué proveedores lo ofrecen y a qué precio.
@@ -74,7 +73,6 @@ export default function FormularioOrden() {
             condiciones: orden.condiciones || "",
             requiere_prepago: Boolean(orden.requiere_prepago),
           });
-          setArchivosGuardados(orden.archivos || []);
           setLineasOrden(orden.materiasPrimas || []);
           setLineas(
             Object.fromEntries(
@@ -177,16 +175,6 @@ export default function FormularioOrden() {
     if (!validar() || guardando) return;
     setGuardando(true);
     try {
-      const subidos = (
-        await Promise.all(
-          archivosNuevos.map((file) =>
-            uploadToS3(file).catch((err) => {
-              toast.error(`Error subiendo ${file.name}: ${err.message || err}`);
-              return null;
-            })
-          )
-        )
-      ).filter(Boolean);
       const body = {
         id_proveedor: Number(form.id_proveedor),
         id_bodega_solicitante: Number(form.id_bodega),
@@ -194,7 +182,6 @@ export default function FormularioOrden() {
         fecha: form.fecha,
         condiciones: form.condiciones,
         requiere_prepago: form.requiere_prepago,
-        archivos: [...archivosGuardados.map(sinUrlFirmada), ...subidos],
         materias_primas: elegidas.map((f) => ({
           id_proveedor_materia_prima: Number(f.id),
           cantidad_formato: cantidadDe(f),
@@ -205,8 +192,16 @@ export default function FormularioOrden() {
         method: editando ? "PUT" : "POST",
         body,
       });
+      const id = editando ? ordenId : res?.orden?.id;
+      for (const archivo of archivosNuevos) {
+        try {
+          await adjuntosService.subir({ archivo, idOrdenCompra: id });
+        } catch (err) {
+          toast.error(`La orden quedó guardada, pero no se pudo adjuntar ${archivo.name}: ${err.message || err}`);
+        }
+      }
       toast.success(editando ? "Orden actualizada" : "Orden creada");
-      navigate(`/adquisiciones/ordenes-compra/${editando ? ordenId : res?.orden?.id ?? ""}`);
+      navigate(`/adquisiciones/ordenes-compra/${id ?? ""}`);
     } catch (error) {
       toast.error(mensajeDelBackend(error) || "No se pudo guardar la orden");
     } finally {
@@ -303,6 +298,7 @@ export default function FormularioOrden() {
               📎 Adjuntar
               <input
                 type="file"
+                accept={TIPOS_ACEPTADOS.join(",")}
                 multiple
                 className="hidden"
                 onChange={(e) => {
@@ -314,14 +310,8 @@ export default function FormularioOrden() {
             </label>
           </div>
 
-          {(archivosGuardados.length > 0 || archivosNuevos.length > 0) && (
+          {archivosNuevos.length > 0 && (
             <ul className="flex flex-wrap gap-2 text-sm">
-              {archivosGuardados.map((a, i) => (
-                <li key={`g${i}`} className="inline-flex items-center gap-2 rounded-lg bg-gray-100 px-2.5 py-1">
-                  {a.original_name}
-                  <button type="button" aria-label={`Quitar ${a.original_name}`} onClick={() => setArchivosGuardados((p) => p.filter((_, j) => j !== i))} className="text-gray-500 hover:text-red-600">✕</button>
-                </li>
-              ))}
               {archivosNuevos.map((a, i) => (
                 <li key={`n${i}`} className="inline-flex items-center gap-2 rounded-lg bg-primary/10 px-2.5 py-1">
                   {a.name}

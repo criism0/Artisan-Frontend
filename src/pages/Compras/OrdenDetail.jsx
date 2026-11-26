@@ -1,11 +1,10 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useState, useEffect, useCallback } from "react";
 import PanelAcciones from "../../components/UI/PanelAcciones.jsx";
 import Tabs from "../../components/UI/Tabs.jsx";
 import HistorialCambiosModal from "../../components/Compras/HistorialCambiosModal.jsx";
 import { toast } from "../../lib/toast";
 import { useApi, apiBlob } from "../../lib/api";
-import { uploadToS3 } from "../../lib/uploadToS3";
 import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import DTERecibidoPanel from "../../components/DTE/DTERecibidoPanel.jsx";
@@ -24,6 +23,8 @@ import {
   nombreInsumoOC,
 } from "../../utils/ordenCompraVista.js";
 import Marca from "../../components/Compras/MarcaOC.jsx";
+import RecepcionesOC from "../../components/Compras/RecepcionesOC.jsx";
+import SeccionAdjuntos from "../../components/DTE/SeccionAdjuntos.jsx";
 
 const formatFechaCambio = (registro) => {
   const fecha = registro?.creado_en ?? registro?.fecha_cambio;
@@ -115,6 +116,7 @@ const COLUMNAS_BULTOS = [
 
 export default function OrdenDetail() {
   const { ordenId } = useParams();
+  const [params] = useSearchParams();
   const api = useApi();
   const navigate = useNavigate();
   const [orden, setOrden] = useState(null);
@@ -122,10 +124,11 @@ export default function OrdenDetail() {
   const [ocupado, setOcupado] = useState(false);
   const [historial, setHistorial] = useState([]);
   const [showHistorial, setShowHistorial] = useState(false);
-  const [nuevosArchivos, setNuevosArchivos] = useState([]);
-  const [subiendoArchivos, setSubiendoArchivos] = useState(false);
-  const [mostrarModalArchivos, setMostrarModalArchivos] = useState(false);
-  const [tab, setTab] = useState("insumos");
+  const [tab, setTab] = useState(params.get("tab") || "insumos");
+  const [nAdjuntos, setNAdjuntos] = useState(undefined);
+  const [nRecepciones, setNRecepciones] = useState(undefined);
+  const [rechazando, setRechazando] = useState(false);
+  const [motivo, setMotivo] = useState("");
 
   const puedeEscribir = checkScope(ModelType.ORDEN_COMPRA, ScopeType.WRITE);
   const puedeBorrar = checkScope(ModelType.ORDEN_COMPRA, ScopeType.DELETE);
@@ -145,53 +148,19 @@ export default function OrdenDetail() {
   }, [ordenId, cargar]);
 
   // El correo de cada cambio lo manda el backend.
-  const ejecutar = async (ruta, exito, metodo = "PUT") => {
+  const ejecutar = async (ruta, exito, metodo = "PUT", body) => {
     setOcupado(true);
     try {
-      await api(`/proceso-compra/ordenes/${ordenId}${ruta ? `/${ruta}` : ""}`, { method: metodo });
+      await api(`/proceso-compra/ordenes/${ordenId}${ruta ? `/${ruta}` : ""}`, { method: metodo, body });
       toast.success(exito);
       if (metodo === "DELETE") navigate("/adquisiciones/ordenes-compra");
       else await cargar();
+      return true;
     } catch (error) {
       toast.error(mensajeDelBackend(error) || "No se pudo completar la acción");
+      return false;
     } finally {
       setOcupado(false);
-    }
-  };
-
-  const handleFileChange = (e) => {
-    const files = Array.from(e.target.files || []);
-    setNuevosArchivos((prev) => [...prev, ...files.filter((n) => !prev.some((p) => p.name === n.name))]);
-    e.target.value = "";
-  };
-
-  const cerrarModalArchivos = () => {
-    setMostrarModalArchivos(false);
-    setNuevosArchivos([]);
-  };
-
-  const handleAdjuntarArchivos = async () => {
-    if (nuevosArchivos.length === 0) return;
-    setSubiendoArchivos(true);
-    try {
-      const refs = await Promise.all(
-        nuevosArchivos.map((file) =>
-          uploadToS3(file).catch((err) => {
-            toast.error(`Error subiendo ${file.name}: ${err}`);
-            return null;
-          })
-        )
-      );
-      const archivos = refs.filter(Boolean);
-      if (archivos.length === 0) return;
-      await api(`/proceso-compra/ordenes/${ordenId}/adjuntar-archivos`, { method: "PUT", body: { archivos } });
-      toast.success("Archivos adjuntados");
-      cerrarModalArchivos();
-      await cargar();
-    } catch (error) {
-      toast.error(mensajeDelBackend(error) || "No se pudieron adjuntar los archivos");
-    } finally {
-      setSubiendoArchivos(false);
     }
   };
 
@@ -231,22 +200,34 @@ export default function OrdenDetail() {
 
   const lineas = orden.materiasPrimas || [];
   const bultos = orden.bultos || [];
-  const archivos = orden.archivos || [];
   const facturas = Array.isArray(orden.numero_factura) ? orden.numero_factura : orden.numero_factura ? [orden.numero_factura] : [];
   const conRecepcion = Boolean(orden.resultado?.recepcion);
+  const borrador = orden.recepcion_borrador;
+  const enBorrador = (mp) => Number((borrador?.lineas ?? []).find((l) => Number(l.id_linea) === mp.id)?.cantidad) || 0;
+  const conBorrador = lineas.some((mp) => enBorrador(mp) > 0);
   const precio = (mp) => Number(mp.precio_unitario) || 0;
   const pedido = (mp) => Number(mp.cantidad_formato) || 0;
   const recibido = (mp) => Number(mp.cantidad_recepcionada) || 0;
   const netoRecibido = lineas.reduce((s, mp) => s + precio(mp) * recibido(mp), 0);
   const ivaRecibido = Math.round(netoRecibido * 0.19);
 
-  const { principal, menu, destructivas } = accionesOC(orden, { puedeEscribir, puedeBorrar, ejecutar, navigate });
+  const { principal, menu, destructivas } = accionesOC(orden, {
+    puedeEscribir,
+    puedeBorrar,
+    ejecutar,
+    navigate,
+    rechazar: () => {
+      setMotivo("");
+      setRechazando(true);
+    },
+  });
   const desactivar = (a) => ({ ...a, disabled: a.disabled || ocupado });
 
   const resumen = [
     orden.BodegaSolicitante?.nombre,
     `emitida ${formatFecha(orden.fecha)}`,
     orden.estado === "Recepcionada" && orden.fecha_recepcion && `recibida ${formatFecha(orden.fecha_recepcion)}`,
+    orden.cantidad_recepciones > 0 && `${orden.cantidad_recepciones} recepci${orden.cantidad_recepciones === 1 ? "ón" : "ones"}`,
     facturas.length > 0 && `factura ${facturas.join(", ")}`,
     bultos.length > 0 && `${bultos.length} bulto${bultos.length === 1 ? "" : "s"}`,
     `neto ${formatCLP(orden.total_neto, 0)}`,
@@ -264,6 +245,7 @@ export default function OrdenDetail() {
             </span>
             <Marca marca={marcaRecepcionOC(orden.resultado)} />
             <Marca marca={marcaPagoOC(orden)} />
+            {borrador && <Marca marca={{ texto: "✎ recepción en borrador", titulo: `Recepción ${borrador.numero} sin confirmar`, tono: "borrador" }} />}
           </span>
         }
         subtitulo={resumen.join(" · ")}
@@ -280,7 +262,7 @@ export default function OrdenDetail() {
             menu={[
               ...menu.map(desactivar),
               bultos.length > 0 && { label: "Descargar etiquetas", onClick: handleDownloadEtiquetas },
-              { label: "Adjuntar archivos", onClick: () => setMostrarModalArchivos(true) },
+              { label: "Adjuntar archivos", onClick: () => setTab("documentos") },
               { label: "Historial de cambios", onClick: handleVerHistorial },
             ]}
             destructivas={destructivas.map(desactivar)}
@@ -297,8 +279,9 @@ export default function OrdenDetail() {
         onCambiar={setTab}
         pestanas={[
           { id: "insumos", label: "Insumos", cantidad: lineas.length },
+          { id: "recepciones", label: "Recepciones", cantidad: nRecepciones ?? (orden.cantidad_recepciones || 0) + (borrador ? 1 : 0) },
           { id: "bultos", label: "Bultos", cantidad: bultos.length, deshabilitadaSiVacia: true },
-          { id: "documentos", label: "Documentos", cantidad: archivos.length || undefined },
+          { id: "documentos", label: "Documentos", cantidad: nAdjuntos || undefined },
         ]}
       />
 
@@ -310,6 +293,7 @@ export default function OrdenDetail() {
                 <th className="px-4 py-3 text-left font-semibold">Insumo</th>
                 <th className="px-4 py-3 text-right font-semibold">Pedido</th>
                 {conRecepcion && <th className="px-4 py-3 text-right font-semibold">Recibido</th>}
+                {conBorrador && <th className="px-4 py-3 text-right font-semibold">En borrador</th>}
                 <th className="px-4 py-3 text-right font-semibold">Precio</th>
                 <th className="px-4 py-3 text-right font-semibold">Neto pedido</th>
                 {conRecepcion && <th className="px-4 py-3 text-right font-semibold">Neto recibido</th>}
@@ -324,6 +308,11 @@ export default function OrdenDetail() {
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">{formatNumberCL(pedido(mp), 2)}</td>
                   {conRecepcion && <td className="px-4 py-3 text-right tabular-nums">{celdaRecibido(pedido(mp), recibido(mp))}</td>}
+                  {conBorrador && (
+                    <td className="px-4 py-3 text-right tabular-nums text-violet-700">
+                      {enBorrador(mp) > 0 ? `+${formatNumberCL(enBorrador(mp), 2)}` : <span className="text-gray-400">—</span>}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-right tabular-nums">{formatCLP(precio(mp), 0)}</td>
                   <td className="px-4 py-3 text-right tabular-nums">{formatCLP(precio(mp) * pedido(mp), 0)}</td>
                   {conRecepcion && <td className="px-4 py-3 text-right tabular-nums">{formatCLP(precio(mp) * recibido(mp), 0)}</td>}
@@ -337,7 +326,7 @@ export default function OrdenDetail() {
                 ["Total", orden.total_pago, netoRecibido + ivaRecibido],
               ].map(([nombre, valorPedido, valorRecibido]) => (
                 <tr key={nombre} className={`border-t border-gray-100 ${nombre === "Total" ? "font-semibold" : ""}`}>
-                  <td colSpan={conRecepcion ? 4 : 3} className={`px-4 py-2 text-right ${nombre === "Total" ? "" : "text-gray-500"}`}>
+                  <td colSpan={(conRecepcion ? 4 : 3) + (conBorrador ? 1 : 0)} className={`px-4 py-2 text-right ${nombre === "Total" ? "" : "text-gray-500"}`}>
                     {nombre}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">{formatCLP(valorPedido, 0)}</td>
@@ -348,6 +337,10 @@ export default function OrdenDetail() {
           </table>
           {orden.condiciones && <p className="px-4 py-3 border-t border-gray-100 text-xs text-gray-500">Condiciones: {orden.condiciones}</p>}
         </div>
+      )}
+
+      {tab === "recepciones" && (
+        <RecepcionesOC orden={orden} lineas={lineas} puedeEscribir={puedeEscribir} onCambio={cargar} onCantidad={setNRecepciones} />
       )}
 
       {tab === "bultos" && (
@@ -366,74 +359,37 @@ export default function OrdenDetail() {
         <div className="space-y-4">
           <DTERecibidoPanel ordenId={ordenId} orden={orden} />
           <div className="bg-white rounded-xl shadow-sm p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-gray-800">Archivos adjuntos</h3>
-              <button type="button" onClick={() => setMostrarModalArchivos(true)} className="text-sm text-primary hover:underline">
-                + Adjuntar
-              </button>
-            </div>
-            {archivos.length === 0 ? (
-              <p className="text-sm text-gray-500">Sin archivos.</p>
-            ) : (
-              <ul className="divide-y divide-gray-100">
-                {archivos.map((file, idx) => (
-                  <li key={idx} className="flex items-center justify-between py-2 text-sm">
-                    <span>
-                      <span className="font-medium text-gray-800">{file.original_name}</span>{" "}
-                      <span className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</span>
-                    </span>
-                    {file.signed_url || file.url ? (
-                      <a href={file.signed_url || file.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        Abrir
-                      </a>
-                    ) : (
-                      <span className="text-xs text-red-500">No disponible</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <SeccionAdjuntos idOrdenCompra={orden.id} onCantidad={setNAdjuntos} />
           </div>
         </div>
       )}
 
-      {mostrarModalArchivos && (
+      {rechazando && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-xl shadow-xl max-w-lg w-full space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-900">Adjuntar archivos a la OC #{orden.id}</h3>
-              <button onClick={cerrarModalArchivos} className="text-gray-500 hover:text-gray-700 text-2xl leading-none" aria-label="Cerrar">
-                ×
+          <div className="bg-white p-6 rounded-xl shadow-xl max-w-md w-full space-y-3">
+            <h3 className="text-lg font-semibold text-gray-900">¿Rechazar la OC #{orden.id}?</h3>
+            <label htmlFor="oc-motivo" className="block text-sm text-gray-700">Motivo</label>
+            <textarea
+              id="oc-motivo"
+              rows={3}
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+              placeholder="Llegó vencido, precio distinto…"
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn btn-secundario" onClick={() => setRechazando(false)}>
+                Cancelar
               </button>
-            </div>
-            {nuevosArchivos.length > 0 && (
-              <ul className="space-y-2 max-h-60 overflow-y-auto">
-                {nuevosArchivos.map((file, index) => (
-                  <li key={index} className="flex items-center justify-between gap-2 p-2 rounded-lg border border-gray-200 text-sm">
-                    <span className="truncate">{file.name}</span>
-                    <button
-                      type="button"
-                      onClick={() => setNuevosArchivos((prev) => prev.filter((_, i) => i !== index))}
-                      className="text-red-600 hover:underline flex-shrink-0"
-                    >
-                      Quitar
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="flex items-center justify-between pt-2 border-t">
-              <label className="btn btn-secundario cursor-pointer">
-                Elegir archivos
-                <input type="file" multiple onChange={handleFileChange} className="hidden" />
-              </label>
               <button
                 type="button"
-                onClick={handleAdjuntarArchivos}
-                disabled={subiendoArchivos || nuevosArchivos.length === 0 || !puedeEscribir}
-                className="btn btn-primario disabled:opacity-50"
+                className="btn bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                disabled={!motivo.trim() || ocupado}
+                onClick={async () => {
+                  if (await ejecutar("rechazar", "Orden rechazada", "PUT", { motivo_rechazo: motivo.trim() })) setRechazando(false);
+                }}
               >
-                {subiendoArchivos ? "Subiendo…" : "Adjuntar"}
+                Rechazar
               </button>
             </div>
           </div>

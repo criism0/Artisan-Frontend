@@ -148,7 +148,12 @@ export default function Ordenes() {
       accessor: "resultado",
       filtro: "valores",
       filtroValor: (o) => marcaRecepcionOC(o.resultado)?.texto || "—",
-      Cell: ({ value }) => <Marca marca={marcaRecepcionOC(value)} vacio />,
+      Cell: ({ row }) => (
+        <span className="inline-flex flex-wrap gap-1">
+          <Marca marca={marcaRecepcionOC(row.resultado)} vacio={!row.recepcion_en_borrador} />
+          {row.recepcion_en_borrador && <Marca marca={{ texto: "✎", titulo: "Hay una recepción en borrador", tono: "borrador" }} />}
+        </span>
+      ),
     },
     {
       header: "Pago",
