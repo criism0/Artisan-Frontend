@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { api, apiBlob } from "../../lib/api";
 import { toast } from "../../lib/toast";
 import { downloadBlob } from "../../lib/downloadBlob";
@@ -24,7 +24,9 @@ import { PageLoader } from "../../components/UI/PageLoader.jsx";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck.js";
 import { formatFecha } from "../../lib/dateUtils";
 import PageHeader from "../../components/UI/PageHeader.jsx";
-import { EstadoOMBadge } from "../../components/Produccion/EstadoOM.jsx";
+import { BarraEtapas, EtapaBadge, ModalAnularElaboracion, ModalTerminarPVA } from "../../components/Produccion/Elaboracion.jsx";
+import InsumosResumen from "../../components/Produccion/InsumosResumen.jsx";
+import { esAnulable, nombreProducto, siguienteAccion } from "../../utils/elaboracionVista.js";
 
 const CATEGORIAS = [
   { value: "I", label: "Insumos (I)" },
@@ -104,13 +106,16 @@ export default function OMDetail() {
   const [pautasPVA, setPautasPVA] = useState([]);
   const [loadingPVA, setLoadingPVA] = useState(false);
   const [selectedBultoIds, setSelectedBultoIds] = useState(() => new Set());
-  // Tabs de la vista (B3): datos | bultos | costos | pasos | salidas
-  const [tab, setTab] = useState("datos");
+  // Pestañas: insumos | pasos | pva | bultos | salidas | costos. La lista puede abrir una directo.
+  const location = useLocation();
+  const [tab, setTab] = useState(location.state?.tab ?? "insumos");
+  const [recarga, setRecarga] = useState(0);
+  const [anulando, setAnulando] = useState(false);
+  const [terminando, setTerminando] = useState(null);
   const [mostrarTodosBultos, setMostrarTodosBultos] = useState(false);
   const [verBultosConsumidos, setVerBultosConsumidos] = useState(false);
   const [showModalAnalisisSensorial, setShowModalAnalisisSensorial] = useState(false);
   const [analisisSensorialStatus, setAnalisisSensorialStatus] = useState(null);
-  const [insumosAsignados, setInsumosAsignados] = useState(false);
   const [tieneRegistrosInsumo, setTieneRegistrosInsumo] = useState(false);
   const [editandoCantidad, setEditandoCantidad] = useState(false);
   const [nuevaCantidad, setNuevaCantidad] = useState("");
@@ -139,7 +144,6 @@ export default function OMDetail() {
       setLoadingBultos(false);
       setBultosAsociados([]);
       setSelectedBultoIds(new Set());
-      setInsumosAsignados(false);
       setTieneRegistrosInsumo(false);
       setConsumoInsumos([]);
       setAnalisisSensorialStatus(null);
@@ -207,24 +211,8 @@ export default function OMDetail() {
         setConsumoInsumos(Array.isArray(registros) ? registros : []);
         setTieneRegistrosInsumo(registros.length > 0);
 
-        // Si no hay registros de insumo, no hay nada que asignar.
-        const todosAsignados = registros.length === 0 ? true : registros.every((insumo) => {
-          const pesoUtilizado = Number(insumo.peso_utilizado) || 0;
-          const pesoNecesario = Number(insumo.peso_necesario) || 0;
-
-          if (pesoNecesario === 0) {
-            return pesoUtilizado > 0.0001;
-          }
-
-          const diferencia = Math.abs(pesoUtilizado - pesoNecesario);
-          const tolerancia = Math.max(0.0001, pesoNecesario * 0.01);
-
-          return pesoUtilizado > 0.0001 && diferencia <= tolerancia;
-        });
-        setInsumosAsignados(todosAsignados);
       } catch {
-        setInsumosAsignados(false);
-        setTieneRegistrosInsumo(false);
+          setTieneRegistrosInsumo(false);
         setConsumoInsumos([]);
       }
     };
@@ -244,7 +232,7 @@ export default function OMDetail() {
     fetchInsumos();
     fetchBultosAsociados();
     fetchAnalisisSensorial();
-  }, [id, canReadManufacture, canReadSupplyProduction, canReadAddedValueGuideline]);
+  }, [id, canReadManufacture, canReadSupplyProduction, canReadAddedValueGuideline, recarga]);
 
   const handleGuardarCantidad = async () => {
     const valor = Number(nuevaCantidad);
@@ -352,21 +340,11 @@ export default function OMDetail() {
   // estuviera en 'Validada' o 'Completado', que son estados de un PASO
   // (RegistroPasoProduccion), no de la orden. `OMStatesType` no los tiene, así que esas
   // condiciones nunca podían ser verdaderas y sólo confundían al leer el código.
-  const puedeEjecutarPasos =
-    hasPasos && ["Insumos Asignados", "En ejecución"].includes(estado);
-  const puedeCerrar =
-    estado === "Esperando Salidas" || (!hasPasos && estado === "Insumos Asignados");
-
   const irA = (ruta) => () => navigate(`/produccion/elaboraciones/${id}/${ruta}`);
-
-  const accionPrincipal =
-    estado === "Borrador" && !insumosAsignados && tieneRegistrosInsumo
-      ? { label: "Asignar insumos", onClick: irA("insumos") }
-      : puedeEjecutarPasos
-        ? { label: estado === "En ejecución" ? "Continuar pasos" : "Ejecutar pasos", onClick: irA("pasos") }
-        : puedeCerrar
-          ? { label: "Producción final", onClick: irA("produccion-final") }
-          : null;
+  const siguiente = siguienteAccion(om);
+  const accionPrincipal = siguiente
+    ? { label: siguiente.label, onClick: siguiente.ruta ? irA(siguiente.ruta) : () => setTab(siguiente.tab) }
+    : null;
 
   const accionesSecundarias = [
     estado === "Borrador" &&
@@ -377,11 +355,6 @@ export default function OMDetail() {
           setEditandoCantidad(true);
         },
       },
-    estado === "Esperando Salidas" &&
-      subproductos.length > 0 && {
-        label: "Verificar subproductos",
-        onClick: irA("subproductos-decision"),
-      },
     analisisSensorialStatus?.requiere_analisis &&
       puedeMostrarAnalisisSensorialPorEstado && {
         label: analisisSensorialStatus.analisis_completado
@@ -390,6 +363,10 @@ export default function OMDetail() {
         onClick: () => setShowModalAnalisisSensorial(true),
       },
   ].filter(Boolean);
+  const accionesDestructivas = [
+    esAnulable(om) && checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE) && { label: "Anular", onClick: () => setAnulando(true) },
+  ].filter(Boolean);
+  const resumenPauta = new Map((om.pautas ?? []).map((p) => [p.id, p]));
 
   const pesoObjetivo = Number(om?.peso_objetivo || 0);
   const pesoObtenido = Number(om?.peso_obtenido || 0);
@@ -458,79 +435,36 @@ export default function OMDetail() {
     return fromPT || fromPIP || null;
   })();
 
-  // Cálculo de progreso
-  const totalInsumos = (consumoInsumos || []).length || 0;
-  const insumosConsumidos = (consumoInsumos || []).filter((r) => Number(r?.peso_utilizado || 0) > 0).length || 0;
-  const porcentajeInsumos = totalInsumos > 0 ? Math.round((insumosConsumidos / totalInsumos) * 100) : 0;
-
   return (
     <div>
       {/* Acciones de la OM en el panel estándar, junto al título. Antes eran seis botones
           sueltos de cinco colores distintos sin decir cuál correspondía al estado actual. */}
       <PageHeader
         volverA="/produccion/elaboraciones"
-        titulo={`Orden de Manufactura #${om.id ?? id}`}
-        estado={<EstadoOMBadge estado={om.estado} />}
-        tituloAyuda="Cómo avanza una OM"
+        titulo={`Elaboración #${om.id ?? id} · ${nombreProducto(om)}`}
+        estado={<EtapaBadge om={om} />}
+        subtitulo={[
+          om.bodega?.nombre,
+          om.elaboradorEncargado?.nombre,
+          formatFecha(om.fecha),
+          om.peso_objetivo ? `objetivo ${formatNumberCL(om.peso_objetivo, 2)} kg` : null,
+          Number(om.costo_total) > 0 ? `costo ${formatCLP(om.costo_total, 0)}` : null,
+        ].filter(Boolean).join(" · ")}
+        tituloAyuda="Cómo avanza una elaboración"
         ayuda={
           <ol className="list-decimal ml-4 space-y-1">
-            <li>En Borrador se asignan los insumos: salen de la bodega y la cantidad queda fija.</li>
-            <li>Se ejecutan los pasos de la pauta de elaboración, si la receta tiene.</li>
-            <li>
-              En la producción final se registran los bultos producidos, los subproductos y la
-              merma; ahí se calculan el costo y el rendimiento.
-            </li>
-            <li>Si el producto lleva PVA, se ejecutan antes de cerrar.</li>
+            <li>Se anotan los bultos de cada insumo (escaneados o sugeridos) y se consumen todos juntos: ahí baja el stock.</li>
+            <li>Se ejecutan los pasos de la pauta, si la receta tiene.</li>
+            <li>Se registra la producción: kilos, bultos, subproductos y merma. Ahí se calculan el costo y el rendimiento.</li>
+            <li>Si el producto lleva valor agregado, se termina antes de cerrar.</li>
+            <li>Hasta antes de registrar la producción se puede anular, devolviendo o no los insumos.</li>
           </ol>
         }
-        acciones={<PanelAcciones principal={accionPrincipal} secundarias={accionesSecundarias} />}
+        acciones={<PanelAcciones principal={accionPrincipal} secundarias={accionesSecundarias} destructivas={accionesDestructivas} />}
       />
 
-      {/* Panel de estado rápido: 4 tarjetas informativas */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-        {/* Receta */}
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
-          <div className="text-xs text-gray-500 font-medium">RECETA</div>
-          <div className="font-bold text-text mt-1">{om.receta?.nombre || "—"}</div>
-          <div className="text-xs text-gray-600 mt-2">
-            Costo ref: {formatCLP(om.receta?.costo_referencial_produccion, 2)}
-          </div>
-        </div>
-
-        {/* Progreso de ingredientes */}
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-          <div className="text-xs text-gray-500 font-medium">INGREDIENTES</div>
-          <div className="flex items-center gap-2 mt-1">
-            <div className="flex-1">
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-500 h-2 rounded-full" 
-                  style={{ width: `${porcentajeInsumos}%` }}
-                ></div>
-              </div>
-            </div>
-            <span className="text-sm font-bold">{porcentajeInsumos}%</span>
-          </div>
-          <div className="text-xs text-gray-600 mt-2">{insumosConsumidos}/{totalInsumos} consumidos</div>
-        </div>
-
-        {/* Costos */}
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-          <div className="text-xs text-gray-500 font-medium">COSTO TOTAL</div>
-          <div className="text-lg font-bold text-text mt-1">{formatCLP(om.costo_total, 0)}</div>
-          <div className="text-xs text-gray-600 mt-2">
-            Objetivo: {formatNumberCL(om.peso_objetivo || 0, 2)} kg
-          </div>
-        </div>
-
-        {/* Información de estado */}
-        <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
-          <div className="text-xs text-gray-500 font-medium">ENCARGADO</div>
-          <div className="font-bold text-text mt-1">{om.elaboradorEncargado?.nombre || "—"}</div>
-          <div className="text-xs text-gray-600 mt-2">
-            Bodega: {om.bodega?.nombre || "—"}
-          </div>
-        </div>
+      <div className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <BarraEtapas om={om} />
       </div>
 
       {/* El editor de cantidad se abre desde el panel y aparece acá, en vez de vivir
@@ -568,13 +502,16 @@ export default function OMDetail() {
         activa={tab}
         onCambiar={setTab}
         pestanas={[
-          { id: "datos", label: "Datos generales" },
+          { id: "insumos", label: "Insumos", cantidad: (consumoInsumos || []).filter((r) => r.tipo !== "EMPAQUE").length },
+          hasPasos && { id: "pasos", label: "Pasos", cantidad: om.pasos ? `${om.pasos.hechos}/${om.pasos.total}` : undefined },
+          loteProductoEnProceso && (pautasPVA || []).length > 0 && { id: "pva", label: "Valor agregado", cantidad: pautasPVA.length },
           { id: "bultos", label: "Bultos creados", cantidad: (bultosAsociados || []).length },
-          { id: "costos", label: "Historial de costos" },
-          { id: "pasos", label: "Pasos" },
-          { id: "salidas", label: "Subproductos y rendimiento" },
-        ]}
+          { id: "salidas", label: "Salidas y rendimiento" },
+          { id: "costos", label: "Costos" },
+        ].filter(Boolean)}
       />
+
+      {tab === "insumos" ? <InsumosResumen omId={id} recarga={recarga} /> : null}
 
       {tab === "salidas" && !esPostCierre ? (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6 text-sm text-gray-600">
@@ -892,8 +829,8 @@ export default function OMDetail() {
       </>
       ) : null}
 
-      {/* PVAs (ordenado, acciones directas) — tab Datos generales */}
-      {tab === "datos" && loteProductoEnProceso ? (
+      {/* Valor agregado del PIP, en orden, con cuándo termina y «Terminar» */}
+      {tab === "pva" && loteProductoEnProceso ? (
         <div className="bg-white rounded-lg shadow p-4 mb-6">
           <div className="flex items-start justify-between gap-4 mb-3">
             <div>
@@ -916,6 +853,7 @@ export default function OMDetail() {
                     <th className="p-2 border">Orden</th>
                     <th className="p-2 border">Proceso</th>
                     <th className="p-2 border text-center">Estado</th>
+                    <th className="p-2 border">Termina</th>
                     <th className="p-2 border w-56 text-center">Acciones</th>
                   </tr>
                 </thead>
@@ -985,6 +923,16 @@ export default function OMDetail() {
                           <td className="p-2 border text-center">
                             <BadgeEstadoPVA value={p?.estado} />
                           </td>
+                          <td className="p-2 border whitespace-nowrap">
+                            {resumenPauta.get(p.id)?.termina ? (
+                              <span className={resumenPauta.get(p.id).vencida ? "font-semibold text-amber-700" : ""}>
+                                {formatFecha(resumenPauta.get(p.id).termina)}
+                                {resumenPauta.get(p.id).vencida && " · vencido"}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
                           <td className="p-2 border">
                             <div className="flex items-center justify-center gap-2">
                               {utilizaInsumos ? (
@@ -1004,13 +952,22 @@ export default function OMDetail() {
                                   Sin insumos
                                 </button>
                               )}
+                              {!estaPendiente && !estaCompletada && (
+                                <button
+                                  className="btn btn-primario"
+                                  disabled={!canWriteAddedValueGuideline}
+                                  onClick={() => setTerminando({ id: p.id, proceso: nombreProceso })}
+                                >
+                                  Terminar
+                                </button>
+                              )}
                               <button
-                                className="btn btn-primario"
+                                className={estaPendiente ? "btn btn-primario" : "btn btn-secundario"}
                                 disabled={estaCompletada || hayPreviasIncompletas || !canWriteAddedValueGuideline}
                                 title={hayPreviasIncompletas ? "Debes completar los PVAs anteriores" : undefined}
                                 onClick={() => void comenzarYejecutar()}
                               >
-                                {estaPendiente ? "Comenzar" : "Ejecutar"}
+                                {estaPendiente ? "Comenzar" : "Pasos"}
                               </button>
                             </div>
                           </td>
@@ -1024,70 +981,7 @@ export default function OMDetail() {
         </div>
       ) : null}
 
-      {/* Tab: Datos generales — información de la OM */}
-      {tab === "datos" ? (
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
-        <h2 className="text-base font-semibold text-text mb-3">Información de la OM</h2>
-        <table className="w-full bg-white rounded-lg overflow-hidden border border-gray-200">
-          <thead className="bg-gray-100 text-sm text-gray-600">
-            <tr>
-              <th className="px-6 py-3 text-sm font-semibold text-left">Información</th>
-              <th className="px-6 py-3 text-sm font-semibold text-left">Dato</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Producto / PIP</td>
-              <td className="px-6 py-4 text-sm text-text">
-                {om.productoBase?.nombre || om.materiaPrima?.nombre || om.receta?.nombre || "—"}
-              </td>
-            </tr>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Encargado</td>
-              <td className="px-6 py-4 text-sm text-text">
-                {om.elaboradorEncargado?.nombre || om.id_elaborador_encargado || "—"}
-              </td>
-            </tr>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Bodega</td>
-              <td className="px-6 py-4 text-sm text-text">{om.bodega?.nombre || om.id_bodega || "—"}</td>
-            </tr>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Fecha</td>
-              <td className="px-6 py-4 text-sm text-text">
-                {formatFecha(om.fecha)}
-              </td>
-            </tr>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Peso objetivo</td>
-              <td className="px-6 py-4 text-sm text-text">{om.peso_objetivo ? `${formatNumberCL(om.peso_objetivo, 2)} kg` : "—"}</td>
-            </tr>
-            {esPostCierre && (
-              <tr className="border-b border-border">
-                <td className="px-6 py-4 text-sm font-medium text-text">Peso obtenido</td>
-                <td className="px-6 py-4 text-sm text-text">{om.peso_obtenido ? `${formatNumberCL(om.peso_obtenido, 2)} kg` : "—"}</td>
-              </tr>
-            )}
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Costo referencial</td>
-              <td className="px-6 py-4 text-sm text-text">{om.receta?.costo_referencial_produccion != null ? formatCLP(om.receta.costo_referencial_produccion, 2) : "—"}</td>
-            </tr>
-            <tr className="border-b border-border">
-              <td className="px-6 py-4 text-sm font-medium text-text">Costo total</td>
-              <td className="px-6 py-4 text-sm text-text">{om.costo_total != null ? formatCLP(om.costo_total, 0) : "—"}</td>
-            </tr>
-            {esPostCierre && om.peso_objetivo && om.peso_obtenido && (
-              <tr className="border-b border-border">
-                <td className="px-6 py-4 text-sm font-medium text-text">Obtenido / objetivo</td>
-                <td className="px-6 py-4 text-sm text-text">{formatNumberCL((om.peso_obtenido / om.peso_objetivo) * 100, 2)}%</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      ) : null}
-
-      {tab === "datos" && productosFinales && productosFinales.length > 0 && (
+      {tab === "salidas" && productosFinales && productosFinales.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
           <div className="flex justify-between items-center mb-3">
             <h2 className="text-base font-semibold text-text">Productos finales</h2>
@@ -1252,6 +1146,13 @@ export default function OMDetail() {
       )}
 
       {/* Modal de Análisis de Calidad */}
+      {anulando && (
+        <ModalAnularElaboracion om={om} abierto onCerrar={() => setAnulando(false)} onAnulada={() => setRecarga((n) => n + 1)} />
+      )}
+      {terminando && (
+        <ModalTerminarPVA pauta={terminando} abierto onCerrar={() => setTerminando(null)} onTerminada={() => setRecarga((n) => n + 1)} />
+      )}
+
       <ModalAnalisisSensorial
         isOpen={showModalAnalisisSensorial}
         onClose={(reload) => {

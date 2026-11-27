@@ -9,8 +9,6 @@ import CargandoVista from "./components/UI/CargandoVista";
 
 import Layout from "./components/Layout/Layout";
 const ProduccionFinal = lazy(() => import("./pages/Orden_de_Manufactura/ProduccionFinal"));
-const SubproductosDecision = lazy(() => import("./pages/Orden_de_Manufactura/SubproductosDecision"));
-const RegistrarSubproductos = lazy(() => import("./pages/Orden_de_Manufactura/RegistrarSubproductos"));
 
 // Páginas base
 import LandingPage from "./pages/LandingPage";
@@ -96,7 +94,7 @@ const EditSolicitud = lazy(() => import("./pages/Solicitudes/EditSolicitud"));
 const SolicitudDetail = lazy(() => import("./pages/Solicitudes/SolicitudDetail"));
 
 // ====== Orden de Manufactura ======
-const AsignarInsumos = lazy(() => import("./pages/Orden_de_Manufactura/AsignarInsumos"));
+const PrepararInsumos = lazy(() => import("./pages/Orden_de_Manufactura/PrepararInsumos"));
 const AsignarInsumosPVA = lazy(() => import("./pages/Orden_de_Manufactura/AsignarInsumosPVA"));
 const EjecutarPasos = lazy(() => import("./pages/Orden_de_Manufactura/EjecutarPasos"));
 const OMList = lazy(() => import("./pages/Orden_de_Manufactura/OMList"));
@@ -802,25 +800,6 @@ function Routing() {
             }
           />
           <Route
-            path="/produccion/elaboraciones/:id/subproductos-decision"
-            element={
-              <ProtectedRoute permissions={[[ModelType.ORDEN_MANUFACTURA, ScopeType.READ]]}>
-                <SubproductosDecision />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/produccion/elaboraciones/:id/registrar-subproductos"
-            element={
-              <ProtectedRoute permissions={[
-                [ModelType.ORDEN_MANUFACTURA, ScopeType.READ],
-                [ModelType.REGISTRO_SUBPRODUCTO, ScopeType.WRITE]
-              ]}>
-                <RegistrarSubproductos />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/produccion/elaboraciones/:id/produccion-final"
             element={
               <ProtectedRoute permissions={[[ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE]]}>
@@ -1006,7 +985,7 @@ function Routing() {
                 [ModelType.ORDEN_MANUFACTURA, ScopeType.READ],
                 [ModelType.REGISTRO_INSUMOS_PRODUCCION, ScopeType.READ]
               ]}>
-                <AsignarInsumos />
+                <PrepararInsumos />
               </ProtectedRoute>
             }
           />
