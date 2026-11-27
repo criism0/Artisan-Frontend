@@ -14,7 +14,6 @@ export default function EjecutarPasos() {
   const [pasos, setPasos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [ordenData, setOrdenData] = useState(null);
 
   const [todosCompletados, setTodosCompletados] = useState(false);
 
@@ -51,10 +50,6 @@ export default function EjecutarPasos() {
 
     const fetchData = async () => {
       try {
-        // Load manufacturing order data
-        const ordenData = await api(`/ordenes_manufactura/${id}`);
-        setOrdenData(ordenData);
-
         // Load steps data
         const data = await api(`/registro-paso-produccion/${id}/pasos`);
         
@@ -237,7 +232,7 @@ export default function EjecutarPasos() {
 
   return (
     <div>
-      <PageHeader volverA={`/produccion/elaboraciones/${id}`} titulo={`Ejecución de pasos · OM #${id}`} />
+      <PageHeader volverA={`/produccion/elaboraciones/${id}`} titulo={`Pasos · Elaboración #${id}`} />
 
       <div className="bg-gray-200 p-4 rounded-lg">
         <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -443,23 +438,12 @@ export default function EjecutarPasos() {
         </button>
 
         {todosCompletados && (
-          <>
-            {ordenData?.receta?.posiblesSubproductos?.length > 0 ? (
-              <button
-                className="btn btn-primario"
-                onClick={() => navigate(`/produccion/elaboraciones/${id}/subproductos-decision`)}
-              >
-                Siguiente paso: Verificar Subproductos
-              </button>
-            ) : (
-              <button
-                className="btn btn-primario"
-                onClick={() => navigate(`/produccion/elaboraciones/${id}/produccion-final`)}
-              >
-                Siguiente paso: Producción Final
-              </button>
-            )}
-          </>
+          <button
+            className="btn btn-primario"
+            onClick={() => navigate(`/produccion/elaboraciones/${id}/produccion-final`)}
+          >
+            Siguiente: registrar producción
+          </button>
         )}
       </div>
     </div>

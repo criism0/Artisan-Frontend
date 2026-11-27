@@ -1,417 +1,267 @@
-import { ViewDetailButton, TrashIconButton } from "../../components/Buttons/ActionButtons";
-import DataTable from "../../components/Tables/DataTable";
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../../lib/api";
-import { Clipboard, Play, Package, Layers } from "lucide-react";
-import { toast } from "../../lib/toast";
+import DataTable from "../../components/Tables/DataTable";
+import { ViewDetailButton } from "../../components/Buttons/ActionButtons";
+import MenuAcciones from "../../components/UI/MenuAcciones.jsx";
+import ChipsEstado from "../../components/UI/ChipsEstado.jsx";
 import ConfirmDeletePreviewModal from "../../components/Modals/ConfirmDeletePreviewModal";
+import { EtapaBadge, ModalAnularElaboracion } from "../../components/Produccion/Elaboracion.jsx";
+import { api } from "../../lib/api";
+import { toast } from "../../lib/toast";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 import { formatFecha } from "../../lib/dateUtils";
-import { EstadoOMBadge, ResumenPVABadge } from "../../components/Produccion/EstadoOM.jsx";
+import { formatNumberCL } from "../../services/formatHelpers";
+import { mensajeDelBackend } from "../../utils/mensajeError.js";
+import {
+  ETAPAS,
+  ORDEN_ETAPAS,
+  diasAbierta,
+  esAnulable,
+  etapaDe,
+  nombreProducto,
+  siguienteAccion,
+  tipoProducto,
+} from "../../utils/elaboracionVista.js";
 
-// Celda de resumen PVA: dispara la carga perezosa de extras al montarse
-// (solo se montan las filas visibles de la página actual del DataTable).
-function PvaBadgeCell({ row, extra, isLoading, onNeedsLoad }) {
-  useEffect(() => {
-    onNeedsLoad(row.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row.id]);
-
-  if (isLoading) return <span className="text-xs text-gray-400">Cargando…</span>;
-  if (!extra) return <span className="text-xs text-gray-400">—</span>;
-  return <ResumenPVABadge pautas={extra?.pautas} />;
-}
+// Lista de elaboraciones (Fase 5, 2026-11-26). Antes: una columna PVA que pedía 2 o 3 cosas al
+// servidor por fila, cuatro íconos sin nombre y un «Ejecutar pasos» que nunca aparecía porque la
+// lista no traía los pasos. Ahora el backend manda etapa, pasos y valor agregado de una vez.
+const CHIPS = ORDEN_ETAPAS.map((e) => [ETAPAS[e].nombre, ETAPAS[e].punto]);
 
 export default function OMList() {
+  const navigate = useNavigate();
   const [ordenes, setOrdenes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [bodega, setBodega] = useState("");
+  const [porAnular, setPorAnular] = useState(null);
+  const [porBorrar, setPorBorrar] = useState(null);
 
-  // Detalles bajo demanda (reduce ruido + llamadas por fila)
-  const [omExtrasById, setOmExtrasById] = useState({});
-  const [omExtrasLoading, setOmExtrasLoading] = useState(new Set());
+  const puedeLeer = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ);
+  const puedeEscribir = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.WRITE);
+  const puedeBorrar = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.DELETE);
 
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deleteTargetId, setDeleteTargetId] = useState(null);
-  const [deletePreview, setDeletePreview] = useState(null);
-  const [deletePreviewLoading, setDeletePreviewLoading] = useState(false);
-  const [deletePreviewError, setDeletePreviewError] = useState(null);
-
-  const canReadInProgress = checkScope(ModelType.LOTE_PRODUCTO_EN_PROCESO, ScopeType.READ);
-  const canReadFinished = checkScope(ModelType.LOTE_PRODUCTO_FINAL, ScopeType.READ);
-  const canReadManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.READ);
-  const canDeleteManufacture = checkScope(ModelType.ORDEN_MANUFACTURA, ScopeType.DELETE);
-  const canReadAddedValueGuideline = checkScope(ModelType.PAUTA_VALOR_AGREGADO, ScopeType.READ);
-
-  const navigate = useNavigate();
-
-  const ensureOmExtrasLoaded = async (id) => {
-    if (omExtrasById[id]) return omExtrasById[id];
-    if (omExtrasLoading.has(id)) return null;
-
-    if (!canReadInProgress && !canReadFinished) return null;
-
-    setOmExtrasLoading((prev) => new Set(prev).add(id));
-
+  const cargar = useCallback(async () => {
     try {
-      let lote = null;
-
-      if (canReadInProgress) {
-        try {
-          const resProceso = await api(`/lotes-producto-en-proceso?id_orden_manufactura=${id}`);
-          if (Array.isArray(resProceso) && resProceso.length > 0) lote = resProceso[0];
-        } catch {
-          // noop
-        }
-      }
-
-      if (!lote && canReadFinished) {
-        try {
-          const resFinal = await api(`/lotes-producto-final?id_orden_manufactura=${id}`);
-          if (Array.isArray(resFinal) && resFinal.length > 0) lote = resFinal[0];
-        } catch {
-          // noop
-        }
-      }
-
-      let pautas = [];
-      if (lote?.id && canReadAddedValueGuideline) {
-        const loteId = lote.id;
-        let query = "";
-        let lotIdKey = "";
-
-        if (lote.id_producto_base) {
-          query = `/pautas-valor-agregado/lote?id_lote_producto_final=${loteId}`;
-          lotIdKey = "id_lote_producto_final";
-        } else if (lote.id_materia_prima) {
-          query = `/pautas-valor-agregado/lote?id_lote_producto_en_proceso=${loteId}`;
-          lotIdKey = "id_lote_producto_en_proceso";
-        }
-
-        if (query) {
-          try {
-            const resPautas = await api(query);
-            if (Array.isArray(resPautas)) {
-              pautas = resPautas.filter((pauta) => String(pauta[lotIdKey]) === String(loteId));
-            }
-          } catch {
-            // noop
-          }
-        }
-      }
-
-      const result = { lote, pautas };
-      setOmExtrasById((prev) => ({ ...prev, [id]: result }));
-      return result;
+      const res = await api(`/ordenes_manufactura`);
+      // La etapa con nombre va como campo para que los chips y el filtro de columna la usen.
+      setOrdenes((Array.isArray(res) ? res : []).map((o) => ({ ...o, etapa_nombre: ETAPAS[etapaDe(o)].nombre })));
+    } catch (err) {
+      toast.error(mensajeDelBackend(err) || "No se pudieron cargar las elaboraciones");
     } finally {
-      setOmExtrasLoading((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
+      setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (!canReadManufacture) {
+    if (!puedeLeer) {
       toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ]);
       setIsLoading(false);
       return;
     }
+    cargar();
+  }, [puedeLeer, cargar]);
 
-    const fetchData = async () => {
-      try {
-        const [omResponse, bodegasResponse] = await Promise.all([
-          api(`/ordenes_manufactura`),
-          api(`/bodegas`),
-        ]);
+  const bodegas = useMemo(() => {
+    const m = new Map();
+    for (const o of ordenes) if (o.bodega?.id != null) m.set(String(o.bodega.id), o.bodega.nombre);
+    return [...m].sort((a, b) => String(a[1]).localeCompare(String(b[1]), "es"));
+  }, [ordenes]);
+  const datos = useMemo(
+    () => (bodega ? ordenes.filter((o) => String(o.bodega?.id) === bodega) : ordenes),
+    [ordenes, bodega]
+  );
 
-        const ordenesData = Array.isArray(omResponse)
-          ? omResponse
-          : omResponse.ordenes_manufactura || [];
-        const bodegasData = bodegasResponse.bodegas || [];
+  const irA = (o, accion) => {
+    if (accion.ruta) navigate(`/produccion/elaboraciones/${o.id}/${accion.ruta}`);
+    else navigate(`/produccion/elaboraciones/${o.id}`, { state: { tab: accion.tab } });
+  };
 
-        for (const om of ordenesData) {
-          om.bodega = bodegasData.find((b) => b.id === om.id_bodega) || null;
-        }
+  const abrirBorrado = async (o) => {
+    setPorBorrar({ id: o.id, preview: null, cargando: true, error: null });
+    try {
+      const preview = await api(`/ordenes_manufactura/${o.id}/delete_preview`);
+      setPorBorrar({ id: o.id, preview, cargando: false, error: null });
+    } catch (error) {
+      setPorBorrar({ id: o.id, preview: null, cargando: false, error });
+    }
+  };
 
-        setOrdenes(ordenesData);
-      } catch (err) {
-        console.error("FETCH ERROR:", err);
-        toast.error("No se pudieron cargar las órdenes de manufactura");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [canReadManufacture]);
+  const borrar = async () => {
+    if (!porBorrar || porBorrar.preview?.canDelete === false) return;
+    try {
+      await api(`/ordenes_manufactura/${porBorrar.id}`, { method: "DELETE" });
+      toast.success(`Elaboración #${porBorrar.id} eliminada`);
+      setPorBorrar(null);
+      cargar();
+    } catch (err) {
+      toast.error(mensajeDelBackend(err) || "No se pudo eliminar la elaboración");
+    }
+  };
 
   const columns = [
+    { header: "N°", accessor: "id", sortable: true, hideable: false, filtro: "numero" },
     {
-      header: "# OM",
-      accessor: "id",
+      header: "Producto",
+      accessor: "producto",
       sortable: true,
-      Cell: ({ value }) => (
-        <span className="font-mono text-sm font-semibold text-primary">#{value}</span>
-      ),
-    },
-    {
-      header: "Producto / PIP",
-      accessor: "receta",
-      sortable: true,
-      sortValue: (row) =>
-        row.productoBase?.nombre || row.materiaPrima?.nombre || row.receta?.nombre || "",
-      Cell: ({ row }) =>
-        row.productoBase?.nombre || row.materiaPrima?.nombre || row.receta?.nombre || "—",
+      sortValue: nombreProducto,
+      cellClassName: "!whitespace-normal min-w-[10rem] max-w-[16rem]",
+      Cell: ({ row }) => {
+        const tipo = tipoProducto(row);
+        return (
+          <span>
+            {nombreProducto(row)}
+            {tipo && <span className="ml-1.5 rounded-md bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-gray-600">{tipo}</span>}
+          </span>
+        );
+      },
     },
     {
       header: "Bodega",
       accessor: "bodega",
       sortable: true,
-      sortValue: (row) => row.bodega?.nombre || String(row.id_bodega ?? ""),
-      Cell: ({ row }) => row.bodega?.nombre || row.id_bodega,
+      sortValue: (o) => o.bodega?.nombre ?? "",
+      Cell: ({ row }) => row.bodega?.nombre || "—",
+    },
+    {
+      header: "Estado",
+      accessor: "etapa_nombre",
+      sortable: true,
+      filtro: "valores",
+      sortValue: (o) => ORDEN_ETAPAS.indexOf(etapaDe(o)),
+      Cell: ({ row }) => <EtapaBadge om={row} />,
+    },
+    {
+      header: "Siguiente paso",
+      accessor: "siguiente",
+      Cell: ({ row }) => {
+        const a = siguienteAccion(row);
+        if (!a) return <span className="text-gray-400">—</span>;
+        if (!puedeEscribir) return <span className="text-sm text-gray-600">{a.label}</span>;
+        return (
+          <button
+            type="button"
+            onClick={() => irA(row, a)}
+            className={`whitespace-nowrap rounded-lg border px-2.5 py-1 text-xs font-medium ${
+              a.urgente
+                ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                : a.principal
+                  ? "border-primary bg-primary text-white hover:bg-primary-dark"
+                  : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            {a.label}
+          </button>
+        );
+      },
+    },
+    {
+      header: "Objetivo",
+      accessor: "peso_objetivo",
+      sortable: true,
+      align: "right",
+      filtro: "numero",
+      Cell: ({ value }) => (value ? `${formatNumberCL(value, 0)} kg` : "—"),
     },
     {
       header: "Fecha",
       accessor: "fecha",
       sortable: true,
-      sortValue: (row) => (row.fecha ? new Date(row.fecha).getTime() : 0),
-      Cell: ({ value }) => (value ? formatFecha(value) : ""),
+      sortValue: (o) => (o.fecha ? new Date(o.fecha).getTime() : 0),
+      Cell: ({ row }) => {
+        if (!row.fecha) return <span className="text-gray-400">—</span>;
+        const d = diasAbierta(row);
+        return (
+          <span className="whitespace-nowrap text-sm">
+            {formatFecha(row.fecha)}{" "}
+            {d?.detenida && (
+              <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700" title={`Lleva ${d.dias} días abierta`}>
+                hace {d.dias} d
+              </span>
+            )}
+          </span>
+        );
+      },
     },
-    {
-      header: "Estado",
-      accessor: "estado",
-      sortable: true,
-      Cell: ({ value }) => <EstadoOMBadge estado={value} />,
-    },
-    {
-      header: "PVA",
-      accessor: "pva_resumen",
-      Cell: ({ row }) => (
-        <PvaBadgeCell
-          row={row}
-          extra={omExtrasById[row.id]}
-          isLoading={omExtrasLoading.has(row.id)}
-          onNeedsLoad={(id) => void ensureOmExtrasLoaded(id)}
-        />
-      ),
-    },
-    {
-      header: "Peso Objetivo",
-      accessor: "peso_objetivo",
-      sortable: true,
-      Cell: ({ value }) => (value ? `${value} kg` : ""),
-    },
+    { header: "Encargado", accessor: "elaboradorEncargado", defaultHidden: true, Cell: ({ value }) => value?.nombre || "—" },
+    { header: "Costo", accessor: "costo_total", defaultHidden: true, align: "right", Cell: ({ value }) => (value ? `$${formatNumberCL(value, 0)}` : "—") },
   ];
 
-  const openDeleteModal = async (id) => {
-    if (!canReadManufacture) {
-      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.READ]);
-      return;
-    }
+  const actions = (o) => (
+    <div className="flex items-center justify-end gap-2">
+      <ViewDetailButton onClick={() => navigate(`/produccion/elaboraciones/${o.id}`)} tooltipText="Ver detalle" />
+      <MenuAcciones
+        etiqueta={`Más acciones de la elaboración #${o.id}`}
+        items={[
+          puedeEscribir && esAnulable(o) && { label: "Anular", peligro: true, onClick: () => setPorAnular(o) },
+          puedeBorrar && etapaDe(o) === "planificada" && { label: "Eliminar", peligro: true, onClick: () => abrirBorrado(o) },
+        ]}
+      />
+    </div>
+  );
 
-    setDeleteTargetId(id);
-    setDeleteModalOpen(true);
-    setDeletePreview(null);
-    setDeletePreviewError(null);
-    setDeletePreviewLoading(true);
-
-    try {
-      const preview = await api(`/ordenes_manufactura/${id}/delete_preview`, { method: "GET" });
-      setDeletePreview(preview);
-    } catch (err) {
-      console.error("Error obteniendo delete_preview:", err);
-      setDeletePreviewError(err);
-    } finally {
-      setDeletePreviewLoading(false);
-    }
-  };
-
-  const closeDeleteModal = () => {
-    setDeleteModalOpen(false);
-    setDeleteTargetId(null);
-    setDeletePreview(null);
-    setDeletePreviewError(null);
-    setDeletePreviewLoading(false);
-  };
-
-  const goToNextPva = async (omId) => {
-    if (!canReadAddedValueGuideline) {
-      toast.permissionError([ModelType.PAUTA_VALOR_AGREGADO, ScopeType.WRITE]);
-      return;
-    }
-    const extra = (await ensureOmExtrasLoaded(omId)) || omExtrasById[omId];
-    const pautas = Array.isArray(extra?.pautas) ? extra.pautas : [];
-    if (pautas.length === 0) {
-      toast.info("La OM no tiene PVAs pendientes");
-      return;
-    }
-
-    const ordenadas = [...pautas].sort(
-      (a, b) => Number(a?.pvaPorProducto?.orden || 0) - Number(b?.pvaPorProducto?.orden || 0)
-    );
-    const siguiente = ordenadas.find((p) => !String(p?.estado || "").toLowerCase().includes("complet")) || null;
-    if (!siguiente?.id) {
-      toast.success("Todas las PVAs ya están completadas");
-      return;
-    }
-
-    try {
-      const estadoLower = String(siguiente?.estado || "").toLowerCase();
-      if (estadoLower.includes("pend")) {
-        await api(`/pautas-valor-agregado/${siguiente.id}/comenzar`, { method: "PUT" });
-      }
-      navigate(`/produccion/pva/ejecutar/${siguiente.id}`);
-    } catch (err) {
-      const msg = err?.error || err?.message;
-      toast.error(msg || "No se pudo comenzar la pauta");
-    }
-  };
-
-  const actions = (row) => {
-    const normalized = String(row?.estado || "").toLowerCase();
-    const hasPasos = (row?.registrosPasoProduccion?.length ?? 0) > 0;
-
-    return (
-      <div className="flex gap-2">
-        <ViewDetailButton
-          onClick={() => navigate(`/produccion/elaboraciones/${row.id}`)}
-          tooltipText="Ver Detalle"
-        />
-
-        {normalized === "borrador" ? (
-          <button
-            className="text-gray-400 hover:text-blue-500"
-            title="Asignar insumos"
-            onClick={() => navigate(`/produccion/elaboraciones/${row.id}/insumos`)}
-          >
-            <Clipboard className="w-5 h-5" />
-          </button>
-        ) : null}
-
-        {normalized === "insumos asignados" || normalized === "en ejecución" ? (
-          hasPasos ? (
-            <button
-              className="text-gray-400 hover:text-blue-500"
-              title="Ejecutar pasos"
-              onClick={() => navigate(`/produccion/elaboraciones/${row.id}/pasos`)}
-            >
-              <Play className="w-5 h-5" />
-            </button>
-          ) : (
-            <button
-              className="text-gray-400 hover:text-green-600"
-              title="Producción final"
-              onClick={() => navigate(`/produccion/elaboraciones/${row.id}/produccion-final`)}
-            >
-              <Package className="w-5 h-5" />
-            </button>
-          )
-        ) : null}
-
-        {normalized === "esperando salidas" ? (
-          <button
-            className="text-gray-400 hover:text-green-600"
-            title="Producción final"
-            onClick={() => navigate(`/produccion/elaboraciones/${row.id}/produccion-final`)}
-          >
-            <Package className="w-5 h-5" />
-          </button>
-        ) : null}
-
-        {normalized === "esperando pvas" ? (
-          <button
-            className="text-gray-400 hover:text-purple-600"
-            title="Ejecutar PVAs pendientes"
-            onClick={() => void goToNextPva(row.id)}
-          >
-            <Layers className="w-5 h-5" />
-          </button>
-        ) : null}
-
-        {normalized === "borrador" ? (
-          <TrashIconButton
-            onClick={() => openDeleteModal(row.id)}
-            tooltipText="Eliminar OM"
-          />
-        ) : null}
-      </div>
-    );
-  };
-
-  const handleDelete = async (id) => {
-    if (!canDeleteManufacture) {
-      toast.permissionError([ModelType.ORDEN_MANUFACTURA, ScopeType.DELETE]);
-      return;
-    }
-
-    try {
-      await api(`/ordenes_manufactura/${id}`, { method: "DELETE" });
-      setOrdenes((prev) => prev.filter((o) => o.id !== id));
-      toast.success(`OM #${id} eliminada correctamente`);
-    } catch {
-      toast.error("Error al eliminar la orden de manufactura");
-    }
-  };
-
-  const getSearchText = (om) =>
-    [
-      om.id,
-      om.receta?.nombre,
-      om.productoBase?.nombre,
-      om.materiaPrima?.nombre,
-      om.bodega?.nombre,
-      om.estado,
-    ]
-      .filter(Boolean)
-      .join(" ");
+  const getSearchText = (o) =>
+    [o.id, nombreProducto(o), o.receta?.nombre, o.bodega?.nombre, o.elaboradorEncargado?.nombre, o.etapa_nombre].filter(Boolean).join(" ");
 
   return (
     <>
-      <ConfirmDeletePreviewModal
-        isOpen={deleteModalOpen}
-        onClose={closeDeleteModal}
-        onConfirm={async () => {
-          if (deleteTargetId == null) return;
-
-          // Si el backend bloquea, el modal ya lo muestra.
-          if (deletePreview?.canDelete === false) return;
-
-          // Si no pudimos obtener preview, permitimos eliminar igualmente.
-          if (deletePreviewError) {
-            toast.error("No se pudo cargar el detalle; eliminando igualmente…");
-          }
-
-          await handleDelete(deleteTargetId);
-          closeDeleteModal();
-        }}
-        entityName={deleteTargetId != null ? `OM #${deleteTargetId}` : "Orden de Manufactura"}
-        title={deleteTargetId != null ? `¿Eliminar OM #${deleteTargetId}?` : "¿Eliminar Orden de Manufactura?"}
-        preview={deletePreview}
-        loading={deletePreviewLoading}
-        error={deletePreviewError}
-      />
-
       <DataTable
-        title="Órdenes de Manufactura"
-        data={ordenes}
-        columns={columns}
+        title="Elaboraciones"
+        data={datos}
+        headerExtra={({ filtrosColumna, cambiarFiltroColumna }) => (
+          <ChipsEstado
+            filas={datos}
+            estados={CHIPS}
+            campo="etapa_nombre"
+            filtro={filtrosColumna.etapa_nombre}
+            onCambiar={(f) => cambiarFiltroColumna("etapa_nombre", f)}
+          />
+        )}
+        toolbarStart={
+          <select
+            aria-label="Bodega"
+            value={bodega}
+            onChange={(e) => setBodega(e.target.value)}
+            className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm"
+          >
+            <option value="">Todas las bodegas</option>
+            {bodegas.map(([id, nombre]) => (
+              <option key={id} value={id}>{nombre}</option>
+            ))}
+          </select>
+        }
+        columns={columns.map((c) => ({ ...c, headerClassName: `!px-3 ${c.headerClassName ?? ""}`, cellClassName: `!px-3 ${c.cellClassName ?? ""}` }))}
         actions={actions}
         stickyActions
         getSearchText={getSearchText}
         loading={isLoading}
-        loadingMessage="Cargando órdenes de manufactura"
+        loadingMessage="Cargando elaboraciones"
+        defaultRowsPerPage={25}
         initialSort={{ key: "id", direction: "desc" }}
-        emptyMessage="No hay órdenes de manufactura registradas."
+        persistKey="elaboraciones_v2"
+        emptyMessage="No hay elaboraciones que calcen."
         headerActions={
-          <button
-            className="btn btn-primario"
-            onClick={() => navigate("/produccion/elaboraciones/nuevo")}
-          >
-            Añadir OM
-          </button>
+          puedeEscribir && (
+            <button className="btn btn-primario" onClick={() => navigate("/produccion/elaboraciones/nuevo")}>
+              + Nueva elaboración
+            </button>
+          )
         }
+      />
+
+      {porAnular && (
+        <ModalAnularElaboracion om={porAnular} abierto onCerrar={() => setPorAnular(null)} onAnulada={cargar} />
+      )}
+
+      <ConfirmDeletePreviewModal
+        isOpen={!!porBorrar}
+        onClose={() => setPorBorrar(null)}
+        onConfirm={borrar}
+        entityName={porBorrar ? `Elaboración #${porBorrar.id}` : "Elaboración"}
+        title={porBorrar ? `¿Eliminar la elaboración #${porBorrar.id}?` : "¿Eliminar la elaboración?"}
+        preview={porBorrar?.preview}
+        loading={porBorrar?.cargando}
+        error={porBorrar?.error}
       />
     </>
   );

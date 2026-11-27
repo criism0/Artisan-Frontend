@@ -53,8 +53,11 @@ export const REDIRECCIONES = [
   ["/Orden_de_Manufactura/:id/insumos", "/produccion/elaboraciones/:id/insumos"],
   ["/Orden_de_Manufactura/:id/pasos", "/produccion/elaboraciones/:id/pasos"],
   ["/Orden_de_Manufactura/:id/produccion-final", "/produccion/elaboraciones/:id/produccion-final"],
-  ["/Orden_de_Manufactura/:id/registrar-subproductos", "/produccion/elaboraciones/:id/registrar-subproductos"],
-  ["/Orden_de_Manufactura/:id/subproductos-decision", "/produccion/elaboraciones/:id/subproductos-decision"],
+  ["/Orden_de_Manufactura/:id/registrar-subproductos", "/produccion/elaboraciones/:id/produccion-final"],
+  ["/Orden_de_Manufactura/:id/subproductos-decision", "/produccion/elaboraciones/:id/produccion-final"],
+  // Los subproductos se registran dentro de «Registrar producción» (2026-11-26).
+  ["/produccion/elaboraciones/:id/registrar-subproductos", "/produccion/elaboraciones/:id/produccion-final"],
+  ["/produccion/elaboraciones/:id/subproductos-decision", "/produccion/elaboraciones/:id/produccion-final"],
   ["/Orden_de_Manufactura/add", "/produccion/elaboraciones/nuevo"],
   ["/Ordenes", "/adquisiciones/ordenes-compra"],
   ["/Ordenes/:ordenId", "/adquisiciones/ordenes-compra/:ordenId"],

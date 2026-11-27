@@ -6,6 +6,9 @@ import { downloadBlob } from "../../lib/downloadBlob";
 import { formatCLP, formatNumberCL } from "../../services/formatHelpers";
 import { checkScope, ModelType, ScopeType } from "../../services/scopeCheck";
 import PageHeader from "../../components/UI/PageHeader.jsx";
+import { BarraEtapas } from "../../components/Produccion/Elaboracion.jsx";
+import SubproductosSeccion from "../../components/Produccion/SubproductosSeccion.jsx";
+import { nombreProducto } from "../../utils/elaboracionVista.js";
 
 const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
@@ -624,54 +627,26 @@ export default function ProduccionFinal() {
     <div>
       <PageHeader
         volverA={`/produccion/elaboraciones/${id}`}
-        titulo={`Producción Final · OM #${id}`}
+        titulo={`Registrar producción · Elaboración #${id}${om ? ` · ${nombreProducto(om)}` : ""}`}
         tituloAyuda="Producción final"
         ayuda={
           <>
             <p>
-              Se registra lo que salió de la OM: el peso obtenido, las unidades o cajas, los
-              subproductos y el empaque. La diferencia con lo que entró queda como merma.
+              Se registra lo que salió de la elaboración: el peso obtenido, las unidades o cajas,
+              los subproductos y el empaque. La diferencia con lo que entró queda como merma.
             </p>
             <p>«Previsualizar» muestra el costo y el rendimiento antes de registrar.</p>
           </>
         }
       />
 
-      {/* Panel informativo de la OM */}
       {om && !loadingOm ? (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-primary">
-            <div className="text-xs text-gray-500 font-medium">Receta</div>
-            <div className="text-lg font-bold text-text">{om.receta?.nombre || "—"}</div>
-            <div className="text-xs text-gray-600 mt-1">
-              Costo ref: {formatCLP(Number(om.receta?.costo_referencial_produccion || 0), 2)}
-            </div>
+        <>
+          <div className="mb-6 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+            <BarraEtapas om={om} />
           </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
-            <div className="text-xs text-gray-500 font-medium">Peso Objetivo</div>
-            <div className="text-lg font-bold text-text">{formatNumberCL(om.peso_objetivo || 0, 2)} kg</div>
-            <div className="text-xs text-gray-600 mt-1">
-              Costo OM: {formatCLP(Number(om.costo_total || 0), 2)}
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-            <div className="text-xs text-gray-500 font-medium">Ingredientes</div>
-            <div className="text-lg font-bold text-text">{consumoInsumos.length}</div>
-            <div className="text-xs text-gray-600 mt-1">
-              {consumoInsumos.filter((r) => Number(r.peso_utilizado || 0) > 0).length} consumidos
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-orange-500">
-            <div className="text-xs text-gray-500 font-medium">Estado</div>
-            <div className="text-lg font-bold text-text capitalize">{om.estado || "—"}</div>
-            <div className="text-xs text-gray-600 mt-1">
-              {om.elaboradorEncargado?.nombre || "Sin asignar"}
-            </div>
-          </div>
-        </div>
+          <SubproductosSeccion om={om} />
+        </>
       ) : null}
 
       {/* Panel de consumo de insumos esperado vs actual */}
